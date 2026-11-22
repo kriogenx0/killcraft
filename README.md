@@ -30,8 +30,6 @@ The live game runs on Coolify from this repo's `main` branch:
 - **Health check:** `GET /health`
 - **DNS:** an `A` record for `killcraft` on kriogenx.com pointing at the Coolify server's IP.
 
-The live game is at https://killcraft.kriogenx.com, hosted on Render from `render.yaml` (auto-deploys on every push to `main`). DNS: a `CNAME` record `killcraft` → `killcraft.onrender.com` at the kriogenx.com DNS host.
-
 ## How to play
 
 - **Economy:** credits are the only resource. Build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it as credits. Each field holds about 14,000 credits and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
