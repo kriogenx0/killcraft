@@ -75,8 +75,12 @@ export function makeIcons(team = 0): void {
     g.fillStyle = '#1a1e18'; g.fillRect(-3, -18, 6, 10);
   });
   ICON.sell = cmd((g) => {
-    g.fillStyle = '#e8c040'; g.strokeStyle = '#000'; g.lineWidth = 2;
-    g.beginPath(); g.arc(0, 0, 15, 0, Math.PI * 2); g.fill(); g.stroke();
-    g.fillStyle = '#5a4008'; g.font = 'bold 20px Georgia'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', 0, 1);
+    // a small stack of gold coins
+    g.strokeStyle = '#000'; g.lineWidth = 2;
+    for (const [x, y] of [[-6, 8], [6, 8], [0, 0], [0, -8]]) {
+      g.fillStyle = '#b88a18'; g.beginPath(); g.ellipse(x, y + 3, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#e8c040'; g.beginPath(); g.ellipse(x, y, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+    g.strokeStyle = '#8a5a00'; g.lineWidth = 1; g.beginPath(); g.ellipse(0, -8, 6, 2.5, 0, 0, Math.PI * 2); g.stroke();
   });
 }

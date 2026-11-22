@@ -105,7 +105,7 @@ export function updProduction(team: number, dt: number): void {
     if (!producerOf(team, line)) { cancel(team, it.type); continue; }
     const dp = Math.min((speed * dt) / timeOf(it.type), 1 - it.prog), cost = costOf(it.type) * dp;
     if (G.credits[team] < cost) {
-      if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, 'Insufficient funds'); }
+      if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, 'Not enough gold'); }
       continue;
     }
     G.credits[team] -= cost;

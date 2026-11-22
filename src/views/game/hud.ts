@@ -1,4 +1,4 @@
-// The top bar (credits, power, time) and the selection panel with its commands.
+// The top bar (gold, power, age, time) and the selection panel with its commands.
 import { G, bldDef, unitDef, type Ent } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
@@ -55,7 +55,7 @@ export function commandList(): Command[] {
       { id: 'amove', label: 'Attack', hotkey: COMMAND_KEYS.amove, icon: ICON.amove, tip: 'Attack-move: fight anything on the way' },
     ];
   if (first.kind === 'bld' && s.length === 1) {
-    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs credits while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs gold while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: '', icon: ICON.sell, tip: 'Sell this building for half its value' }); // no hotkey: too easy to hit by accident
     return list;
   }
@@ -107,7 +107,7 @@ function detailsMarkup(s: Ent[]): string {
   if (s.length > 1)
     return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
   const e = s[0];
-  if (!e) return '<p class="hud-stats">Build power, then a refinery. Harvesters turn ore into credits.</p>';
+  if (!e) return '<p class="hud-stats">Build power, then a refinery. Harvesters turn ore into gold.</p>';
   if (e.kind === 'unit') return unitDetails(e);
   if (e.kind === 'bld') return buildingDetails(e);
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
