@@ -1,6 +1,6 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them.
-import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -287,6 +287,17 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
   }
 }
 
+/**
+ * Send a unit toward a tile, unless it is already fighting someone on the way there, or already
+ * heading close enough to it. Re-giving the same order every think would make it drop the fight
+ * (or its path) and pick it up again: attack, stop, attack, stop.
+ */
+function advance(u: Ent, tx: number, ty: number): void {
+  const o = u.order;
+  if (o?.t === 'move' && (valid(o.sub) || Math.max(Math.abs(o.gx - tx), Math.abs(o.gy - ty)) <= 3)) return;
+  orderMove(u, tx, ty);
+}
+
 function military(team: number): void {
   const A = ais[team], foe = foeOf(team);
   if (foe < 0) return;
@@ -301,7 +312,7 @@ function military(team: number): void {
     const threat = G.ents.find((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
-        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));
+        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));
   }
   const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld');
   if (!targets.length) targets.push(...G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit'));
@@ -314,7 +325,7 @@ function military(team: number): void {
   if (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2)) {
     A.attacking = true;
     A.attackAt = Math.min(MAX_WAVE, A.attackAt + 3);
-    for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of army) if (!u.order || u.order.t === 'move') advance(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
     for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   }

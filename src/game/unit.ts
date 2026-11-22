@@ -330,7 +330,7 @@ export function updUnit(u: Ent, dt: number): void {
       }
       // engage: stop to fight anything met on the way, then carry on
       let t = valid(o.sub);
-      if (!t && o.sub) { o.sub = null; u.path = null; }
+      if (!t && o.sub) { o.sub = null; u.path = null; u.scan = 0; } // it fell: look for the next one now
       u.scan -= dt;
       if (u.scan <= 0) {
         u.scan = 0.3;
@@ -355,7 +355,7 @@ export function updUnit(u: Ent, dt: number): void {
         if (b) { t = b; o.tgt = b.id; u.path = null; }
       }
       const gaveUp = !t || (o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) || !combatStep(u, t, dt);
-      if (gaveUp) { u.order = null; u.path = null; }
+      if (gaveUp) { u.order = null; u.path = null; u.scan = 0; }
       break;
     }
     case 'harvest':
