@@ -92,9 +92,33 @@
     pointer-events: none;
   }
 
-  .build-cell-count {
+  // hotkey letter, lit while the building that makes this item is selected
+  .build-cell-key {
     position: absolute;
     top: 0;
+    right: 0;
+    min-width: 14px;
+    padding: 0 2px;
+    font: inherit;
+    font-size: $font-xs;
+    line-height: 14px;
+    color: var(--color-hotkey);
+    text-align: center;
+    pointer-events: none;
+    background: rgb(0 0 0 / 55%);
+    border-bottom-left-radius: $radius;
+    opacity: 0.45;
+    transition: opacity $duration;
+  }
+
+  &--keyed .build-cell-key {
+    opacity: 1;
+    box-shadow: inset 0 0 0 1px var(--color-hotkey);
+  }
+
+  .build-cell-count {
+    position: absolute;
+    top: 14px;
     right: 0;
     padding: 0 $space-1;
     font-size: $font-sm;

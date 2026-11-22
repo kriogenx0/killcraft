@@ -39,6 +39,8 @@ export interface TechDef {
   t: number;
   /** buildings that must exist before the research can start */
   requires: BldType[];
+  /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
+  key?: string;
   desc: string;
 }
 
