@@ -112,7 +112,7 @@ describe('the air war', () => {
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
     if (!yard) throw new Error('no yard');
     addBuilding('airfield', 0, yard.tx + 4, yard.ty, false);
-    for (const [era, want] of [[1, ['balloon', 'biplane']], [2, ['balloon', 'biplane', 'helicopter']]] as const) {
+    for (const [era, want] of [[1, ['balloon', 'biplane']], [2, ['balloon', 'biplane', 'helicopter', 'drone']]] as const) {
       G.era[0] = era;
       expect(available(0, 'air')).toEqual(want);
     }

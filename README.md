@@ -46,7 +46,7 @@ The live game runs on Coolify from this repo's `main` branch:
   | Age | Research | Needs | Unlocks |
   | --- | --- | --- | --- |
   | Medieval | (start) | | Swordsman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, the Lumber Mill, and every base structure but the Gun Turret |
-  | World War | 1200 ore, 250 wood, 40s | Barracks | Rifleman, Scout Jeep, Battle Tank, Gun Turret, Flak Cannon, Oil Derrick, Airfield, War Balloon, Biplane |
+  | World War | 1000 ore, 150 wood, 35s | Barracks | Rifleman, Scout Jeep, Battle Tank, Gun Turret, Flak Cannon, Oil Derrick, Airfield, War Balloon, Biplane |
   | Modern | 3000 ore, 600 wood, 400 oil, 65s | War Factory | Rocket Soldier, Heavy Tank, Attack Helicopter |
 
 - **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (World War) fires shells that beat vehicles; the Flak Cannon (World War) only shoots at aircraft, from long range.

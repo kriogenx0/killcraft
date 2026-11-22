@@ -11,7 +11,7 @@ import { UNIT, type UnitType } from '../../../data/unit.ts';
 import type { BldType } from '../../../data/building.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
-import { airfield, balloon, biplane, flak, helicopter } from './aircraft.ts';
+import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -129,6 +129,28 @@ function rifleman(team: number): Model {
     mesh(box(0.028, 0.06, 0.02), M.gun(), -0.01, -0.045, 0), // magazine
     mesh(box(0.05, 0.015, 0.012), M.gun(), -0.03, 0.026, 0), // sight
     mesh(box(0.01, 0.02, 0.008), M.gun(), 0.26, 0.018, 0)); // front sight
+  m.parts.gun = gun;
+  m.root.add(gun);
+  return m;
+}
+
+/** World War: a machine gunner in a peaked cap with an ammo belt, a belt-fed gun and its bipod. */
+function gunner(team: number): Model {
+  const m = soldier({ torso: M.khaki(), legs: M.olive(), arms: M.khaki(), boots: M.leather() });
+  m.root.add(mesh(box(0.135, 0.09, 0.2), teamMat(team), 0, 0.34, 0)); // tunic front
+  helmet(m.root, teamMat(team, 'd'));
+  // bandolier across the chest and an ammo box on the back
+  m.root.add(rot(mesh(box(0.015, 0.2, 0.035), M.brass(), 0.072, 0.35, 0), 0.7, 0, 0));
+  m.root.add(mesh(box(0.08, 0.1, 0.12), M.olive(), -0.1, 0.33, 0));
+  m.parts.armL.rotation.z = m.parts.armR.rotation.z = 1.3;
+  const gun = group(0.15, 0.33, 0.05,
+    mesh(box(0.1, 0.05, 0.03), M.wood(), -0.13, -0.01, 0), // stock
+    mesh(box(0.14, 0.06, 0.045), M.gun(), 0, 0, 0), // receiver
+    along(mesh(cyl(0.024, 0.024, 0.2, 10), M.darkSteel(), 0.16, 0.005, 0)), // cooling jacket
+    along(mesh(cyl(0.008, 0.008, 0.06, 6), M.gun(), 0.29, 0.005, 0)), // muzzle
+    mesh(box(0.04, 0.05, 0.05), M.olive(), 0, -0.05, -0.04), // ammo pan
+    rod([0.2, -0.01, 0.015], [0.24, -0.13, 0.05], 0.005, M.gun(), 4), // bipod legs
+    rod([0.2, -0.01, -0.015], [0.24, -0.13, -0.05], 0.005, M.gun(), 4));
   m.parts.gun = gun;
   m.root.add(gun);
   return m;
@@ -594,6 +616,7 @@ function makeUnit(type: UnitType, team: number): Model {
   if (UNIT[type].look) return aetherUnit(type, team);
   switch (type) {
     case 'rifleman': return rifleman(team);
+    case 'gunner': return gunner(team);
     case 'rocket': return rocketeer(team);
     case 'swordsman': return swordsman(team);
     case 'crossbowman': return crossbowman(team);
@@ -606,6 +629,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'balloon': return balloon(team);
     case 'biplane': return biplane(team);
     case 'helicopter': return helicopter(team);
+    case 'drone': return drone(team);
     default: return rifleman(team);
   }
 }

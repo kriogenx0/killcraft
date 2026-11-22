@@ -68,7 +68,11 @@ function infantry(g: G2, type: UnitType, T: TeamColors, p: UnitPose): void {
   const gun = () => {
     const recoil = p.atk > 0 ? (1 - p.atk) * 2 : 0;
     const hx = cs * 3 + px * 2.5, hy = by + 1 + sn * 2;
-    if (type === 'rocket') {
+    if (type === 'gunner') {
+      // heavy gun with a cooling jacket
+      oline(g, hx - cs * recoil, hy - sn * recoil, hx + cs * (12 - recoil), hy + sn * (10 - recoil), 2.8, '#3a3e38');
+      blob(g, hx + cs * 2, hy + sn * 2 + 2, 2, 1.6, '#4e5430');
+    } else if (type === 'rocket') {
       // launcher on the shoulder
       oline(g, hx - cs * (5 + recoil), hy - 3 - sn * 5, hx + cs * (9 - recoil), hy - 3 + sn * 7, 3.4, '#5a6232');
       blob(g, hx + cs * (9 - recoil), hy - 3 + sn * 7, 1.8, 1.8, '#2a2e1a');
@@ -308,6 +312,22 @@ function biplane(g: G2, T: TeamColors, p: UnitPose): void {
   g.restore();
 }
 
+/** A quadcopter from above: four arms, four prop discs and a sensor ball. */
+function drone(g: G2, T: TeamColors, p: UnitPose): void {
+  g.save();
+  g.translate(0, -6);
+  g.rotate(p.f);
+  for (const [x, y] of [[5, 5], [5, -5], [-5, 5], [-5, -5]]) {
+    oline(g, 0, 0, x, y, 1.6, '#222');
+    g.globalAlpha = 0.45;
+    blob(g, x, y, 3.4, 3.4, '#1a1a1a', false);
+    g.globalAlpha = 1;
+  }
+  blob(g, 0, 0, 3.6, 2.8, shade(g, 0, 0, 4, T.l, T.d));
+  blob(g, 3, 0, 1.2, 1.2, '#9ec4d8');
+  g.restore();
+}
+
 /** An attack helicopter from above: body, tail boom and a rotor disc. */
 function helicopter(g: G2, T: TeamColors, p: UnitPose): void {
   g.save();
@@ -340,7 +360,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     g.fillRect(-26, -30, 52, 44);
   }
   switch (look ?? type) {
-    case 'rifleman': case 'rocket': infantry(g, look ?? type, T, p); break;
+    case 'rifleman': case 'gunner': case 'rocket': infantry(g, look ?? type, T, p); break;
     case 'swordsman': swordsman(g, T, p); break;
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
@@ -350,6 +370,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'balloon': balloon(g, T); break;
     case 'biplane': biplane(g, T, p); break;
     case 'helicopter': helicopter(g, T, p); break;
+    case 'drone': drone(g, T, p); break;
     default: tank(g, T, p, type === 'heavy');
   }
   if (look) {
