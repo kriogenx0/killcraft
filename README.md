@@ -55,6 +55,7 @@ The live game runs on Coolify from this repo's `main` branch:
   | World War | Build the Engine Works (1000 ore, 150 wood, 35s; needs an Oil Derrick) | Rifleman, Machine Gunner, Scout Jeep, Battle Tank, Gun Turret, Flak Cannon, Airfield, War Balloon, Biplane |
   | Modern | Research at the Construction Yard: 800 oil, 60s | Rocket Soldier, Heavy Tank, Attack Helicopter, Combat Drone |
 
+- **Bounty on the leader:** a side whose army and buildings are worth 30% more than anyone else's is in the lead. Everyone is told, computer players turn on it, and whoever destroys its units or buildings is paid half their gold price.
 - **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (World War) fires shells that beat vehicles; the Flak Cannon (World War) only shoots at aircraft, from long range.
 - **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. You start with two Swordsmen, a Crossbowman and a Knight.
   - Barracks: swords and bows first, then guns, then rockets: Swordsman (plate armor, beats riflemen up close), Crossbowman (armor-piercing bolts), Knight (fast armored lancer), then Rifleman, Machine Gunner (belt-fed gun, mows down infantry but moves slowly) and Rocket Soldier.
