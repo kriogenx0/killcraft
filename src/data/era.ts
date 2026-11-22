@@ -10,15 +10,14 @@ export interface EraDef {
 
 export const ERA: EraDef[] = [
   { name: 'Medieval', desc: 'Swords, crossbows, knights and catapults.' },
-  { name: 'Gunpowder', desc: 'Riflemen, the Gun Turret, and War Balloons from the Airfield.' },
-  { name: 'Industrial', desc: 'Scout Jeeps, Battle Tanks, Biplanes and the Flak Cannon.' },
+  { name: 'World War', desc: 'Riflemen, Scout Jeeps, Battle Tanks, the Gun Turret and Flak Cannon, Oil Derricks, and War Balloons and Biplanes from the Airfield.' },
   { name: 'Modern', desc: 'Rocket Soldiers, Heavy Tanks and Attack Helicopters.' },
 ];
 
 export const START_ERA = 0;
 export const LAST_ERA = ERA.length - 1;
 
-export type TechType = 'age1' | 'age2' | 'age3' | 'heal1' | 'heal2' | 'heal3' | 'ward';
+export type TechType = 'age1' | 'age2' | 'heal1' | 'heal2' | 'heal3' | 'ward';
 
 export interface TechDef {
   name: string;
@@ -52,9 +51,8 @@ export const MAX_HEAL = HEAL_RATE.length - 1;
 const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
 
 export const TECH: Record<TechType, TechDef> = {
-  age1: { name: 'Gunpowder Age', era: 0, age: 1, cost: 1000, wood: 150, t: 35, requires: ['barracks'], desc: `Advance to the Gunpowder age. Unlocks ${ERA[1].desc}` },
-  age2: { name: 'Industrial Age', era: 1, age: 2, cost: 2000, wood: 600, t: 50, requires: ['factory'], desc: `Advance to the Industrial age. Unlocks ${ERA[2].desc}` },
-  age3: { name: 'Modern Age', era: 2, age: 3, cost: 3000, wood: 600, oil: 400, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[3].desc}` },
+  age1: { name: 'World War', era: 0, age: 1, cost: 1200, wood: 250, t: 40, requires: ['barracks'], desc: `Advance to the World War age. Unlocks ${ERA[1].desc}` },
+  age2: { name: 'Modern Age', era: 1, age: 2, cost: 3000, wood: 600, oil: 400, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[2].desc}` },
   heal1: { name: 'Field Dressing', era: 0, heal: 1, cost: 400, t: 25, requires: ['barracks'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
   heal2: { name: 'Surgeons', era: 1, heal: 2, cost: 800, t: 35, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },
   heal3: { name: 'Field Hospitals', era: 2, heal: 3, cost: 1200, t: 45, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(3)}).` },
