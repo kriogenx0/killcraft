@@ -1,4 +1,4 @@
-// The top bar (ore, wood, oil, power, age, time) and the selection panel with its commands.
+// The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
 import { G, bldDef, isOrganic, unitDef, type Ent } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
@@ -6,6 +6,8 @@ import { power } from '../../game/entity.ts';
 import { ERA, HEAL_RATE } from '../../data/era.ts';
 import { eraOf } from '../../game/production.ts';
 import { millRate, oilRate, treesNear, woodRate } from '../../game/economy.ts';
+import { holderOf } from '../../game/aether.ts';
+import { AETHER_RATE } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
@@ -20,6 +22,7 @@ export interface HudEls {
   credits: HTMLElement;
   wood: HTMLElement;
   oil: HTMLElement;
+  aether: HTMLElement;
   power: HTMLElement;
   era: HTMLElement;
   time: HTMLElement;
@@ -120,6 +123,11 @@ function detailsMarkup(s: Ent[]): string {
   if (!e) return '<p class="hud-stats">Build power, a lumber mill by the woods, then a refinery. Harvesters bring in ore.</p>';
   if (e.kind === 'unit') return unitDetails(e);
   if (e.kind === 'bld') return buildingDetails(e);
+  if (e.type === 'aether') {
+    const h = holderOf(e), held = h < 0 ? '' : h === V.team ? ` · <b>Yours</b>: +${perMin(AETHER_RATE)}/min` : ' · <b>Held by the enemy</b>';
+    return `<h3>Aether Deposit</h3>${barHtml(e.hp / e.maxhp, 'progress', 'Aether left')}<p class="hud-stats">${Math.ceil(e.hp)} Aether left${held}</p>` +
+      '<p class="hud-stats">Shards of a fallen star. Keep a unit beside it, with no enemy there, to draw Aether. It never regrows.</p>';
+  }
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
 }
 
@@ -133,6 +141,9 @@ export function refreshHud(): void {
   els.credits.textContent = String(Math.floor(G.credits[V.team]));
   els.wood.textContent = String(Math.floor(G.wood[V.team] ?? 0));
   els.oil.textContent = String(Math.floor(G.oil[V.team] ?? 0));
+  const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
+  if (box && box.hidden === found) box.hidden = !found;
+  if (found) els.aether.textContent = String(Math.floor(G.aether[V.team] ?? 0));
   setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees.`);
   setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the Industrial age on.`);
   els.power.textContent = `${p.used} / ${p.made}`;

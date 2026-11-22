@@ -8,6 +8,7 @@ import { angleDiff, approach, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { setOrder } from './order.ts';
+import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -18,7 +19,7 @@ export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unit
 
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
   if (t.dead || t.kind === 'source') return;
-  t.hp -= Math.max(1, dmg);
+  t.hp -= Math.max(1, wardDamage(t, dmg));
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else burst('spark', t.x + (Math.random() - 0.5) * (t.w || 0.6) * TS * 0.6, t.y - 6, 3, 50, 140);
@@ -41,6 +42,7 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
   if (w.proj === 'melee' && armorOf(t) !== 'none') burst('spark', (x + (src?.x ?? x)) / 2, (y + (src?.y ?? y)) / 2 - 8, 4, 60, 160); // steel on steel
   if (G.visualOnly) { if (w.splash) blast(x, y, w.splash); return; } // the server decides damage
   dealDamage(t, w.dmg * w.vs[armorOf(t)], src);
+  if (w.slow) hex(t, w.slow);
   if (!w.splash) return;
   blast(x, y, w.splash);
   for (const e of G.ents) {
@@ -55,6 +57,7 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   const z = s.kind === 'bld' ? Math.max(16, bldDef(s).top) : 8;
   const w = WEAPON[wt], mx = s.x + Math.cos(s.tface) * (s.kind === 'bld' ? 16 : 12), my = s.y - (s.kind === 'bld' ? z - 2 : 6) + Math.sin(s.tface) * 10;
   s.atkT = 0.25;
+  unveil(s);
   hooks.fired(s, wt, t);
   if (w.proj === 'melee') { hit(wt, t, s, t.x, t.y); return; }
   // gunpowder flashes; bows and catapults don't
@@ -72,7 +75,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | n
   const r = radiusTiles * TS;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
-    if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit')) continue;
+    if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : weaponOf(e) ? 0 : 40);
@@ -92,7 +95,7 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
-  if (!d.weapon) return false;
+  if (!d.weapon || cloakedFrom(t, u.team)) return false;
   const w = WEAPON[d.weapon], r = approach(u, t, w.range * TS, dt);
   if (r === null) return false;
   if (r && aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
@@ -107,7 +110,7 @@ export function updTurret(b: Ent, dt: number): void {
   b.cd -= dt;
   b.scan -= dt;
   let t = valid(b.order?.t === 'attack' ? b.order.tgt : null);
-  if (t && edgeDist(b, t) > w.range * TS) t = null;
+  if (t && (edgeDist(b, t) > w.range * TS || cloakedFrom(t, b.team))) t = null;
   if (!t && b.scan <= 0) {
     b.scan = 0.3;
     t = acquire(b, w.range, true);
