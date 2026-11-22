@@ -1,7 +1,7 @@
 import type { WeaponType } from './weapon.ts';
 import type { Producer } from './unit.ts';
 
-export type BldType = 'yard' | 'power' | 'refinery' | 'barracks' | 'factory' | 'turret';
+export type BldType = 'yard' | 'power' | 'refinery' | 'barracks' | 'factory' | 'turret' | 'tower';
 
 export interface BldDef {
   name: string;
@@ -34,11 +34,12 @@ export const BUILDING: Record<BldType, BldDef> = {
   refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Turns ore into credits. Comes with a free harvester.' },
   barracks: { name: 'Barracks', size: 2, top: 22, hp: 500, cost: 300, t: 8, era: 0, power: -20, sight: 5, requires: ['power'], produces: 'infantry', buildable: true, desc: 'Trains infantry.' },
   factory: { name: 'War Factory', size: 3, top: 34, hp: 1000, cost: 2000, t: 18, era: 0, power: -30, sight: 5, requires: ['refinery'], produces: 'vehicle', buildable: true, desc: 'Builds vehicles.' },
+  tower: { name: 'Watchtower', size: 1, top: 44, hp: 420, cost: 400, t: 9, era: 0, power: -10, sight: 7, requires: ['barracks'], weapon: 'ballista', buildable: true, desc: 'Stone tower with a ballista on top. Strong against infantry and cavalry.' },
   turret: { name: 'Gun Turret', size: 1, top: 12, hp: 450, cost: 600, t: 10, era: 1, power: -20, sight: 7, requires: ['barracks'], weapon: 'turretcannon', buildable: true, desc: 'Defensive cannon. Strong against vehicles.' },
 };
 
 /** Order the structures appear in the sidebar. */
-export const BLD_TYPES: BldType[] = ['power', 'refinery', 'barracks', 'factory', 'turret'];
+export const BLD_TYPES: BldType[] = ['power', 'refinery', 'barracks', 'factory', 'tower', 'turret'];
 
 /** New structures must be placed within this many tiles of an existing one. */
 export const BUILD_RADIUS = 3;
