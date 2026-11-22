@@ -26,6 +26,7 @@ import { initScene, renderScene, resizeScene, updateCamera, viewFootprint } from
 import { initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
+import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
@@ -69,6 +70,7 @@ export function mountGameView(root: HTMLElement): void {
     initTerrain(G.seed);
     initFog(refreshFog);
     initWorld3d();
+    initPortals3d();
     resetEntities3d();
     initFx3d();
   };
@@ -225,6 +227,7 @@ export function mountGameView(root: HTMLElement): void {
       updateCamera();
       syncEntities(dt);
       updateFx3d();
+      animatePortals3d(dt);
       renderScene();
       drawOverlay(og);
       drawMinimap(mg, viewFootprint());

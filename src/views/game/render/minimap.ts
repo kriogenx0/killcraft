@@ -3,6 +3,7 @@ import { G, hooks, tileOf, type Ent } from '../../../game/state.ts';
 import { MW, MH, TS } from '../../../game/const.ts';
 import { exploredAt, seenAt } from '../../../game/fog.ts';
 import { teamColors } from '../../../data/team.ts';
+import { PORTAL_COLORS } from '../../../data/map.ts';
 import { TAU } from '../../../util/math.ts';
 import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { MINI, terrain } from './terrain.ts';
@@ -49,6 +50,13 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
   m.drawImage(terrain.mini, 0, 0);
   m.fillStyle = '#e0b030';
   for (let i = 0; i < MW * MH; i++) if (G.ore[i] > 0 && G.vis[i]) m.fillRect((i % MW) * k, ((i / MW) | 0) * k, k, k);
+  G.portals.forEach((p, n) => {
+    m.fillStyle = PORTAL_COLORS[n % PORTAL_COLORS.length];
+    for (const [x, y] of [p.a, p.b]) {
+      if (!G.vis[y * MW + x]) continue;
+      m.beginPath(); m.arc((x + 0.5) * k, (y + 0.5) * k, 3, 0, TAU); m.fill();
+    }
+  });
   for (const e of G.ents) {
     if (e.dead) continue;
     if (e.team !== V.team && G.vis[tileOf(e.y) * MW + tileOf(e.x)] < (e.kind === 'unit' ? 2 : 1)) continue;

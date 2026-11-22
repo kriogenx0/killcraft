@@ -7,6 +7,7 @@ import { BUILDING, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
 import { nearBase, tileFree } from '../../../game/building.ts';
+import { nearPortal } from '../../../game/map.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
@@ -190,7 +191,7 @@ function updateGhost(): void {
   g.group.visible = true;
   g.group.position.set(m.tx + s / 2, 0, m.ty + s / 2);
   g.tiles.forEach((t, i) => {
-    const ok = near && tileFree(m.tx + (i % s), m.ty + Math.floor(i / s), V.team);
+    const x = m.tx + (i % s), y = m.ty + Math.floor(i / s), ok = near && tileFree(x, y, V.team) && !nearPortal(x, y);
     (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
   });
 }
