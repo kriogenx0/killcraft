@@ -1,6 +1,7 @@
 // Walking along paths, approaching targets, and keeping units from stacking on each other.
-import { G, blkAt, isAir, unitDef, type Ent, type Target } from './state.ts';
-import { MW, MH, TS } from './const.ts';
+import { G, blkAt, isAir, tileOf, unitDef, type Ent, type Target } from './state.ts';
+import { MW, MH, TS, SHALLOW } from './const.ts';
+import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
 import { edgeDist, isJump, pathFor, pathTo } from './path.ts';
 import { warpFx } from './fx.ts';
@@ -18,6 +19,9 @@ export function angleDiff(a: number, b: number): number {
   if (d > Math.PI) d = Math.PI * 2 - d;
   return d;
 }
+
+/** Ground units wade slowly through shallow water. */
+export const terrainSpeed = (u: Ent): number => (!isAir(u) && G.terr[tileOf(u.y) * MW + tileOf(u.x)] === SHALLOW ? SHALLOW_SPEED : 1);
 
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {
@@ -40,7 +44,7 @@ export function followPath(u: Ent, dt: number): boolean {
   } else if (air) u.face = turnToward(u.face, want, 6 * dt); // aircraft bank around without stopping
   else u.face = want;
   // vehicles slow down while still turning
-  const step = d.spd * TS * dt * (d.cls === 'vehicle' ? Math.max(0.35, Math.cos(angleDiff(u.face, want))) : 1);
+  const step = d.spd * terrainSpeed(u) * TS * dt * (d.cls === 'vehicle' ? Math.max(0.35, Math.cos(angleDiff(u.face, want))) : 1);
   u.walk += step / 24;
   if (dist <= step) {
     u.x = tx; u.y = ty;
@@ -77,7 +81,7 @@ export function approach(u: Ent, t: Target, range: number, dt: number): boolean 
   }
   // no path left but still out of reach (a unit target on the same or a diagonal tile): step straight in
   if (t.w) return false;
-  const d = Math.hypot(t.x - u.x, t.y - u.y), step = Math.min(d, unitDef(u).spd * TS * dt);
+  const d = Math.hypot(t.x - u.x, t.y - u.y), step = Math.min(d, unitDef(u).spd * terrainSpeed(u) * TS * dt);
   const nx = u.x + ((t.x - u.x) / d) * step, ny = u.y + ((t.y - u.y) / d) * step;
   if (d < 1 || blkAt(nx, ny)) return null; // across a blocked corner: can't get there from here
   u.x = nx; u.y = ny; u.face = Math.atan2(t.y - u.y, t.x - u.x); u.moving = true;

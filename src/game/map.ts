@@ -1,9 +1,12 @@
 // Seeded terrain generation: lakes and woods from smoothed noise, ore fields around crystal rocks,
 // and clearings for the bases.
 import { G, type Tile } from './state.ts';
-import { MW, MH, GRASS, WATER, TREE } from './const.ts';
+import { MW, MH, GRASS, WATER, TREE, SHALLOW, ROCK, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { START_YARDS, ORE_SOURCES, FORESTS, OIL_WELLS, PORTAL_LAYOUTS, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR } from '../data/map.ts';
+import {
+  START_YARDS, ORE_SOURCES, FORESTS, OIL_WELLS, PORTAL_LAYOUTS, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR,
+  WATER_LEVEL, HILL_HEIGHT, PLATEAU_HEIGHT, RIVER_CHANCE, COAST_CHANCE,
+} from '../data/map.ts';
 import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
 import { ORE_FIELD_RADIUS, ORE_TILE_MAX } from '../data/ore.ts';
 
@@ -24,24 +27,132 @@ export function eachInDisk(cx: number, cy: number, r: number, fn: (i: number, x:
       if (x >= 0 && y >= 0 && x < MW && y < MH && Math.hypot(x - cx, y - cy) <= r) fn(y * MW + x, x, y);
 }
 
+/** 0..1, eased: 0 at or below a, 1 at or above b. */
+const smooth = (a: number, b: number, v: number): number => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** Distance (tiles, 8-way chamfer) from every tile to the nearest tile where `src` is true. */
+function distanceTo(src: (i: number) => boolean): Float32Array {
+  const d = new Float32Array(MW * MH).fill(1e6);
+  for (let i = 0; i < MW * MH; i++) if (src(i)) d[i] = 0;
+  const pass = (dirs: [number, number, number][], y0: number, y1: number, step: number, x0: number, x1: number) => {
+    for (let y = y0; y !== y1; y += step)
+      for (let x = x0; x !== x1; x += step) {
+        const i = y * MW + x;
+        for (const [dx, dy, c] of dirs) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < MW && ny < MH && d[ny * MW + nx] + c < d[i]) d[i] = d[ny * MW + nx] + c;
+        }
+      }
+  };
+  pass([[-1, 0, 1], [0, -1, 1], [-1, -1, 1.41], [1, -1, 1.41]], 0, MH, 1, 0, MW);
+  pass([[1, 0, 1], [0, 1, 1], [1, 1, 1.41], [-1, 1, 1.41]], MH - 1, -1, -1, MW - 1, -1);
+  return d;
+}
+
+/** Distance from a point to a polyline, in tiles. */
+function distToLine(x: number, y: number, pts: [number, number][]): { d: number; t: number } {
+  let best = 1e9, bt = 0;
+  for (let k = 0; k + 1 < pts.length; k++) {
+    const [ax, ay] = pts[k], [bx, by] = pts[k + 1], vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy;
+    const t = Math.max(0, Math.min(1, ((x - ax) * vx + (y - ay) * vy) / l2)), d = Math.hypot(x - ax - vx * t, y - ay - vy * t);
+    if (d < best) { best = d; bt = (k + t) / (pts.length - 1); }
+  }
+  return { d: best, t: bt };
+}
+
+/**
+ * A meandering river between two map edges, crossing the line between the bases, as a polyline
+ * plus where along it the fords are (shares of its length).
+ */
+function riverCourse(rnd: () => number): { pts: [number, number][]; fords: number[]; width: number } {
+  // run from the top-left side to the bottom-right side, so it lies between the two bases
+  const along = rnd() < 0.5;
+  const a: [number, number] = along ? [-2, 8 + rnd() * 20] : [8 + rnd() * 20, -2];
+  const b: [number, number] = along ? [MW + 2, MH - 8 - rnd() * 20] : [MW - 8 - rnd() * 20, MH + 2];
+  const len = Math.hypot(b[0] - a[0], b[1] - a[1]), px = -(b[1] - a[1]) / len, py = (b[0] - a[0]) / len;
+  const amp = 3 + rnd() * 4, f1 = 1.5 + rnd() * 1.5, f2 = 3 + rnd() * 3, ph1 = rnd() * 6.3, ph2 = rnd() * 6.3;
+  const pts: [number, number][] = [];
+  for (let k = 0; k <= 48; k++) {
+    const t = k / 48, off = Math.sin(t * Math.PI * 2 * f1 + ph1) * amp + Math.sin(t * Math.PI * 2 * f2 + ph2) * amp * 0.35;
+    pts.push([a[0] + (b[0] - a[0]) * t + px * off, a[1] + (b[1] - a[1]) * t + py * off]);
+  }
+  const fords = [0.18 + rnd() * 0.12, 0.42 + rnd() * 0.16, 0.7 + rnd() * 0.12];
+  return { pts, fords, width: 1.1 + rnd() * 0.5 };
+}
+
 /** Fill the terrain for one seed. Returns false if the two bases can't reach each other. */
 function genMap(seed: number): boolean {
-  const { terr, ore, oilField, treeWood } = G;
+  const { terr, ore, oilField, treeWood, elev } = G;
   const rnd = mulberry32(seed);
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
+  const h1 = valueGrid(rnd, 3), h2 = valueGrid(rnd, 7), h3 = valueGrid(rnd, 13), pl = valueGrid(rnd, 4), rp = valueGrid(rnd, 9);
+  const river = rnd() < RIVER_CHANCE ? riverCourse(rnd) : null;
+  const coast = rnd() < COAST_CHANCE ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = 13 + rnd() * 6;
   terr.fill(GRASS);
   ore.fill(0);
   oilField.fill(0);
-  const clear = (cx: number, cy: number, r: number) => eachInDisk(cx, cy, r, (i) => { terr[i] = GRASS; });
-
+  // how wet each tile is: >= 1 deep water, >= 0.5 shallow
+  const wet = new Float32Array(MW * MH);
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
       const i = y * MW + x, u = x / MW, v = y / MH;
-      const wn = (w1(u, v) + w2(u, v) * 0.5) / 1.5, tn = (t1(u, v) + t2(u, v) * 0.6) / 1.6;
-      if (wn > 0.67) terr[i] = WATER;
-      else if (tn > 0.62 && rnd() < 0.8) terr[i] = TREE;
+      const wn = (w1(u, v) + w2(u, v) * 0.5) / 1.5;
+      let w = smooth(0.645, 0.72, wn) * 1.2;
+      if (river) {
+        const { d, t } = distToLine(x + 0.5, y + 0.5, river.pts), ford = river.fords.some((f) => Math.abs(t - f) < 0.03);
+        const r = river.width * (0.85 + w2(u, v) * 0.4);
+        w = Math.max(w, d < r && !ford ? 1.2 : d < r + 1.3 ? 0.7 : 0);
+      }
+      if (coast) {
+        const d = Math.hypot(x - coast[0], y - coast[1]) + (t2(u, v) - 0.5) * 8;
+        w = Math.max(w, d < coastR ? 1.2 : d < coastR + 2 ? 0.7 : 0);
+      }
+      wet[i] = w;
+      terr[i] = w >= 1 ? WATER : w >= 0.5 ? SHALLOW : GRASS;
+    }
+  // rolling hills everywhere, and plateaus ringed by cliffs (with ramps up) away from the water
+  const dWater = distanceTo((i) => terr[i] !== GRASS);
+  const plateau = new Uint8Array(MW * MH);
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      const i = y * MW + x, u = x / MW, v = y / MH;
+      const hills = (h1(u, v) + h2(u, v) * 0.5 + h3(u, v) * 0.2) / 1.7;
+      elev[i] = (hills - 0.35) * HILL_HEIGHT;
+      if (pl(u, v) > 0.64 && dWater[i] > 3) plateau[i] = 1;
+    }
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      const i = y * MW + x;
+      if (!plateau[i]) continue;
+      let edge = false;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < MW && ny < MH && !plateau[ny * MW + nx]) edge = true;
+      }
+      // the rim is a cliff, unless it's a ramp halfway up
+      const ramp = edge && rp(x / MW, y / MH) >= 0.6;
+      elev[i] += ramp ? PLATEAU_HEIGHT * 0.5 : PLATEAU_HEIGHT;
+      if (edge && !ramp) terr[i] = ROCK;
+    }
+  // cliff tops stand level with the plateau they ring, so the drop is all on the outside
+  const raw = elev.slice();
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      if (terr[y * MW + x] !== ROCK) continue;
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && ny >= 0 && nx < MW && ny < MH && plateau[ny * MW + nx]) elev[y * MW + x] = Math.max(elev[y * MW + x], raw[ny * MW + nx]);
+        }
+    }
+  for (let y = 0; y < MH; y++)
+    for (let x = 0; x < MW; x++) {
+      const i = y * MW + x, u = x / MW, v = y / MH, tn = (t1(u, v) + t2(u, v) * 0.6) / 1.6;
+      if (terr[i] === GRASS && tn > 0.62 && rnd() < 0.8) terr[i] = TREE;
     }
   for (const [cx, cy, r] of FORESTS) eachInDisk(cx, cy, r, (i) => { if (terr[i] === GRASS && rnd() < 0.85) terr[i] = TREE; });
+  const flats: [number, number, number][] = [];
+  const clear = (cx: number, cy: number, r: number) => { flats.push([cx, cy, r]); eachInDisk(cx, cy, r, (i) => { terr[i] = GRASS; }); };
   for (const [x, y] of START_YARDS) clear(x + 1, y + 1, 9);
   for (const [x, y] of ORE_SOURCES) {
     clear(x, y, ORE_FIELD_RADIUS + 1);
@@ -58,10 +169,33 @@ function genMap(seed: number): boolean {
       oilField[i] = Math.round(OIL_TILE_MAX * (1 - Math.hypot(tx - x, ty - y) / (OIL_WELL_RADIUS + 1.5)));
     });
   }
+  shapeHeights(flats);
   for (let i = 0; i < MW * MH; i++) treeWood[i] = terr[i] === TREE ? TREE_WOOD : 0;
   return connected(START_YARDS[0], START_YARDS[1]);
 }
 
+/**
+ * Finish the height map: level the clearings (so bases and fields sit flat), sink lake and river
+ * beds below the water, and let the land slope down to meet the shore.
+ */
+function shapeHeights(flats: [number, number, number][]): void {
+  const { terr, elev } = G;
+  for (const [cx, cy, r] of flats) {
+    const c = elev[Math.min(MH - 1, Math.max(0, Math.round(cy))) * MW + Math.min(MW - 1, Math.max(0, Math.round(cx)))];
+    eachInDisk(cx, cy, r + 4, (i, x, y) => { elev[i] += (c - elev[i]) * (1 - smooth(r - 1, r + 4, Math.hypot(x - cx, y - cy))); });
+  }
+  const dShore = distanceTo((i) => terr[i] === WATER || terr[i] === SHALLOW);
+  const dDeep = distanceTo((i) => terr[i] !== WATER);
+  for (let i = 0; i < MW * MH; i++) {
+    if (terr[i] === WATER) elev[i] = WATER_LEVEL - 0.35 - Math.min(0.6, dDeep[i] * 0.2);
+    else if (terr[i] === SHALLOW) elev[i] = WATER_LEVEL - 0.18;
+    else {
+      // beaches: the land eases down toward the water's edge
+      const k = smooth(0.5, 6, dShore[i]);
+      elev[i] = (WATER_LEVEL + 0.08) * (1 - k) + Math.max(elev[i], WATER_LEVEL + 0.08) * k;
+    }
+  }
+}
 /** Tiles reachable on foot from a tile. */
 function reachable(from: Tile): Uint8Array {
   const seen = new Uint8Array(MW * MH), start = from[1] * MW + from[0], q = [start];
@@ -72,7 +206,7 @@ function reachable(from: Tile): Uint8Array {
       const nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
       const ni = ny * MW + nx;
-      if (seen[ni] || G.terr[ni] !== GRASS) continue;
+      if (seen[ni] || !walkable(G.terr[ni])) continue;
       seen[ni] = 1;
       q.push(ni);
     }
@@ -97,8 +231,8 @@ function placePortals(seed: number): void {
   for (const [a, b] of order) {
     if (G.portals.length >= want) break;
     // clear a little plaza round each gate, then make sure both sides can walk to it
-    const layers = [G.terr, G.ore, G.oilField, G.treeWood], saved = layers.map((l) => l.slice());
-    for (const [x, y] of [a, b]) eachInDisk(x, y, PORTAL_CLEAR, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; });
+    const layers = [G.terr, G.ore, G.oilField, G.treeWood, G.elev], saved = layers.map((l) => l.slice());
+    for (const [x, y] of [a, b]) eachInDisk(x, y, PORTAL_CLEAR, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); });
     const home = reachable(yardTile(START_YARDS[0]));
     if (!home[a[1] * MW + a[0]] || !home[b[1] * MW + b[0]]) { layers.forEach((l, k) => l.set(saved[k] as never)); continue; }
     G.portals.push({ a: [a[0], a[1]], b: [b[0], b[1]] });
@@ -122,11 +256,11 @@ export function generateMap(seed: number): number {
 }
 
 export function rebuildBlk(): void {
-  for (let i = 0; i < MW * MH; i++) G.blk[i] = G.terr[i] !== GRASS ? 1 : 0;
+  for (let i = 0; i < MW * MH; i++) G.blk[i] = walkable(G.terr[i]) ? 0 : 1;
   for (const e of G.ents) if (!e.dead && e.w) setBlk(e, true);
 }
 
 export function setBlk(e: { tx: number; ty: number; w: number; h: number }, on: boolean): void {
   for (let y = e.ty; y < e.ty + e.h; y++)
-    for (let x = e.tx; x < e.tx + e.w; x++) G.blk[y * MW + x] = on || G.terr[y * MW + x] !== GRASS ? 1 : 0;
+    for (let x = e.tx; x < e.tx + e.w; x++) G.blk[y * MW + x] = on || !walkable(G.terr[y * MW + x]) ? 1 : 0;
 }

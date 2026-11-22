@@ -111,6 +111,8 @@ export interface Decal {
 
 export const G = {
   terr: new Uint8Array(MW * MH),
+  /** ground height at each tile's centre, in tiles (water sits at WATER_LEVEL) */
+  elev: new Float32Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
   /** oil left in the ground on each tile (never refills) */

@@ -15,6 +15,7 @@ import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
+import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 interface Obj { model: Model; key: string }
 
@@ -114,6 +115,19 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
 }
 
+/** Lean a vehicle with the slope it's on: nose up or down hills, and rolling across them. */
+function tilt(r: THREE.Object3D, x: number, z: number, face: number): void {
+  const [sx, sz] = slopeAt(x, z), c = Math.cos(face), s = Math.sin(face);
+  const along = sx * c + sz * s, across = -sx * s + sz * c;
+  r.rotation.z = Math.atan(along);
+  r.rotation.x = -Math.atan(across);
+}
+
+/** Place a flat marker on the ground (or the water) at a point in tile coordinates. */
+function onGround(o: THREE.Object3D, x: number, z: number, lift: number): void {
+  o.position.set(x, surfaceY(x, z) + lift, z);
+}
+
 // ---- selection rings, markers, rally flag, building ghost ----
 
 const ringPool: THREE.Mesh[] = [];
@@ -141,7 +155,7 @@ function updateRings(): void {
     r.geometry = e.w ? squareGeo : ringGeo;
     const size = e.w ? e.w * 0.72 : UNIT[e.type as UnitType].radius / TS + 0.16;
     r.scale.setScalar(size);
-    r.position.set(e.x / TS, 0.08, e.y / TS);
+    onGround(r, e.x / TS, e.y / TS, 0.08);
   }
   for (let i = n; i < ringPool.length; i++) ringPool[i].visible = false;
 }
@@ -155,7 +169,7 @@ function updateMarkers(): void {
     m.color.set(mk.color);
     m.opacity = 1 - k;
     r.scale.setScalar(0.45 * (1 - k * 0.6));
-    r.position.set(mk.x / TS, 0.09, mk.y / TS);
+    onGround(r, mk.x / TS, mk.y / TS, 0.09);
   });
   for (let i = V.markers.length; i < markerPool.length; i++) markerPool[i].visible = false;
 }
@@ -173,9 +187,16 @@ function updateRally(): void {
   rally.visible = !!b?.rally;
   if (!b?.rally) return;
   const line = rally.children[0] as THREE.Line, flag = rally.children[1];
-  line.geometry.setFromPoints([new THREE.Vector3(b.x / TS, 0.1, b.y / TS), new THREE.Vector3(b.rally.x / TS, 0.1, b.rally.y / TS)]);
+  const ax = b.x / TS, az = b.y / TS, bx = b.rally.x / TS, bz = b.rally.y / TS, pts: THREE.Vector3[] = [];
+  // the dashed line follows the ground over hills
+  for (let k = 0, n = Math.max(2, Math.ceil(Math.hypot(bx - ax, bz - az) * 2)); k <= n; k++) {
+    const px = ax + ((bx - ax) * k) / n, pz = az + ((bz - az) * k) / n;
+    pts.push(new THREE.Vector3(px, surfaceY(px, pz) + 0.1, pz));
+  }
+  line.geometry.dispose();
+  line.geometry = new THREE.BufferGeometry().setFromPoints(pts);
   line.computeLineDistances();
-  flag.position.set(b.rally.x / TS, 0, b.rally.y / TS);
+  onGround(flag, bx, bz, 0);
 }
 
 function ghostFor(type: BldType): NonNullable<typeof ghost> {
@@ -204,9 +225,12 @@ function updateGhost(): void {
   if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
   const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team);
   g.group.visible = true;
-  g.group.position.set(m.tx + s / 2, 0, m.ty + s / 2);
+  const base = footprintY(m.tx, m.ty, s, s);
+  g.group.position.set(m.tx + s / 2, base, m.ty + s / 2);
   g.tiles.forEach((t, i) => {
-    const x = m.tx + (i % s), y = m.ty + Math.floor(i / s), ok = near && tileFree(x, y, V.team) && !nearPortal(x, y);
+    const x = m.tx + (i % s), y = m.ty + Math.floor(i / s);
+    t.position.y = surfaceY(x + 0.5, y + 0.5) - base + 0.1;
+    const ok = near && tileFree(x, y, V.team) && !nearPortal(x, y);
     (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
   });
 }
@@ -225,9 +249,19 @@ export function syncEntities(dt: number): void {
     const r = o.model.root;
     r.visible = shownToPlayer(e);
     if (!r.visible) continue;
-    r.position.set(e.x / TS, r.position.y, e.y / TS);
-    if (e.kind === 'unit') { r.rotation.y = -e.face; animateUnit(o.model, e); }
-    else if (e.kind === 'bld') animateBuilding(o.model, e, dt);
+    const x = e.x / TS, z = e.y / TS;
+    if (e.kind === 'unit') {
+      r.position.set(x, 0, z);
+      r.rotation.set(0, -e.face, 0, 'YXZ');
+      animateUnit(o.model, e);
+      const air = !!UNIT[e.type as UnitType]?.alt;
+      // ground units stand on the ground (wading in shallows); aircraft keep their height over water
+      r.position.y += air ? surfaceY(x, z) : heightAt(x, z);
+      if (!air && UNIT[e.type as UnitType]?.cls === 'vehicle') tilt(r, x, z, e.face);
+    } else if (e.kind === 'bld') {
+      r.position.set(x, footprintY(e.tx, e.ty, e.w, e.h), z);
+      animateBuilding(o.model, e, dt);
+    } else r.position.set(x, heightAt(x, z), z);
   }
   for (const [id, o] of objs) if (!seen.has(id)) { holder.remove(o.model.root); objs.delete(id); }
   updateRings();

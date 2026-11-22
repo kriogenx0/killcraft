@@ -73,7 +73,7 @@ export function updBld(b: Ent, dt: number): void {
 export function tileFree(x: number, y: number, team: number): boolean {
   if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
   const i = y * MW + x;
-  if (G.blk[i] || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
+  if (G.blk[i] || G.terr[i] !== GRASS || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
   return !G.ents.some((e) => !e.dead && e.kind === 'unit' && tileOf(e.x) === x && tileOf(e.y) === y);
 }
 

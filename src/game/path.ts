@@ -1,7 +1,8 @@
 // A* on the tile grid (portals count as a one-step link between their two gates), then
 // string-pulled so units walk straight lines.
 import { G, blkAt, isAir, tileOf, type Ent, type Target, type Tile } from './state.ts';
-import { MW, MH, TS } from './const.ts';
+import { MW, MH, TS, SHALLOW } from './const.ts';
+import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
 
 export const DIRS: [number, number, number][] = [
@@ -104,7 +105,7 @@ export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[]
       const ni = ny * MW + nx;
       if (blk[ni] || closedStamp[ni] === stamp) continue;
       if (dx && dy && (blk[y * MW + nx] || blk[ny * MW + x])) continue; // no corner cutting
-      const ng = gScore[i] + c;
+      const ng = gScore[i] + (G.terr[ni] === SHALLOW ? c / SHALLOW_SPEED : c); // wading is slow
       if (openStamp[ni] !== stamp || ng < gScore[ni]) {
         openStamp[ni] = stamp; gScore[ni] = ng; cameFrom[ni] = i; push(ni, ng + H(nx, ny));
       }
@@ -136,6 +137,28 @@ export function los(x0: number, y0: number, x1: number, y1: number): boolean {
 
 const center = (t: Tile): [number, number] => [(t[0] + 0.5) * TS, (t[1] + 0.5) * TS];
 
+/** How many shallow-water tiles a straight walk crosses. */
+function wadeTiles(x0: number, y0: number, x1: number, y1: number): number {
+  const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 8);
+  let count = 0, last = -1;
+  for (let k = 0; k <= n; k++) {
+    const i = tileOf(y0 + ((y1 - y0) * k) / Math.max(1, n)) * MW + tileOf(x0 + ((x1 - x0) * k) / Math.max(1, n));
+    if (i !== last && G.terr[i] === SHALLOW) count++;
+    last = i;
+  }
+  return count;
+}
+
+/** A straight walk may replace path tiles i..j if it's clear and wades no more than they do. */
+function canSkip(cx: number, cy: number, path: Tile[], i: number, j: number): boolean {
+  if (!los(cx, cy, ...center(path[j]))) return false;
+  const wade = wadeTiles(cx, cy, ...center(path[j]));
+  if (!wade) return true;
+  let along = 0;
+  for (let k = i; k <= j; k++) if (G.terr[path[k][1] * MW + path[k][0]] === SHALLOW) along++;
+  return wade <= along + 1;
+}
+
 /** Consecutive path tiles that aren't neighbours: a step through a portal. */
 export const isJump = (a: Tile, b: Tile): boolean => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1])) > 1;
 
@@ -159,7 +182,7 @@ export function smoothPath(sx: number, sy: number, path: Tile[]): Tile[] {
     let end = i; // last tile before the next portal jump
     while (end + 1 < path.length && !isJump(path[end], path[end + 1])) end++;
     let j = Math.min(end, i + 12);
-    while (j > i && !los(cx, cy, ...center(path[j]))) j--;
+    while (j > i && !canSkip(cx, cy, path, i, j)) j--;
     out.push(path[j]);
     [cx, cy] = center(path[j]);
     i = j + 1;

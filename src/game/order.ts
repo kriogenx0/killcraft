@@ -1,6 +1,6 @@
 // Giving orders to units. Every order goes through setOrder so stale paths are dropped.
 import { G, tileOf, type Ent, type Order, type Stance, type Tile } from './state.ts';
-import { MW, MH, TS, WATER } from './const.ts';
+import { MW, MH, TS, walkable } from './const.ts';
 import { clamp } from '../util/math.ts';
 import { nearestFree, pathFor } from './path.ts';
 
@@ -64,7 +64,7 @@ export function groupMove(us: Ent[], gx: number, gy: number): void {
     if (!G.blk[y * MW + x]) tiles.push([x, y]);
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
       const nx = x + dx, ny = y + dy, k = ny * MW + nx;
-      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen.has(k) || G.terr[k] === WATER) continue;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen.has(k) || !walkable(G.terr[k])) continue;
       seen.add(k);
       q.push([nx, ny]);
     }

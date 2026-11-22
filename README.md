@@ -32,6 +32,7 @@ The live game runs on Coolify from this repo's `main` branch:
 
 ## How to play
 
+- **Terrain:** maps roll over hills, and some have plateaus ringed by cliffs with ramps up, a river with fords, or a sea in one corner. Deep water, cliffs and woods block ground units. Shallow water (at the edges of lakes, rivers and the sea, and at fords) can be waded at half speed, and units pick their way round it when that's quicker. Aircraft ignore all of it. Each map also has its own time of day, from a cool morning to a golden evening.
 - **Economy:** there are three resources, shown in the top bar.
   - **Ore:** build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it there. Each field holds about 14,000 ore and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
   - **Wood:** a Lumber Mill cuts wood from the trees within 5 tiles of it, so place it by the woods (select it to see how many trees it reaches and how much it cuts). Each tree holds 150 wood; a cut-down tree slowly grows back, so a mill slows once its trees are bare. Every side starts with woods near its base.

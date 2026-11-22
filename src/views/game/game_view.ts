@@ -22,8 +22,9 @@ import { canPlace } from '../../game/building.ts';
 import { initTerrain } from './render/terrain.ts';
 import { makeIcons } from './render/icon.ts';
 import { drawMinimap, initFog } from './render/minimap.ts';
-import { initScene, renderScene, resizeScene, updateCamera, viewFootprint } from './render3d/scene.ts';
-import { initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
+import { moodFor } from './render3d/mood.ts';
+import { initScene, setMood, renderScene, resizeScene, updateCamera, viewFootprint } from './render3d/scene.ts';
+import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
@@ -68,6 +69,7 @@ export function mountGameView(root: HTMLElement): void {
   /** Build everything drawn for the current map: terrain art, fog, and the 3D layers. */
   const setupWorldView = () => {
     initTerrain(G.seed);
+    setMood(moodFor(G.seed, new URLSearchParams(location.search).get('mood')));
     initFog(refreshFog);
     initWorld3d();
     initPortals3d();
@@ -230,6 +232,7 @@ export function mountGameView(root: HTMLElement): void {
       syncEntities(dt);
       updateFx3d();
       animatePortals3d(dt);
+      animateWater(dt);
       renderScene();
       drawOverlay(og);
       drawMinimap(mg, viewFootprint());
