@@ -89,9 +89,9 @@ export function updateCamera(): void {
   sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 100;
   sc.updateProjectionMatrix();
   const fog = S.scene.fog as THREE.Fog;
-  // a light haze over distant ground when the camera looks out toward the horizon
-  fog.near = c.dist * 1.3 + 6;
-  fog.far = c.dist * 5 + 40;
+  // a light haze toward the horizon, the same at every zoom so the map doesn't change colour as you zoom
+  fog.near = 70;
+  fog.far = 190;
 }
 
 const ndc = new THREE.Vector2(), hit = new THREE.Vector3();

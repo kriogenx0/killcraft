@@ -199,17 +199,27 @@ function setTitle(value: HTMLElement, title: string): void {
   if (box && box.title !== title) box.title = title;
 }
 
+/** A stock count in at most four characters, so the top bar's slots never overflow: 9999, then 12k. */
+export function shortCount(n: number): string {
+  const v = Math.floor(n);
+  return v < 10000 ? String(v) : `${Math.min(999, Math.floor(v / 1000))}k`;
+}
+
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+
 export function refreshHud(): void {
   const p = power(V.team);
-  els.credits.textContent = String(Math.floor(G.credits[V.team]));
-  els.wood.textContent = String(Math.floor(G.wood[V.team] ?? 0));
-  els.oil.textContent = String(Math.floor(G.oil[V.team] ?? 0));
+  setText(els.credits, shortCount(G.credits[V.team]));
+  setText(els.wood, shortCount(G.wood[V.team] ?? 0));
+  setText(els.oil, shortCount(G.oil[V.team] ?? 0));
   const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
   if (box && box.hidden === found) box.hidden = !found;
-  if (found) els.aether.textContent = String(Math.floor(G.aether[V.team] ?? 0));
+  if (found) setText(els.aether, shortCount(G.aether[V.team] ?? 0));
   setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees; Workers carry it home.`);
   setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
-  els.power.textContent = `${p.used} / ${p.made}`;
+  setText(els.power, `${p.used}/${p.made}`);
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
   const era = ERA[eraOf(V.team)]?.name ?? '';
   if (els.era.textContent !== era) els.era.textContent = era;

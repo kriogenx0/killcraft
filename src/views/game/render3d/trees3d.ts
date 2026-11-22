@@ -114,7 +114,7 @@ export function initTrees(parent: THREE.Object3D): void {
   sets = Object.fromEntries(KINDS.map((k) => {
     const leaves = new THREE.InstancedMesh(LEAVES[k](), swaying(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, vertexColors: true, envMapIntensity: 0.35 })), Math.max(1, counts[k]));
     const trunk = new THREE.InstancedMesh(TRUNKS[k](), k === 'birch' ? birchBark : bark, Math.max(1, counts[k]));
-    for (const im of [leaves, trunk]) { im.castShadow = true; im.receiveShadow = true; im.count = 0; group.add(im); }
+    for (const im of [leaves, trunk]) { im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true; im.count = 0; group.add(im); }
     return [k, { leaves, trunk, n: 0 }];
   })) as unknown as Record<Kind, TreeSet>;
   shown = new Uint8Array(trees.length);
@@ -135,6 +135,7 @@ function placeBoulders(): void {
   const g = lumpy(1, 3, 0.7);
   boulders = new THREE.InstancedMesh(g, mat('#ffffff', { rough: 0.95, tex: 'stone' }), Math.max(1, spots.length));
   boulders.castShadow = boulders.receiveShadow = true;
+  boulders.frustumCulled = false; // spread over the whole map; a stale bounding sphere would hide them at some views
   const color = new THREE.Color();
   spots.forEach(([x, z, s], k) => {
     q.setFromAxisAngle(up, hash(x, z) * 6.3);

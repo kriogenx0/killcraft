@@ -76,6 +76,7 @@ function detailTexture(): THREE.CanvasTexture {
   g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = S.renderer.capabilities.getMaxAnisotropy();
   return t;
 }
 
@@ -184,11 +185,13 @@ export function initWorld3d(): void {
   // ore crystals
   ore = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09).scale(0.8, 1.7, 0.8), M.ore(), 2600);
   ore.castShadow = true;
+  ore.frustumCulled = false; // instances span the map and change; three would cull them by a stale bounding sphere
   ore.count = 0;
   layer.add(ore);
   // oil wells: glossy black pools that shrink as derricks drain them
   oil = new THREE.InstancedMesh(puddleGeometry(), new THREE.MeshStandardMaterial({ color: '#2a2430', roughness: 0.1, metalness: 0, envMapIntensity: 1.2 }), 200);
   oil.receiveShadow = true;
+  oil.frustumCulled = false;
   oil.count = 0;
   layer.add(oil);
   // fog of war: the minimap's fog image stretched over the map, softly filtered
