@@ -13,6 +13,13 @@ export const MILL_MAX_TREES = 24;
 export const TREE_WOOD = 150;
 export const TREE_REGROW = 0.1;
 
+/**
+ * Nothing is banked until a unit carries it home. A Lumber Mill and an Oil Derrick fill their own
+ * store, up to this much, and stop when it's full; Workers carry it to a Construction Yard or a Refinery.
+ */
+export const MILL_STORE = 300;
+export const DERRICK_STORE = 300;
+
 /** Oil per second an Oil Derrick pumps while its well has oil. */
 export const OIL_PER_DERRICK = 3;
 /** A derrick pumps from oil tiles under its footprint and this many tiles around it. */
