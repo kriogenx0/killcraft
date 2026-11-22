@@ -1,6 +1,6 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them.
-import { G, isAir, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, type ProductionLine, isAir, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -20,11 +20,13 @@ interface AiState {
   foe: number;
   /** units kept home to guard an Aether crystal */
   guards: Set<number>;
+  /** progress of each line's first item and when it last moved, to spot a queue stuck for want of wood, oil or Aether */
+  stall: Map<ProductionLine, { type: string; prog: number; t: number }>;
 }
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set() },
-  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set() },
+  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), stall: new Map() },
+  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), stall: new Map() },
 ];
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
@@ -37,8 +39,8 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
 export function resetAi(teams = 2): void {
-  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set() });
-  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.foe = teams === 2 ? 1 - team : -1; });
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), stall: new Map() });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.stall.clear(); a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -81,6 +83,8 @@ function nextStructure(team: number): BldType | null {
   const aether = G.aether[team] ?? 0;
   if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
   if (can.includes('shrine') && countOf(team, 'shrine') < 1 && aether >= (BUILDING.shrine.aether ?? 0) + 40 && G.credits[team] > 1200) return 'shrine';
+  // short of wood with gold to spare: another mill, by fresh trees
+  if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
   return null;
@@ -259,7 +263,26 @@ function military(team: number): void {
   }
 }
 
+/** Seconds an item may sit without progress before the computer gives up on it. */
+const STALL_LIMIT = 20;
+
+/**
+ * Cancel a unit or research that has stopped for want of wood, oil or Aether, so it doesn't block
+ * everything queued behind it (Aether in particular may never come back).
+ */
+function unstall(team: number): void {
+  const A = ais[team];
+  for (const line of ['infantry', 'vehicle', 'air', 'tech'] as const) {
+    const it = G.prod[team][line][0];
+    if (!it || it.hold) { A.stall.delete(line); continue; }
+    const s = A.stall.get(line);
+    if (!s || s.type !== it.type || s.prog !== it.prog) { A.stall.set(line, { type: it.type, prog: it.prog, t: G.gameT }); continue; }
+    if (G.gameT - s.t >= STALL_LIMIT) { cancel(team, it.type); A.stall.delete(line); }
+  }
+}
+
 export function aiThink(team: number): void {
+  unstall(team);
   construction(team);
   research(team);
   training(team);

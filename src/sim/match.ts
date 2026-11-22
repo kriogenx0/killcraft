@@ -44,6 +44,8 @@ export interface TeamStats {
   peakBank: number;
   /** largest armed force at once */
   peakArmy: number;
+  /** every 5 minutes: gold harvested so far and the price of the armed units alive */
+  timeline: { t: number; income: number; army: number }[];
   /** game seconds when this side was eliminated, or null if it survived */
   outAt: number | null;
   /** 1 for the winner, 2 for the last side knocked out, and so on */
@@ -90,7 +92,7 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions):
 
   const stats: TeamStats[] = Array.from({ length: G.teams }, (_, team) => ({
     team, ageAt: [0, null, null, null], healAt: [0, null, null, null], built: {}, lost: {}, killsBy: {}, killed: {}, killValueBy: {},
-    income: 0, spent: 0, avgBank: 0, avgWood: 0, avgOil: 0, peakBank: START_CREDITS, peakArmy: 0, outAt: null, place: 0,
+    timeline: [], income: 0, spent: 0, avgBank: 0, avgWood: 0, avgOil: 0, peakBank: START_CREDITS, peakArmy: 0, outAt: null, place: 0,
   }));
   const seen = new Set<number>(G.ents.map((e) => e.id));
   hooks.income = (team, a) => { stats[team].income += a; };
@@ -112,16 +114,18 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions):
     if (G.gameT < nextSample) continue;
     nextSample += 1;
     samples++;
-    const army = new Array(G.teams).fill(0);
+    const army = new Array(G.teams).fill(0), armyValue = new Array(G.teams).fill(0);
     for (const e of G.ents) {
       if (e.dead || e.team < 0) continue;
-      if (e.kind === 'unit' && unitDef(e).weapon) army[e.team]++;
+      if (e.kind === 'unit' && unitDef(e).weapon) { army[e.team]++; armyValue[e.team] += priceOf(e.type); }
       if (seen.has(e.id) || e.kind === 'source') continue;
       seen.add(e.id);
       bump(stats[e.team].built, e.type);
     }
+    const checkpoint = samples % 300 === 0;
     for (const s of stats) {
       const t = s.team, bank = G.credits[t];
+      if (checkpoint) s.timeline.push({ t: samples, income: Math.round(s.income), army: armyValue[t] });
       s.avgBank += bank;
       s.avgWood += G.wood[t];
       s.avgOil += G.oil[t];
