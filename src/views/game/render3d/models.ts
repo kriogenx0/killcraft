@@ -585,7 +585,9 @@ export function unitModel(type: UnitType, team: number): Model {
 // ---------------------------------------------------------------- buildings
 
 function pad(s: number): THREE.Mesh {
-  return mesh(box(s - 0.06, 0.06, s - 0.06), M.concrete(), 0, 0.03, 0);
+  const p = mesh(box(s - 0.06, 0.06, s - 0.06), M.concrete(), 0, 0.03, 0);
+  p.name = 'pad';
+  return p;
 }
 
 /** A kerb around a pad's edge, so the slab reads as poured concrete. */
@@ -902,20 +904,49 @@ function makeBuilding(type: BldType, team: number): Model {
     case 'barracks': return barracks(team);
     case 'factory': return factory(team);
     case 'turret': return turret(team);
-    case 'tower': return medievalBuilding(type, team, true);
+    case 'tower': return medievalBuilding(type, team, 'stone');
   }
 }
 
-/** Which look a structure has in an age: 0 Medieval, 1 Gunpowder, 2 modern. */
-export function bldLook(type: BldType, era: number): 0 | 1 | 2 {
-  if (type === 'tower') return era >= 1 ? 1 : 0;
-  return era <= 0 ? 0 : era === 1 ? 1 : 2;
+/** Industrial-age surfaces: the modern layouts in brick, cast iron and slate, before concrete. */
+function industrial(m: Model): Model {
+  const swap = new Map<THREE.Material, THREE.Material>([
+    [M.concrete(), M.brick()],
+    [M.lightConcrete(), M.dressedStone()],
+    [M.metalRoof(), M.slate()],
+    [M.white(), mat('#8a8a80', { rough: 0.7, metal: 0.4 })],
+    [M.hazard(), M.iron()],
+  ]);
+  m.root.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.material = swap.get(o.material as THREE.Material) ?? o.material;
+  });
+  // cobbled yards, and no radar yet
+  const pad = m.root.getObjectByName('pad');
+  if (pad instanceof THREE.Mesh) pad.material = M.darkStone();
+  if (m.parts.radar) m.parts.radar.visible = false;
+  return m;
+}
+
+/**
+ * Which look a structure has in an age. Each age rebuilds the base one step further:
+ * 0 wood and thatch (Medieval), 1 stone (Gunpowder), 2 brick and iron (Industrial), 3 concrete
+ * and steel (Modern). The Watchtower stops at stone; the Gun Turret starts at stone.
+ */
+export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
+  const e = Math.max(0, Math.min(3, era)) as 0 | 1 | 2 | 3;
+  if (type === 'tower') return e >= 1 ? 1 : 0;
+  if (type === 'turret') return e < 1 ? 1 : e;
+  return e;
 }
 
 /** A structure as its team builds it in their current age (see data/era.ts). */
 export function buildingModel(type: BldType, team: number, era = 3): Model {
   const lk = bldLook(type, era);
-  return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? makeBuilding(type, team) : medievalBuilding(type, team, lk === 1)));
+  return cached(`b:${type}:${team}:${lk}`, () =>
+    lk === 0 ? medievalBuilding(type, team, 'wood')
+      : lk === 1 ? medievalBuilding(type, team, 'stone')
+        : lk === 2 ? industrial(makeBuilding(type, team))
+          : makeBuilding(type, team));
 }
 
 /** A dark rock studded with ore crystals, with loose shards around it. */

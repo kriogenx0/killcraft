@@ -90,6 +90,9 @@ export const M = {
   ember: () => mat('#ff9a40', { rough: 0.5, emissive: '#ff5a10', emissiveIntensity: 1.4 }),
   straw: () => mat('#d8c07a', { rough: 1 }),
   bronze: () => mat('#8a6a34', { rough: 0.4, metal: 0.8 }),
+  log: () => mat('#6b4a2c', { rough: 0.95 }),
+  wattle: () => mat('#8c7048', { rough: 1 }),
+  clay: () => mat('#a8704a', { rough: 0.95 }),
 };
 
 /** A team's colors: main, dark and light. */

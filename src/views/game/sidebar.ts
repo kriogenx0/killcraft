@@ -2,12 +2,14 @@
 // available list changes and updated in place every frame, so clicks are never lost.
 import { G } from '../../game/state.ts';
 import { isUnitType } from '../../data/unit.ts';
-import type { BldType } from '../../data/building.ts';
+import { BUILDING, type BldType } from '../../data/building.ts';
 import { available, costOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
 import { V } from './view_state.ts';
+import { buildingIcon } from './render3d/icon3d.ts';
+import { eraOf } from '../../game/production.ts';
 
 interface Cell {
   root: HTMLElement;
@@ -21,6 +23,10 @@ const cells = new Map<Buildable, Cell>();
 let listKey = '';
 
 function rebuild(structures: Buildable[], units: Buildable[]): void {
+  // structure pictures follow the team's age, like the buildings on the map
+  for (const t of [...structures, 'yard']) {
+    if (t in BUILDING) ICON[t] = buildingIcon(t as BldType, V.team, eraOf(V.team)) ?? ICON[t];
+  }
   const html = (list: Buildable[]) => list.map((t) => buildCellHtml(t, nameOf(t), costOf(t), ICON[t], descOf(t))).join('');
   structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Construction Yard</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';
@@ -48,7 +54,7 @@ function holdOrCancel(type: Buildable): void {
 
 export function refreshSidebar(): void {
   const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle')];
-  const key = `${structures.join()}|${units.join()}`;
+  const key = `${V.team}|${eraOf(V.team)}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   for (const [type, c] of cells) {
     const items = itemsOf(V.team, type), first = items[0], line = lineOf(type), head = G.prod[V.team][line][0];
