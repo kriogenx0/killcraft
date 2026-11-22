@@ -16,6 +16,7 @@ import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
+import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
 import { levelUnder } from './world3d.ts';
 import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
@@ -59,6 +60,9 @@ function recoil(p: THREE.Object3D | undefined, amount: number): void {
   if (p && rest) p.position.x = rest.x - amount;
 }
 
+/** how far through a melee swing (0..1) the blow lands: MELEE_LAND of the 0.25 s attack */
+const STRIKE = MELEE_LAND / 0.25;
+
 function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
@@ -68,13 +72,22 @@ function animateUnit(m: Model, e: Ent): void {
   switch (look) {
     case 'swordsman':
       // overhead cut when striking, sword lowered and swaying when not
-      P.armR.rotation.z = atk > 0 ? lerp(2.8, 0.2, atk) : 0.35 + swing * 0.3;
+      // the blade comes down just as the blow lands (MELEE_LAND), then rests
+      P.armR.rotation.z = atk > 0 ? (atk < STRIKE ? lerp(2.8, 0.2, (atk / STRIKE) ** 2) : 0.2) : 0.35 + swing * 0.3;
       P.armL.rotation.z = 0.9 - swing * 0.2;
       break;
     case 'knight':
       for (const [k, s] of [['legFL', 1], ['legBR', 1], ['legFR', -1], ['legBL', -1]] as const) P[k].rotation.z = (e.moving ? Math.sin(w * 1.3) * 0.7 : 0) * s;
-      recoil(P.lance, atk > 0 ? -Math.sin(atk * Math.PI) * 0.2 : 0);
       m.root.position.y = e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.04 : 0;
+      if (atk > 0) {
+        // charge: the horse rears back, then lunges as the lance drives home at the moment the blow lands
+        const drive = atk < STRIKE ? (atk / STRIKE) ** 2 : 1 - (atk - STRIKE) / (1 - STRIKE), rear = atk < STRIKE ? Math.sin((atk / STRIKE) * Math.PI) : 0;
+        recoil(P.lance, -drive * 0.4);
+        m.root.position.x += Math.cos(e.face) * drive * 0.14;
+        m.root.position.z += Math.sin(e.face) * drive * 0.14;
+        m.root.rotation.z = rear * 0.22 - drive * 0.08;
+        P.legFL.rotation.z = P.legFR.rotation.z = -rear * 0.9;
+      } else recoil(P.lance, 0);
       break;
     case 'medic':
       // reaches out to bandage while tending someone
@@ -84,7 +97,7 @@ function animateUnit(m: Model, e: Ent): void {
     case 'gunner':
     case 'rocket':
     case 'crossbowman':
-      recoil(P.gun, atk > 0 ? (1 - atk) * 0.04 : 0);
+      recoil(P.gun, atk > 0 ? (1 - atk) * 0.08 : 0);
       break;
     case 'worker': {
       const load = Math.min(1, e.carry / haulOf(e));

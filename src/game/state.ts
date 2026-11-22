@@ -98,8 +98,9 @@ export interface Ent extends Target {
   shownT?: number;
 }
 
+/** Shots in flight, and sword and lance blows on their way down ('melee': lands after MELEE_LAND seconds). */
 export interface Projectile {
-  kind: Exclude<ProjectileKind, 'melee' | 'bullet'>;
+  kind: Exclude<ProjectileKind, 'bullet'>;
   x: number; y: number; z: number; z0: number;
   tid: number; dmg: number; src: number; team: number;
   weapon: string; sp: number; d0: number; tr: number; a: number; dead: boolean;

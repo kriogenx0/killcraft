@@ -166,11 +166,12 @@ function addPoint(c: Cloud, x: number, y: number, z: number, col: THREE.Color): 
 function updateParticles(): void {
   let ns = 0;
   for (const p of G.fx) {
-    if (!seenAt(p.x, p.y)) continue;
+    // a shot from out of sight still shows where it strikes something you can see
+    if (!seenAt(p.x, p.y) && !(p.kind === 'tracer' && seenAt(p.ex, p.ey))) continue;
     const k = p.life / p.max;
     if (p.kind === 'tracer') {
       // a bright streak that races from the muzzle to the target
-      const head = Math.min(1, k * 1.7), tail = Math.max(0, head - (p.size > 1 ? 1 : 0.4)), fade = 1 - Math.max(0, k - 0.6) / 0.4;
+      const head = Math.min(1, k * 5), tail = Math.max(0, head - (p.size > 1 ? 1 : 0.4)), fade = 1 - Math.max(0, k - 0.6) / 0.4;
       const ax = p.x / TS, ay = groundY(p.x, p.y) + Math.max(0.15, p.z / TS + 0.2), az = p.y / TS;
       const bx = p.ex / TS, by = groundY(p.ex, p.ey) + 0.25 + p.ez / TS, bz = p.ey / TS;
       (p.col ? bc.set(p.col) : bc.setRGB(1, 0.85, 0.45)).multiplyScalar(fade * 1.6);
@@ -234,7 +235,7 @@ const STREAK: Record<string, [number, number, number, number, number]> = {
 function updateProjectiles(): void {
   const used: Record<string, number> = { shell: 0, rocket: 0, bolt: 0, boulder: 0 };
   for (const p of G.projs) {
-    if (!seenAt(p.x, p.y)) continue;
+    if (p.kind === 'melee' || !seenAt(p.x, p.y)) continue;
     const pool = projPools[p.kind];
     let me = pool[used[p.kind]];
     if (!me) {
