@@ -15,6 +15,8 @@ import { armorFactor, weaponFactor } from './upgrade.ts';
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
 const AIM_TOLERANCE = 0.2;
+/** tracer and flash colours for weapons that don't fire plain lead */
+const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a' };
 
 export const armorOf = (e: Ent): ArmorClass => (e.kind === 'unit' ? unitDef(e).armor : 'building');
 export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unitDef(e).weapon : e.kind === 'bld' ? bldDef(e).weapon ?? null : null);
@@ -50,6 +52,8 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
 function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): void {
   const w = WEAPON[wt], blast = w.proj === 'boulder' ? impact : explosion;
   if (w.proj === 'melee' && armorOf(t) !== 'none') burst('spark', (x + (src?.x ?? x)) / 2, (y + (src?.y ?? y)) / 2 - 8, 4, 60, 160); // steel on steel
+  // a bullet striking: a small flash where it lands, so every hit reads at a glance
+  if (w.proj === 'bullet') part('flash', x + (Math.random() - 0.5) * 6, y - 6, { max: 0.09, size: wt === 'starbeam' ? 16 : 6, z: altOf(t), col: BEAM_COL[wt] ?? '#fff2c0' });
   if (G.visualOnly) { if (w.splash) blast(x, y, w.splash); return; } // the server decides damage
   dealDamage(t, w.dmg * w.vs[armorOf(t)], src);
   if (w.slow) hex(t, w.slow);
@@ -70,12 +74,20 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   s.atkT = 0.25;
   unveil(s);
   hooks.fired(s, wt, t);
-  if (w.proj === 'melee') { hit(wt, t, s, t.x, t.y); return; }
+  if (w.proj === 'melee') {
+    // a bright arc sweeps across the target with each blow
+    part('slash', t.x, t.y, { rot: Math.atan2(t.y - s.y, t.x - s.x), max: 0.22, size: wt === 'sword' ? 1 : 1.3, z: altOf(t), col: wt === 'wraithlance' ? '#c9a8ff' : null });
+    hit(wt, t, s, t.x, t.y);
+    return;
+  }
   // gunpowder flashes; bows and catapults don't
   const bomb = wt === 'bomb';
-  if (!bomb && (w.proj === 'bullet' || w.proj === 'shell' || w.proj === 'rocket')) part('flash', mx, my, { max: 0.08, size: w.proj === 'bullet' ? 7 : 14, z: air ? z : 0 });
+  if (!bomb && (w.proj === 'bullet' || w.proj === 'shell' || w.proj === 'rocket')) {
+    part('flash', mx, my, { max: 0.1, size: w.proj === 'bullet' ? 12 : 24, z: air ? z : 0, col: BEAM_COL[wt] ?? null });
+    if (w.proj !== 'bullet') part('smoke', mx, my, { max: 0.9, size: 4, soft: true, vz: 12, z: air ? z : 0 });
+  }
   if (w.proj === 'bullet') {
-    part('tracer', mx, my, { ex: t.x + (Math.random() - 0.5) * 8, ey: t.y - 6 + (Math.random() - 0.5) * 8, ez: altOf(t), max: 0.07, z: air ? z : 0 });
+    part('tracer', mx, my, { ex: t.x + (Math.random() - 0.5) * 8, ey: t.y - 6 + (Math.random() - 0.5) * 8, ez: altOf(t), max: wt === 'starbeam' ? 0.25 : 0.13, z: air ? z : 0, col: BEAM_COL[wt] ?? null, size: wt === 'starbeam' ? 3 : 1 });
     hit(wt, t, s, t.x, t.y);
     return;
   }

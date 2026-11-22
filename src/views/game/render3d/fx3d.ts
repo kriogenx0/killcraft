@@ -1,12 +1,15 @@
 // Particles, tracers, projectiles and ground marks in 3D.
 import * as THREE from 'three';
-import { G, type FxKind, type Particle } from '../../../game/state.ts';
+import { G, valid, type Ent, type FxKind, type Particle } from '../../../game/state.ts';
 import { TS } from '../../../game/const.ts';
 import { seenAt } from '../../../game/fog.ts';
-import { mulberry32 } from '../../../util/math.ts';
+import { lerp, mulberry32 } from '../../../util/math.ts';
 import { mkCanvas, ctx2d } from '../../../util/canvas.ts';
 import { S } from './scene.ts';
 import { M, mat } from './materials.ts';
+import { V } from '../view_state.ts';
+import { shownToPlayer } from '../render/minimap.ts';
+import { midHeight } from './entities3d.ts';
 import { groundY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 const CAP = 1600;
@@ -45,11 +48,15 @@ const clouds = {
   smoke: cloud(0.8, { opacity: 0.45 }),
   dust: cloud(0.55, { opacity: 0.5 }),
   bits: cloud(0.09, { soft: false }),
+  // glows: around projectiles in flight, and on units and buildings as they are struck
+  glow: cloud(0.55, { additive: true }),
+  hit: cloud(0.7, { additive: true }),
+  bigHit: cloud(1.6, { additive: true }),
 };
 
 const KIND_CLOUD: Record<FxKind, keyof typeof clouds> = {
   fire: 'fire', flash: 'flash', spark: 'spark', smoke: 'smoke', trail: 'smoke', dust: 'dust',
-  blood: 'bits', chip: 'bits', debris: 'bits', ore: 'bits', tracer: 'spark',
+  blood: 'bits', chip: 'bits', debris: 'bits', ore: 'bits', tracer: 'spark', slash: 'spark',
 };
 
 const tmp = new THREE.Color();
@@ -67,25 +74,47 @@ function colorOf(p: Particle, k: number): THREE.Color {
   }
 }
 
-// tracers
-const tracerPos = new Float32Array(400 * 6);
-const tracers = new THREE.LineSegments(
-  new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(tracerPos, 3)),
-  new THREE.LineBasicMaterial({ color: '#ffe8a0', transparent: true, opacity: 0.9, fog: false }),
+// beams: glowing bars for bullet tracers and the streaks behind projectiles (lines are 1px, too thin to see)
+const BEAMS = 600;
+const beams = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(1, 1, 1),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+  BEAMS,
 );
-tracers.frustumCulled = false;
+beams.setColorAt(0, new THREE.Color());
+beams.frustumCulled = false;
+beams.renderOrder = 4;
+
+// melee: a bright crescent sweeps across whoever is struck
+const slashes = new THREE.InstancedMesh(
+  new THREE.RingGeometry(0.72, 1, 18, 1, -1.1, 2.2).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false }),
+  200,
+);
+slashes.setColorAt(0, new THREE.Color());
+slashes.frustumCulled = false;
+slashes.renderOrder = 4;
+
+// attack lines: from your selected units to what they are attacking
+const atkPos = new Float32Array(300 * 6);
+const atkLines = new THREE.LineSegments(
+  new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(atkPos, 3)),
+  new THREE.LineBasicMaterial({ color: '#ff5a4a', transparent: true, opacity: 0.75, depthWrite: false, fog: false }),
+);
+atkLines.frustumCulled = false;
+atkLines.renderOrder = 3;
 
 // projectiles: a small pool of meshes per kind
 const projGeo = {
-  shell: new THREE.SphereGeometry(0.045, 8, 6),
-  rocket: new THREE.CylinderGeometry(0.03, 0.03, 0.26, 8).rotateZ(Math.PI / 2),
-  bolt: new THREE.BoxGeometry(0.28, 0.018, 0.018),
-  boulder: new THREE.DodecahedronGeometry(0.11),
+  shell: new THREE.SphereGeometry(0.085, 10, 8),
+  rocket: new THREE.CylinderGeometry(0.055, 0.055, 0.42, 8).rotateZ(Math.PI / 2),
+  bolt: new THREE.BoxGeometry(0.5, 0.045, 0.045),
+  boulder: new THREE.DodecahedronGeometry(0.2),
 };
 const projMat = {
   shell: mat('#ffe080', { emissive: '#ffb030', emissiveIntensity: 2 }),
   rocket: mat('#d8d8c8', { emissive: '#ff8a30', emissiveIntensity: 0.6 }),
-  bolt: M.wood(),
+  bolt: mat('#e8d8b0', { emissive: '#fff0c8', emissiveIntensity: 0.5 }),
   boulder: M.rock(),
 };
 const projPools: Record<string, THREE.Mesh[]> = { shell: [], rocket: [], bolt: [], boulder: [] };
@@ -107,23 +136,54 @@ for (const im of [stones, wrecks, bodies]) { im.frustumCulled = false; im.castSh
 export function initFx3d(): void {
   S.scene.remove(layer);
   layer.clear();
-  layer.add(...Object.values(clouds).map((c) => c.pts), tracers, ...Object.values(decal), stones, wrecks, bodies);
+  layer.add(...Object.values(clouds).map((c) => c.pts), beams, slashes, atkLines, ...Object.values(decal), stones, wrecks, bodies);
   for (const pool of Object.values(projPools)) pool.length = 0;
   S.scene.add(layer);
 }
 
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+const xAxis = new THREE.Vector3(1, 0, 0), dir = new THREE.Vector3(), bc = new THREE.Color();
+let nBeam = 0;
+
+/** A glowing bar from a to b (tiles), `w` thick. */
+function beam(ax: number, ay: number, az: number, bx: number, by: number, bz: number, w: number, col: THREE.Color): void {
+  if (nBeam >= BEAMS) return;
+  dir.set(bx - ax, by - ay, bz - az);
+  const len = dir.length();
+  if (len < 1e-4) return;
+  q.setFromUnitVectors(xAxis, dir.divideScalar(len));
+  beams.setMatrixAt(nBeam, m4.compose(v.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2), q, sc.set(len, w, w)));
+  beams.setColorAt(nBeam++, col);
+}
+
+function addPoint(c: Cloud, x: number, y: number, z: number, col: THREE.Color): void {
+  if (c.n >= CAP) return;
+  c.pos.set([x, y, z], c.n * 3);
+  c.col.set([col.r, col.g, col.b], c.n * 3);
+  c.n++;
+}
 
 function updateParticles(): void {
-  for (const c of Object.values(clouds)) c.n = 0;
-  let nt = 0;
+  let ns = 0;
   for (const p of G.fx) {
     if (!seenAt(p.x, p.y)) continue;
     const k = p.life / p.max;
     if (p.kind === 'tracer') {
-      if (nt >= 400) continue;
-      tracerPos.set([p.x / TS, groundY(p.x, p.y) + Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, groundY(p.ex, p.ey) + 0.25 + p.ez / TS, p.ey / TS], nt * 6);
-      nt++;
+      // a bright streak that races from the muzzle to the target
+      const head = Math.min(1, k * 1.7), tail = Math.max(0, head - (p.size > 1 ? 1 : 0.4)), fade = 1 - Math.max(0, k - 0.6) / 0.4;
+      const ax = p.x / TS, ay = groundY(p.x, p.y) + Math.max(0.15, p.z / TS + 0.2), az = p.y / TS;
+      const bx = p.ex / TS, by = groundY(p.ex, p.ey) + 0.25 + p.ez / TS, bz = p.ey / TS;
+      (p.col ? bc.set(p.col) : bc.setRGB(1, 0.85, 0.45)).multiplyScalar(fade * 1.6);
+      beam(lerp(ax, bx, tail), lerp(ay, by, tail), lerp(az, bz, tail), lerp(ax, bx, head), lerp(ay, by, head), lerp(az, bz, head), 0.03 * p.size, bc);
+      continue;
+    }
+    if (p.kind === 'slash') {
+      if (ns >= 200) continue;
+      // sweeps a little as it fades
+      q.setFromAxisAngle(up, -(p.rot + lerp(-0.7, 0.7, k)) + Math.PI / 2);
+      const s = 0.32 * p.size * (0.8 + k * 0.4);
+      slashes.setMatrixAt(ns, m4.compose(v.set(p.x / TS, surface(p.x, p.y) + 0.28 + p.z / TS, p.y / TS), q, sc.set(s, s, s)));
+      slashes.setColorAt(ns++, (p.col ? bc.set(p.col) : bc.setRGB(1, 0.97, 0.85)).multiplyScalar((1 - k) * 1.4));
       continue;
     }
     const c = clouds[KIND_CLOUD[p.kind]];
@@ -135,14 +195,41 @@ function updateParticles(): void {
     c.col.set([col.r, col.g, col.b], c.n * 3);
     c.n++;
   }
-  for (const c of Object.values(clouds)) {
-    c.pts.geometry.setDrawRange(0, c.n);
-    c.pts.geometry.attributes.position.needsUpdate = true;
-    c.pts.geometry.attributes.color.needsUpdate = true;
-  }
-  tracers.geometry.setDrawRange(0, nt * 2);
-  tracers.geometry.attributes.position.needsUpdate = true;
+  slashes.count = ns;
+  slashes.instanceMatrix.needsUpdate = true;
+  if (slashes.instanceColor) slashes.instanceColor.needsUpdate = true;
 }
+
+/** Units and buildings light up for a moment when struck. */
+function updateHits(): void {
+  for (const e of G.ents) {
+    if (e.dead || e.flash <= 0 || e.kind === 'source' || !shownToPlayer(e)) continue;
+    const k = Math.min(1, e.flash / 0.1);
+    bc.setRGB(1, 0.55 + 0.35 * k, 0.4 + 0.3 * k).multiplyScalar(k * 0.9);
+    addPoint(e.kind === 'bld' ? clouds.bigHit : clouds.hit, e.x / TS, groundY(e.x, e.y) + midHeight(e), e.y / TS, bc);
+  }
+}
+
+/** Lines from your selected units to their targets. */
+function updateAttackLines(): void {
+  let n = 0;
+  for (const u of V.sel) {
+    if (n >= 300) break;
+    if (u.dead || u.team !== V.team) continue;
+    const t: Ent | null = valid(u.order?.t === 'attack' ? u.order.tgt : null) ?? valid(u.shot);
+    if (!t || !shownToPlayer(t)) continue;
+    atkPos.set([u.x / TS, surface(u.x, u.y) + 0.1, u.y / TS, t.x / TS, surface(t.x, t.y) + 0.1, t.y / TS], n * 6);
+    n++;
+  }
+  atkLines.geometry.setDrawRange(0, n * 2);
+  atkLines.geometry.attributes.position.needsUpdate = true;
+}
+
+/** glow colour around each kind of projectile, and the streak behind it: length (tiles), thickness, colour */
+const PROJ_GLOW: Record<string, [number, number, number] | null> = { shell: [1, 0.6, 0.2], rocket: [1, 0.5, 0.15], bolt: [0.55, 0.5, 0.4], boulder: null };
+const STREAK: Record<string, [number, number, number, number, number]> = {
+  shell: [0.6, 0.05, 1, 0.65, 0.25], rocket: [0.5, 0.06, 1, 0.55, 0.2], bolt: [0.55, 0.025, 0.6, 0.55, 0.45], boulder: [0, 0, 0, 0, 0],
+};
 
 function updateProjectiles(): void {
   const used: Record<string, number> = { shell: 0, rocket: 0, bolt: 0, boulder: 0 };
@@ -158,8 +245,13 @@ function updateProjectiles(): void {
     }
     used[p.kind]++;
     me.visible = true;
-    me.position.set(p.x / TS, surface(p.x, p.y) + p.z / TS + 0.1, p.y / TS);
+    const x = p.x / TS, y = surface(p.x, p.y) + p.z / TS + 0.1, z = p.y / TS;
+    me.position.set(x, y, z);
     me.rotation.set(0, -p.a, 0);
+    const g = PROJ_GLOW[p.kind];
+    if (g) addPoint(clouds.glow, x, y, z, bc.setRGB(g[0], g[1], g[2]));
+    const [len, w, r, gr, b] = STREAK[p.kind];
+    if (len) beam(x - Math.cos(p.a) * len, y, z - Math.sin(p.a) * len, x, y, z, w, bc.setRGB(r, gr, b));
     if (p.kind === 'boulder') me.rotation.x = p.tr * 0.05;
   }
   for (const [kind, pool] of Object.entries(projPools)) for (let i = used[kind]; i < pool.length; i++) pool[i].visible = false;
@@ -214,7 +306,19 @@ function updateDecals(): void {
 }
 
 export function updateFx3d(): void {
+  for (const c of Object.values(clouds)) c.n = 0;
+  nBeam = 0;
   updateParticles();
   updateProjectiles();
+  updateHits();
+  for (const c of Object.values(clouds)) {
+    c.pts.geometry.setDrawRange(0, c.n);
+    c.pts.geometry.attributes.position.needsUpdate = true;
+    c.pts.geometry.attributes.color.needsUpdate = true;
+  }
+  beams.count = nBeam;
+  beams.instanceMatrix.needsUpdate = true;
+  if (beams.instanceColor) beams.instanceColor.needsUpdate = true;
+  updateAttackLines();
   updateDecals();
 }

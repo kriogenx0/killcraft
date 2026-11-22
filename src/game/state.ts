@@ -98,7 +98,7 @@ export interface Projectile {
   weapon: string; sp: number; d0: number; tr: number; a: number; dead: boolean;
 }
 
-export type FxKind = 'blood' | 'chip' | 'debris' | 'spark' | 'dust' | 'smoke' | 'fire' | 'flash' | 'tracer' | 'trail' | 'ore';
+export type FxKind = 'blood' | 'chip' | 'debris' | 'spark' | 'dust' | 'smoke' | 'fire' | 'flash' | 'tracer' | 'trail' | 'ore' | 'slash';
 export interface Particle {
   kind: FxKind; x: number; y: number; z: number; vx: number; vy: number; vz: number;
   life: number; max: number; size: number; col: string | null; rot: number; soft: boolean; landed: boolean;
