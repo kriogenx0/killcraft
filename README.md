@@ -20,6 +20,16 @@ Each match runs on the server, which sends each player only what their side can 
 
 To let people outside your network play, deploy the Docker image (`deploy/`) to any host that runs containers and keeps WebSockets open, such as Coolify, Fly.io or a VPS. It serves the game and the lobby on one port (8080 in the container), with `/health` and `/status` checks.
 
+### Production: killcraft.kriogenx.com (Coolify)
+
+The live game runs on Coolify from this repo's `main` branch:
+
+- **Build pack:** Dockerfile, base directory `/`, Dockerfile location `/deploy/Dockerfile`
+- **Port:** `8080` (exposed). No environment variables are required; the image sets `SERVER_PORT=8080` and `STATIC_DIR`.
+- **Domain:** `https://killcraft.kriogenx.com` (Coolify's proxy issues the certificate and passes WebSockets on `/ws` through)
+- **Health check:** `GET /health`
+- **DNS:** an `A` record for `killcraft` on kriogenx.com pointing at the Coolify server's IP.
+
 The live game is at https://killcraft.kriogenx.com, hosted on Render from `render.yaml` (auto-deploys on every push to `main`). DNS: a `CNAME` record `killcraft` → `killcraft.onrender.com` at the kriogenx.com DNS host.
 
 ## How to play
