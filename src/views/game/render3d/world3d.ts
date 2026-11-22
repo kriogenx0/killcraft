@@ -81,8 +81,11 @@ function detailTexture(): THREE.CanvasTexture {
 /** The painted ground, with fine grain mixed in up close. */
 function groundMaterial(map: THREE.Texture): THREE.Material {
   detail ??= detailTexture();
-  const m = new THREE.MeshStandardMaterial({ map, roughness: 1 });
-  const tex = detail;
+  const tex = detail, bump = tex.clone();
+  bump.repeat.set(MW * 1.5, MH * 1.5);
+  bump.needsUpdate = true;
+  // the grain doubles as a bump map, so blades and grit catch the sun
+  const m = new THREE.MeshStandardMaterial({ map, roughness: 1, bumpMap: bump, bumpScale: 1.2 });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uDetail = { value: tex };
     shader.fragmentShader = 'uniform sampler2D uDetail;\n' + shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
