@@ -8,7 +8,7 @@ import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace } from './building.ts';
 import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
-import { treesNear } from './economy.ts';
+import { oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance } from './order.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean }
@@ -45,6 +45,7 @@ function findSite(team: number, type: BldType): Tile | null {
   const s = BUILDING[type].size, own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
+  if (type === 'derrick') return wellSite(team, s, yard);
   const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
@@ -58,6 +59,18 @@ function findSite(team: number, type: BldType): Tile | null {
     const n = treesNear(tx, ty, s);
     if (n > bestTrees) { bestTrees = n; best = [tx, ty]; }
   }
+  return best;
+}
+
+/** The placeable spot near the base that reaches the most oil, if any reaches some. */
+function wellSite(team: number, s: number, yard: Ent): Tile | null {
+  let best: Tile | null = null, most = 0;
+  const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
+  for (let ty = cy - 16; ty <= cy + 16; ty++)
+    for (let tx = cx - 16; tx <= cx + 16; tx++) {
+      const oil = oilNear(tx, ty, s);
+      if (oil > most && canPlace(tx, ty, s, team, true)) { most = oil; best = [tx, ty]; }
+    }
   return best;
 }
 

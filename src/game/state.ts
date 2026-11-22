@@ -108,6 +108,10 @@ export const G = {
   terr: new Uint8Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
+  /** oil left in the ground on each tile (never refills) */
+  oilField: new Float32Array(MW * MH),
+  /** wood left on each tree tile (grows back) */
+  treeWood: new Float32Array(MW * MH),
   blk: new Uint8Array(MW * MH),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],

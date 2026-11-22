@@ -34,8 +34,9 @@ The live game runs on Coolify from this repo's `main` branch:
 
 - **Economy:** there are three resources, shown in the top bar.
   - **Ore:** build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it there. Each field holds about 14,000 ore and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
-  - **Wood:** a Lumber Mill cuts wood from the trees within 5 tiles of it, so place it by the woods (select it to see how many trees it reaches). Two mills don't share a tree. Every side starts with woods near its base.
-  - **Oil:** from the Industrial age, an Oil Derrick pumps oil.
+  - **Wood:** a Lumber Mill cuts wood from the trees within 5 tiles of it, so place it by the woods (select it to see how many trees it reaches and how much it cuts). Each tree holds 150 wood; a cut-down tree slowly grows back, so a mill slows once its trees are bare. Every side starts with woods near its base.
+  - **Oil:** from the Industrial age, an Oil Derrick pumps oil from a well (the black pools: one near each base, two in the middle). Wells never refill, so a derrick runs dry; select it to see how much is left.
+  - **Salvage:** anything destroyed in battle leaves 30% of its ore price behind as ore on the ground (plus whatever a harvester was carrying), for either side's harvesters to collect.
   - Prices follow what a thing is made of and runs on: metal and stone cost ore, timber costs wood, and engines and rockets cost oil. A Knight's lance and a Crossbowman's bow take wood, a Catapult is mostly wood, and Jeeps, Tanks and Rocket Soldiers need oil. Each cell in the sidebar shows its price.
 - **Power:** every structure but the Power Plant uses power. If you use more than you make, production runs at half speed and turrets fire slowly.
 - **Building:** click a structure in the sidebar. Resources are spent as it builds, and it pauses if you run out of any of them. When it says READY, click it again and place it within 3 tiles of your base. Right-click a sidebar item to put it on hold, again to cancel (or use its × button).

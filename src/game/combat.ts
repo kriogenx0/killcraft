@@ -6,6 +6,7 @@ import { WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
 import { edgeDist } from './path.ts';
 import { angleDiff, approach, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
+import { dropSalvage } from './economy.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 
@@ -30,7 +31,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
       hooks.alert(t.team, t.x, t.y);
     }
   }
-  if (t.hp <= 0) { kill(t); return; }
+  if (t.hp <= 0) { kill(t); dropSalvage(t); return; }
   // idle units react: engaging ones fight back, passive ones run
   if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
     if (t.stance === 'passive') orderFlee(t, src);

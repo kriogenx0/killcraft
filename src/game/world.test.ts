@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks } from './state.ts';
-import { MW, STEP, TS } from './const.ts';
+import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, power } from './entity.ts';
 import { orderHarvest } from './order.ts';
 import { available, cancel, enqueue, placeReady, readyStructure } from './production.ts';
 import { canPlace } from './building.ts';
-import { treesNear, woodRate } from './economy.ts';
+import { oilLeft, oilRate, salvageOf, treesNear, woodRate } from './economy.ts';
+import { dealDamage } from './combat.ts';
+import { OIL_WELLS } from '../data/map.ts';
+import { TREE_WOOD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { HEAL_RATE } from '../data/era.ts';
@@ -157,11 +160,42 @@ describe('production', () => {
     expect(G.wood[0]).toBeGreaterThan(woodRate(0) * 8);
   });
 
-  it('pumps oil with a derrick', () => {
+  it('pumps oil from a well until it runs dry, and nothing away from a well', () => {
+    const [wx, wy] = OIL_WELLS[0];
     G.oil[0] = 0;
-    addBuilding('derrick', 0, 12, 46, false);
+    const far = addBuilding('derrick', 0, 30, 4, false);
+    expect(oilLeft(far)).toBe(0);
+    const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
+    const start = oilLeft(d);
+    expect(start).toBeGreaterThan(1000);
     run(10);
     expect(G.oil[0]).toBeGreaterThan(20);
+    expect(G.oil[0]).toBeLessThan(40); // only the derrick on the well pumps
+    expect(oilLeft(d)).toBeCloseTo(start - G.oil[0], 0);
+    // drain it: the well never refills
+    G.oilField.fill(0);
+    const before = G.oil[0];
+    run(5);
+    expect(G.oil[0]).toBe(before);
+    expect(oilRate(0)).toBe(0);
+  });
+
+  it('cuts trees down, and they slowly grow back', () => {
+    const tree = G.terr.findIndex((t) => t === TREE);
+    G.treeWood[tree] = 0;
+    run(10);
+    expect(G.treeWood[tree]).toBeGreaterThan(0);
+    expect(G.treeWood[tree]).toBeLessThan(TREE_WOOD);
+  });
+
+  it('leaves ore behind where a unit or building is destroyed', () => {
+    const tank = addUnit('tank', 0, 30.5 * TS, 20.5 * TS);
+    const oreAround = () => { let n = 0; for (let y = 18; y <= 23; y++) for (let x = 28; x <= 33; x++) n += G.ore[y * MW + x]; return n; };
+    const before = oreAround();
+    dealDamage(tank, 99999, null);
+    expect(tank.dead).toBe(true);
+    expect(oreAround() - before).toBeCloseTo(salvageOf(tank), -1);
+    expect(salvageOf(tank)).toBeGreaterThan(0);
   });
 
   it('stalls without wood and refunds every resource on cancel', () => {
