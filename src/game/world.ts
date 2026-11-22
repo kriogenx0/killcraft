@@ -5,7 +5,7 @@ import { START_YARDS, ORE_SOURCES, START_CREDITS, START_WOOD, START_OIL, START_U
 import { START_ERA } from '../data/era.ts';
 import { generateMap, rebuildBlk } from './map.ts';
 import { addBuilding, addSource, addUnit } from './entity.ts';
-import { updUnit } from './unit.ts';
+import { refreshHealRates, updUnit } from './unit.ts';
 import { updBld } from './building.ts';
 import { updProjs } from './combat.ts';
 import { separate } from './move.ts';
@@ -50,6 +50,7 @@ const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === team &&
 
 export function update(dt: number): void {
   G.gameT += dt;
+  refreshHealRates();
   for (const e of G.ents) {
     if (e.dead) continue;
     try {

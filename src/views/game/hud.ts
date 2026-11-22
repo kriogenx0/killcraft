@@ -3,7 +3,8 @@ import { G, STANCES, bldDef, isOrganic, unitDef, type Ent, type Stance } from '.
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
-import { ERA, HEAL_RATE } from '../../data/era.ts';
+import { ERA } from '../../data/era.ts';
+import { healRate } from '../../game/unit.ts';
 import { eraOf } from '../../game/production.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
@@ -16,7 +17,7 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { loadOf } from './render/unit_art.ts';
 import { ICON } from './render/icon.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
-import { COMMAND_KEYS } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, keyLabel } from './keyboard.ts';
 import { V, ownSelected } from './view_state.ts';
 
 export interface HudEls {
@@ -70,8 +71,9 @@ export function commandList(): Command[] {
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
     ];
   if (first.kind === 'bld' && s.length === 1) {
-    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
-    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: '', icon: ICON.sell, tip: 'Sell this building for half its value' }); // no hotkey: too easy to hit by accident
+    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    // Delete, away from the letters, so selling is hard to hit by accident
+    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Sell this building for half its value' });
     return list;
   }
   return [];
@@ -88,7 +90,7 @@ export function runCommand(id: string): void {
   refreshCommands(true);
 }
 
-/** Run the command bound to a key, if the current card has one. */
+/** Run the command bound to a key (lower case, see normalizeKey), if the current card has one. */
 export function runHotkey(key: string): boolean {
   const c = commandList().find((x) => x.hotkey && x.hotkey.toLowerCase() === key && !x.disabled);
   if (c) runCommand(c.id);
@@ -108,7 +110,7 @@ function unitDetails(e: Ent): string {
   const d = unitDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
   // organic units heal slowly on their own: show how fast for our own troops
-  const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * (HEAL_RATE[G.heal[V.team] ?? 0] ?? 0) * 60)}/min` : '';
+  const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * healRate(V.team) * 60)}/min` : '';
   let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${heal}</p>`;
   if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
   return h;
@@ -188,7 +190,7 @@ export function initHud(e: HudEls): void {
     const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
     const c = b && commands[Number(b.dataset.index)];
     if (!c) { hideTooltip(els.tooltip); return; }
-    showTooltip(els.tooltip, `<b>${c.label}</b>${c.hotkey ? ` [${c.hotkey}]` : ''}<br>${c.tip}`);
+    showTooltip(els.tooltip, `<b>${c.label}</b>${c.hotkey ? ` <kbd class="ui-key">${keyLabel(c.hotkey)}</kbd>` : ''}<br>${c.tip}`);
   });
   els.commands.addEventListener('mouseleave', () => hideTooltip(els.tooltip));
   // pointerdown, not click: this panel re-renders as health changes

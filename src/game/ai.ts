@@ -23,7 +23,7 @@ export const ais: AiState[] = [
 const GUARDS = 2;
 const GUARD_ARMY = 5;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -38,6 +38,9 @@ function nextStructure(team: number): BldType | null {
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
     if (BUILDING[t].era > G.era[team]) continue;
+    // the Engine Works only matters until it has done its job
+    const to = BUILDING[t].advances;
+    if (to != null && G.era[team] >= to) continue;
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
@@ -149,7 +152,9 @@ function training(team: number): void {
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
-    const t = pick(team, 'infantry', [['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
+    // about one medic for every six fighters on foot
+    const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
     if (t) enqueue(team, t);
   }
 }
@@ -206,6 +211,12 @@ function military(team: number): void {
     for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
     for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
+  }
+  // medics trail the army: each idle one walks to the nearest fighter that's away from it
+  for (const m of G.ents) {
+    if (m.dead || m.team !== team || m.type !== 'medic' || m.order || !army.length) continue;
+    const near = army.reduce((a, p) => (Math.hypot(p.x - m.x, p.y - m.y) < Math.hypot(a.x - m.x, a.y - m.y) ? p : a));
+    if (Math.hypot(near.x - m.x, near.y - m.y) > 3 * TS) orderMove(m, tileOf(near.x), tileOf(near.y));
   }
   if (!home) return;
   // muster new troops in front of the base

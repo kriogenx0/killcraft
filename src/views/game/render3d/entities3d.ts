@@ -69,6 +69,10 @@ function animateUnit(m: Model, e: Ent): void {
       recoil(P.lance, atk > 0 ? -Math.sin(atk * Math.PI) * 0.2 : 0);
       m.root.position.y = e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.04 : 0;
       break;
+    case 'medic':
+      // reaches out to bandage while tending someone
+      P.armR.rotation.z = P.armL.rotation.z = atk > 0 ? 1.1 + Math.sin(G.gameT * 10) * 0.15 : swing * 0.4;
+      break;
     case 'rifleman':
     case 'gunner':
     case 'rocket':

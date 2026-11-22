@@ -37,6 +37,12 @@ const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
 
+/** A structure that advances the age is built once: not after its age, and not while one stands or rises. */
+const spentAdvance = (team: number, t: BldType): boolean => {
+  const to = BUILDING[t].advances;
+  return to != null && (eraOf(team) >= to || countOf(team, t) > 0);
+};
+
 /** The team's current age (index into ERA). */
 export const eraOf = (team: number): number => G.era[team] ?? 0;
 
@@ -67,13 +73,13 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   if (!producerOf(team, line)) return [];
   const era = eraOf(team);
   if (line === 'structure') {
-    return BLD_TYPES.filter((t) => BUILDING[t].era <= era && revealed(team, t) && BUILDING[t].requires.every((r) => hasBuilding(team, r)) &&
+    return BLD_TYPES.filter((t) => BUILDING[t].era <= era && revealed(team, t) && BUILDING[t].requires.every((r) => hasBuilding(team, r)) && !spentAdvance(team, t) &&
       (t !== 'waygate' || countOf(team, 'waygate') < MAX_WAYGATES));
   }
   if (line === 'tech') {
     return [nextTech(team), nextHeal(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && revealed(team, t));
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
 export function enqueue(team: number, type: Buildable): boolean {

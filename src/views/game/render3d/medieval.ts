@@ -740,7 +740,7 @@ function sawmill(L: Look): Model {
   return { root, parts, height: 1.0 };
 }
 
-export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | AetherBld>, team: number, stage: 'wood' | 'stone'): Model {
+export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | AetherBld>, team: number, stage: 'wood' | 'stone'): Model {
   if (stage === 'wood') {
     switch (type) {
       case 'yard': return fort(team);
@@ -751,7 +751,7 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | Ae
       case 'tower': return woodTower(team);
       case 'turret': break;
       case 'mill': return sawmill(look(team, false));
-      case 'derrick': break;
+      case 'derrick': case 'works': break;
     }
   }
   const L = look(team, true);
@@ -764,6 +764,6 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | Ae
     case 'turret': return bastion(L);
     case 'tower': return watchtower(L);
     case 'mill': return sawmill(L);
-    case 'derrick': throw new Error('The Oil Derrick has no medieval look');
+    case 'derrick': case 'works': throw new Error(`${type} has no medieval look`);
   }
 }

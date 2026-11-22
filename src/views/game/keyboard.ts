@@ -12,8 +12,11 @@ export const SCROLL_KEYS: Record<string, [number, number]> = {
 /** Held keys that turn the camera around its target (+1 = clockwise when seen from above). */
 export const ROTATE_KEYS: Record<string, number> = { q: 1, e: -1 };
 
-/** Command card hotkeys. None of these may also move the camera. */
-export const COMMAND_KEYS = { move: 'M', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V', repair: 'R' } as const;
+/** Hotkeys for the commands of a selected unit. None of these may also move the camera. */
+export const COMMAND_KEYS = { move: 'M', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V' } as const;
+
+/** Hotkeys for a selected building. Production keys (see hotkeys.ts) fit around these. */
+export const BUILDING_KEYS = { repair: 'R', sell: 'Delete' } as const;
 
 /** Direction to scroll for the keys being held (opposite keys cancel out). */
 export function scrollVector(held: Iterable<string>): [number, number] {
@@ -35,3 +38,43 @@ export function tracksKey(ev: { ctrlKey: boolean; metaKey: boolean; altKey: bool
   const t = ev.target as { tagName?: string; isContentEditable?: boolean } | null;
   return !(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable));
 }
+
+/** Keys that work whatever is selected: P pauses, H selects the Construction Yard and looks at it. */
+export const GLOBAL_KEYS = { pause: 'P', home: 'H' } as const;
+
+/** Letters no command or production hotkey may take: the camera keys and the global keys. */
+export const RESERVED_KEYS: ReadonlySet<string> = new Set([
+  ...Object.keys(SCROLL_KEYS), ...Object.keys(ROTATE_KEYS), ...Object.values(GLOBAL_KEYS).map((k) => k.toLowerCase()),
+].filter((k) => k.length === 1));
+
+export interface Keyed { id: string; name: string; key?: string }
+
+/**
+ * Give each item a single-letter hotkey, in list order. An item's own `key` wins if it's free;
+ * otherwise the first letter of each word of its name, then its other letters, then any free
+ * letter. Keys in `taken` and the reserved keys are never used. Items are keyed in a fixed order
+ * from their definitions, so a key never changes as items unlock, and new items get one for free.
+ */
+export function assignKeys(items: readonly Keyed[], taken: Iterable<string> = []): Map<string, string> {
+  const used = new Set([...RESERVED_KEYS, ...[...taken].map((k) => k.toLowerCase())]);
+  const out = new Map<string, string>();
+  const letters = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+  const take = (id: string, tries: string[]): void => {
+    const k = tries.map((c) => c.toLowerCase()).find((c) => c.length === 1 && /[a-z]/.test(c) && !used.has(c));
+    if (k) { used.add(k); out.set(id, k.toUpperCase()); }
+  };
+  // first pass: chosen keys and initials, so "Factory" isn't beaten to F by a later letter of "Refinery"
+  for (const it of items) take(it.id, [it.key ?? '', ...it.name.split(/\s+/).map((w) => letters(w)[0] ?? '')]);
+  // then any letter of the name, then any free letter; past 26 items the rest stay mouse-only
+  for (const it of items) if (!out.has(it.id)) take(it.id, [...letters(it.name), ...'abcdefghijklmnopqrstuvwxyz']);
+  return out;
+}
+
+/** What a key reads as on a button: "Delete" is "Del", "Escape" is "Esc". */
+export const keyLabel = (k: string): string => ({ delete: 'Del', escape: 'Esc', backspace: 'Del' } as Record<string, string>)[k.toLowerCase()] ?? k;
+
+/** The key a keydown means for hotkeys: Mac keyboards send Backspace from the key labelled delete. */
+export const normalizeKey = (k: string): string => {
+  const l = k.toLowerCase();
+  return l === 'backspace' ? 'delete' : l;
+};
