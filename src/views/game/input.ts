@@ -53,6 +53,7 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   }
   const harvesters = units.filter(isHarvester), rest = units.filter((u) => !isHarvester(u));
   const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty });
+  if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
   dispatch({ c: 'move', ids: ids(units), tx, ty });

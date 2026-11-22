@@ -50,7 +50,6 @@ describe('static data', () => {
   });
 
   it('gathers ore with Workers until the Modern age, then Harvesters', () => {
-    expect(UNIT.worker.until).toBe(UNIT.harvester.era);
     expect(UNIT.harvester.era).toBe(ERA.length - 1);
     for (const u of UNIT_TYPES) if (UNIT[u].haul) expect(UNIT[u].weapon).toBeNull();
     expect(UNIT.worker.haul ?? 0).toBeLessThan(UNIT.harvester.haul ?? 0);

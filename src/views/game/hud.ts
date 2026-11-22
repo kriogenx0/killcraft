@@ -10,7 +10,7 @@ import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
 import { eraOf, nameOf } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { linesOf } from './hotkeys.ts';
-import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
+import { millRate, oilLeft, oilRate, treesNear, woodRate, storeMax } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
@@ -45,6 +45,8 @@ let detailMarkup = '';
 
 const PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
 const PLAY_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
+
+const CARGO = { ore: 'Ore', wood: 'Wood', oil: 'Oil' } as const;
 
 export const formatTime = (t: number): string => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
@@ -124,7 +126,7 @@ const entName = (id: number | null): string => {
   return t.kind === 'unit' ? unitDef(t).name : t.kind === 'bld' ? bldDef(t).name : 'ore';
 };
 
-const HARVEST_STEP = { go: 'Heading to ore', gather: 'Harvesting ore', ret: 'Bringing ore home', unload: 'Unloading ore' } as const;
+const HARVEST_STEP = { go: 'Heading for', gather: 'Gathering', ret: 'Bringing home', unload: 'Unloading' } as const;
 
 /** What a unit is doing right now. */
 export function unitAction(e: Ent): string {
@@ -134,7 +136,7 @@ export function unitAction(e: Ent): string {
   if (o.t === 'move') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : 'Moving';
   if (o.t === 'attack') return `Attacking ${entName(o.tgt)}`;
   if (o.t === 'heal') return `Healing ${entName(o.tgt)}`;
-  return HARVEST_STEP[o.st];
+  return `${HARVEST_STEP[o.st]} ${o.res ?? 'ore'}`;
 }
 
 function unitDetails(e: Ent): string {
@@ -146,7 +148,8 @@ function unitDetails(e: Ent): string {
   const heal = isOrganic(e) && insight(e) ? ` · Heals ${Math.round(e.maxhp * healRate(e.team) * 60)}/min` : '';
   let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${ab ? ` (-${ab}% damage)` : ''}${heal}</p>`;
   if (insight(e)) h += `<p class="hud-stats">${unitAction(e)} · ${STANCE_INFO[e.stance].label}</p>`;
-  if (isHarvester(e)) h += `<p class="hud-stats">Ore ${Math.round(e.carry)} / ${haulOf(e)}</p>${barHtml(Math.min(1, e.carry / haulOf(e)), 'progress', 'Ore load')}`;
+  if (isHarvester(e)) h += `<p class="hud-stats">${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}</p>${barHtml(Math.min(1, e.carry / haulOf(e)), 'progress', 'Load')}`;
+  if (e.ae) h += `<p class="hud-stats">Aether ${Math.round(e.ae)}: bring it near your Construction Yard or a Refinery</p>`;
   return h;
 }
 
@@ -158,7 +161,7 @@ function buildingDetails(e: Ent): string {
   const own = insight(e) && e.done;
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
-  const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
+  const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
     (own ? productionDetails(e) : '') +
     (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
@@ -203,8 +206,8 @@ export function refreshHud(): void {
   const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
   if (box && box.hidden === found) box.hidden = !found;
   if (found) els.aether.textContent = String(Math.floor(G.aether[V.team] ?? 0));
-  setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees.`);
-  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the World War age on.`);
+  setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees; Workers carry it home.`);
+  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
   els.power.textContent = `${p.used} / ${p.made}`;
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
   const era = ERA[eraOf(V.team)]?.name ?? '';
