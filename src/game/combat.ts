@@ -51,7 +51,9 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
 
 /** Fire a weapon from a unit or turret at a target. */
 export function fire(s: Ent, wt: WeaponType, t: Ent): void {
-  const w = WEAPON[wt], mx = s.x + Math.cos(s.tface) * (s.kind === 'bld' ? 16 : 12), my = s.y - (s.kind === 'bld' ? 14 : 6) + Math.sin(s.tface) * 10;
+  // buildings shoot from their top (a tall tower from its battlements), units from the hip
+  const z = s.kind === 'bld' ? Math.max(16, bldDef(s).top) : 8;
+  const w = WEAPON[wt], mx = s.x + Math.cos(s.tface) * (s.kind === 'bld' ? 16 : 12), my = s.y - (s.kind === 'bld' ? z - 2 : 6) + Math.sin(s.tface) * 10;
   s.atkT = 0.25;
   hooks.fired(s, wt, t);
   if (w.proj === 'melee') { hit(wt, t, s, t.x, t.y); return; }
@@ -62,7 +64,6 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
     hit(wt, t, s, t.x, t.y);
     return;
   }
-  const z = s.kind === 'bld' ? 16 : 8;
   G.projs.push({ kind: w.proj, x: mx, y: my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
 }
 

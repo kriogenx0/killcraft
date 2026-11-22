@@ -17,7 +17,7 @@ export const ais: AiState[] = [
   { on: true, attackAt: 8, attacking: false },
 ];
 
-const PLAN: BldType[] = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'power', 'refinery', 'turret', 'power', 'turret'];
+const PLAN: BldType[] = ['power', 'refinery', 'barracks', 'tower', 'power', 'factory', 'tower', 'turret', 'power', 'refinery', 'turret', 'power', 'turret'];
 const MAX_WAVE = 30;
 
 export function resetAi(): void {
@@ -46,8 +46,8 @@ function findSite(team: number, type: BldType): Tile | null {
   const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
-    const a = type === 'turret' && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
-    const rad = (type === 'turret' ? 4 : 2.5) + Math.random() * (4 + k / 25);
+    const a = (type === 'turret' || type === 'tower') && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
+    const rad = (type === 'turret' || type === 'tower' ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
     if (canPlace(tx, ty, s, team, true)) return [tx, ty];
   }

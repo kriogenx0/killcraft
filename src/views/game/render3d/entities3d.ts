@@ -10,8 +10,9 @@ import { nearBase, tileFree } from '../../../game/building.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
+import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
-import { buildingModel, sourceModel, unitModel, type Model } from './models.ts';
+import { bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 
 interface Obj { model: Model; key: string }
@@ -35,7 +36,7 @@ export function resetEntities3d(): void {
 }
 
 function create(e: Ent): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team);
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
   m.root.userData.id = e.id;
   if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
@@ -94,6 +95,7 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.crane) P.crane.rotation.y = Math.sin(G.gameT * 0.25 + e.id) * 0.7;
   if (P.radar) P.radar.rotation.y += dt * 1.3;
   if (P.flag) P.flag.rotation.y = Math.sin(G.gameT * 3 + e.id) * 0.25;
+  if (P.sails && e.done) P.sails.rotation.z -= dt * 1.1;
 }
 
 // ---- selection rings, markers, rally flag, building ghost ----
@@ -102,7 +104,7 @@ const ringPool: THREE.Mesh[] = [];
 const markerPool: THREE.Mesh[] = [];
 const ringMats = { own: basic('#5f5'), enemy: basic('#f55'), neutral: basic('#ff5') };
 let rally: THREE.Group | null = null;
-let ghost: { type: BldType; group: THREE.Group; tiles: THREE.Mesh[] } | null = null;
+let ghost: { type: BldType; look: number; group: THREE.Group; tiles: THREE.Mesh[] } | null = null;
 
 function basic(color: string, opacity = 0.9): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, fog: false, side: THREE.DoubleSide });
@@ -161,9 +163,10 @@ function updateRally(): void {
 }
 
 function ghostFor(type: BldType): NonNullable<typeof ghost> {
-  if (ghost?.type === type) return ghost;
+  const look = bldLook(type, eraOf(V.team));
+  if (ghost?.type === type && ghost.look === look) return ghost;
   if (ghost) overlays.remove(ghost.group);
-  const model = buildingModel(type, V.team), see = basic('#9cf', 0.45);
+  const model = buildingModel(type, V.team, eraOf(V.team)), see = basic('#9cf', 0.45);
   model.root.traverse((o) => { if (o instanceof THREE.Mesh) { o.material = see; o.castShadow = false; } });
   const group = new THREE.Group(), tiles: THREE.Mesh[] = [];
   group.add(model.root);
@@ -175,7 +178,7 @@ function ghostFor(type: BldType): NonNullable<typeof ghost> {
     tiles.push(t);
     group.add(t);
   }
-  ghost = { type, group, tiles };
+  ghost = { type, look, group, tiles };
   overlays.add(group);
   return ghost;
 }
@@ -199,7 +202,8 @@ export function syncEntities(dt: number): void {
     if (e.dead) continue;
     seen.add(e.id);
     let o = objs.get(e.id);
-    const key = `${e.type}|${e.team}`;
+    // structures change their look as their side advances through the ages
+    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}` : `${e.type}|${e.team}`;
     if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
     if (!o) { o = { model: create(e), key }; objs.set(e.id, o); }
     const r = o.model.root;

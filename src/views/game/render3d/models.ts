@@ -9,61 +9,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { UnitType } from '../../../data/unit.ts';
 import type { BldType } from '../../../data/building.ts';
+import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
+import { medievalBuilding } from './medieval.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
 
-export interface Model {
-  root: THREE.Group;
-  parts: Record<string, THREE.Object3D>;
-  /** height of the model's top (for health bars), tiles */
-  height: number;
-}
-
-type Mat = THREE.Material;
-type Parts = Record<string, THREE.Object3D>;
-
-function mesh(g: THREE.BufferGeometry, m: Mat, x = 0, y = 0, z = 0): THREE.Mesh {
-  const me = new THREE.Mesh(g, m);
-  me.position.set(x, y, z);
-  me.castShadow = true;
-  me.receiveShadow = true;
-  return me;
-}
-
-function group(x = 0, y = 0, z = 0, ...children: THREE.Object3D[]): THREE.Group {
-  const g = new THREE.Group();
-  g.position.set(x, y, z);
-  if (children.length) g.add(...children);
-  return g;
-}
-
-/** Set an object's rotation (radians) and return it. */
-function rot<T extends THREE.Object3D>(o: T, x: number, y: number, z: number): T {
-  o.rotation.set(x, y, z);
-  return o;
-}
-
-/** Set an object's scale and return it. */
-function scl<T extends THREE.Object3D>(o: T, x: number, y: number, z: number): T {
-  o.scale.set(x, y, z);
-  return o;
-}
-
-/** A limb hanging from a pivot (so it can swing). */
-function limb(x: number, y: number, z: number, len: number, thick: number, m: Mat): THREE.Group {
-  return group(x, y, z, mesh(box(thick, len, thick), m, 0, -len / 2, 0));
-}
-
-const along = <T extends THREE.Object3D>(o: T): T => { o.rotation.z = -Math.PI / 2; return o; }; // cylinder axis → +x
-const across = <T extends THREE.Object3D>(o: T): T => { o.rotation.x = Math.PI / 2; return o; }; // cylinder axis → z
-
-/** A thin rod from a to b (rope, string, strut). */
-function rod(a: [number, number, number], b: [number, number, number], r: number, m: Mat, seg = 5): THREE.Mesh {
-  const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), len = va.distanceTo(vb);
-  const me = mesh(cyl(r, r, +len.toFixed(4), seg), m);
-  me.position.copy(va).add(vb).multiplyScalar(0.5);
-  me.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.sub(va).normalize());
-  return me;
-}
+export type { Model } from './model_kit.ts';
 
 // ---------------------------------------------------------------- baking
 
@@ -952,11 +902,20 @@ function makeBuilding(type: BldType, team: number): Model {
     case 'barracks': return barracks(team);
     case 'factory': return factory(team);
     case 'turret': return turret(team);
+    case 'tower': return medievalBuilding(type, team, true);
   }
 }
 
-export function buildingModel(type: BldType, team: number): Model {
-  return cached(`b:${type}:${team}`, () => makeBuilding(type, team));
+/** Which look a structure has in an age: 0 Medieval, 1 Gunpowder, 2 modern. */
+export function bldLook(type: BldType, era: number): 0 | 1 | 2 {
+  if (type === 'tower') return era >= 1 ? 1 : 0;
+  return era <= 0 ? 0 : era === 1 ? 1 : 2;
+}
+
+/** A structure as its team builds it in their current age (see data/era.ts). */
+export function buildingModel(type: BldType, team: number, era = 3): Model {
+  const lk = bldLook(type, era);
+  return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? makeBuilding(type, team) : medievalBuilding(type, team, lk === 1)));
 }
 
 /** A dark rock studded with ore crystals, with loose shards around it. */

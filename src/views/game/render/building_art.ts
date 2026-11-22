@@ -180,6 +180,24 @@ function drawTurretBase(g: G2): void {
   g.fillStyle = '#4a4a44'; g.beginPath(); g.ellipse(16, 15, 10, 9, 0, 0, TAU); g.fill(); outline(g, 1);
 }
 
+function drawTower(g: G2, T: TeamColors): void {
+  ellipseFill(g, 18, 30, 16, 5, 'rgba(0,0,0,.3)');
+  // round stone shaft, wider at the foot
+  g.fillStyle = hgrad(g, 4, 28, ['#6e6a62', '#b8b2a6', '#8a857b', '#4e4a44']);
+  g.beginPath(); g.moveTo(4, 30); g.lineTo(7, -24); g.lineTo(25, -24); g.lineTo(28, 30); g.closePath(); g.fill(); outline(g);
+  g.strokeStyle = 'rgba(0,0,0,.2)'; g.lineWidth = 1;
+  for (let y = -16; y < 30; y += 8) { g.beginPath(); g.moveTo(6, y); g.lineTo(26, y); g.stroke(); }
+  // parapet with merlons
+  g.fillStyle = hgrad(g, 3, 29, ['#7a766c', '#c4beb2', '#5a564e']);
+  g.beginPath(); g.rect(3, -32, 26, 9); g.fill(); outline(g, 1);
+  for (let x = 3; x < 29; x += 7) { g.beginPath(); g.rect(x, -38, 4, 6); g.fill(); outline(g, 1); }
+  // ballista and a team banner
+  oline(g, 10, -36, 26, -42, 2, '#5a3a1c');
+  g.fillStyle = T.m; g.beginPath(); g.moveTo(11, -22); g.lineTo(21, -22); g.lineTo(21, -6); g.lineTo(16, -10); g.lineTo(11, -6); g.closePath(); g.fill(); outline(g, 1);
+  g.fillStyle = '#2a1a0e'; g.beginPath(); g.moveTo(12, 30); g.lineTo(12, 20); g.arc(16, 20, 4, Math.PI, 0); g.lineTo(20, 30); g.fill();
+  g.fillStyle = '#1a1612'; g.fillRect(15, 2, 2, 7);
+}
+
 function drawSource(g: G2): void {
   ellipseFill(g, 18, 30, 16, 5, 'rgba(0,0,0,.3)');
   g.fillStyle = vgrad(g, -10, 32, '#6a625a', '#2e2a26');
@@ -197,7 +215,7 @@ function drawSource(g: G2): void {
 }
 
 const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
-  yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g),
+  yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
 };
 
 /** Cached sprite for a building type and team. */

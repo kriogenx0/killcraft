@@ -19,6 +19,11 @@ export const cone = (r: number, h: number, seg = 8) => geo(`k${r},${h},${seg}`, 
 export const octa = (r: number) => geo(`o${r}`, () => new THREE.OctahedronGeometry(r));
 export const dodeca = (r: number) => geo(`x${r}`, () => new THREE.DodecahedronGeometry(r));
 export const torus = (r: number, tube: number, arc = Math.PI * 2, rs = 6, ts = 16) => geo(`t${r},${tube},${arc},${rs},${ts}`, () => new THREE.TorusGeometry(r, tube, rs, ts, arc));
+/** A triangular prism (a gable roof) with its ridge along x: length, width across z, height. */
+export const prism = (len: number, w: number, h: number) => geo(`p${len},${w},${h}`, () => {
+  const s = new THREE.Shape([new THREE.Vector2(-w / 2, 0), new THREE.Vector2(w / 2, 0), new THREE.Vector2(0, h)]);
+  return new THREE.ExtrudeGeometry(s, { depth: len, bevelEnabled: false }).translate(0, 0, -len / 2).rotateY(Math.PI / 2);
+});
 /** A surface of revolution through [radius, height] points, around y. */
 export const lathe = (pts: [number, number][], seg = 16) => geo(`l${pts.join(';')},${seg}`, () => new THREE.LatheGeometry(pts.map(([r, h]) => new THREE.Vector2(r, h)), seg));
 
@@ -72,6 +77,19 @@ export const M = {
   redLamp: () => mat('#ff4030', { rough: 0.4, emissive: '#ff2010', emissiveIntensity: 1.2 }),
   brick: () => mat('#8c5a44', { rough: 0.95 }),
   tarp: () => mat('#5c6240', { rough: 0.95 }),
+  // medieval building surfaces
+  stone: () => mat('#9a948a', { rough: 0.95, flat: true }),
+  darkStone: () => mat('#6e6a62', { rough: 0.95, flat: true }),
+  dressedStone: () => mat('#b8b0a0', { rough: 0.9 }),
+  plaster: () => mat('#e4d8bc', { rough: 0.95 }),
+  thatch: () => mat('#c2a050', { rough: 1 }),
+  shingle: () => mat('#7a4a34', { rough: 0.9 }),
+  slate: () => mat('#56606c', { rough: 0.8 }),
+  dirt: () => mat('#8a7652', { rough: 1 }),
+  timber: () => mat('#3e2a18', { rough: 0.9 }),
+  ember: () => mat('#ff9a40', { rough: 0.5, emissive: '#ff5a10', emissiveIntensity: 1.4 }),
+  straw: () => mat('#d8c07a', { rough: 1 }),
+  bronze: () => mat('#8a6a34', { rough: 0.4, metal: 0.8 }),
 };
 
 /** A team's colors: main, dark and light. */
