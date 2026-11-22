@@ -95,8 +95,8 @@ export function animateWater(dt: number): void {
 /** An irregular, lumpy puddle (for oil seeping from a well). */
 function puddleGeometry(): THREE.BufferGeometry {
   const pts: THREE.Vector2[] = [];
-  for (let k = 0; k < 18; k++) {
-    const a = (k / 18) * Math.PI * 2, r = 0.42 * (0.9 + 0.1 * Math.sin(a * 3 + 1) + 0.05 * Math.sin(a * 5 + 2));
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2, r = 0.5 * (0.82 + 0.12 * Math.sin(a * 3 + 1) + 0.06 * Math.sin(a * 7 + 2));
     pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
   }
   return new THREE.ShapeGeometry(new THREE.Shape(pts)).rotateX(-Math.PI / 2);
@@ -207,14 +207,17 @@ export function refreshOre(): void {
   ore.count = n;
   ore.instanceMatrix.needsUpdate = true;
   if (!oil) return;
+  // one dark pool at the heart of each well, shrinking as it's drained
   let k = 0;
-  for (let i = 0; i < MW * MH && k < oil.instanceMatrix.count; i++) {
-    // one dark pool at the heart of each well, shrinking as it's drained
-    if (G.oilField[i] <= 0 || !G.vis[i] || !layoutFor(G.teams).oil.some(([wx, wy]) => Math.hypot(wx - (i % MW), wy - ((i / MW) | 0)) < 1.5)) continue;
-    const x = i % MW, y = (i / MW) | 0, s = 0.5 + 0.9 * Math.min(1, G.oilField[i] / OIL_TILE_MAX), h = hash(x * 3 + 1, y * 5 - 2), h2 = hash(y * 7 - 3, x * 2 + 5);
-    q.setFromAxisAngle(up, h * Math.PI);
-    const px = x + 0.5 + (h - 0.5) * 0.35, pz = y + 0.5 + (h2 - 0.5) * 0.35;
-    m4.compose(v.set(px, heightAt(px, pz) + 0.03 + h2 * 0.004, pz), q, sc.set(s * (1 + h * 0.35), 1, s));
+  for (const [wx, wy] of layoutFor(G.teams).oil) {
+    if (!G.vis[wy * MW + wx]) continue;
+    let left = 0, n = 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const i = (wy + dy) * MW + wx + dx; if (i >= 0 && i < MW * MH) { left += G.oilField[i]; n++; } }
+    const f = Math.min(1, left / (n * OIL_TILE_MAX * 0.45));
+    if (f <= 0.01) continue;
+    const s = 0.6 + 2.2 * Math.sqrt(f), h = hash(wx * 3 + 1, wy * 5 - 2), px = wx + 0.5, pz = wy + 0.5;
+    q.setFromAxisAngle(up, h * Math.PI * 2);
+    m4.compose(v.set(px, heightAt(px, pz) + 0.035, pz), q, sc.set(s * (1.1 + h * 0.3), 1, s));
     oil.setMatrixAt(k++, m4);
   }
   oil.count = k;

@@ -35,9 +35,9 @@ export const MOODS: Mood[] = [
     haze: '#b8b8b0', water: '#2a5f86', exposure: 1.02,
   },
   {
-    name: 'evening', sun: '#ffb070', sunI: 2.5, bearing: 1.35, height: 0.38,
-    sky: '#c4c8e8', ground: '#5a4a34', hemiI: 0.5, zenith: '#3c5a9a', horizon: '#f0c8a0', glow: '#ff9a50', envI: 0.5,
-    haze: '#c09a88', water: '#2e5478', exposure: 1.05,
+    name: 'evening', sun: '#ffbc80', sunI: 2.7, bearing: 1.35, height: 0.42,
+    sky: '#d0d4f0', ground: '#6a5a40', hemiI: 0.75, zenith: '#4a68a8', horizon: '#f0c8a0', glow: '#ff9a50', envI: 0.6,
+    haze: '#c09a88', water: '#2e5478', exposure: 1.12,
   },
 ];
 
