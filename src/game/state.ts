@@ -221,6 +221,8 @@ export const hooks = {
   killedBy: (_e: Ent, _by: Ent | null): void => {},
   /** a harvester unloaded `amount` ore */
   income: (_team: number, _amount: number): void => {},
+  /** a side banked resources at a spot on the map (`by` merges a steady trickle, such as unloading, into one number) */
+  gain: (_team: number, _x: number, _y: number, _kind: 'ore' | 'wood' | 'oil' | 'aether', _amount: number, _by: number): void => {},
   /** a side was paid a bounty for destroying something of the leader's */
   bounty: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },

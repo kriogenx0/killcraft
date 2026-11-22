@@ -124,6 +124,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (cargo === 'wood') G.wood[u.team] += a;
   else if (cargo === 'oil') G.oil[u.team] += a;
   else { G.credits[u.team] += a; hooks.income(u.team, a); }
+  hooks.gain(u.team, u.x, u.y, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a, u.id);
   if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
 }
 

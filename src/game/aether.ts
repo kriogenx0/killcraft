@@ -127,6 +127,7 @@ export function bankAether(): void {
     const home = bankAt(u, ['yard', 'refinery']);
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.aether[u.team] = (G.aether[u.team] ?? 0) + u.ae;
+    hooks.gain(u.team, u.x, u.y, 'aether', u.ae, u.id);
     u.ae = 0;
     if (!G.aetherFound[u.team]) { G.aetherFound[u.team] = true; say(u.team, 'Aether found! Hidden units revealed'); }
   }

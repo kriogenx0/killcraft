@@ -1,5 +1,5 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
-import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
+import { G, hooks, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
@@ -121,6 +121,9 @@ export function sell(b: Ent): void {
   G.credits[b.team] += Math.round(d.cost * f);
   G.wood[b.team] += Math.round((d.wood ?? 0) * f);
   G.oil[b.team] += Math.round((d.oil ?? 0) * f);
+  hooks.gain(b.team, b.x, b.y, 'ore', Math.round(d.cost * f), b.id);
+  hooks.gain(b.team, b.x, b.y, 'wood', Math.round((d.wood ?? 0) * f), b.id);
+  hooks.gain(b.team, b.x, b.y, 'oil', Math.round((d.oil ?? 0) * f), b.id);
   burst('dust', b.x, b.y, 20, 40, 120);
   kill(b);
 }
