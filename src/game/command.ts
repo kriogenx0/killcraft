@@ -1,6 +1,6 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { STANCES, valid, type Ent, type Stance } from './state.ts';
+import { STANCES, isHarvester, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES } from '../data/building.ts';
@@ -84,10 +84,10 @@ export function applyCommand(team: number, cmd: Command): void {
       ownUnits(team, cmd.ids).forEach(orderStop);
       break;
     case 'harvest':
-      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'harvester') orderHarvest(u, cmd.tx, cmd.ty);
+      for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHarvest(u, cmd.tx, cmd.ty);
       break;
     case 'return':
-      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'harvester') orderReturn(u);
+      for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderReturn(u);
       break;
     case 'rally': {
       const b = ownBuilding(team, cmd.id);

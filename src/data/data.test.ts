@@ -45,7 +45,15 @@ describe('static data', () => {
 
   it('starts with a working medieval economy', () => {
     for (const b of ['power', 'refinery', 'barracks', 'factory'] as const) expect(BUILDING[b].era).toBe(0);
-    expect(UNIT.harvester.era).toBe(0);
+    expect(UNIT.worker.era).toBe(0);
+    expect(UNIT.worker.cls).toBe('infantry'); // a person: heals like other infantry
+  });
+
+  it('gathers ore with Workers until the Modern age, then Harvesters', () => {
+    expect(UNIT.worker.until).toBe(UNIT.harvester.era);
+    expect(UNIT.harvester.era).toBe(ERA.length - 1);
+    for (const u of UNIT_TYPES) if (UNIT[u].haul) expect(UNIT[u].weapon).toBeNull();
+    expect(UNIT.worker.haul ?? 0).toBeLessThan(UNIT.harvester.haul ?? 0);
   });
 
   it('finds oil in the Medieval age, and needs it for World War and Modern', () => {

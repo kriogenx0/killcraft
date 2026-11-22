@@ -13,3 +13,10 @@ export const STEP = 1 / 60;
 export const GRASS = 0;
 export const WATER = 1;
 export const TREE = 2;
+/** shallow water: ground units wade through it slowly */
+export const SHALLOW = 3;
+/** rock and cliffs: impassable, like deep water */
+export const ROCK = 4;
+
+/** Can ground units walk on this terrain (ignoring what's built on it)? */
+export const walkable = (t: number): boolean => t === GRASS || t === SHALLOW;

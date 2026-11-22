@@ -76,3 +76,15 @@ export const START_CREDITS = 3500;
 export const START_WOOD = 400;
 export const START_OIL = 0;
 export const START_UNITS = ['swordsman', 'swordsman', 'crossbowman', 'knight'] as const;
+
+// ---- terrain shape ----
+/** Ground units in shallow water move at this share of their speed (paths count the cost). */
+export const SHALLOW_SPEED = 0.5;
+/** Height of the water's surface, in tiles. Shallow beds sit a little below it, deep beds well below. */
+export const WATER_LEVEL = -0.12;
+/** Height of rolling hills (peak to trough) and of the plateaus that rise above them on cliffs, in tiles. */
+export const HILL_HEIGHT = 1.8;
+export const PLATEAU_HEIGHT = 1.5;
+/** Share of maps crossed by a river (with shallow fords), and with a sea in one of the empty corners. */
+export const RIVER_CHANCE = 0.7;
+export const COAST_CHANCE = 0.45;

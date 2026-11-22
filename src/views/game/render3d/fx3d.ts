@@ -7,6 +7,7 @@ import { mulberry32 } from '../../../util/math.ts';
 import { mkCanvas, ctx2d } from '../../../util/canvas.ts';
 import { S } from './scene.ts';
 import { M, mat } from './materials.ts';
+import { groundY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 const CAP = 1600;
 const layer = new THREE.Group();
@@ -121,7 +122,7 @@ function updateParticles(): void {
     const k = p.life / p.max;
     if (p.kind === 'tracer') {
       if (nt >= 400) continue;
-      tracerPos.set([p.x / TS, Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, 0.25 + p.ez / TS, p.ey / TS], nt * 6);
+      tracerPos.set([p.x / TS, groundY(p.x, p.y) + Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, groundY(p.ex, p.ey) + 0.25 + p.ez / TS, p.ey / TS], nt * 6);
       nt++;
       continue;
     }
@@ -129,7 +130,7 @@ function updateParticles(): void {
     if (c.n >= CAP) continue;
     // smoke and dust drift upward as they age
     const rise = p.kind === 'smoke' || p.kind === 'trail' ? k * 0.6 : 0;
-    c.pos.set([p.x / TS, p.z / TS + 0.08 + rise, p.y / TS], c.n * 3);
+    c.pos.set([p.x / TS, surface(p.x, p.y) + p.z / TS + 0.08 + rise, p.y / TS], c.n * 3);
     const col = colorOf(p, k);
     c.col.set([col.r, col.g, col.b], c.n * 3);
     c.n++;
@@ -157,41 +158,53 @@ function updateProjectiles(): void {
     }
     used[p.kind]++;
     me.visible = true;
-    me.position.set(p.x / TS, p.z / TS + 0.1, p.y / TS);
+    me.position.set(p.x / TS, surface(p.x, p.y) + p.z / TS + 0.1, p.y / TS);
     me.rotation.set(0, -p.a, 0);
     if (p.kind === 'boulder') me.rotation.x = p.tr * 0.05;
   }
   for (const [kind, pool] of Object.entries(projPools)) for (let i = used[kind]; i < pool.length; i++) pool[i].visible = false;
 }
 
+const flat = new THREE.Quaternion(), normal = new THREE.Vector3();
+/** Point `flat` so that marks lie along the slope at a point (tile coordinates). */
+function lie(x: number, z: number): void {
+  const [sx, sz] = slopeAt(x, z);
+  flat.setFromUnitVectors(up, normal.set(-sx, 1, -sz).normalize());
+}
+
+/** Height (tiles) of the ground, or the water where it's deeper, under a world point (px). */
+const surface = (x: number, y: number): number => surfaceY(x / TS, y / TS);
+
 function updateDecals(): void {
   const n: Record<string, number> = { scorch: 0, splat: 0, corpse: 0, rubble: 0 };
   let ns = 0, nw = 0, nb = 0;
   for (const d of G.decals) {
     if (!G.vis[Math.floor(d.y / TS) * 64 + Math.floor(d.x / TS)]) continue;
-    const fade = Math.min(1, (d.max - d.t) / (d.max * 0.3)), x = d.x / TS, z = d.y / TS;
+    const fade = Math.min(1, (d.max - d.t) / (d.max * 0.3)), x = d.x / TS, z = d.y / TS, gy = heightAt(x, z);
+    lie(x, z);
     if (d.kind === 'wreck') {
       if (nw >= 120) continue;
       const s = (d.r / TS) * 1.7 * fade;
       q.setFromAxisAngle(up, -d.a);
-      wrecks.setMatrixAt(nw++, m4.compose(v.set(x, 0.12 * fade, z), q, sc.set(s, s * 0.6, s)));
-      if (n.scorch < 420) decal.scorch.setMatrixAt(n.scorch++, m4.compose(v.set(x, 0.015, z), q.identity(), sc.setScalar((d.r / TS) * 1.4 * fade)));
+      wrecks.setMatrixAt(nw++, m4.compose(v.set(x, gy + 0.12 * fade, z), q.premultiply(flat), sc.set(s, s * 0.6, s)));
+      if (n.scorch < 420) decal.scorch.setMatrixAt(n.scorch++, m4.compose(v.set(x, gy + 0.03, z), flat, sc.setScalar((d.r / TS) * 1.4 * fade)));
       continue;
     }
     const im = decal[d.kind];
     if (n[d.kind] >= 420) continue;
     const r = d.kind === 'splat' ? d.r / TS : d.kind === 'corpse' ? 0.28 : d.kind === 'rubble' ? d.w * 0.6 : d.r / TS;
-    im.setMatrixAt(n[d.kind]++, m4.compose(v.set(x, 0.012 + n[d.kind] * 0.00001, z), q.identity(), sc.setScalar(Math.max(0.01, r * fade))));
+    im.setMatrixAt(n[d.kind]++, m4.compose(v.set(x, gy + 0.025 + n[d.kind] * 0.00001, z), flat, sc.setScalar(Math.max(0.01, r * fade))));
     if (d.kind === 'corpse' && nb < 420 && d.t < d.max * 0.6) {
       q.setFromAxisAngle(up, -d.a);
-      bodies.setMatrixAt(nb++, m4.compose(v.set(x, 0.04, z), q, sc.set(1, 1, 1)));
+      bodies.setMatrixAt(nb++, m4.compose(v.set(x, gy + 0.04, z), q.premultiply(flat), sc.set(1, 1, 1)));
     }
     if (d.kind === 'rubble') {
       const rnd = mulberry32(d.seed);
       for (let i = 0; i < d.w * 6 && ns < 1200; i++) {
         q.setFromAxisAngle(up, rnd() * 6);
         const s = (0.6 + rnd() * 1.4) * fade;
-        stones.setMatrixAt(ns++, m4.compose(v.set(x + (rnd() - 0.5) * d.w * 0.9, 0.05, z + (rnd() - 0.5) * d.w * 0.9), q, sc.set(s, s * 0.6, s)));
+        const sx = x + (rnd() - 0.5) * d.w * 0.9, sz = z + (rnd() - 0.5) * d.w * 0.9;
+        stones.setMatrixAt(ns++, m4.compose(v.set(sx, heightAt(sx, sz) + 0.05, sz), q, sc.set(s, s * 0.6, s)));
       }
     }
   }

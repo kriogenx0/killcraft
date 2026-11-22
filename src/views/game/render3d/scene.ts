@@ -4,12 +4,16 @@ import * as THREE from 'three';
 import { TS } from '../../../game/const.ts';
 import { eye } from '../camera_rig.ts';
 import { V } from '../view_state.ts';
+import { MOODS, skyEnvironment, sunDirection, type Mood } from './mood.ts';
+import { groundY, surfaceY, WATER_LEVEL } from './heights.ts';
 
 export const S = {
   renderer: null as unknown as THREE.WebGLRenderer,
   scene: new THREE.Scene(),
   camera: new THREE.PerspectiveCamera(45, 1, 0.5, 400),
   sun: new THREE.DirectionalLight('#fff1dc', 2.2),
+  hemi: new THREE.HemisphereLight('#d8ecff', '#3e4a2a', 1.1),
+  mood: MOODS[1],
   raycaster: new THREE.Raycaster(),
   ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
   canvas: null as unknown as HTMLCanvasElement,
@@ -28,13 +32,31 @@ export function initScene(canvas: HTMLCanvasElement): void {
   S.renderer = r;
   S.scene.background = new THREE.Color(SKY);
   S.scene.fog = new THREE.Fog(SKY, 30, 90);
-  S.scene.add(new THREE.HemisphereLight('#d8ecff', '#3e4a2a', 1.1));
+  S.scene.add(S.hemi);
   const sun = S.sun;
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
   S.scene.add(sun, sun.target);
+}
+
+let sunDir = new THREE.Vector3(-0.45, 0.8, 0.33).normalize();
+
+/** Light the scene for a map's time of day. */
+export function setMood(m: Mood): void {
+  S.mood = m;
+  sunDir = sunDirection(m);
+  S.sun.color.set(m.sun);
+  S.sun.intensity = m.sunI;
+  S.hemi.color.set(m.sky);
+  S.hemi.groundColor.set(m.ground);
+  S.hemi.intensity = m.hemiI;
+  (S.scene.fog as THREE.Fog).color.set(m.haze);
+  S.renderer.toneMappingExposure = m.exposure;
+  S.scene.environment?.dispose();
+  S.scene.environment = skyEnvironment(S.renderer, m);
+  S.scene.environmentIntensity = m.envI;
 }
 
 /** Size the drawing area to the part of the window the sidebar doesn't cover. */
@@ -46,19 +68,25 @@ export function resizeScene(w: number, h: number): void {
   S.camera.updateProjectionMatrix();
 }
 
+let camY = 0;
+
 /** Place the camera from the rig, and keep the sun's shadow box around what's on screen. */
 export function updateCamera(): void {
   const c = V.cam, [ex, ey, ez] = eye(c), tx = c.x / TS, tz = c.y / TS;
   S.camera.position.set(ex, ey, ez);
-  S.camera.lookAt(tx, 0, tz);
+  camY += (surfaceY(tx, tz) - camY) * 0.12; // ease over hills instead of jolting
+  const ty = camY;
+  S.camera.position.y += ty;
+  S.camera.lookAt(tx, ty, tz);
   const span = c.dist * 1.1 + 8, sun = S.sun, sc = sun.shadow.camera;
-  sun.position.set(tx - 14, 26, tz + 10);
-  sun.target.position.set(tx, 0, tz);
-  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 80;
+  sun.position.set(tx + sunDir.x * 40, ty + sunDir.y * 40, tz + sunDir.z * 40);
+  sun.target.position.set(tx, ty, tz);
+  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 100;
   sc.updateProjectionMatrix();
   const fog = S.scene.fog as THREE.Fog;
-  fog.near = c.dist * 1.6;
-  fog.far = c.dist * 4 + 20;
+  // a light haze over distant ground when the camera looks out toward the horizon
+  fog.near = c.dist * 1.3 + 6;
+  fog.far = c.dist * 5 + 40;
 }
 
 const ndc = new THREE.Vector2(), hit = new THREE.Vector3();
@@ -70,16 +98,40 @@ function ray(sx: number, sy: number): THREE.Raycaster {
   return S.raycaster;
 }
 
+const step = new THREE.Vector3(), probe = new THREE.Vector3();
+
 /** The world point (px) on the ground under a screen point, or null if it points at the sky. */
 export function screenToWorld(sx: number, sy: number): { x: number; y: number } | null {
-  const p = ray(sx, sy).ray.intersectPlane(S.ground, hit);
+  const r = ray(sx, sy).ray;
+  // march along the ray until it dips under the hills, then narrow down where it crossed
+  if (r.direction.y < 0) {
+    const start = Math.max(0, (r.origin.y - 3) / -r.direction.y);
+    probe.copy(r.origin).addScaledVector(r.direction, start);
+    step.copy(r.direction).multiplyScalar(0.25);
+    let prev = start;
+    for (let t = start; t < start + 160; t += 0.25) {
+      if (probe.y <= surfaceY(probe.x, probe.z)) {
+        let lo = prev, hi = t;
+        for (let k = 0; k < 8; k++) {
+          const mid = (lo + hi) / 2;
+          r.at(mid, probe);
+          if (probe.y <= surfaceY(probe.x, probe.z)) hi = mid; else lo = mid;
+        }
+        r.at(hi, probe);
+        return { x: probe.x * TS, y: probe.z * TS };
+      }
+      prev = t;
+      probe.add(step);
+    }
+  }
+  const p = r.intersectPlane(S.ground, hit);
   return p ? { x: p.x * TS, y: p.z * TS } : null;
 }
 
 const proj = new THREE.Vector3();
 /** Where a world point (px, at `h` tiles above the ground) appears on screen, in client px. */
 export function worldToScreen(x: number, y: number, h = 0): { sx: number; sy: number; front: boolean } {
-  proj.set(x / TS, h, y / TS).project(S.camera);
+  proj.set(x / TS, h + Math.max(groundY(x, y), WATER_LEVEL), y / TS).project(S.camera);
   const r = S.canvas.getBoundingClientRect();
   return { sx: r.left + ((proj.x + 1) / 2) * r.width, sy: r.top + ((1 - proj.y) / 2) * r.height, front: proj.z < 1 };
 }

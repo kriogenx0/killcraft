@@ -1,5 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, bldDef, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { G, bldDef, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TS } from '../../game/const.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
@@ -51,7 +51,7 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     if (b.kind === 'bld' && b.done && isUnitProducer(bldDef(b).produces)) { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
     return;
   }
-  const harvesters = units.filter((u) => u.type === 'harvester'), rest = units.filter((u) => u.type !== 'harvester');
+  const harvesters = units.filter(isHarvester), rest = units.filter((u) => !isHarvester(u));
   const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty });
   if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
@@ -88,7 +88,7 @@ function boxSelect(x0: number, y0: number, x1: number, y1: number, add: boolean)
   const l = Math.min(x0, x1), r = Math.max(x0, x1), t = Math.min(y0, y1), b = Math.max(y0, y1);
   const us = unitsOnScreen((sx, sy) => sx >= l - 6 && sx <= r + 6 && sy >= t - 6 && sy <= b + 6);
   // prefer combat units over harvesters in a box
-  const army = us.filter((u) => u.type !== 'harvester'), pick = army.length ? army : us;
+  const army = us.filter((u) => !isHarvester(u)), pick = army.length ? army : us;
   if (pick.length) setSelection(add ? [...new Set([...selectedUnits(), ...pick])] : pick);
   else if (!add) setSelection([]);
 }

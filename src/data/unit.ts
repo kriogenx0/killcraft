@@ -1,7 +1,7 @@
 import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
 
-export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester'
+export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
@@ -44,6 +44,12 @@ export interface UnitDef {
   turret: boolean;
   /** body radius in px, used for spacing and clicks */
   radius: number;
+  /** harvesters: ore carried per trip (anything with this gathers ore) */
+  haul?: number;
+  /** harvesters: ore scooped per second */
+  scoop?: number;
+  /** no longer trained from this age on (see data/era.ts) */
+  until?: number;
   /** aircraft only: how high it flies, in tiles */
   alt?: number;
   /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
@@ -63,7 +69,8 @@ export const UNIT: Record<UnitType, UnitDef> = {
   tank: { name: 'Battle Tank', key: 'T', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, turn: 2.5, weapon: 'cannon', cost: 700, oil: 150, t: 14, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1300, oil: 300, t: 22, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, desc: 'Slow, heavily armored twin-cannon tank.' },
   catapult: { name: 'Catapult', cls: 'vehicle', armor: 'light', hp: 220, spd: 1.6, turn: 1.5, weapon: 'catapult', cost: 500, wood: 400, t: 16, era: 0, sight: 6, producer: 'vehicle', turret: false, radius: 14, desc: 'Lobs boulders from long range. Crushes buildings and packed infantry.' },
-  harvester: { name: 'Harvester', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.4, turn: 2, weapon: null, cost: 1400, wood: 100, t: 18, era: 0, sight: 4, producer: 'vehicle', turret: false, radius: 15, desc: 'Collects ore and brings it to a refinery. Unarmed.' },
+  harvester: { name: 'Harvester', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.4, turn: 2, weapon: null, cost: 1400, wood: 100, t: 18, era: 2, sight: 4, producer: 'vehicle', turret: false, radius: 15, haul: 600, scoop: 160, desc: 'Collects ore and brings it to a refinery. Unarmed.' },
+  worker: { name: 'Worker', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 12, weapon: null, cost: 250, t: 7, era: 0, until: 2, sight: 4, producer: 'infantry', turret: false, radius: 6, haul: 300, scoop: 80, desc: 'Peasant with a pick and a basket. Digs ore and carries it to a refinery. Unarmed; heals like other infantry. Replaced by the Harvester in the Modern age.' },
   // aircraft, built at the Airfield. They fly straight over buildings, cliffs and water, and only
   // weapons that can aim upward (bows, guns, rockets, flak) can hit them.
   balloon: { name: 'War Balloon', cls: 'air', armor: 'air', hp: 170, spd: 1.3, turn: 1, weapon: 'bomb', cost: 150, wood: 250, t: 12, era: 1, sight: 9, producer: 'air', turret: false, radius: 12, alt: 2.2, desc: 'Silk envelope and a wicker basket. Drifts slowly over walls and drops bombs. Sees far.' },
