@@ -2,7 +2,8 @@ import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
 
 export type UnitType = 'rifleman' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester'
-  | 'balloon' | 'biplane' | 'helicopter' | 'medic';
+  | 'balloon' | 'biplane' | 'helicopter' | 'medic'
+  | 'wraith' | 'hexblade' | 'phantom' | 'starfall';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -19,6 +20,12 @@ export interface UnitDef {
   cost: number;
   wood?: number;
   oil?: number;
+  /** Aether (data/aether.ts). Units that cost Aether are hidden until their side first finds some. */
+  aether?: number;
+  /** stays unseen by enemies until it fires or an enemy comes close (see CLOAK_* in data/aether.ts) */
+  cloak?: boolean;
+  /** the regular unit whose model and animations this one borrows, with an Aether glow */
+  look?: UnitType;
   /** build time in seconds at full power */
   t: number;
   /** the age (see data/era.ts) that unlocks this unit */
@@ -53,6 +60,11 @@ export const UNIT: Record<UnitType, UnitDef> = {
   balloon: { name: 'War Balloon', cls: 'air', armor: 'air', hp: 170, spd: 1.3, weapon: 'bomb', cost: 150, wood: 250, t: 12, era: 1, sight: 9, producer: 'air', turret: false, radius: 12, alt: 2.2, desc: 'Silk envelope and a wicker basket. Drifts slowly over walls and drops bombs. Sees far.' },
   biplane: { name: 'Biplane', cls: 'air', armor: 'air', hp: 190, spd: 6.0, weapon: 'planegun', cost: 300, wood: 150, oil: 150, t: 13, era: 1, sight: 8, producer: 'air', turret: false, radius: 12, alt: 1.6, desc: 'Fast wood-and-canvas fighter. Shreds balloons, aircraft and infantry.' },
   helicopter: { name: 'Attack Helicopter', cls: 'air', armor: 'air', hp: 340, spd: 4.4, weapon: 'missile', cost: 700, oil: 300, t: 18, era: 2, sight: 7, producer: 'air', turret: false, radius: 13, alt: 1.3, desc: 'Steel gunship firing guided missiles. Deadly against tanks.' },
+  // hidden units, revealed by Aether: each matches its regular unit, plus one trick
+  wraith: { name: 'Wraith Knight', cls: 'infantry', armor: 'light', hp: 170, spd: 4.6, weapon: 'wraithlance', cost: 400, wood: 30, aether: 50, t: 12, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, look: 'knight', desc: 'A knight bound to Aether. Its spectral lance passes through armor.' },
+  hexblade: { name: 'Hex Rifleman', cls: 'infantry', armor: 'none', hp: 55, spd: 2.0, weapon: 'hexrifle', cost: 110, wood: 20, aether: 25, t: 6, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, look: 'rifleman', desc: 'Hexed shot slows whatever it hits to half speed for a moment.' },
+  phantom: { name: 'Phantom Jeep', cls: 'vehicle', armor: 'light', hp: 170, spd: 5.0, weapon: 'mg', cost: 450, oil: 50, aether: 60, t: 10, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, cloak: true, look: 'jeep', desc: 'Scout jeep wrapped in Aether. Unseen until it fires or an enemy comes close.' },
+  starfall: { name: 'Starfall Tank', cls: 'vehicle', armor: 'heavy', hp: 380, spd: 2.8, weapon: 'starbeam', cost: 750, oil: 150, aether: 100, t: 16, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 13, look: 'tank', desc: 'Battle tank with a beam of starlight. Slow to fire, but tears through buildings.' },
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */

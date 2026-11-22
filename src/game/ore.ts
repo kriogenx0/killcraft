@@ -7,7 +7,7 @@ import { ORE_REGROW, ORE_REGROW_RADIUS, ORE_REGROW_TILES, ORE_TILE_MAX } from '.
 export function regrowOre(): void {
   let changed = false;
   for (const s of G.ents) {
-    if (s.dead || s.kind !== 'source') continue;
+    if (s.dead || s.type !== 'source') continue;
     for (let k = 0; k < ORE_REGROW_TILES; k++) {
       const a = Math.random() * Math.PI * 2, r = 1 + Math.random() * ORE_REGROW_RADIUS;
       const x = Math.round(s.tx + Math.cos(a) * r), y = Math.round(s.ty + Math.sin(a) * r);

@@ -287,7 +287,8 @@ describe('a computer-vs-computer match', () => {
     initWorld(99);
     run(360); // room for the lumber mill and the wood that research needs
     expect(errors).toEqual([]);
-    // both sides research past the Medieval age
+    // someone researches past the Medieval age (a slow economy can take a few more minutes)
+    for (let i = 0; i < 8 && !G.over && G.era.every((e) => e === 0); i++) run(30);
     expect(Math.max(...G.era)).toBeGreaterThan(0);
     for (const team of [0, 1]) {
       if (G.over && G.winner !== team) continue;

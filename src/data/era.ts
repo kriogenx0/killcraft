@@ -17,7 +17,7 @@ export const ERA: EraDef[] = [
 export const START_ERA = 0;
 export const LAST_ERA = ERA.length - 1;
 
-export type TechType = 'age1' | 'age2' | 'heal1' | 'heal2' | 'heal3';
+export type TechType = 'age1' | 'age2' | 'heal1' | 'heal2' | 'heal3' | 'ward';
 
 export interface TechDef {
   name: string;
@@ -27,10 +27,14 @@ export interface TechDef {
   age?: number;
   /** the healing level this research reaches (see HEAL_RATE) */
   heal?: number;
+  /** the Aether Ward: buildings take less damage (see WARD_FACTOR) */
+  ward?: boolean;
   /** ore */
   cost: number;
   wood?: number;
   oil?: number;
+  /** Aether; research that needs it is hidden until the side first finds some */
+  aether?: number;
   /** research time in seconds at full power */
   t: number;
   /** buildings that must exist before the research can start */
@@ -49,11 +53,12 @@ export const HOSPITAL_HEAL = 1.5;
 const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
 
 export const TECH: Record<TechType, TechDef> = {
-  age1: { name: 'World War', era: 0, age: 1, cost: 1200, wood: 250, t: 40, requires: ['barracks'], desc: `Advance to the World War age. Unlocks ${ERA[1].desc}` },
+  age1: { name: 'World War', era: 0, age: 1, cost: 1000, wood: 150, t: 35, requires: ['barracks'], desc: `Advance to the World War age. Unlocks ${ERA[1].desc}` },
   age2: { name: 'Modern Age', era: 1, age: 2, cost: 3000, wood: 600, oil: 400, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[2].desc}` },
   heal1: { name: 'Field Dressing', era: 0, heal: 1, cost: 400, t: 25, requires: ['barracks'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
   heal2: { name: 'Surgeons', era: 1, heal: 2, cost: 800, t: 35, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },
   heal3: { name: 'Antibiotics', era: 2, heal: 3, cost: 1200, t: 45, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(3)}).` },
+  ward: { name: 'Aether Ward', era: 0, ward: true, cost: 500, aether: 100, t: 40, requires: [], desc: 'Aether woven into the walls: your buildings take 10% less damage.' },
 };
 
 export const TECH_TYPES = Object.keys(TECH) as TechType[];

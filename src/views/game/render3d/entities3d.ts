@@ -13,7 +13,7 @@ import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
-import { bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
+import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 
 interface Obj { model: Model; key: string }
@@ -37,7 +37,7 @@ export function resetEntities3d(): void {
 }
 
 function create(e: Ent): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
   m.root.userData.id = e.id;
   if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
@@ -55,8 +55,9 @@ function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
   if (P.legL && P.legR) { P.legL.rotation.z = swing; P.legR.rotation.z = -swing; }
-  if (UNIT[e.type as UnitType]?.cls === 'infantry' && e.type !== 'knight') m.root.position.y = e.moving ? Math.abs(Math.sin(w)) * 0.025 : 0;
-  switch (e.type) {
+  const look = UNIT[e.type as UnitType]?.look ?? e.type; // hidden units move like their regular unit
+  if (UNIT[e.type as UnitType]?.cls === 'infantry' && look !== 'knight') m.root.position.y = e.moving ? Math.abs(Math.sin(w)) * 0.025 : 0;
+  switch (look) {
     case 'swordsman':
       // overhead cut when striking, sword lowered and swaying when not
       P.armR.rotation.z = atk > 0 ? lerp(2.8, 0.2, atk) : 0.35 + swing * 0.3;

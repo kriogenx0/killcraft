@@ -1,9 +1,9 @@
 import type { Price } from '../../../game/production.ts';
 
-const RES = ['ore', 'wood', 'oil'] as const;
+const RES = ['ore', 'wood', 'oil', 'aether'] as const;
 
 /** "2000 ore, 200 wood" */
-export const priceText = (p: Price): string => RES.filter((k) => p[k] > 0).map((k) => `${p[k]} ${k}`).join(', ');
+export const priceText = (p: Price): string => RES.filter((k) => p[k] > 0).map((k) => `${p[k]} ${k === 'aether' ? 'Aether' : k}`).join(', ');
 
 /** A sidebar production button for one structure, unit type or age of research. */
 export function buildCellHtml(type: string, name: string, price: Price, icon: string, desc = ''): string {

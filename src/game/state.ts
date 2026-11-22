@@ -9,7 +9,8 @@ import { clamp } from '../util/math.ts';
 
 export type Tile = [number, number];
 export type EntKind = 'unit' | 'bld' | 'source';
-export type EntType = UnitType | BldType | 'source';
+/** 'source' is an ore crystal rock, 'aether' an Aether deposit (its hp is the Aether left) */
+export type EntType = UnitType | BldType | 'source' | 'aether';
 
 /**
  * How a unit fights. There is only one way to move; the stance decides what happens on the way.
@@ -84,6 +85,10 @@ export interface Ent extends Target {
   repairing: boolean;
   /** where newly built units go */
   rally: Point | null;
+  /** game time until which a hexed unit moves at reduced speed */
+  slowT?: number;
+  /** game time until which a cloaked unit shows after firing */
+  shownT?: number;
 }
 
 export interface Projectile {
@@ -145,6 +150,12 @@ export const G = {
   credits: [] as number[],
   wood: [] as number[],
   oil: [] as number[],
+  /** Aether, the rare resource (see data/aether.ts) */
+  aether: [] as number[],
+  /** each team has drawn Aether at least once, revealing its hidden units */
+  aetherFound: [] as boolean[],
+  /** each team has researched the Aether Ward */
+  ward: [] as boolean[],
   /** each team's age of technology (index into ERA) */
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */
