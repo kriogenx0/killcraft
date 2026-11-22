@@ -5,6 +5,7 @@ import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, WALL_LINE_MAX, WALL_R
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
+import { nearPortal } from './map.ts';
 import { updTurret } from './combat.ts';
 import { orderHarvest } from './order.ts';
 
@@ -103,7 +104,7 @@ export function wallLine(x0: number, y0: number, x1: number, y1: number): Tile[]
 /** With margin, keeps a one-tile lane free around other buildings (used by the computer player). */
 export function canPlace(tx: number, ty: number, s: number, team: number, margin = false, wall = false): boolean {
   if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !nearBase(tx, ty, s, team, wall)) return false;
-  for (let y = ty; y < ty + s; y++) for (let x = tx; x < tx + s; x++) if (!tileFree(x, y, team)) return false;
+  for (let y = ty; y < ty + s; y++) for (let x = tx; x < tx + s; x++) if (!tileFree(x, y, team) || nearPortal(x, y)) return false;
   if (margin)
     for (let y = ty - 1; y <= ty + s; y++)
       for (let x = tx - 1; x <= tx + s; x++) {

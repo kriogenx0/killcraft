@@ -2,11 +2,12 @@
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import * as THREE from 'three';
 import { G, valid, type Ent } from '../../../game/state.ts';
-import { TS } from '../../../game/const.ts';
-import { BUILDING, type BldType } from '../../../data/building.ts';
+import { MH, MW, TS } from '../../../game/const.ts';
+import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
-import { nearBase, tileFree } from '../../../game/building.ts';
+import { nearBase, tileFree, wallLine } from '../../../game/building.ts';
+import { nearPortal } from '../../../game/map.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
@@ -14,6 +15,7 @@ import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
+import { WALL_DIRS } from './defenses.ts';
 
 interface Obj { model: Model; key: string }
 
@@ -35,8 +37,8 @@ export function resetEntities3d(): void {
   S.scene.add(holder, overlays);
 }
 
-function create(e: Ent): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
+function create(e: Ent, wallMask: number): Model {
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team), wallMask);
   m.root.userData.id = e.id;
   if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
@@ -83,6 +85,19 @@ function animateUnit(m: Model, e: Ent): void {
       P.stone.visible = e.atkT <= 0;
       break;
   }
+  const alt = UNIT[e.type as UnitType]?.alt;
+  if (alt) {
+    // aircraft hover at their height with a gentle bob; rotors and propellers spin
+    const t = performance.now() / 1000;
+    m.root.position.y = alt + Math.sin(t * 1.6 + e.id) * 0.04;
+    if (P.rotor) P.rotor.rotation.y = t * 22;
+    if (P.tailRotor) P.tailRotor.rotation.z = t * 30;
+    if (P.prop) P.prop.rotation.x = t * 40;
+    if (P.envelope) P.envelope.rotation.z = Math.sin(t * 0.9 + e.id) * 0.04;
+    // a biplane banks into its turns
+    if (e.type === 'biplane') m.root.rotation.order = 'YXZ';
+    if (e.type === 'biplane') m.root.rotation.x = e.moving ? Math.sin(t * 0.7 + e.id) * 0.15 : 0;
+  }
   if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
 }
@@ -95,6 +110,7 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.crane) P.crane.rotation.y = Math.sin(G.gameT * 0.25 + e.id) * 0.7;
   if (P.radar) P.radar.rotation.y += dt * 1.3;
   if (P.flag) P.flag.rotation.y = Math.sin(G.gameT * 3 + e.id) * 0.25;
+  if (P.balloon) P.balloon.rotation.z = Math.sin(G.gameT * 0.8 + e.id) * 0.06;
   if (P.sails && e.done) P.sails.rotation.z -= dt * 1.1;
   if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
 }
@@ -184,29 +200,69 @@ function ghostFor(type: BldType): NonNullable<typeof ghost> {
   return ghost;
 }
 
+/** Tile markers along a wall line being dragged out. */
+const linePool: THREE.Mesh[] = [];
+const lineGeo = new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2);
+
+function updateWallLine(): void {
+  const m = V.mode, line = m?.t === 'place' && m.ax != null && m.ay != null ? wallLine(m.ax, m.ay, m.tx, m.ty) : [];
+  line.forEach(([x, y], i) => {
+    let t = linePool[i];
+    if (!t) { t = new THREE.Mesh(lineGeo, basic('#4f4', 0.45)); t.renderOrder = 3; linePool.push(t); overlays.add(t); }
+    t.visible = true;
+    t.position.set(x + 0.5, 0.1, y + 0.5);
+    const ok = nearBase(x, y, 1, V.team, true) && tileFree(x, y, V.team) && !nearPortal(x, y);
+    (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
+  });
+  for (let i = line.length; i < linePool.length; i++) linePool[i].visible = false;
+}
+
 function updateGhost(): void {
   const m = V.mode;
+  updateWallLine();
   if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
-  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team);
+  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team, isWall(m.type));
   g.group.visible = true;
   g.group.position.set(m.tx + s / 2, 0, m.ty + s / 2);
   g.tiles.forEach((t, i) => {
-    const ok = near && tileFree(m.tx + (i % s), m.ty + Math.floor(i / s), V.team);
+    const x = m.tx + (i % s), y = m.ty + Math.floor(i / s), ok = near && tileFree(x, y, V.team) && !nearPortal(x, y);
     (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
   });
+}
+
+/**
+ * Which neighbours a wall joins (bits follow WALL_DIRS): any of its team's walls next to it. A
+ * diagonal join is left out when a straight neighbour already closes that corner.
+ */
+function wallMask(e: Ent, walls: Map<number, number>): number {
+  const at = (dx: number, dy: number) => {
+    const x = e.tx + dx, y = e.ty + dy;
+    return x >= 0 && y >= 0 && x < MW && y < MH && walls.get(y * MW + x) === e.team;
+  };
+  let mask = 0;
+  WALL_DIRS.forEach(([dx, dy], i) => {
+    if (!at(dx, dy)) return;
+    if (dx && dy && (at(dx, 0) || at(0, dy))) return;
+    mask |= 1 << i;
+  });
+  return mask;
 }
 
 /** Create, move, animate and remove models to match the world. Call once per frame. */
 export function syncEntities(dt: number): void {
   const seen = new Set<number>();
+  // which team's wall stands on each tile, so segments join up with their neighbours
+  const walls = new Map<number, number>();
+  for (const e of G.ents) if (!e.dead && e.kind === 'bld' && isWall(e.type)) walls.set(e.ty * MW + e.tx, e.team);
   for (const e of G.ents) {
     if (e.dead) continue;
     seen.add(e.id);
     let o = objs.get(e.id);
+    const mask = walls.size && e.kind === 'bld' && isWall(e.type) ? wallMask(e, walls) : 0;
     // structures change their look as their side advances through the ages
-    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}` : `${e.type}|${e.team}`;
+    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}|${mask}` : `${e.type}|${e.team}`;
     if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
-    if (!o) { o = { model: create(e), key }; objs.set(e.id, o); }
+    if (!o) { o = { model: create(e, mask), key }; objs.set(e.id, o); }
     const r = o.model.root;
     r.visible = shownToPlayer(e);
     if (!r.visible) continue;
@@ -221,8 +277,14 @@ export function syncEntities(dt: number): void {
   updateGhost();
 }
 
-/** How tall an entity's model is (tiles), for placing health bars. */
-export const modelHeight = (e: Ent): number => objs.get(e.id)?.model.height ?? 0.6;
+/** How high an aircraft flies (tiles). */
+const altTiles = (e: Ent): number => (e.kind === 'unit' ? UNIT[e.type as UnitType].alt ?? 0 : 0);
+
+/** How high the top of an entity's model is (tiles), for placing health bars. */
+export const modelHeight = (e: Ent): number => (objs.get(e.id)?.model.height ?? 0.6) + altTiles(e);
+
+/** A point partway up an entity's model (tiles), for picking and box selection. */
+export const midHeight = (e: Ent): number => altTiles(e) + (objs.get(e.id)?.model.height ?? 0.6) * 0.4;
 
 /** The entity under a screen point: models first, then the nearest small unit within reach. */
 export function pickEntity(sx: number, sy: number): Ent | null {
@@ -237,7 +299,7 @@ export function pickEntity(sx: number, sy: number): Ent | null {
   let best: Ent | null = null, bd = 24;
   for (const e of G.ents) {
     if (e.dead || e.kind !== 'unit' || !objs.get(e.id)?.model.root.visible) continue;
-    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.5), d = Math.hypot(p.sx - sx, p.sy - sy);
+    const p = worldToScreen(e.x, e.y, midHeight(e)), d = Math.hypot(p.sx - sx, p.sy - sy);
     if (d < bd) { bd = d; best = e; }
   }
   return best;

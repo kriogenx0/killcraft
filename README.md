@@ -34,9 +34,10 @@ The live game runs on Coolify from this repo's `main` branch:
 
 - **Economy:** there are three resources, shown in the top bar.
   - **Ore:** build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it there. Each field holds about 14,000 ore and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
-  - **Wood:** a Lumber Mill cuts wood from the trees within 5 tiles of it, so place it by the woods (select it to see how many trees it reaches). Two mills don't share a tree. Every side starts with woods near its base.
-  - **Oil:** from the Industrial age, an Oil Derrick pumps oil.
-  - Prices follow what a thing is made of and runs on: metal and stone cost ore, timber costs wood, and engines and rockets cost oil. A Knight's lance and a Crossbowman's bow take wood, a Catapult is mostly wood, and Jeeps, Tanks and Rocket Soldiers need oil. Each cell in the sidebar shows its price.
+  - **Wood:** a Lumber Mill cuts wood from the trees within 5 tiles of it, so place it by the woods (select it to see how many trees it reaches and how much it cuts). Each tree holds 150 wood; a cut-down tree slowly grows back, so a mill slows once its trees are bare. Every side starts with woods near its base.
+  - **Oil:** from the Industrial age, an Oil Derrick pumps oil from a well (the black pools: one near each base, two in the middle). Wells never refill, so a derrick runs dry; select it to see how much is left.
+  - **Salvage:** anything destroyed in battle leaves 30% of its ore price behind as ore on the ground (plus whatever a harvester was carrying), for either side's harvesters to collect.
+  - Prices follow what a thing is made of and runs on: metal and stone cost ore, timber costs wood, and engines and rockets cost oil. A Knight's lance and a Crossbowman's bow take wood, a Catapult is mostly wood, and Jeeps, Tanks and Rocket Soldiers need oil. Aircraft too: a War Balloon is silk, wicker and a wood fire (ore and wood), a Biplane is a wood-and-canvas frame with an oil-burning engine (ore, wood and oil), and an Attack Helicopter is all metal and burns oil (ore and oil, no wood). Each cell in the sidebar shows its price.
 - **Power:** every structure but the Power Plant uses power. If you use more than you make, production runs at half speed and turrets fire slowly.
 - **Building:** click a structure in the sidebar. Resources are spent as it builds, and it pauses if you run out of any of them. When it says READY, click it again and place it within 3 tiles of your base. Right-click a sidebar item to put it on hold, again to cancel (or use its × button).
 - **Ages:** every side starts in the Medieval age and advances by researching the next age at the Construction Yard (it appears at the end of the structure list, one age at a time, and builds alongside your structures). Older units stay available after you advance, and the top bar shows your current age. Your base grows up with each age: it starts primitive (a log palisade fort, a post mill, clay furnaces, a thatched roundhouse) in the Medieval age, is rebuilt in stone with slate roofs and cannon in the Gunpowder age, in brick and iron in the Industrial age, and in concrete and steel in the Modern age. The sidebar pictures follow along.
@@ -44,14 +45,16 @@ The live game runs on Coolify from this repo's `main` branch:
   | Age | Research | Needs | Unlocks |
   | --- | --- | --- | --- |
   | Medieval | (start) | | Swordsman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, the Lumber Mill, and every base structure but the Gun Turret |
-  | Gunpowder | 1000 ore, 150 wood, 35s | Barracks | Rifleman, Gun Turret |
-  | Industrial | 2000 ore, 600 wood, 50s | War Factory | Scout Jeep, Battle Tank, Oil Derrick |
-  | Modern | 3000 ore, 600 wood, 400 oil, 65s | War Factory | Rocket Soldier, Heavy Tank |
+  | Gunpowder | 1000 ore, 150 wood, 35s | Barracks | Rifleman, Gun Turret, Airfield, War Balloon |
+  | Industrial | 2000 ore, 600 wood, 50s | War Factory | Scout Jeep, Battle Tank, Biplane, Oil Derrick, Flak Cannon |
+  | Modern | 3000 ore, 600 wood, 400 oil, 65s | War Factory | Rocket Soldier, Heavy Tank, Attack Helicopter |
 
-- **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (Gunpowder) fires shells that beat vehicles.
+- **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (Gunpowder) fires shells that beat vehicles; the Flak Cannon (Industrial) only shoots at aircraft, from long range.
 - **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. You start with two Swordsmen, a Crossbowman and a Knight.
   - Barracks: Swordsman (plate armor, beats riflemen up close), Crossbowman (armor-piercing bolts), Knight (fast armored lancer), then Rifleman and Rocket Soldier.
   - War Factory: Catapult (lobs boulders from long range, crushes buildings) and Harvester, then Scout Jeep, Battle Tank and Heavy Tank.
+  - Airfield (Gunpowder, needs a Refinery): War Balloon (slow, sees far, drops bombs), then Biplane (fast fighter, best against other aircraft) and Attack Helicopter (missiles that wreck tanks). Aircraft fly straight over buildings, woods and water.
+  - Only weapons that can aim up hit aircraft: crossbows, ballista towers, rifles, machine guns, rockets, aircraft guns and flak. Swords, lances, catapults and tank cannons can't. Rocket Soldiers and the Flak Cannon are the best answers to helicopters.
   - Rockets beat armor, rifles beat unarmored infantry, swords beat rifles, crossbows pierce plate, tanks beat almost everything.
 - **Orders:** left-click or drag to select. Right-click to move, send harvesters to ore or a refinery, or set a factory's rally point. Select a building to repair or sell it.
 - **Stances:** there is no separate attack order. Units only move, and each unit's stance decides how it fights. Pick one from the command card for a unit or a whole selection:

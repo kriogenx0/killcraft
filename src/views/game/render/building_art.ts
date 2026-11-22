@@ -198,6 +198,35 @@ function drawTower(g: G2, T: TeamColors): void {
   g.fillStyle = '#1a1612'; g.fillRect(15, 2, 2, 7);
 }
 
+function drawAirfield(g: G2, T: TeamColors): void {
+  pad(g, 96, 96);
+  // strip across the front
+  g.fillStyle = '#2a2a26'; g.fillRect(0, 70, 96, 18);
+  g.fillStyle = '#f2ece0';
+  for (let x = 6; x < 96; x += 16) g.fillRect(x, 78, 9, 2);
+  // curved hangar
+  g.fillStyle = vgrad(g, -6, 50, '#c4c6cc', '#6e7076');
+  g.beginPath(); g.moveTo(4, 50); g.arc(34, 50, 30, Math.PI, 0); g.closePath(); g.fill(); outline(g);
+  g.fillStyle = '#1e1e1a'; g.fillRect(14, 32, 40, 18);
+  g.fillStyle = T.m; g.fillRect(10, 26, 48, 5);
+  // control tower
+  g.fillStyle = vgrad(g, -10, 60, '#d0ccc0', '#8a867c');
+  g.fillRect(72, 4, 16, 56); g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 1.4; g.strokeRect(72, 4, 16, 56);
+  g.fillStyle = '#9ec4d8'; g.fillRect(68, -6, 24, 10); g.strokeRect(68, -6, 24, 10);
+  g.fillStyle = T.m; g.fillRect(67, -9, 26, 3);
+}
+
+function drawFlak(g: G2, T: TeamColors): void {
+  ellipseFill(g, 18, 30, 16, 5, 'rgba(0,0,0,.3)');
+  // sandbag ring
+  for (let i = 0; i < 10; i++) { const a = (i / 10) * TAU; blob(g, 16 + Math.cos(a) * 13, 18 + Math.sin(a) * 10, 5, 3.5, '#b8a070'); }
+  g.fillStyle = '#4a4f58'; g.beginPath(); g.ellipse(16, 16, 9, 8, 0, 0, TAU); g.fill(); outline(g, 1);
+  // twin barrels raised to the sky
+  oline(g, 13, 14, 26, -14, 2.6, '#2a2d30');
+  oline(g, 18, 15, 31, -13, 2.6, '#2a2d30');
+  g.fillStyle = T.m; g.fillRect(9, 9, 14, 9); g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 1; g.strokeRect(9, 9, 14, 9);
+}
+
 function drawSource(g: G2): void {
   ellipseFill(g, 18, 30, 16, 5, 'rgba(0,0,0,.3)');
   g.fillStyle = vgrad(g, -10, 32, '#6a625a', '#2e2a26');
@@ -261,9 +290,10 @@ function drawDerrick(g: G2, T: TeamColors): void {
   oline(g, 4, 50, 38, 50, 2.5, '#5a5a5e');
 }
 
-const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
+/** 2D art is only the fallback icon when WebGL is missing; newer structures draw as a plain block. */
+const ART: Partial<Record<BldType, (g: G2, T: TeamColors) => void>> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
-  mill: drawMill, derrick: drawDerrick,
+  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak,
 };
 
 /** Cached sprite for a building type and team. */
@@ -275,7 +305,11 @@ export function sprite(type: SpriteType, team: number): Sprite {
   const W = size * TS, c = mkCanvas(W + PAD * 2, W + top + PAD + 4), g = ctx2d(c);
   g.translate(PAD, top + 4);
   if (type === 'source') drawSource(g);
-  else ART[type](g, teamColors(team));
+  else {
+    const draw = ART[type], T = teamColors(team);
+    if (draw) draw(g, T);
+    else { g.fillStyle = T.m; g.fillRect(4, -10, W - 8, W + 6); g.fillStyle = '#888'; g.fillRect(8, -6, W - 16, W - 2); }
+  }
   const s = { c, ox: PAD, oy: top + 4 };
   cache.set(key, s);
   return s;

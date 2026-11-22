@@ -55,8 +55,8 @@ const tmp = new THREE.Color();
 function colorOf(p: Particle, k: number): THREE.Color {
   switch (p.kind) {
     case 'fire': return tmp.setRGB(1, 0.85 - k * 0.5, 0.45 - k * 0.4).multiplyScalar(1 - k);
-    case 'flash': return tmp.setRGB(1, 1, 0.8).multiplyScalar(1 - k);
-    case 'spark': return tmp.setRGB(1, 0.85, 0.4).multiplyScalar(1 - k);
+    case 'flash': return (p.col ? tmp.set(p.col) : tmp.setRGB(1, 1, 0.8)).multiplyScalar(1 - k);
+    case 'spark': return (p.col ? tmp.set(p.col) : tmp.setRGB(1, 0.85, 0.4)).multiplyScalar(1 - k);
     case 'smoke': return p.soft ? tmp.setRGB(0.85, 0.85, 0.85) : tmp.setRGB(0.16, 0.15, 0.14);
     case 'trail': return tmp.setRGB(0.8, 0.8, 0.78);
     case 'dust': return tmp.setRGB(0.74, 0.66, 0.5);
@@ -121,7 +121,7 @@ function updateParticles(): void {
     const k = p.life / p.max;
     if (p.kind === 'tracer') {
       if (nt >= 400) continue;
-      tracerPos.set([p.x / TS, Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, 0.25, p.ey / TS], nt * 6);
+      tracerPos.set([p.x / TS, Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, 0.25 + p.ez / TS, p.ey / TS], nt * 6);
       nt++;
       continue;
     }

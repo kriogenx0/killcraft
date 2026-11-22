@@ -1,8 +1,9 @@
 // Walking along paths, approaching targets, and keeping units from stacking on each other.
-import { G, blkAt, unitDef, type Ent, type Target } from './state.ts';
+import { G, blkAt, isAir, unitDef, type Ent, type Target } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
-import { edgeDist, pathFor, pathTo } from './path.ts';
+import { edgeDist, isJump, pathFor, pathTo } from './path.ts';
+import { warpFx } from './fx.ts';
 
 /** Turn an angle toward a target angle by at most `max` radians. */
 export function turnToward(a: number, target: number, max: number): number {
@@ -27,8 +28,8 @@ export function followPath(u: Ent, dt: number): boolean {
     u.path = g ? pathFor(u, g[0], g[1]) : [];
     return !u.path.length;
   };
-  const wp = u.path[0];
-  if (G.blk[wp[1] * MW + wp[0]]) return repath();
+  const wp = u.path[0], air = isAir(u);
+  if (!air && G.blk[wp[1] * MW + wp[0]]) return repath();
   const d = unitDef(u), tx = (wp[0] + 0.5) * TS, ty = (wp[1] + 0.5) * TS, dx = tx - u.x, dy = ty - u.y;
   const dist = Math.hypot(dx, dy), want = Math.atan2(dy, dx);
   u.moving = true;
@@ -36,17 +37,26 @@ export function followPath(u: Ent, dt: number): boolean {
     // vehicles turn on the spot before driving off
     u.face = turnToward(u.face, want, 7 * dt);
     if (angleDiff(u.face, want) > 1.3) return false;
-  } else u.face = want;
+  } else if (air) u.face = turnToward(u.face, want, 6 * dt); // aircraft bank around without stopping
+  else u.face = want;
   // vehicles slow down while still turning
   const step = d.spd * TS * dt * (d.cls === 'vehicle' ? Math.max(0.35, Math.cos(angleDiff(u.face, want))) : 1);
   u.walk += step / 24;
   if (dist <= step) {
     u.x = tx; u.y = ty;
     u.path.shift();
+    const next = u.path[0];
+    if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) {
+      // step through the portal
+      warpFx(u.x, u.y);
+      u.x = u.px = (next[0] + 0.5) * TS; u.y = u.py = (next[1] + 0.5) * TS;
+      warpFx(u.x, u.y);
+      u.path.shift();
+    }
     return !u.path.length;
   }
   const nx = u.x + (dx / dist) * step, ny = u.y + (dy / dist) * step;
-  if (blkAt(nx, ny) && !blkAt(u.x, u.y)) return repath(); // something was built in the way
+  if (!air && blkAt(nx, ny) && !blkAt(u.x, u.y)) return repath(); // something was built in the way
   u.x = nx; u.y = ny;
   return false;
 }
@@ -54,6 +64,7 @@ export function followPath(u: Ent, dt: number): boolean {
 /** Walk toward a target until within range. true = in range, false = still walking, null = unreachable. */
 export function approach(u: Ent, t: Target, range: number, dt: number): boolean | null {
   if (edgeDist(u, t) <= range) { u.path = null; return true; }
+  if (isAir(u)) return fly(u, t, dt);
   u.rep -= dt;
   if (!u.path || (u.rep <= 0 && (!u.path.length || !t.w))) {
     u.rep = 0.5;
@@ -73,17 +84,30 @@ export function approach(u: Ent, t: Target, range: number, dt: number): boolean 
   return false;
 }
 
+/** Aircraft head straight for a target, turning as they go. Never unreachable. */
+function fly(u: Ent, t: Target, dt: number): false {
+  const d = Math.hypot(t.x - u.x, t.y - u.y);
+  u.path = null;
+  if (d < 1) return false;
+  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), 6 * dt);
+  const step = Math.min(d, unitDef(u).spd * TS * dt);
+  u.x += ((t.x - u.x) / d) * step; u.y += ((t.y - u.y) / d) * step;
+  u.moving = true;
+  return false;
+}
+
 /** A harvester scooping or unloading stays put; everyone else steps around it. */
 const anchored = (u: Ent): boolean => u.order?.t === 'harvest' && (u.order.st === 'gather' || u.order.st === 'unload');
 
 /** Soft collision: overlapping units push apart; idle units yield to moving ones. */
 export function separate(): void {
   const us = G.ents.filter((e) => !e.dead && e.kind === 'unit').sort((a, b) => a.x - b.x);
-  const rad = us.map((u) => unitDef(u).radius + 2);
+  const rad = us.map((u) => unitDef(u).radius + 2), air = us.map(isAir);
   for (let i = 0; i < us.length; i++) {
     const a = us[i];
     for (let j = i + 1; j < us.length; j++) {
       const b = us[j], min = rad[i] + rad[j];
+      if (air[i] !== air[j]) continue;
       let dx = a.x - b.x;
       if (dx < -34) break;
       let dy = a.y - b.y;
@@ -95,8 +119,8 @@ export function separate(): void {
       const wa = weight(a) / rad[i], wb = weight(b) / rad[j], p = Math.min(min - d, 4);
       const sa = (p * wa) / (wa + wb), sb = (p * wb) / (wa + wb);
       const ax = (dx / d) * sa, ay = (dy / d) * sa, bx = (dx / d) * sb, by = (dy / d) * sb;
-      if (!blkAt(a.x + ax, a.y + ay)) { a.x += ax; a.y += ay; }
-      if (!blkAt(b.x - bx, b.y - by)) { b.x -= bx; b.y -= by; }
+      if (air[i] || !blkAt(a.x + ax, a.y + ay)) { a.x += ax; a.y += ay; }
+      if (air[j] || !blkAt(b.x - bx, b.y - by)) { b.x -= bx; b.y -= by; }
     }
   }
   for (const a of us) {

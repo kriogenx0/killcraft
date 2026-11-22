@@ -1,14 +1,14 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves.
-import { G, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, isAir, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType, type TechType } from '../data/era.ts';
-import { TS } from './const.ts';
-import { BUILDING, type BldType } from '../data/building.ts';
+import { MW, TS } from './const.ts';
+import { BUILDING, isWall, type BldType } from '../data/building.ts';
 import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
-import { canPlace } from './building.ts';
+import { canPlace, wallLine } from './building.ts';
 import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
-import { treesNear } from './economy.ts';
+import { oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance } from './order.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean }
@@ -18,7 +18,7 @@ export const ais: AiState[] = [
   { on: true, attackAt: 8, attacking: false },
 ];
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'turret'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -36,22 +36,83 @@ function nextStructure(team: number): BldType | null {
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
+  // answer enemy aircraft with flak
+  const foeAir = G.ents.filter((e) => !e.dead && e.team === 1 - team && isAir(e)).length;
+  if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
-  if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
+  return defense(team, can);
+}
+
+/** Wall segments a computer player puts up, at most. */
+const AI_WALLS = 28;
+/** Segments in each stretch of wall; stretches are spread out, leaving gaps for the side's own units. */
+const AI_WALL_RUN = 4;
+
+/**
+ * Spare money goes into defenses that answer what the enemy fields: pillboxes against infantry,
+ * gun and missile turrets against vehicles, stretches of the best wall the age allows, and one
+ * Big Bertha once the bank is deep.
+ */
+function defense(team: number, can: readonly string[]): BldType | null {
+  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && e.team === 1 - team && e.kind === 'unit' && !isAir(e));
+  const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
+  const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
+  if (credits > 4500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
+  // a stretch of wall for every defensive structure, so the two go up together
+  const wall = (['concretewall', 'stonewall', 'palisade'] as BldType[]).find((t) => can.includes(t) && G.wood[team] >= (BUILDING[t].wood ?? 0) * AI_WALL_RUN);
+  const walls = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && isWall(e.type)).length;
+  if (wall && credits > 1200 && turrets >= 1 && walls < Math.min(AI_WALLS, turrets * AI_WALL_RUN)) return wall;
+  if (credits > 2500 && turrets < 8) {
+    const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
+    const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
+    const pick = infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
+    if (can.includes(pick)) return pick;
+  }
   return null;
+}
+
+const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+
+/**
+ * A short stretch of wall across the approach from the enemy, a few tiles out from the yard, kept
+ * off ore and clear of other structures so harvesters and new units can still get around it.
+ */
+function wallSite(team: number, yard: Ent, foe: Ent | undefined): [Tile, Tile] | null {
+  for (let k = 0; k < 300; k++) {
+    const a = (foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) : Math.random() * Math.PI * 2) + (Math.random() - 0.5) * 2.4;
+    const rad = 5 + Math.random() * (3 + k / 60), cx = yard.x / TS + Math.cos(a) * rad, cy = yard.y / TS + Math.sin(a) * rad;
+    const px = -Math.sin(a), py = Math.cos(a), half = (AI_WALL_RUN - 1) / 2;
+    const x0 = Math.round(cx - px * half), y0 = Math.round(cy - py * half), x1 = Math.round(cx + px * half), y1 = Math.round(cy + py * half);
+    const line = wallLine(x0, y0, x1, y1);
+    if (line.length < 2) continue;
+    const ok = line.every(([x, y]) => canPlace(x, y, 1, team, false, true) && G.ore[y * MW + x] <= 0 && clearAround(x, y));
+    if (ok) return [line[0], line[line.length - 1]];
+  }
+  return null;
+}
+
+/** A free tile between the wall and any structure, and two between stretches, so walls never seal a gap shut. */
+function clearAround(x: number, y: number): boolean {
+  return !G.ents.some((e) => {
+    if (e.dead || e.kind !== 'bld') return false;
+    const m = isWall(e.type) ? 2 : 1;
+    return x >= e.tx - m && x < e.tx + e.w + m && y >= e.ty - m && y < e.ty + e.h + m;
+  });
 }
 
 function findSite(team: number, type: BldType): Tile | null {
   const s = BUILDING[type].size, own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
+  if (type === 'derrick') return wellSite(team, s, yard);
   const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
-    const a = (type === 'turret' || type === 'tower') && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
-    const rad = (type === 'turret' || type === 'tower' ? 4 : 2.5) + Math.random() * (4 + k / 25);
+    const def = DEFENSES.includes(type) || type === 'flak';
+    const a = def && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
+    const rad = (def ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
     if (!canPlace(tx, ty, s, team, true)) continue;
     if (type !== 'mill') return [tx, ty];
@@ -61,8 +122,28 @@ function findSite(team: number, type: BldType): Tile | null {
   return best;
 }
 
+/** The placeable spot near the base that reaches the most oil, if any reaches some. */
+function wellSite(team: number, s: number, yard: Ent): Tile | null {
+  let best: Tile | null = null, most = 0;
+  const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
+  for (let ty = cy - 16; ty <= cy + 16; ty++)
+    for (let tx = cx - 16; tx <= cx + 16; tx++) {
+      const oil = oilNear(tx, ty, s);
+      if (oil > most && canPlace(tx, ty, s, team, true)) { most = oil; best = [tx, ty]; }
+    }
+  return best;
+}
+
 function construction(team: number): void {
   const ready = readyStructure(team);
+  if (ready && isWall(ready)) {
+    const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
+    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+    const site = yard ? wallSite(team, yard, foe) : null;
+    if (site) placeReady(team, site[0][0], site[0][1], site[1][0], site[1][1]);
+    else cancel(team, ready);
+    return;
+  }
   if (ready) {
     const site = findSite(team, ready);
     if (site) placeReady(team, site[0], site[1]);
@@ -92,7 +173,7 @@ function research(team: number): void {
 const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
 
 /** Pick from weighted options, skipping anything the team can't build yet or lacks the wood or oil for. */
-function pick(team: number, line: 'infantry' | 'vehicle', options: [UnitType, number][]): UnitType | null {
+function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [UnitType, number][]): UnitType | null {
   const can = available(team, line), enough = (t: UnitType) => { const p = priceOf(t); return G.wood[team] >= p.wood && G.oil[team] >= p.oil; };
   const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t));
   let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
@@ -110,6 +191,11 @@ function training(team: number): void {
     if (harvesters < Math.min(6, refineries * 2) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
     else if (!saving && credits > 500)
       t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5]]);
+    if (t) enqueue(team, t);
+  }
+  // a few aircraft once there's money to spare
+  if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3]]);
     if (t) enqueue(team, t);
   }
   // spend a growing bank on more troops

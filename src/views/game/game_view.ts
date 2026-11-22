@@ -17,7 +17,7 @@ import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
 import { mountLobby } from '../lobby/lobby_view.ts';
-import { BUILDING, type BldType } from '../../data/building.ts';
+import { BUILDING, isWall, type BldType } from '../../data/building.ts';
 import { canPlace } from '../../game/building.ts';
 import { initTerrain } from './render/terrain.ts';
 import { makeIcons } from './render/icon.ts';
@@ -26,6 +26,7 @@ import { initScene, renderScene, resizeScene, updateCamera, viewFootprint } from
 import { initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
+import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
@@ -69,6 +70,7 @@ export function mountGameView(root: HTMLElement): void {
     initTerrain(G.seed);
     initFog(refreshFog);
     initWorld3d();
+    initPortals3d();
     resetEntities3d();
     initFx3d();
   };
@@ -219,7 +221,7 @@ export function mountGameView(root: HTMLElement): void {
     }
     scrollCamera(dt);
     clampCam();
-    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team), (t) => BUILDING[t as BldType].size);
+    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team, false, isWall(V.mode.type)), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
     oreT -= dt;
     if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); }
@@ -227,6 +229,7 @@ export function mountGameView(root: HTMLElement): void {
       updateCamera();
       syncEntities(dt);
       updateFx3d();
+      animatePortals3d(dt);
       renderScene();
       drawOverlay(og);
       drawMinimap(mg, viewFootprint());

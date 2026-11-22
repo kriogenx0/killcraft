@@ -5,7 +5,8 @@ import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
 import { ERA, HEAL_RATE } from '../../data/era.ts';
 import { eraOf } from '../../game/production.ts';
-import { millRate, oilRate, treesNear, woodRate } from '../../game/economy.ts';
+import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
+import { OIL_PER_DERRICK } from '../../data/economy.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
@@ -111,13 +112,12 @@ function unitDetails(e: Ent): string {
 }
 
 const perMin = (perSec: number): number => Math.round(perSec * 60);
-const countDone = (type: string): number => G.ents.filter((b) => !b.dead && b.team === V.team && b.type === type && b.done).length;
 
 function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
   const own = e.team === V.team && e.done;
-  const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? `Oil +${perMin(oilRate(V.team) / Math.max(1, countDone(e.type)))}/min` : '';
+  const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '';
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
     (e.team === V.team && d.produces && d.produces !== 'structure' ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }

@@ -5,7 +5,8 @@ import { clampRig, defaultRig } from './camera_rig.ts';
 
 export type Mode =
   | { t: 'move' }
-  | { t: 'place'; type: BldType; tx: number; ty: number; ok: boolean }
+  /** ax, ay: where a wall line being dragged out starts */
+  | { t: 'place'; type: BldType; tx: number; ty: number; ok: boolean; ax?: number; ay?: number }
   | null;
 
 export interface Marker extends Point { t: number; color: string }

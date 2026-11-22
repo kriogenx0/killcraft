@@ -1,16 +1,18 @@
 // Compact per-team snapshots of the world. The server encodes what one team can see; the online
 // client decodes it into its own copy of the world, which the normal renderer then draws.
-import { G, STANCES, valid, type Ent, type EntType } from '../game/state.ts';
+import { G, STANCES, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
 import { MW, TS } from '../game/const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import { WEAPON, type WeaponType } from '../data/weapon.ts';
 import { addBuilding, addSource, addUnit, kill } from '../game/entity.ts';
 import { fire } from '../game/combat.ts';
-import { rebuildBlk } from '../game/map.ts';
+import { nearPortal, rebuildBlk } from '../game/map.ts';
+import { warpFx } from '../game/fx.ts';
 import { lerp } from '../util/math.ts';
 
-const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'source'];
+const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source',
+  'palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY] */
@@ -127,7 +129,11 @@ export function interpolate(dt: number): void {
     const t = targets.get(e.id);
     if (!t) continue;
     const dist = Math.hypot(t.x - e.x, t.y - e.y);
-    if (dist > 96) { e.x = t.x; e.y = t.y; } // teleport rather than slide across the map
+    if (dist > 96) {
+      // teleport rather than slide across the map (and shimmer if it went through a portal)
+      if (e.kind === 'unit' && nearPortal(tileOf(t.x), tileOf(t.y))) { warpFx(e.x, e.y); warpFx(t.x, t.y); }
+      e.x = t.x; e.y = t.y;
+    }
     else { e.x = lerp(e.x, t.x, k); e.y = lerp(e.y, t.y, k); }
     if (e.moving) e.walk += (dist * k) / 24 + dt * 2;
     e.face = turn(e.face, t.face, k);

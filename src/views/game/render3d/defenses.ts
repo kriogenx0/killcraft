@@ -41,7 +41,7 @@ const concreteArm: Arm = (root, len, team) => {
 
 function post(type: BldType, team: number): THREE.Object3D[] {
   if (type === 'palisade') return [mesh(cyl(0.08, 0.09, 0.62, 8), M.log(), 0, 0.31, 0), mesh(cone(0.08, 0.14, 8), M.log(), 0, 0.69, 0), mesh(cyl(0.092, 0.092, 0.06, 8), teamMat(team), 0, 0.42, 0)];
-  if (type === 'stonewall') return [mesh(box(0.38, 0.62, 0.38), M.dressedStone(), 0, 0.31, 0), mesh(box(0.42, 0.05, 0.42), teamMat(team), 0, 0.64, 0)];
+  if (type === 'stonewall') return [mesh(box(0.38, 0.62, 0.38), M.dressedStone(), 0, 0.31, 0), mesh(box(0.39, 0.04, 0.39), teamMat(team), 0, 0.5, 0)];
   return [mesh(box(0.3, 0.56, 0.3), M.concrete(), 0, 0.28, 0), mesh(box(0.31, 0.06, 0.31), M.hazard(), 0, 0.5, 0)];
 }
 

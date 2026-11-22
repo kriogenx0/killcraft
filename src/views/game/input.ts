@@ -1,6 +1,7 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
 import { G, bldDef, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { MW, MH, TS } from '../../game/const.ts';
+import { isWall } from '../../data/building.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { centerCam, clampCam, ownSelected, selectedUnits, V } from './view_state.ts';
@@ -8,7 +9,7 @@ import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
-import { modelHeight, pickEntity } from './render3d/entities3d.ts';
+import { midHeight, pickEntity } from './render3d/entities3d.ts';
 
 const DRAG_START = 6;
 const DOUBLE_TAP = 350;
@@ -77,7 +78,7 @@ function useMode(wx: number, wy: number, hit: Ent | null): void {
 function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
   return G.ents.filter((e) => {
     if (e.dead || e.kind !== 'unit' || e.team !== V.team) return false;
-    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.4);
+    const p = worldToScreen(e.x, e.y, midHeight(e));
     return p.front && test(p.sx, p.sy);
   });
 }
@@ -158,6 +159,8 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       return;
     }
     if (ev.button !== 0) return;
+    // walls: press to start a line, drag, release to lay it
+    if (V.mode?.t === 'place' && isWall(V.mode.type)) { V.mode.ax = V.mode.tx; V.mode.ay = V.mode.ty; canvas.setPointerCapture(ev.pointerId); return; }
     if (V.mode) { if (w) useMode(w.x, w.y, pickEntity(ev.clientX, ev.clientY)); return; }
     Object.assign(V.mouse, { down: true, drag: false, sx: ev.clientX, sy: ev.clientY });
     canvas.setPointerCapture(ev.pointerId);
@@ -194,6 +197,13 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       touches.delete(ev.pointerId);
       if (!touches.size && !panned && !G.demo) tap(ev.clientX, ev.clientY);
       if (touches.size < 2) pinch = null;
+      return;
+    }
+    const m = V.mode;
+    if (ev.button === 0 && m?.t === 'place' && m.ax != null && m.ay != null) {
+      dispatch({ c: 'place', tx: m.ax, ty: m.ay, ex: m.tx, ey: m.ty });
+      V.mode = null;
+      refreshCommands(true);
       return;
     }
     if (ev.button !== 0 || !V.mouse.down) return;

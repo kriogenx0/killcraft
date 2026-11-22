@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
+import { G, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -91,6 +91,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
 }
 
 function unstick(u: Ent, dt: number): void {
+  if (isAir(u)) return; // nothing blocks aircraft
   if (G.blk[tileOf(u.y) * MW + tileOf(u.x)]) {
     const f = nearestFree(tileOf(u.x), tileOf(u.y));
     if (f) { u.x = (f[0] + 0.5) * TS; u.y = (f[1] + 0.5) * TS; u.path = null; }

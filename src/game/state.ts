@@ -25,7 +25,7 @@ export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: numb
 export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
 export type Order = MoveOrder | AttackOrder | HarvestOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'tech';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
 export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
@@ -99,7 +99,12 @@ export interface Particle {
   life: number; max: number; size: number; col: string | null; rot: number; soft: boolean; landed: boolean;
   /** end point for tracers */
   ex: number; ey: number;
+  /** end height for tracers (px) */
+  ez: number;
 }
+
+/** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
+export interface Portal { a: Tile; b: Tile }
 
 export interface Decal {
   kind: 'splat' | 'corpse' | 'rubble' | 'wreck' | 'scorch';
@@ -110,7 +115,15 @@ export const G = {
   terr: new Uint8Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
+  /** oil left in the ground on each tile (never refills) */
+  oilField: new Float32Array(MW * MH),
+  /** wood left on each tree tile (grows back) */
+  treeWood: new Float32Array(MW * MH),
   blk: new Uint8Array(MW * MH),
+  /** linked portal pairs on this map */
+  portals: [] as Portal[],
+  /** for each tile, the tile index its portal leads to, or -1 */
+  warp: new Int32Array(MW * MH).fill(-1),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
   /** fog of the team being viewed on this screen (an alias of sight[viewer]) */
@@ -193,3 +206,7 @@ export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 /** Living units (infantry and knights) bleed and heal; vehicles don't. */
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
+/** Aircraft fly straight over everything and only some weapons can reach them. */
+export const isAir = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'air';
+/** How high an entity flies, in px (0 on the ground). */
+export const altOf = (e: Ent): number => (e.kind === 'unit' ? (unitDef(e).alt ?? 0) * TS : 0);

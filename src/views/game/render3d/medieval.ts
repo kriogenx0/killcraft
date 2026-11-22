@@ -740,7 +740,7 @@ function sawmill(L: Look): Model {
   return { root, parts, height: 1.0 };
 }
 
-export function medievalBuilding(type: BldType, team: number, stage: 'wood' | 'stone'): Model {
+export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'palisade' | 'stonewall' | 'concretewall' | 'pillbox' | 'atturret' | 'bertha'>, team: number, stage: 'wood' | 'stone'): Model {
   if (stage === 'wood') {
     switch (type) {
       case 'yard': return fort(team);
