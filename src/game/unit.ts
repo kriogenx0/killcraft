@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
+import { G, hooks, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -87,6 +87,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   const a = Math.min(UNLOAD_RATE * dt, u.carry);
   u.carry -= a;
   G.credits[u.team] += a;
+  hooks.income(u.team, a);
   if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
 }
 

@@ -11,19 +11,47 @@ import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure
 import { oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance } from './order.ts';
 
-interface AiState { on: boolean; attackAt: number; attacking: boolean }
+interface AiState {
+  on: boolean;
+  attackAt: number;
+  attacking: boolean;
+  /** the side this player is fighting (in a free-for-all, the nearest one still standing) */
+  foe: number;
+}
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false },
-  { on: true, attackAt: 8, attacking: false },
+  { on: false, attackAt: 8, attacking: false, foe: 1 },
+  { on: true, attackAt: 8, attacking: false, foe: 0 },
 ];
 
 const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
-export function resetAi(): void {
-  for (const a of ais) { a.attackAt = 8; a.attacking = false; }
+/** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
+export function resetAi(teams = 2): void {
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1 });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.foe = teams === 2 ? 1 - team : -1; });
+}
+
+const homeOf = (team: number): Ent | undefined =>
+  G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
+const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'bld' || (e.kind === 'unit' && !!unitDef(e).weapon)));
+
+/** Keep fighting the same side until it falls, then turn on the nearest one left. */
+function foeOf(team: number): number {
+  const A = ais[team];
+  if (A.foe >= 0 && A.foe !== team && standing(A.foe)) return A.foe;
+  const home = homeOf(team) ?? G.ents.find((e) => !e.dead && e.team === team);
+  let best = -1, bestD = Infinity;
+  for (let t = 0; t < G.teams; t++) {
+    if (t === team || !standing(t)) continue;
+    const there = homeOf(t) ?? G.ents.find((e) => !e.dead && e.team === t);
+    const d = home && there ? Math.hypot(there.x - home.x, there.y - home.y) + Math.random() * TS : 0;
+    if (d < bestD) { bestD = d; best = t; }
+  }
+  if (best !== A.foe) { A.foe = best; A.attacking = false; }
+  return best;
 }
 
 function nextStructure(team: number): BldType | null {
@@ -37,7 +65,7 @@ function nextStructure(team: number): BldType | null {
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
   // answer enemy aircraft with flak
-  const foeAir = G.ents.filter((e) => !e.dead && e.team === 1 - team && isAir(e)).length;
+  const foeAir = G.ents.filter((e) => !e.dead && e.team >= 0 && e.team !== team && isAir(e)).length;
   if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
@@ -49,7 +77,7 @@ function findSite(team: number, type: BldType): Tile | null {
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
   if (type === 'derrick') return wellSite(team, s, yard);
-  const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+  const foe = G.ents.find((e) => !e.dead && e.team === ais[team]?.foe && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
@@ -148,13 +176,15 @@ function upkeep(team: number): void {
 }
 
 function military(team: number): void {
-  const A = ais[team], foe = 1 - team;
+  const A = ais[team], foe = foeOf(team);
+  if (foe < 0) return;
   const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
   // fast raiders shoot on the move; everyone else stops to fight (the default stance)
   for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
-  const home = G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
+  const home = homeOf(team);
   if (home) {
-    const threat = G.ents.find((e) => !e.dead && e.team === foe && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
+    // defend against anyone, not just the side we're fighting
+    const threat = G.ents.find((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
         if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));

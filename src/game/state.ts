@@ -128,6 +128,8 @@ export const G = {
   vis: new Uint8Array(MW * MH),
   /** the team this screen shows (the local player) */
   viewer: 0,
+  /** number of sides in the match (2, or 4 for a free-for-all) */
+  teams: 2,
   /** which teams are people (they only build on ground they've explored) */
   human: [true, false],
   /** running on the server: no visual effects */
@@ -177,6 +179,10 @@ export const hooks = {
   fired: (_shooter: Ent, _weapon: string, _target: Ent): void => {},
   /** an entity was destroyed */
   killed: (_e: Ent): void => {},
+  /** damage from `by` (if known) destroyed an entity; called just before `killed` */
+  killedBy: (_e: Ent, _by: Ent | null): void => {},
+  /** a harvester unloaded ore worth `amount` gold */
+  income: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },
 };
 
