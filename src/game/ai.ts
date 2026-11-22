@@ -1,13 +1,14 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves.
 import { G, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
-import { TECH, isTechType } from '../data/era.ts';
+import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace } from './building.ts';
-import { available, cancel, costOf, enqueue, placeReady, readyStructure } from './production.ts';
+import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
+import { treesNear } from './economy.ts';
 import { orderMove, setStance } from './order.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean }
@@ -17,7 +18,7 @@ export const ais: AiState[] = [
   { on: true, attackAt: 8, attacking: false },
 ];
 
-const PLAN: BldType[] = ['power', 'refinery', 'barracks', 'tower', 'power', 'factory', 'tower', 'turret', 'power', 'refinery', 'turret', 'power', 'turret'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'turret'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -45,14 +46,19 @@ function findSite(team: number, type: BldType): Tile | null {
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
   const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+  // a mill goes wherever it reaches the most trees
+  let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
     const a = (type === 'turret' || type === 'tower') && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
     const rad = (type === 'turret' || type === 'tower' ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
-    if (canPlace(tx, ty, s, team, true)) return [tx, ty];
+    if (!canPlace(tx, ty, s, team, true)) continue;
+    if (type !== 'mill') return [tx, ty];
+    const n = treesNear(tx, ty, s);
+    if (n > bestTrees) { bestTrees = n; best = [tx, ty]; }
   }
-  return null;
+  return best;
 }
 
 function construction(team: number): void {
@@ -77,14 +83,18 @@ function research(team: number): void {
   if (countOf(team, 'refinery') < 1 || countOf(team, 'harvester') < 1) return;
   const can = available(team, 'tech').filter(isTechType), credits = G.credits[team];
   const age = can.find((t) => TECH[t].age != null), heal = can.find((t) => TECH[t].heal != null);
-  if (age && credits > costOf(age) * 0.6 + 400) { enqueue(team, age); return; }
+  if (age && credits > costOf(age) * 0.6 + 200 && hasHalf(team, age)) { enqueue(team, age); return; }
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
-  if (heal && infantry >= 4 && credits > costOf(heal) * 0.6 + 300) enqueue(team, heal);
+  if (heal && infantry >= 4 && credits > costOf(heal) * 0.6 + 300 && hasHalf(team, heal)) enqueue(team, heal);
 }
 
-/** Pick from weighted options, skipping anything the team can't build yet. */
+/** At least half the wood and oil a research needs is in the bank. */
+const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
+
+/** Pick from weighted options, skipping anything the team can't build yet or lacks the wood or oil for. */
 function pick(team: number, line: 'infantry' | 'vehicle', options: [UnitType, number][]): UnitType | null {
-  const can = available(team, line), ok = options.filter(([t]) => can.includes(t));
+  const can = available(team, line), enough = (t: UnitType) => { const p = priceOf(t); return G.wood[team] >= p.wood && G.oil[team] >= p.oil; };
+  const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t));
   let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
   for (const [t, w] of ok) if ((r -= w) < 0) return t;
   return ok[0]?.[0] ?? null;

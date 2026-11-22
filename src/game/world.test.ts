@@ -5,8 +5,9 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, power } from './entity.ts';
 import { orderHarvest } from './order.ts';
-import { available, enqueue, placeReady, readyStructure } from './production.ts';
+import { available, cancel, enqueue, placeReady, readyStructure } from './production.ts';
 import { canPlace } from './building.ts';
+import { treesNear, woodRate } from './economy.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { HEAL_RATE } from '../data/era.ts';
@@ -47,7 +48,7 @@ describe('production', () => {
   });
 
   it('spends credits gradually and places a finished structure', () => {
-    expect(available(0, 'structure')).toEqual(['power']);
+    expect(available(0, 'structure')).toEqual(['power', 'mill']);
     expect(enqueue(0, 'power')).toBe(true);
     run(4);
     expect(G.credits[0]).toBeLessThan(START_CREDITS);
@@ -134,6 +135,52 @@ describe('production', () => {
     expect(readyStructure(0)).toBeNull();
   });
 
+  it('cuts wood with a lumber mill next to trees, and none without', () => {
+    // find a free 2x2 spot by the woods and one in the open
+    let woods: [number, number] | null = null, open: [number, number] | null = null;
+    for (let y = 2; y < 60 && (!woods || !open); y++)
+      for (let x = 2; x < 60; x++) {
+        let free = true;
+        for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) if (G.blk[(y + dy) * MW + x + dx]) free = false;
+        if (!free) continue;
+        const n = treesNear(x, y, 2);
+        if (!woods && n >= 10) woods = [x, y];
+        if (!open && n === 0) open = [x, y];
+      }
+    if (!woods || !open) throw new Error('no test spots');
+    addBuilding('mill', 0, open[0], open[1], false);
+    expect(woodRate(0)).toBe(0);
+    addBuilding('mill', 0, woods[0], woods[1], false);
+    expect(woodRate(0)).toBeGreaterThan(0);
+    G.wood[0] = 0;
+    run(10);
+    expect(G.wood[0]).toBeGreaterThan(woodRate(0) * 8);
+  });
+
+  it('pumps oil with a derrick', () => {
+    G.oil[0] = 0;
+    addBuilding('derrick', 0, 12, 46, false);
+    run(10);
+    expect(G.oil[0]).toBeGreaterThan(20);
+  });
+
+  it('stalls without wood and refunds every resource on cancel', () => {
+    addBuilding('power', 0, 10, 50, false);
+    G.credits[0] = 5000;
+    G.wood[0] = 0;
+    enqueue(0, 'barracks');
+    run(15);
+    expect(readyStructure(0)).toBeNull();
+    expect(G.credits[0]).toBe(5000);
+    G.wood[0] = 50; // half the price: half built, then stuck
+    run(15);
+    expect(readyStructure(0)).toBeNull();
+    expect(G.wood[0]).toBeLessThan(1);
+    cancel(0, 'barracks');
+    expect(G.wood[0]).toBeCloseTo(50, 0);
+    expect(G.credits[0]).toBeCloseTo(5000, 0);
+  });
+
   it('turns ore into credits with the free harvester', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('refinery', 0, 6, 46, true);
@@ -176,7 +223,7 @@ describe('a computer-vs-computer match', () => {
     ais[0].on = true;
     ais[1].on = true;
     initWorld(99);
-    run(300);
+    run(360); // room for the lumber mill and the wood that research needs
     expect(errors).toEqual([]);
     // both sides research past the Medieval age
     expect(Math.max(...G.era)).toBeGreaterThan(0);

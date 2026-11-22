@@ -3,7 +3,7 @@
 import { G } from '../../game/state.ts';
 import { isUnitType } from '../../data/unit.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { available, costOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
+import { available, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -27,7 +27,7 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   for (const t of [...structures, 'yard']) {
     if (t in BUILDING) ICON[t] = buildingIcon(t as BldType, V.team, eraOf(V.team)) ?? ICON[t];
   }
-  const html = (list: Buildable[]) => list.map((t) => buildCellHtml(t, nameOf(t), costOf(t), ICON[t], descOf(t))).join('');
+  const html = (list: Buildable[]) => list.map((t) => buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], descOf(t))).join('');
   structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Construction Yard</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';
   cells.clear();

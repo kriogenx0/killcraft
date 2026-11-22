@@ -1,6 +1,6 @@
 # Killcraft
 
-A real-time strategy game in the browser in the spirit of Command & Conquer. Harvest ore for gold, keep your base powered, build from the sidebar, and destroy everything the enemy owns. Play the computer, or play other people online.
+A real-time strategy game in the browser in the spirit of Command & Conquer. Harvest ore, cut wood, pump oil, keep your base powered, build from the sidebar, and destroy everything the enemy owns. Play the computer, or play other people online.
 
 ## Run it
 
@@ -32,17 +32,21 @@ The live game runs on Coolify from this repo's `main` branch:
 
 ## How to play
 
-- **Economy:** gold is the only resource. Build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it as gold. Each field holds about 14,000 gold and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
+- **Economy:** there are three resources, shown in the top bar.
+  - **Ore:** build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it there. Each field holds about 14,000 ore and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
+  - **Wood:** a Lumber Mill cuts wood from the trees within 5 tiles of it, so place it by the woods (select it to see how many trees it reaches). Two mills don't share a tree. Every side starts with woods near its base.
+  - **Oil:** from the Industrial age, an Oil Derrick pumps oil.
+  - Prices follow what a thing is made of and runs on: metal and stone cost ore, timber costs wood, and engines and rockets cost oil. A Knight's lance and a Crossbowman's bow take wood, a Catapult is mostly wood, and Jeeps, Tanks and Rocket Soldiers need oil. Each cell in the sidebar shows its price.
 - **Power:** every structure but the Power Plant uses power. If you use more than you make, production runs at half speed and turrets fire slowly.
-- **Building:** click a structure in the sidebar. Gold is spent as it builds, and it pauses if you run out. When it says READY, click it again and place it within 3 tiles of your base. Right-click a sidebar item to put it on hold, again to cancel (or use its × button).
+- **Building:** click a structure in the sidebar. Resources are spent as it builds, and it pauses if you run out of any of them. When it says READY, click it again and place it within 3 tiles of your base. Right-click a sidebar item to put it on hold, again to cancel (or use its × button).
 - **Ages:** every side starts in the Medieval age and advances by researching the next age at the Construction Yard (it appears at the end of the structure list, one age at a time, and builds alongside your structures). Older units stay available after you advance, and the top bar shows your current age. Your base grows up with each age: it starts primitive (a log palisade fort, a post mill, clay furnaces, a thatched roundhouse) in the Medieval age, is rebuilt in stone with slate roofs and cannon in the Gunpowder age, in brick and iron in the Industrial age, and in concrete and steel in the Modern age. The sidebar pictures follow along.
 
   | Age | Research | Needs | Unlocks |
   | --- | --- | --- | --- |
-  | Medieval | (start) | | Swordsman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, and every base structure but the Gun Turret |
-  | Gunpowder | 1000 gold, 35s | Barracks | Rifleman, Gun Turret |
-  | Industrial | 2000 gold, 50s | War Factory | Scout Jeep, Battle Tank |
-  | Modern | 3000 gold, 65s | War Factory | Rocket Soldier, Heavy Tank |
+  | Medieval | (start) | | Swordsman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, the Lumber Mill, and every base structure but the Gun Turret |
+  | Gunpowder | 1000 ore, 150 wood, 35s | Barracks | Rifleman, Gun Turret |
+  | Industrial | 2000 ore, 600 wood, 50s | War Factory | Scout Jeep, Battle Tank, Oil Derrick |
+  | Modern | 3000 ore, 600 wood, 400 oil, 65s | War Factory | Rocket Soldier, Heavy Tank |
 
 - **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (Gunpowder) fires shells that beat vehicles.
 - **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. You start with two Swordsmen, a Crossbowman and a Knight.
