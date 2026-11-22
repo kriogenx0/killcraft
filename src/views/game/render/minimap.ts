@@ -7,7 +7,7 @@ import { PORTAL_COLORS } from '../../../data/map.ts';
 import { TAU } from '../../../util/math.ts';
 import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { MINI, terrain } from './terrain.ts';
-import { PING_LIFE, V } from '../view_state.ts';
+import { PING_LIFE, V, spectating } from '../view_state.ts';
 import { cloakedFrom } from '../../../game/aether.ts';
 
 const fog = { c: null as HTMLCanvasElement | null, img: null as ImageData | null, listeners: [] as (() => void)[] };
@@ -41,7 +41,7 @@ export function initFog(onChange?: () => void): void {
 /** Enemy units show only while seen (and not cloaked); buildings once explored. */
 export function shownToPlayer(e: Ent): boolean {
   if (e.team === V.team) return true;
-  if (cloakedFrom(e, V.team)) return false;
+  if (!spectating() && cloakedFrom(e, V.team)) return false; // spectators see through cloaks
   return e.kind === 'unit' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
 }
 
@@ -62,7 +62,7 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
   for (const e of G.ents) {
     if (e.dead) continue;
     if (e.type === 'aether') continue; // drawn over the fog below
-    if (cloakedFrom(e, V.team)) continue;
+    if (!spectating() && cloakedFrom(e, V.team)) continue;
     if (e.team !== V.team && G.vis[tileOf(e.y) * MW + tileOf(e.x)] < (e.kind === 'unit' ? 2 : 1)) continue;
     m.fillStyle = e.team < 0 ? '#fff0a0' : teamColors(e.team).l;
     const s = e.w ? e.w * k : 3, x = (e.x / TS) * k - s / 2, y = (e.y / TS) * k - s / 2;

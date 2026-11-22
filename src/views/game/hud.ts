@@ -1,13 +1,15 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, bldDef, isOrganic, unitDef, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, bldDef, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
-import { isUnitProducer } from '../../data/building.ts';
+import { isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { eraOf } from '../../game/production.ts';
+import { eraOf, nameOf } from '../../game/production.ts';
+import { teamColors } from '../../data/team.ts';
+import { linesOf } from './hotkeys.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
@@ -20,7 +22,7 @@ import { loadOf } from './render/unit_art.ts';
 import { ICON } from './render/icon.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, keyLabel } from './keyboard.ts';
-import { V, ownSelected } from './view_state.ts';
+import { V, ownSelected, spectating } from './view_state.ts';
 
 export interface HudEls {
   credits: HTMLElement;
@@ -108,14 +110,43 @@ export function refreshCommands(force = false): void {
   }
 }
 
+/** Whose it is: "enemy" in your own games; the side's name when spectating. */
+function sideTag(e: Ent): string {
+  if (spectating()) return e.team < 0 ? '' : ` <small class="hud-side" style="color:${teamColors(e.team).l}">${teamColors(e.team).name}</small>`;
+  return e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
+}
+
+/** Full detail (orders, production, rates) is shown for your own things, and for every side when spectating. */
+const insight = (e: Ent): boolean => e.team === V.team || spectating();
+
+const entName = (id: number | null): string => {
+  const t = id === null ? null : valid(id);
+  if (!t) return 'a target';
+  return t.kind === 'unit' ? unitDef(t).name : t.kind === 'bld' ? bldDef(t).name : 'ore';
+};
+
+const HARVEST_STEP = { go: 'Heading to ore', gather: 'Harvesting ore', ret: 'Bringing ore home', unload: 'Unloading ore' } as const;
+
+/** What a unit is doing right now. */
+export function unitAction(e: Ent): string {
+  const o = e.order;
+  if (e.shot !== null && valid(e.shot)) return `Shooting at ${entName(e.shot)}`;
+  if (!o) return 'Idle';
+  if (o.t === 'move') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : 'Moving';
+  if (o.t === 'attack') return `Attacking ${entName(o.tgt)}`;
+  if (o.t === 'heal') return `Healing ${entName(o.tgt)}`;
+  return HARVEST_STEP[o.st];
+}
+
 function unitDetails(e: Ent): string {
-  const d = unitDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
+  const d = unitDef(e), enemy = sideTag(e);
   // Armory upgrades show as percentages next to the base numbers
   const wb = Math.round((weaponFactor(e) - 1) * 100), ab = Math.round((1 - armorFactor(e)) * 100);
   const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg}${wb ? ` (+${wb}%)` : ''} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
   // organic units heal slowly on their own: show how fast for our own troops
-  const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * healRate(V.team) * 60)}/min` : '';
+  const heal = isOrganic(e) && insight(e) ? ` · Heals ${Math.round(e.maxhp * healRate(e.team) * 60)}/min` : '';
   let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${ab ? ` (-${ab}% damage)` : ''}${heal}</p>`;
+  if (insight(e)) h += `<p class="hud-stats">${unitAction(e)} · ${STANCE_INFO[e.stance].label}</p>`;
   if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
   return h;
 }
@@ -123,14 +154,26 @@ function unitDetails(e: Ent): string {
 const perMin = (perSec: number): number => Math.round(perSec * 60);
 
 function buildingDetails(e: Ent): string {
-  const d = bldDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
+  const d = bldDef(e), enemy = sideTag(e);
   const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
-  const own = e.team === V.team && e.done;
+  const own = insight(e) && e.done;
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
   const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
-    (e.team === V.team && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
+    (own ? productionDetails(e) : '') +
+    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
+}
+
+/** What a producing building's side is making on its lines (one queue per line, shared by every building of the type). */
+export function productionDetails(e: Ent): string {
+  const lines = linesOf(e.type as BldType);
+  if (!lines.length) return '';
+  const queue = lines.flatMap((l) => G.prod[e.team]?.[l] ?? []);
+  if (!queue.length) return '<p class="hud-stats">Not producing</p>';
+  const head = queue[0], state = head.ready ? 'ready to place' : head.hold ? 'on hold' : `${Math.round(head.prog * 100)}%`;
+  const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
+  return `<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}`;
 }
 
 function detailsMarkup(s: Ent[]): string {
