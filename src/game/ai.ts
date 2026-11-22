@@ -139,7 +139,7 @@ function training(team: number): void {
   }
   // a few aircraft once there's money to spare
   if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2]]);
     if (t) enqueue(team, t);
   }
   // spend a growing bank on more troops
@@ -147,7 +147,7 @@ function training(team: number): void {
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
-    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
     if (t) enqueue(team, t);
   }
 }

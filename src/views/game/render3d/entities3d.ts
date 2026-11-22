@@ -73,6 +73,7 @@ function animateUnit(m: Model, e: Ent): void {
       P.armR.rotation.z = P.armL.rotation.z = atk > 0 ? 1.1 + Math.sin(G.gameT * 10) * 0.15 : swing * 0.4;
       break;
     case 'rifleman':
+    case 'gunner':
     case 'rocket':
     case 'crossbowman':
       recoil(P.gun, atk > 0 ? (1 - atk) * 0.04 : 0);
@@ -97,6 +98,7 @@ function animateUnit(m: Model, e: Ent): void {
     if (P.rotor) P.rotor.rotation.y = t * 22;
     if (P.tailRotor) P.tailRotor.rotation.z = t * 30;
     if (P.prop) P.prop.rotation.x = t * 40;
+    for (let i = 0; i < 4; i++) { const q = P[`prop${i}`]; if (q) q.rotation.y = t * (i % 2 ? -45 : 45); }
     if (P.envelope) P.envelope.rotation.z = Math.sin(t * 0.9 + e.id) * 0.04;
     // a biplane banks into its turns
     if (e.type === 'biplane') m.root.rotation.order = 'YXZ';

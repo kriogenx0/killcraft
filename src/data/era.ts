@@ -10,8 +10,8 @@ export interface EraDef {
 
 export const ERA: EraDef[] = [
   { name: 'Medieval', desc: 'Swords, crossbows, knights and catapults.' },
-  { name: 'World War', desc: 'Riflemen, Scout Jeeps, Battle Tanks, the Gun Turret and Flak Cannon, Oil Derricks, and War Balloons and Biplanes from the Airfield.' },
-  { name: 'Modern', desc: 'Rocket Soldiers, Heavy Tanks and Attack Helicopters.' },
+  { name: 'World War', desc: 'Riflemen, Machine Gunners, Scout Jeeps, Battle Tanks, the Gun Turret and Flak Cannon, Oil Derricks, and War Balloons and Biplanes from the Airfield.' },
+  { name: 'Modern', desc: 'Rocket Soldiers, Heavy Tanks, Attack Helicopters and Combat Drones.' },
 ];
 
 export const START_ERA = 0;
