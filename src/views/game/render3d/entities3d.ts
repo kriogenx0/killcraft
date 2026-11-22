@@ -83,6 +83,19 @@ function animateUnit(m: Model, e: Ent): void {
       P.stone.visible = e.atkT <= 0;
       break;
   }
+  const alt = UNIT[e.type as UnitType]?.alt;
+  if (alt) {
+    // aircraft hover at their height with a gentle bob; rotors and propellers spin
+    const t = performance.now() / 1000;
+    m.root.position.y = alt + Math.sin(t * 1.6 + e.id) * 0.04;
+    if (P.rotor) P.rotor.rotation.y = t * 22;
+    if (P.tailRotor) P.tailRotor.rotation.z = t * 30;
+    if (P.prop) P.prop.rotation.x = t * 40;
+    if (P.envelope) P.envelope.rotation.z = Math.sin(t * 0.9 + e.id) * 0.04;
+    // a biplane banks into its turns
+    if (e.type === 'biplane') m.root.rotation.order = 'YXZ';
+    if (e.type === 'biplane') m.root.rotation.x = e.moving ? Math.sin(t * 0.7 + e.id) * 0.15 : 0;
+  }
   if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
 }
@@ -95,6 +108,7 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.crane) P.crane.rotation.y = Math.sin(G.gameT * 0.25 + e.id) * 0.7;
   if (P.radar) P.radar.rotation.y += dt * 1.3;
   if (P.flag) P.flag.rotation.y = Math.sin(G.gameT * 3 + e.id) * 0.25;
+  if (P.balloon) P.balloon.rotation.z = Math.sin(G.gameT * 0.8 + e.id) * 0.06;
   if (P.sails && e.done) P.sails.rotation.z -= dt * 1.1;
   if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
 }
@@ -221,8 +235,14 @@ export function syncEntities(dt: number): void {
   updateGhost();
 }
 
-/** How tall an entity's model is (tiles), for placing health bars. */
-export const modelHeight = (e: Ent): number => objs.get(e.id)?.model.height ?? 0.6;
+/** How high an aircraft flies (tiles). */
+const altTiles = (e: Ent): number => (e.kind === 'unit' ? UNIT[e.type as UnitType].alt ?? 0 : 0);
+
+/** How high the top of an entity's model is (tiles), for placing health bars. */
+export const modelHeight = (e: Ent): number => (objs.get(e.id)?.model.height ?? 0.6) + altTiles(e);
+
+/** A point partway up an entity's model (tiles), for picking and box selection. */
+export const midHeight = (e: Ent): number => altTiles(e) + (objs.get(e.id)?.model.height ?? 0.6) * 0.4;
 
 /** The entity under a screen point: models first, then the nearest small unit within reach. */
 export function pickEntity(sx: number, sy: number): Ent | null {
@@ -237,7 +257,7 @@ export function pickEntity(sx: number, sy: number): Ent | null {
   let best: Ent | null = null, bd = 24;
   for (const e of G.ents) {
     if (e.dead || e.kind !== 'unit' || !objs.get(e.id)?.model.root.visible) continue;
-    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.5), d = Math.hypot(p.sx - sx, p.sy - sy);
+    const p = worldToScreen(e.x, e.y, midHeight(e)), d = Math.hypot(p.sx - sx, p.sy - sy);
     if (d < bd) { bd = d; best = e; }
   }
   return best;

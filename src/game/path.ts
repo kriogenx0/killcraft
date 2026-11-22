@@ -1,5 +1,5 @@
 // A* on the tile grid, then string-pulled so units walk straight lines.
-import { G, blkAt, tileOf, type Ent, type Target, type Tile } from './state.ts';
+import { G, blkAt, isAir, tileOf, type Ent, type Target, type Tile } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 
@@ -131,6 +131,8 @@ export function smoothPath(sx: number, sy: number, path: Tile[]): Tile[] {
 }
 
 export function pathFor(u: Ent, gx: number, gy: number): Tile[] {
+  // aircraft fly straight there, over anything
+  if (isAir(u)) return tileOf(u.x) === gx && tileOf(u.y) === gy && Math.hypot(u.x - (gx + 0.5) * TS, u.y - (gy + 0.5) * TS) < 2 ? [] : [[clamp(gx, 0, MW - 1), clamp(gy, 0, MH - 1)]];
   return smoothPath(u.x, u.y, findPath(tileOf(u.x), tileOf(u.y), gx, gy));
 }
 
@@ -149,7 +151,7 @@ export function adjTile(t: Target, u: { x: number; y: number }, jitter = true): 
 
 /** Path toward a target, or null if nothing next to it is walkable. Sets the unit's goal. */
 export function pathTo(u: Ent, t: Target): Tile[] | null {
-  const g: Tile | null = t.w ? adjTile(t, u) : [tileOf(t.x), tileOf(t.y)];
+  const g: Tile | null = t.w && !isAir(u) ? adjTile(t, u) : [tileOf(t.x), tileOf(t.y)];
   if (!g) return null;
   u.goal = g;
   return pathFor(u, g[0], g[1]);

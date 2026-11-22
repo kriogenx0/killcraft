@@ -8,7 +8,7 @@ import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
-import { modelHeight, pickEntity } from './render3d/entities3d.ts';
+import { midHeight, pickEntity } from './render3d/entities3d.ts';
 
 const DRAG_START = 6;
 const DOUBLE_TAP = 350;
@@ -77,7 +77,7 @@ function useMode(wx: number, wy: number, hit: Ent | null): void {
 function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
   return G.ents.filter((e) => {
     if (e.dead || e.kind !== 'unit' || e.team !== V.team) return false;
-    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.4);
+    const p = worldToScreen(e.x, e.y, midHeight(e));
     return p.front && test(p.sx, p.sy);
   });
 }
