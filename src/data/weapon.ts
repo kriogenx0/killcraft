@@ -2,7 +2,7 @@
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak'
-  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'pillboxmg' | 'atmissile' | 'bertha';
+  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder';
 
@@ -32,6 +32,8 @@ export interface WeaponDef {
 
 export const WEAPON: Record<WeaponType, WeaponDef> = {
   rifle: { dmg: 9, range: 3.5, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
+  lmg: { dmg: 7, range: 4, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.55, heavy: 0.15, building: 0.25, air: 0.7 } },
+  dronegun: { dmg: 9, range: 3.5, cd: 0.4, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.7, heavy: 0.35, building: 0.35, air: 0.9 } },
   mg: { dmg: 8, range: 4, cd: 0.45, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.1, light: 0.6, heavy: 0.25, building: 0.3, air: 0.7 } },
   rocket: { dmg: 42, range: 5, cd: 2.2, proj: 'rocket', speed: 320, splash: 10, vs: { none: 0.3, light: 1, heavy: 1, building: 0.7, air: 1.3 } },
   cannon: { dmg: 32, range: 4.5, cd: 1.6, proj: 'shell', speed: 650, splash: 14, vs: { none: 0.45, light: 0.9, heavy: 1, building: 0.9, air: 0 } },

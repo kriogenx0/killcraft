@@ -8,6 +8,29 @@ import { M, box, cone, cyl, mat, prism, sph, teamMat, torus } from './materials.
 
 // ---------------------------------------------------------------- aircraft
 
+/** Modern age: a quadcopter with a sensor ball, a light gun under the body and four spinning props. */
+export function drone(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  const tm = teamMat(team, 'm', 0.3), td = teamMat(team, 'd', 0.3);
+  root.add(scl(mesh(sph(0.08, 12, 8), tm, 0, 0.1, 0), 1.4, 0.55, 1));
+  root.add(mesh(box(0.12, 0.02, 0.08), td, 0, 0.13, 0));
+  root.add(mesh(sph(0.03, 10, 8), M.glass(), 0.1, 0.08, 0)); // sensor ball
+  for (const z of [-0.035, 0.035]) root.add(rod([-0.02, 0.06, z], [-0.02, 0.0, z * 1.6], 0.005, M.darkSteel(), 4)); // landing legs
+  for (const [i, [x, z]] of ([[0.13, 0.13], [0.13, -0.13], [-0.13, 0.13], [-0.13, -0.13]] as const).entries()) {
+    root.add(rod([0, 0.11, 0], [x, 0.12, z], 0.009, M.dark(), 4)); // arm
+    root.add(mesh(cyl(0.022, 0.022, 0.03, 8), M.darkSteel(), x, 0.13, z)); // motor
+    const prop = group(x, 0.15, z,
+      mesh(box(0.16, 0.004, 0.02), M.dark(), 0, 0, 0),
+      mesh(box(0.02, 0.004, 0.16), M.dark(), 0, 0, 0));
+    parts[`prop${i}`] = prop;
+    root.add(prop);
+  }
+  const gun = group(0.04, 0.05, 0, along(mesh(cyl(0.007, 0.007, 0.1, 6), M.gun(), 0.05, 0, 0)), mesh(box(0.04, 0.025, 0.03), M.gun(), 0, 0, 0));
+  parts.barrel = gun;
+  root.add(gun);
+  return { root, parts, height: 0.2 };
+}
+
 /** World War: a silk envelope in team stripes over a wicker basket, with a burner and bombs. */
 export function balloon(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};

@@ -203,13 +203,13 @@ function training(team: number): void {
   }
   // a few aircraft once there's money to spare
   if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2]]);
     if (t) enqueue(team, t);
   }
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
-    const t = pick(team, 'infantry', [['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
+    const t = pick(team, 'infantry', [['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
     if (t) enqueue(team, t);
   }
 }
