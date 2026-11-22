@@ -38,7 +38,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
       hooks.alert(t.team, t.x, t.y);
     }
   }
-  if (t.hp <= 0) { kill(t); dropSalvage(t); return; }
+  if (t.hp <= 0) { hooks.killedBy(t, src); kill(t); dropSalvage(t); return; }
   // idle units react: engaging ones fight back, passive ones run
   if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
     if (t.stance === 'passive') orderFlee(t, src);

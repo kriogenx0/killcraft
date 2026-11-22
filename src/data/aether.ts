@@ -10,6 +10,13 @@ export const AETHER_SITES: Tile[] = [
   [19, 15],
   [44, 47],
 ];
+/** Four-player free-for-all: one deposit between each pair of neighbouring bases. */
+export const AETHER_FFA_SITES: Tile[] = [
+  [31, 19],
+  [32, 44],
+  [19, 32],
+  [44, 31],
+];
 /** The middle deposit only appears on some maps. */
 export const AETHER_MIDDLE: Tile = [27, 27];
 /** Chance a map gets the middle deposit. */

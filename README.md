@@ -9,6 +9,10 @@ A real-time strategy game in the browser in the spirit of Command & Conquer. Har
 
 Other targets: `make test` (type-check, lint, and every test, including a live two-player match against the server), `make build` (production bundle in `dist/`), `make up` / `make down` (run the production image in Docker on `PORT`). `make help` lists everything.
 
+## Balance simulations
+
+`npm run sim -- --matches 200 --teams 4` plays computer-only matches headlessly (four players, one per corner, or `--teams 2`) across all CPU cores and prints a Markdown report: win rate by corner, match length, when each age was reached, what every unit and structure built, killed and traded, and what winners spent on compared with everyone else. Every match is seeded, so the same options give the same report. `--json out.json` saves the raw results, `--max 3600` caps a match in game seconds. The code is in `src/sim/`.
+
 ## Play online
 
 Click **Play Online**, pick a name, then:

@@ -12,11 +12,19 @@ import { oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 
-interface AiState { on: boolean; attackAt: number; attacking: boolean; guards: Set<number> }
+interface AiState {
+  on: boolean;
+  attackAt: number;
+  attacking: boolean;
+  /** the side this player is fighting (in a free-for-all, the nearest one still standing) */
+  foe: number;
+  /** units kept home to guard an Aether crystal */
+  guards: Set<number>;
+}
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false, guards: new Set() },
-  { on: true, attackAt: 8, attacking: false, guards: new Set() },
+  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set() },
+  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set() },
 ];
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
@@ -27,8 +35,30 @@ const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'powe
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
-export function resetAi(): void {
-  for (const a of ais) { a.attackAt = 8; a.attacking = false; a.guards.clear(); }
+/** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
+export function resetAi(teams = 2): void {
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set() });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.foe = teams === 2 ? 1 - team : -1; });
+}
+
+const homeOf = (team: number): Ent | undefined =>
+  G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
+const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'bld' || (e.kind === 'unit' && !!unitDef(e).weapon)));
+
+/** Keep fighting the same side until it falls, then turn on the nearest one left. */
+function foeOf(team: number): number {
+  const A = ais[team];
+  if (A.foe >= 0 && A.foe !== team && standing(A.foe)) return A.foe;
+  const home = homeOf(team) ?? G.ents.find((e) => !e.dead && e.team === team);
+  let best = -1, bestD = Infinity;
+  for (let t = 0; t < G.teams; t++) {
+    if (t === team || !standing(t)) continue;
+    const there = homeOf(t) ?? G.ents.find((e) => !e.dead && e.team === t);
+    const d = home && there ? Math.hypot(there.x - home.x, there.y - home.y) + Math.random() * TS : 0;
+    if (d < bestD) { bestD = d; best = t; }
+  }
+  if (best !== A.foe) { A.foe = best; A.attacking = false; }
+  return best;
 }
 
 function nextStructure(team: number): BldType | null {
@@ -45,11 +75,11 @@ function nextStructure(team: number): BldType | null {
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
   // answer enemy aircraft with flak
-  const foeAir = G.ents.filter((e) => !e.dead && e.team === 1 - team && isAir(e)).length;
+  const foeAir = G.ents.filter((e) => !e.dead && e.team >= 0 && e.team !== team && isAir(e)).length;
   if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine when there's Aether to spare
   const aether = G.aether[team] ?? 0;
-  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team === 1 - team && e.type === 'phantom')) return 'wardstone';
+  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
   if (can.includes('shrine') && countOf(team, 'shrine') < 1 && aether >= (BUILDING.shrine.aether ?? 0) + 40 && G.credits[team] > 1200) return 'shrine';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
@@ -61,7 +91,7 @@ function findSite(team: number, type: BldType): Tile | null {
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
   if (type === 'derrick') return wellSite(team, s, yard);
-  const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+  const foe = G.ents.find((e) => !e.dead && e.team === ais[team]?.foe && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
@@ -171,7 +201,7 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
   const left = deposits();
   if (!left.length || !home) { A.guards.clear(); return; }
   const near = (d: Ent) => Math.hypot(d.x - home.x, d.y - home.y);
-  const target = left.filter((d) => holderOf(d) !== 1 - team).sort((a, b) => near(a) - near(b))[0] ?? left.sort((a, b) => near(a) - near(b))[0];
+  const target = left.filter((d) => { const h = holderOf(d); return h < 0 || h === team; }).sort((a, b) => near(a) - near(b))[0] ?? left.sort((a, b) => near(a) - near(b))[0];
   if (A.guards.size < GUARDS && army.length >= GUARD_ARMY) {
     const free = army.filter((u) => !A.guards.has(u.id) && !u.order).sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y));
     for (const u of free.slice(0, GUARDS - A.guards.size)) A.guards.add(u.id);
@@ -184,15 +214,17 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
 }
 
 function military(team: number): void {
-  const A = ais[team], foe = 1 - team;
+  const A = ais[team], foe = foeOf(team);
+  if (foe < 0) return;
   const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
-  holdAether(team, all, G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard'));
+  holdAether(team, all, homeOf(team));
   const army = all.filter((e) => !A.guards.has(e.id));
   // fast raiders shoot on the move; everyone else stops to fight (the default stance)
   for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
-  const home = G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
+  const home = homeOf(team);
   if (home) {
-    const threat = G.ents.find((e) => !e.dead && e.team === foe && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
+    // defend against anyone, not just the side we're fighting
+    const threat = G.ents.find((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
         if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));

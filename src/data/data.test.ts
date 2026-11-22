@@ -3,7 +3,7 @@ import { UNIT, UNIT_TYPES } from './unit.ts';
 import { BUILDING, BLD_TYPES } from './building.ts';
 import { WEAPON } from './weapon.ts';
 import { ERA, HEAL_RATE, TECH, TECH_TYPES } from './era.ts';
-import { ORE_SOURCES, START_YARDS } from './map.ts';
+import { FFA_ORE_SOURCES, FFA_YARDS, ORE_SOURCES, START_YARDS } from './map.ts';
 import { MW, MH } from '../game/const.ts';
 
 describe('static data', () => {
@@ -68,9 +68,21 @@ describe('static data', () => {
   });
 
   it('places bases and ore inside the map', () => {
-    for (const [x, y] of [...START_YARDS, ...ORE_SOURCES]) {
+    for (const [x, y] of [...START_YARDS, ...ORE_SOURCES, ...FFA_YARDS, ...FFA_ORE_SOURCES]) {
       expect(x >= 0 && x + 3 <= MW).toBe(true);
       expect(y >= 0 && y + 3 <= MH).toBe(true);
     }
+  });
+
+  it('mirrors the four-player bases and their home ore so no corner is favoured', () => {
+    expect(new Set(FFA_YARDS.map(String)).size).toBe(4);
+    const mid = (MW - 3) / 2;
+    for (const [x, y] of FFA_YARDS) for (const [ox, oy] of FFA_YARDS) {
+      expect(Math.abs(x - mid)).toBe(Math.abs(ox - mid));
+      expect(Math.abs(y - mid)).toBe(Math.abs(oy - mid));
+    }
+    // centre of each base to the centre of its home ore rock
+    const reach = (i: number) => Math.hypot(FFA_ORE_SOURCES[i][0] + 0.5 - (FFA_YARDS[i][0] + 1.5), FFA_ORE_SOURCES[i][1] + 0.5 - (FFA_YARDS[i][1] + 1.5));
+    for (let i = 1; i < 4; i++) expect(reach(i)).toBeCloseTo(reach(0));
   });
 });

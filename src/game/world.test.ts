@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
@@ -14,6 +14,7 @@ import { TREE_WOOD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
+import { mulberry32 } from '../util/math.ts';
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
@@ -22,6 +23,8 @@ function run(seconds: number): void {
 const errors: unknown[] = [];
 
 beforeEach(() => {
+  // the computer players, harvesters and combat roll dice: seed them so every run plays out the same
+  vi.spyOn(Math, 'random').mockImplementation(mulberry32(20261122));
   errors.length = 0;
   hooks.error = (e) => errors.push(e);
   G.reveal = true;
@@ -29,6 +32,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   ais[0].on = false;
   ais[1].on = true;
   G.demo = false;

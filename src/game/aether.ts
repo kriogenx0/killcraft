@@ -3,18 +3,18 @@
 import { G, hooks, say, unitDef, type Ent, type Tile } from './state.ts';
 import { GRASS, MH, MW, TS } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { START_YARDS } from '../data/map.ts';
+import { layoutFor } from '../data/map.ts';
 import {
-  AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REACH, AETHER_SITES,
+  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REACH, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { eachInDisk, nearPortal, setBlk } from './map.ts';
 
-const TEAMS = [0, 1];
+const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
 /** Ground tiles reachable on foot from the first base. */
 function reachable(): Uint8Array {
-  const seen = new Uint8Array(MW * MH), [ax, ay] = START_YARDS[0], start = (ay + 1) * MW + ax + 1, q = [start];
+  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;
@@ -31,6 +31,7 @@ function reachable(): Uint8Array {
 /** The deposit sites a map with this seed gets. */
 export function aetherSites(seed: number): Tile[] {
   const rnd = mulberry32(seed ^ 0x5eed);
+  if (G.teams > 2) return [...AETHER_FFA_SITES];
   return rnd() < AETHER_MIDDLE_CHANCE ? [...AETHER_SITES, AETHER_MIDDLE] : [...AETHER_SITES];
 }
 
@@ -54,9 +55,9 @@ export function addAether(tx: number, ty: number, amount = AETHER_PER_DEPOSIT): 
  * spot is cut off by water or woods, move it to the nearest ground both bases can walk to.
  */
 export function placeAether(seed: number): void {
-  G.aether = [0, 0];
-  G.aetherFound = [false, false];
-  G.ward = [false, false];
+  G.aether = teams().map(() => 0);
+  G.aetherFound = teams().map(() => false);
+  G.ward = teams().map(() => false);
   G.waygates = [];
   G.warpTeam.fill(-1);
   for (const [sx, sy] of aetherSites(seed)) {
@@ -81,14 +82,17 @@ function exhaust(d: Ent): void {
   hooks.killed(d);
 }
 
-/** The team holding a deposit: it has a unit next to it and the enemy doesn't. -1 if nobody or contested. */
+/** The team holding a deposit: it has a unit next to it and no other side does. -1 if nobody or contested. */
 export function holderOf(d: Ent): number {
-  const r = AETHER_REACH * TS, near = [false, false];
+  const r = AETHER_REACH * TS;
+  let holder = -1;
   for (const e of G.ents) {
-    if (e.dead || e.kind !== 'unit' || e.team < 0) continue;
-    if (Math.hypot(e.x - d.x, e.y - d.y) <= r) near[e.team] = true;
+    if (e.dead || e.kind !== 'unit' || e.team < 0 || e.team === holder) continue;
+    if (Math.hypot(e.x - d.x, e.y - d.y) > r) continue;
+    if (holder >= 0) return -1;
+    holder = e.team;
   }
-  return near[0] === near[1] ? -1 : near[0] ? 0 : 1;
+  return holder;
 }
 
 /** Draw `dt` seconds of Aether from every held deposit. */
@@ -102,7 +106,7 @@ export function drawAether(dt: number): void {
     if (!G.aetherFound[team]) { G.aetherFound[team] = true; say(team, 'Aether found! Hidden units revealed'); }
     if (d.hp <= 0.01) {
       exhaust(d);
-      for (const t of TEAMS) say(t, 'An Aether deposit has run dry');
+      for (const t of teams()) say(t, 'An Aether deposit has run dry');
     }
   }
 }
@@ -166,7 +170,7 @@ function gateTile(b: Ent): Tile | null {
 export function syncWaygates(): void {
   for (const w of G.waygates) for (const [x, y] of [w.a, w.b]) { G.warp[y * MW + x] = -1; G.warpTeam[y * MW + x] = -1; }
   G.waygates = [];
-  for (const team of TEAMS) {
+  for (const team of teams()) {
     const gates = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'waygate' && e.done).sort((a, b) => a.id - b.id).slice(0, MAX_WAYGATES);
     if (gates.length < 2) continue;
     const a = gateTile(gates[0]);

@@ -14,7 +14,9 @@ const RISE_TIME = 1.2;
 
 /** Free tile next to a building, nearest to `toward` (default: below the building, where doors are). */
 export function exitTile(b: Ent, toward?: Point): Tile {
-  const rx = toward ? toward.x : b.x, ry = toward ? toward.y : b.y + 400;
+  // without a rally point, units leave on the side facing the middle of the map, so no corner's
+  // troops start out walking toward the map edge
+  const rx = toward ? toward.x : (MW * TS) / 2, ry = toward ? toward.y : (MH * TS) / 2;
   let best: Tile | null = null, bd = 1e9;
   for (let y = b.ty - 1; y <= b.ty + b.h; y++)
     for (let x = b.tx - 1; x <= b.tx + b.w; x++) {
