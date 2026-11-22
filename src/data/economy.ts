@@ -1,12 +1,25 @@
-// Wood and oil tuning. Ore comes from harvesters (see data/ore.ts).
+// Wood, oil and salvage tuning. Ore comes from harvesters (see data/ore.ts).
 // Prices follow what a thing is made of and runs on: steel and stone cost ore, timber costs wood,
 // and anything with an engine or rocket costs oil. Nothing that runs on oil exists before the Industrial age.
+// Ore and wood grow back; oil does not.
 
 /** A Lumber Mill cuts wood from trees within this many tiles of its footprint. */
 export const MILL_RADIUS = 5;
-/** Wood per second for each tree near a team's mills (a tree counts once even if two mills reach it). */
+/** Wood per second a mill cuts from each tree it reaches, while the tree has wood left. */
 export const WOOD_PER_TREE = 0.3;
 /** Most trees a single mill can work. */
 export const MILL_MAX_TREES = 24;
-/** Oil per second from each Oil Derrick. */
+/** Wood a full-grown tree holds, and how fast a cut tree grows back (per second). */
+export const TREE_WOOD = 150;
+export const TREE_REGROW = 0.1;
+
+/** Oil per second an Oil Derrick pumps while its well has oil. */
 export const OIL_PER_DERRICK = 3;
+/** A derrick pumps from oil tiles under its footprint and this many tiles around it. */
+export const DERRICK_REACH = 1;
+/** Oil in a pool tile at the middle of a well; pools are this many tiles across from the middle. */
+export const OIL_TILE_MAX = 700;
+export const OIL_WELL_RADIUS = 2;
+
+/** Share of a unit's or building's ore price left behind as ore when it's destroyed. */
+export const SALVAGE_SHARE = 0.3;

@@ -11,17 +11,17 @@ const visible = (x: number, y: number) => G.vis[tileOf(y) * MW + tileOf(x)] === 
 
 export function part(kind: FxKind, x: number, y: number, o: Partial<Particle> = {}): void {
   if (G.headless || G.fx.length > MAX_PARTICLES) return;
-  G.fx.push({ kind, x, y, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, size: 2, col: null, rot: Math.random() * TAU, soft: false, landed: false, ex: x, ey: y, ...o });
+  G.fx.push({ kind, x, y, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1, size: 2, col: null, rot: Math.random() * TAU, soft: false, landed: false, ex: x, ey: y, ez: 0, ...o });
 }
 
 /** A spray of particles; skipped where the player can't see. */
-export function burst(kind: FxKind, x: number, y: number, n: number, v0: number, v1: number, col: string | null = null): void {
+export function burst(kind: FxKind, x: number, y: number, n: number, v0: number, v1: number, col: string | null = null, z0 = 0): void {
   if (!visible(x, y)) return;
   for (let i = 0; i < n; i++) {
     const a = Math.random() * TAU, v = lerp(v0, v1, Math.random()) * 0.5;
     part(kind, x, y, {
       vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, vz: v * (0.6 + Math.random() * 0.8),
-      z: kind === 'debris' ? 6 : 4,
+      z: z0 + (kind === 'debris' ? 6 : 4),
       max: kind === 'dust' ? 0.8 + Math.random() * 0.5 : 0.5 + Math.random() * 0.5,
       size: kind === 'debris' ? 2 + Math.random() * 3 : kind === 'dust' ? 4 + Math.random() * 4 : 1.5 + Math.random() * 1.5,
       col,

@@ -137,15 +137,19 @@ describe('Aether', () => {
   });
 
   it('slows what a Hexblade hits, for a moment', () => {
-    const foe = addUnit('swordsman', 1, 30 * TS, 30 * TS), hex = addUnit('hexblade', 0, 27 * TS, 30 * TS);
-    const stride = (): number => { orderMove(foe, 30, 50); const y0 = foe.y; for (let i = 0; i < 30; i++) { foe.flash = 0; hex.order = null; hex.cd = 9; update(STEP); } return foe.y - y0; };
-    const plain = stride();
-    fire(hex, 'hexrifle', foe);
-    const slowed = stride();
-    expect(slowed).toBeLessThan(plain * 0.7);
-    run(2);
-    const after = stride();
-    expect(after).toBeGreaterThan(plain * 0.9);
+    // two swordsmen walk side by side; one has just been hexed from far away
+    const hex = addUnit('hexblade', 0, 30 * TS, 8 * TS), a = addUnit('swordsman', 1, 28 * TS, 30 * TS), b = addUnit('swordsman', 1, 33 * TS, 30 * TS);
+    fire(hex, 'hexrifle', a);
+    hex.dead = true;
+    orderMove(a, 28, 45);
+    orderMove(b, 33, 45);
+    const y0 = a.y;
+    for (let i = 0; i < 1 / STEP; i++) update(STEP);
+    expect(a.y - y0).toBeLessThan((b.y - y0) * 0.7);
+    run(1);
+    const ya = a.y, yb = b.y;
+    for (let i = 0; i < 0.5 / STEP; i++) update(STEP);
+    expect(a.y - ya).toBeGreaterThan((b.y - yb) * 0.85); // back to full speed
   });
 
   it('hides a Phantom Jeep from enemies until it fires or they come close', () => {

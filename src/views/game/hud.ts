@@ -1,11 +1,12 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, bldDef, isOrganic, unitDef, type Ent } from '../../game/state.ts';
+import { G, STANCES, bldDef, isOrganic, unitDef, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
 import { ERA, HEAL_RATE } from '../../data/era.ts';
 import { eraOf } from '../../game/production.ts';
-import { millRate, oilRate, treesNear, woodRate } from '../../game/economy.ts';
+import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
+import { OIL_PER_DERRICK } from '../../data/economy.ts';
 import { holderOf } from '../../game/aether.ts';
 import { AETHER_RATE } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -49,6 +50,14 @@ export function setSelection(list: Ent[]): void {
   refreshCommands(true);
 }
 
+const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
+  engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on (default)' },
+  skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping' },
+  passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies' },
+};
+
+const isStance = (id: string): id is Stance => (STANCES as readonly string[]).includes(id);
+
 export function commandList(): Command[] {
   if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: 'Cancel the current command' }];
   const s = ownSelected();
@@ -58,7 +67,7 @@ export function commandList(): Command[] {
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
-      { id: 'amove', label: 'Attack', hotkey: COMMAND_KEYS.amove, icon: ICON.amove, tip: 'Attack-move: fight anything on the way' },
+      ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
     ];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
@@ -71,7 +80,8 @@ export function commandList(): Command[] {
 export function runCommand(id: string): void {
   const s = ownSelected();
   if (id === 'cancel') V.mode = null;
-  else if (id === 'move' || id === 'amove') V.mode = { t: id };
+  else if (id === 'move') V.mode = { t: id };
+  else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'sell' && s[0]) { dispatch({ c: 'sell', id: s[0].id }); V.sel = []; }
@@ -105,13 +115,12 @@ function unitDetails(e: Ent): string {
 }
 
 const perMin = (perSec: number): number => Math.round(perSec * 60);
-const countDone = (type: string): number => G.ents.filter((b) => !b.dead && b.team === V.team && b.type === type && b.done).length;
 
 function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
   const own = e.team === V.team && e.done;
-  const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? `Oil +${perMin(oilRate(V.team) / Math.max(1, countDone(e.type)))}/min` : '';
+  const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '';
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
     (e.team === V.team && d.produces && d.produces !== 'structure' ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }

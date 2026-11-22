@@ -12,13 +12,21 @@ export type EntKind = 'unit' | 'bld' | 'source';
 /** 'source' is an ore crystal rock, 'aether' an Aether deposit (its hp is the Aether left) */
 export type EntType = UnitType | BldType | 'source' | 'aether';
 
-export interface MoveOrder { t: 'move' }
-export interface AMoveOrder { t: 'amove'; gx: number; gy: number; sub: number | null }
+/**
+ * How a unit fights. There is only one way to move; the stance decides what happens on the way.
+ * engage: stop to fight enemies it meets (the default) · skirmish: shoot on the move without
+ * stopping · passive: never attack, and run away from armed enemies.
+ */
+export const STANCES = ['engage', 'skirmish', 'passive'] as const;
+export type Stance = (typeof STANCES)[number];
+
+/** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
-export type Order = MoveOrder | AMoveOrder | AttackOrder | HarvestOrder;
+export type Order = MoveOrder | AttackOrder | HarvestOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'tech';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
 export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
@@ -65,6 +73,9 @@ export interface Ent extends Target {
   walk: number;
   moving: boolean;
   atkT: number;
+  stance: Stance;
+  /** the enemy a skirmishing unit is shooting at without stopping */
+  shot: number | null;
   // buildings
   done: boolean;
   /** 0..1 rise-up animation after placement */
@@ -91,6 +102,8 @@ export interface Particle {
   life: number; max: number; size: number; col: string | null; rot: number; soft: boolean; landed: boolean;
   /** end point for tracers */
   ex: number; ey: number;
+  /** end height for tracers (px) */
+  ez: number;
 }
 
 export interface Decal {
@@ -102,6 +115,10 @@ export const G = {
   terr: new Uint8Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
+  /** oil left in the ground on each tile (never refills) */
+  oilField: new Float32Array(MW * MH),
+  /** wood left on each tree tile (grows back) */
+  treeWood: new Float32Array(MW * MH),
   blk: new Uint8Array(MW * MH),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
@@ -191,3 +208,7 @@ export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 /** Living units (infantry and knights) bleed and heal; vehicles don't. */
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
+/** Aircraft fly straight over everything and only some weapons can reach them. */
+export const isAir = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'air';
+/** How high an entity flies, in px (0 on the ground). */
+export const altOf = (e: Ent): number => (e.kind === 'unit' ? (unitDef(e).alt ?? 0) * TS : 0);

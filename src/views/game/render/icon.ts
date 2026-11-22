@@ -86,10 +86,25 @@ export function makeIcons(team = 0): void {
     g.closePath(); g.fill(); g.stroke();
     g.fillStyle = '#fff'; g.fillRect(-9, -3, 18, 6);
   });
-  ICON.amove = cmd((g) => {
+  const crosshair = (g: CanvasRenderingContext2D, r: number) => {
     g.strokeStyle = '#e8e8e0'; g.lineWidth = 2.5;
-    g.beginPath(); g.arc(0, 0, 11, 0, Math.PI * 2); g.stroke();
-    for (const [x0, y0, x1, y1] of [[0, -16, 0, -6], [0, 6, 0, 16], [-16, 0, -6, 0], [6, 0, 16, 0]]) oline(g, x0, y0, x1, y1, 2.5, '#e84a3a');
+    g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke();
+    const a = r * 0.55, b = r * 1.45;
+    for (const [x0, y0, x1, y1] of [[0, -b, 0, -a], [0, a, 0, b], [-b, 0, -a, 0], [a, 0, b, 0]]) oline(g, x0, y0, x1, y1, 2.5, '#e84a3a');
+  };
+  ICON.engage = cmd((g) => crosshair(g, 11));
+  ICON.skirmish = cmd((g) => {
+    g.fillStyle = '#5ad04a'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    g.beginPath();
+    for (const [x, y] of [[-16, 2], [-6, 2], [-6, -4], [4, 7], [-6, 18], [-6, 12], [-16, 12]]) g.lineTo(x, y);
+    g.closePath(); g.fill(); g.stroke();
+    g.translate(7, -7);
+    crosshair(g, 7);
+  });
+  ICON.passive = cmd((g) => {
+    oline(g, -8, -15, -8, 16, 3, '#b08850');
+    g.fillStyle = '#f0f0e8'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(-7, -14); g.lineTo(13, -10); g.lineTo(9, -4); g.lineTo(13, 2); g.lineTo(-7, -1); g.closePath(); g.fill(); g.stroke();
   });
   ICON.cancel = cmd((g) => { oline(g, -11, -11, 11, 11, 4, '#e05040'); oline(g, 11, -11, -11, 11, 4, '#e05040'); });
   ICON.repair = cmd((g) => {

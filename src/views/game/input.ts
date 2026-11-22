@@ -8,7 +8,7 @@ import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
-import { modelHeight, pickEntity } from './render3d/entities3d.ts';
+import { midHeight, pickEntity } from './render3d/entities3d.ts';
 
 const DRAG_START = 6;
 const DOUBLE_TAP = 350;
@@ -38,7 +38,7 @@ export function entityAt(wx: number, wy: number): Ent | null {
 const mark = (x: number, y: number, color: string) => V.markers.push({ x, y, t: 0, color });
 const isEnemy = (e: Ent | null): boolean => !!e && e.team !== V.team && e.team >= 0;
 
-/** Context command at a world point: attack, harvest, unload, rally or move. */
+/** Context command at a world point: harvest, unload, rally or move. Units only ever move; their stance decides whether they fight. */
 export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   const own = ownSelected();
   if (!own.length) return;
@@ -49,22 +49,15 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     if (b.kind === 'bld' && b.done && bldDef(b).produces && bldDef(b).produces !== 'structure') { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
     return;
   }
-  if (hit && isEnemy(hit)) {
-    const armed = units.filter((u) => unitDef(u).weapon), unarmed = units.filter((u) => !armed.includes(u));
-    dispatch({ c: 'attack', ids: ids(armed), target: hit.id });
-    if (unarmed.length) dispatch({ c: 'move', ids: ids(unarmed), tx, ty, amove: false });
-    mark(wx, wy, '#f44');
-    return;
-  }
   const harvesters = units.filter((u) => u.type === 'harvester'), rest = units.filter((u) => u.type !== 'harvester');
-  const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty, amove: false });
+  const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty });
   if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
-  dispatch({ c: 'move', ids: ids(units), tx, ty, amove: false });
-  mark(wx, wy, '#5f5');
+  dispatch({ c: 'move', ids: ids(units), tx, ty });
+  mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
 }
 
-/** Finish a targeting command (move, attack-move or place) at a world point. */
+/** Finish a targeting command (move or place) at a world point. */
 function useMode(wx: number, wy: number, hit: Ent | null): void {
   const m = V.mode;
   if (!m) return;
@@ -75,8 +68,8 @@ function useMode(wx: number, wy: number, hit: Ent | null): void {
   }
   V.mode = null;
   const us = selectedUnits();
-  if (hit && isEnemy(hit)) { dispatch({ c: 'attack', ids: ids(us), target: hit.id }); mark(wx, wy, '#f44'); }
-  else { dispatch({ c: 'move', ids: ids(us), tx: tileOf(wx), ty: tileOf(wy), amove: m.t === 'amove' }); mark(wx, wy, m.t === 'amove' ? '#f44' : '#5f5'); }
+  dispatch({ c: 'move', ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
+  mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
   refreshCommands(true);
 }
 
@@ -84,7 +77,7 @@ function useMode(wx: number, wy: number, hit: Ent | null): void {
 function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
   return G.ents.filter((e) => {
     if (e.dead || e.kind !== 'unit' || e.team !== V.team) return false;
-    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.4);
+    const p = worldToScreen(e.x, e.y, midHeight(e));
     return p.front && test(p.sx, p.sy);
   });
 }

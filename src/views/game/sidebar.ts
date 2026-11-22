@@ -53,7 +53,7 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle')];
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
   const key = `${V.team}|${eraOf(V.team)}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   for (const [type, c] of cells) {

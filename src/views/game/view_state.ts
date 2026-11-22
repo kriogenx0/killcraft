@@ -5,7 +5,6 @@ import { clampRig, defaultRig } from './camera_rig.ts';
 
 export type Mode =
   | { t: 'move' }
-  | { t: 'amove' }
   | { t: 'place'; type: BldType; tx: number; ty: number; ok: boolean }
   | null;
 

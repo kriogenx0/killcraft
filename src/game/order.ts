@@ -1,7 +1,11 @@
 // Giving orders to units. Every order goes through setOrder so stale paths are dropped.
-import { G, tileOf, type Ent, type Order, type Tile } from './state.ts';
+import { G, tileOf, type Ent, type Order, type Stance, type Tile } from './state.ts';
 import { MW, MH, TS, WATER } from './const.ts';
-import { pathFor } from './path.ts';
+import { clamp } from '../util/math.ts';
+import { nearestFree, pathFor } from './path.ts';
+
+/** How far (tiles) a passive unit runs from a threat. */
+const FLEE_DIST = 6;
 
 export function setOrder(u: Ent, o: Order | null): void {
   u.order = o;
@@ -11,7 +15,7 @@ export function setOrder(u: Ent, o: Order | null): void {
 }
 
 export function orderMove(u: Ent, tx: number, ty: number): void {
-  setOrder(u, { t: 'move' });
+  setOrder(u, { t: 'move', gx: tx, gy: ty, sub: null });
   u.goal = [tx, ty];
   u.path = pathFor(u, tx, ty);
 }
@@ -20,11 +24,23 @@ export function orderAttack(u: Ent, t: Ent): void {
   setOrder(u, { t: 'attack', tgt: t.id, auto: false, ox: u.x, oy: u.y });
 }
 
-export function orderAMove(u: Ent, gx: number, gy: number): void {
-  setOrder(u, { t: 'amove', gx, gy, sub: null });
+/** Run directly away from a threat. */
+export function orderFlee(u: Ent, from: { x: number; y: number }): void {
+  const dx = u.x - from.x, dy = u.y - from.y, d = Math.hypot(dx, dy) || 1;
+  const gx = clamp(Math.round(tileOf(u.x) + (dx / d) * FLEE_DIST), 0, MW - 1), gy = clamp(Math.round(tileOf(u.y) + (dy / d) * FLEE_DIST), 0, MH - 1);
+  const t: Tile | null = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 4) : [gx, gy];
+  if (t) orderMove(u, t[0], t[1]);
 }
 
 export const orderStop = (u: Ent): void => setOrder(u, null);
+
+/** Change how a unit fights. A unit that stops attacking drops the fight it was in. */
+export function setStance(u: Ent, stance: Stance): void {
+  u.stance = stance;
+  u.shot = null;
+  if (stance !== 'engage' && u.order?.t === 'attack') orderStop(u);
+  if (u.order?.t === 'move' && u.order.sub) { u.order.sub = null; u.path = null; }
+}
 
 /** Harvest starting at a tile (or the nearest ore to it). */
 export function orderHarvest(u: Ent, tx: number, ty: number): void {
@@ -36,11 +52,11 @@ export function orderReturn(u: Ent): void {
   setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
 }
 
-/** Move (or attack-move) a group, giving each unit its own free tile around the goal. */
-export function groupMove(us: Ent[], gx: number, gy: number, amove = false): void {
+/** Move a group, giving each unit its own free tile around the goal. */
+export function groupMove(us: Ent[], gx: number, gy: number): void {
   const n = us.length;
   if (!n) return;
-  const send = (u: Ent, t: Tile) => (amove ? orderAMove(u, t[0], t[1]) : orderMove(u, t[0], t[1]));
+  const send = (u: Ent, t: Tile) => orderMove(u, t[0], t[1]);
   if (n === 1) { send(us[0], [gx, gy]); return; }
   const tiles: Tile[] = [], seen = new Set<number>([gy * MW + gx]), q: Tile[] = [[gx, gy]];
   while (q.length && tiles.length < n) {

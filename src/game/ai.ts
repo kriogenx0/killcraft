@@ -1,6 +1,6 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them.
-import { G, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, isAir, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -8,8 +8,8 @@ import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace } from './building.ts';
 import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
-import { treesNear } from './economy.ts';
-import { orderAMove, orderMove } from './order.ts';
+import { oilNear, treesNear } from './economy.ts';
+import { orderMove, setStance } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean; guards: Set<number> }
@@ -23,8 +23,9 @@ export const ais: AiState[] = [
 const GUARDS = 2;
 const GUARD_ARMY = 5;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'turret'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
+const SKIRMISHERS = new Set<string>(['jeep']);
 
 export function resetAi(): void {
   for (const a of ais) { a.attackAt = 8; a.attacking = false; a.guards.clear(); }
@@ -40,6 +41,9 @@ function nextStructure(team: number): BldType | null {
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
+  // answer enemy aircraft with flak
+  const foeAir = G.ents.filter((e) => !e.dead && e.team === 1 - team && isAir(e)).length;
+  if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
   return null;
@@ -49,19 +53,33 @@ function findSite(team: number, type: BldType): Tile | null {
   const s = BUILDING[type].size, own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
+  if (type === 'derrick') return wellSite(team, s, yard);
   const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
-    const a = (type === 'turret' || type === 'tower') && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
-    const rad = (type === 'turret' || type === 'tower' ? 4 : 2.5) + Math.random() * (4 + k / 25);
+    const def = type === 'turret' || type === 'tower' || type === 'flak';
+    const a = def && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
+    const rad = (def ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
     if (!canPlace(tx, ty, s, team, true)) continue;
     if (type !== 'mill') return [tx, ty];
     const n = treesNear(tx, ty, s);
     if (n > bestTrees) { bestTrees = n; best = [tx, ty]; }
   }
+  return best;
+}
+
+/** The placeable spot near the base that reaches the most oil, if any reaches some. */
+function wellSite(team: number, s: number, yard: Ent): Tile | null {
+  let best: Tile | null = null, most = 0;
+  const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
+  for (let ty = cy - 16; ty <= cy + 16; ty++)
+    for (let tx = cx - 16; tx <= cx + 16; tx++) {
+      const oil = oilNear(tx, ty, s);
+      if (oil > most && canPlace(tx, ty, s, team, true)) { most = oil; best = [tx, ty]; }
+    }
   return best;
 }
 
@@ -98,7 +116,7 @@ function research(team: number): void {
 const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
 
 /** Pick from weighted options, skipping anything the team can't build yet or lacks the wood or oil for. */
-function pick(team: number, line: 'infantry' | 'vehicle', options: [UnitType, number][]): UnitType | null {
+function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [UnitType, number][]): UnitType | null {
   const can = available(team, line), enough = (t: UnitType) => { const p = priceOf(t); return G.wood[team] >= p.wood && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
   const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t));
   let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
@@ -116,6 +134,11 @@ function training(team: number): void {
     if (harvesters < Math.min(6, refineries * 2) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
     else if (!saving && credits > 500)
       t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5]]);
+    if (t) enqueue(team, t);
+  }
+  // a few aircraft once there's money to spare
+  if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3]]);
     if (t) enqueue(team, t);
   }
   // spend a growing bank on more troops
@@ -146,7 +169,7 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
   // guards drift back to the deposit whenever they're idle away from it
   for (const id of A.guards) {
     const g = G.byId.get(id);
-    if (g && !g.order && Math.hypot(g.x - target.x, g.y - target.y) > 1.5 * TS) orderAMove(g, tileOf(target.x), tileOf(target.y) + 1);
+    if (g && !g.order && Math.hypot(g.x - target.x, g.y - target.y) > 1.5 * TS) orderMove(g, tileOf(target.x), tileOf(target.y) + 1);
   }
 }
 
@@ -155,12 +178,14 @@ function military(team: number): void {
   const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
   holdAether(team, all, G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard'));
   const army = all.filter((e) => !A.guards.has(e.id));
+  // fast raiders shoot on the move; everyone else stops to fight (the default stance)
+  for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (home) {
     const threat = G.ents.find((e) => !e.dead && e.team === foe && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
-        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderAMove(u, tileOf(threat.x), tileOf(threat.y));
+        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));
   }
   const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld');
   if (!targets.length) targets.push(...G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit'));
@@ -173,9 +198,9 @@ function military(team: number): void {
   if (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2)) {
     A.attacking = true;
     A.attackAt = Math.min(MAX_WAVE, A.attackAt + 3);
-    for (const u of army) if (!u.order || u.order.t === 'move') orderAMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
-    for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderAMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   }
   if (!home) return;
   // muster new troops in front of the base
