@@ -31,6 +31,7 @@ import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/wo
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
+import { updateAetherBeams } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
@@ -243,6 +244,7 @@ export function mountGameView(root: HTMLElement): void {
       syncEntities(dt);
       updateFx3d();
       animatePortals3d(dt);
+      updateAetherBeams();
       animateWater(dt);
       renderScene();
       drawOverlay(og);
