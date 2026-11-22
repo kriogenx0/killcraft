@@ -7,7 +7,7 @@ import { MW, MH, TREE, ROCK, GRASS } from '../../../game/const.ts';
 import { TREE_WOOD } from '../../../data/economy.ts';
 import { hash } from '../../../util/math.ts';
 import { heightAt, slopeAt } from './heights.ts';
-import { M, mat } from './materials.ts';
+import { M, lumpy, mat } from './materials.ts';
 
 type Kind = 'pine' | 'fir' | 'oak' | 'birch';
 const KINDS: Kind[] = ['pine', 'fir', 'oak', 'birch'];
@@ -29,26 +29,21 @@ function merged(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
 
 /** Lumpy blob for a broadleaf crown. */
 function blob(r: number, x: number, y: number, z: number, seed: number): THREE.BufferGeometry {
-  const g = new THREE.IcosahedronGeometry(r, 1), p = g.attributes.position;
-  for (let k = 0; k < p.count; k++) {
-    const f = 0.85 + hash(p.getX(k) * 9 + seed, p.getY(k) * 7 + p.getZ(k) * 5) * 0.3;
-    p.setXYZ(k, p.getX(k) * f + x, p.getY(k) * f * 0.85 + y, p.getZ(k) * f + z);
-  }
-  return g;
+  return lumpy(r, seed, 0.85, 1).translate(x, y, z);
 }
 
 const LEAVES: Record<Kind, () => THREE.BufferGeometry> = {
   pine: () => shaded(merged([
-    new THREE.ConeGeometry(0.46, 0.55, 9).translate(0, 0.5, 0),
-    new THREE.ConeGeometry(0.38, 0.5, 9).translate(0, 0.78, 0),
-    new THREE.ConeGeometry(0.29, 0.45, 8).translate(0, 1.03, 0),
-    new THREE.ConeGeometry(0.18, 0.4, 7).translate(0, 1.27, 0),
+    new THREE.ConeGeometry(0.46, 0.55, 18).translate(0, 0.5, 0),
+    new THREE.ConeGeometry(0.38, 0.5, 18).translate(0, 0.78, 0),
+    new THREE.ConeGeometry(0.29, 0.45, 16).translate(0, 1.03, 0),
+    new THREE.ConeGeometry(0.18, 0.4, 14).translate(0, 1.27, 0),
   ]), 0.25, 1.4),
   fir: () => shaded(merged([
-    new THREE.ConeGeometry(0.34, 0.6, 7).translate(0, 0.55, 0),
-    new THREE.ConeGeometry(0.28, 0.55, 7).translate(0, 0.9, 0),
-    new THREE.ConeGeometry(0.2, 0.5, 6).translate(0, 1.22, 0),
-    new THREE.ConeGeometry(0.11, 0.42, 6).translate(0, 1.5, 0),
+    new THREE.ConeGeometry(0.34, 0.6, 16).translate(0, 0.55, 0),
+    new THREE.ConeGeometry(0.28, 0.55, 16).translate(0, 0.9, 0),
+    new THREE.ConeGeometry(0.2, 0.5, 14).translate(0, 1.22, 0),
+    new THREE.ConeGeometry(0.11, 0.42, 12).translate(0, 1.5, 0),
   ]), 0.3, 1.7),
   oak: () => shaded(merged([
     blob(0.38, 0, 0.82, 0, 1), blob(0.28, 0.24, 0.7, 0.1, 2), blob(0.29, -0.22, 0.68, -0.08, 3),
@@ -58,14 +53,14 @@ const LEAVES: Record<Kind, () => THREE.BufferGeometry> = {
 };
 
 const TRUNKS: Record<Kind, () => THREE.BufferGeometry> = {
-  pine: () => new THREE.CylinderGeometry(0.05, 0.09, 0.42, 6).translate(0, 0.2, 0),
-  fir: () => new THREE.CylinderGeometry(0.04, 0.08, 0.45, 6).translate(0, 0.22, 0),
+  pine: () => new THREE.CylinderGeometry(0.05, 0.09, 0.42, 10).translate(0, 0.2, 0),
+  fir: () => new THREE.CylinderGeometry(0.04, 0.08, 0.45, 10).translate(0, 0.22, 0),
   oak: () => merged([
-    new THREE.CylinderGeometry(0.07, 0.12, 0.6, 7).translate(0, 0.3, 0),
+    new THREE.CylinderGeometry(0.07, 0.12, 0.6, 12).translate(0, 0.3, 0),
     new THREE.CylinderGeometry(0.03, 0.05, 0.35, 5).rotateZ(-0.7).translate(0.13, 0.6, 0),
     new THREE.CylinderGeometry(0.03, 0.05, 0.32, 5).rotateZ(0.8).translate(-0.12, 0.58, 0),
   ]),
-  birch: () => new THREE.CylinderGeometry(0.035, 0.05, 1.0, 6).translate(0, 0.5, 0),
+  birch: () => new THREE.CylinderGeometry(0.035, 0.05, 1.0, 10).translate(0, 0.5, 0),
 };
 
 /** Leaf colour per kind: hue, saturation, lightness (instances vary around it). */
@@ -117,7 +112,7 @@ export function initTrees(parent: THREE.Object3D): void {
     if (G.terr[i] === TREE) { const kind = kindAt(i % MW, (i / MW) | 0); trees.push({ i, kind, slot: counts[kind]++ }); }
   const bark = M.darkWood(), birchBark = mat('#e6e0d2', { rough: 0.8 });
   sets = Object.fromEntries(KINDS.map((k) => {
-    const leaves = new THREE.InstancedMesh(LEAVES[k](), swaying(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, vertexColors: true, envMapIntensity: 0.35 })), Math.max(1, counts[k]));
+    const leaves = new THREE.InstancedMesh(LEAVES[k](), swaying(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, vertexColors: true, envMapIntensity: 0.35 })), Math.max(1, counts[k]));
     const trunk = new THREE.InstancedMesh(TRUNKS[k](), k === 'birch' ? birchBark : bark, Math.max(1, counts[k]));
     for (const im of [leaves, trunk]) { im.castShadow = true; im.receiveShadow = true; im.count = 0; group.add(im); }
     return [k, { leaves, trunk, n: 0 }];
@@ -137,10 +132,8 @@ function placeBoulders(): void {
       if (t === ROCK && h < 0.7) spots.push([x + 0.2 + hash(x, y * 3) * 0.6, y + 0.2 + hash(y * 7, x) * 0.6, 0.12 + hash(x * 2.1, y + 1) * 0.16]);
       else if (t === GRASS && h < 0.025 && !G.ore[y * MW + x] && !G.oilField[y * MW + x]) spots.push([x + 0.5, y + 0.5, 0.1 + h * 4]);
     }
-  const g = new THREE.DodecahedronGeometry(1, 0), p = g.attributes.position;
-  for (let k = 0; k < p.count; k++) { const f = 0.8 + hash(p.getX(k) * 5, p.getZ(k) * 3 + p.getY(k)) * 0.35; p.setXYZ(k, p.getX(k) * f, p.getY(k) * f * 0.7, p.getZ(k) * f); }
-  g.computeVertexNormals();
-  boulders = new THREE.InstancedMesh(g, mat('#ffffff', { rough: 0.95, flat: true }), Math.max(1, spots.length));
+  const g = lumpy(1, 3, 0.7);
+  boulders = new THREE.InstancedMesh(g, mat('#ffffff', { rough: 0.95, tex: 'stone' }), Math.max(1, spots.length));
   boulders.castShadow = boulders.receiveShadow = true;
   const color = new THREE.Color();
   spots.forEach(([x, z, s], k) => {
