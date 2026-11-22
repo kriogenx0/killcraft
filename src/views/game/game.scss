@@ -148,6 +148,10 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  .hud-side {
+    font-size: $font-sm;
+  }
+
   .hud-enemy {
     font-size: $font-sm;
     color: var(--color-danger);

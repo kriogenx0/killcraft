@@ -7,7 +7,7 @@ import { available, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } f
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
-import { V, ownSelected } from './view_state.ts';
+import { V, ownSelected, spectating } from './view_state.ts';
 import { hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
@@ -60,6 +60,7 @@ export function productionHotkey(key: string): boolean {
 
 /** Left click: start, resume, or pick up a finished structure for placement. */
 function activate(type: Buildable): void {
+  if (spectating()) return;
   const it = itemsOf(V.team, type)[0];
   if (it?.ready) { V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false }; return; }
   dispatch({ c: it?.hold ? 'hold' : 'build', type });
@@ -74,7 +75,7 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
   const key = `${V.team}|${eraOf(V.team)}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
@@ -90,7 +91,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--active', items.length > 0);
     c.root.classList.toggle('build-cell--ready', !!first?.ready);
     c.root.classList.toggle('build-cell--busy', line === 'structure' && !!head && head.type !== type);
-    c.root.classList.toggle('build-cell--tech', line === 'tech');
+    c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer);
   }
 }

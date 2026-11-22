@@ -10,6 +10,7 @@ import { dropSalvage } from './economy.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
+import { armorFactor, weaponFactor } from './upgrade.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -25,7 +26,7 @@ export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
   if (t.dead || t.kind === 'source') return;
-  t.hp -= Math.max(1, wardDamage(t, dmg));
+  t.hp -= Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));
@@ -98,7 +99,13 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | n
 /** Rotate the weapon toward a target; returns true once it is aimed. */
 export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
   const want = Math.atan2(t.y - s.y, t.x - s.x);
-  if (!hasTurret) { s.face = s.tface = want; return true; }
+  if (!hasTurret) {
+    // on the move, shoot from the hip rather than steer off course; standing, turn the body to face
+    s.tface = want;
+    if (s.moving || weaponOf(s) === 'bomb') return true; // bombs just drop
+    s.face = turnToward(s.face, want, unitDef(s).turn * dt);
+    return angleDiff(s.face, want) < AIM_TOLERANCE;
+  }
   s.tface = turnToward(s.tface, want, TURRET_TURN * dt);
   return angleDiff(s.tface, want) < AIM_TOLERANCE;
 }

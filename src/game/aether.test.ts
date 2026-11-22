@@ -11,7 +11,7 @@ import { acquire, dealDamage, fire } from './combat.ts';
 import type { WeaponType } from '../data/weapon.ts';
 import { orderMove } from './order.ts';
 import { START_YARDS } from '../data/map.ts';
-import { AETHER_PER_DEPOSIT, AETHER_RATE, CLOAK_DETECT } from '../data/aether.ts';
+import { AETHER_CARRY, AETHER_PER_DEPOSIT, AETHER_RATE, CLOAK_DETECT } from '../data/aether.ts';
 import { UNIT, UNIT_TYPES } from '../data/unit.ts';
 import { TECH } from '../data/era.ts';
 
@@ -36,6 +36,22 @@ afterEach(() => {
   ais[1].on = true;
   G.demo = false;
   G.reveal = false;
+});
+
+/** Walk a unit up to its own Construction Yard so it banks what it carries. */
+function bringHome(u: Ent): void {
+  const yard = G.ents.find((e) => !e.dead && e.team === u.team && e.type === 'yard');
+  if (!yard) throw new Error('no yard');
+  u.x = yard.x; u.y = yard.y + 2 * TS;
+  u.order = null;
+  run(1.1);
+}
+
+it('carries at most AETHER_CARRY per unit', () => {
+  const d = deposits()[0], u = beside(d, 'swordsman', 0);
+  run(AETHER_CARRY / AETHER_RATE + 10);
+  expect(u.ae).toBeCloseTo(AETHER_CARRY, 5);
+  expect(d.hp).toBeCloseTo(AETHER_PER_DEPOSIT - AETHER_CARRY, 0);
 });
 
 /** A unit standing right below a deposit. */
@@ -66,8 +82,10 @@ describe('Aether', () => {
     expect(available(0, 'tech')).not.toContain('ward');
     expect(enqueue(0, 'wraith')).toBe(false);
     const d = deposits()[0];
-    beside(d, 'swordsman', 0);
+    const u = beside(d, 'swordsman', 0);
     run(3);
+    expect(G.aetherFound[0]).toBe(false); // carried, not banked yet
+    bringHome(u);
     expect(G.aetherFound[0]).toBe(true);
     expect(G.aetherFound[1]).toBe(false);
     expect(available(0, 'infantry')).toContain('wraith');
@@ -78,11 +96,15 @@ describe('Aether', () => {
 
   it('draws Aether only while one side holds a deposit, and runs dry for good', () => {
     const d = deposits()[0];
-    beside(d, 'swordsman', 0);
-    beside(d, 'swordsman', 0); // a crowd draws no faster
+    const u = beside(d, 'swordsman', 0), v = beside(d, 'swordsman', 0); // a crowd draws no faster
     run(10.5);
+    const carried = () => (u.ae ?? 0) + (v.ae ?? 0);
+    expect(carried()).toBeCloseTo(AETHER_RATE * 10, -1);
+    expect(carried()).toBeLessThanOrEqual(AETHER_RATE * 11);
+    expect(G.aether[0]).toBe(0); // nothing counts until it's carried home
+    bringHome(u); bringHome(v);
     expect(G.aether[0]).toBeCloseTo(AETHER_RATE * 10, -1);
-    expect(G.aether[0]).toBeLessThanOrEqual(AETHER_RATE * 11);
+    u.x = v.x = d.x; u.y = v.y = d.y + TS;
     // an enemy arrives: contested, nobody draws
     const foe = beside(d, 'swordsman', 1);
     foe.x += TS;
@@ -91,7 +113,11 @@ describe('Aether', () => {
     for (let i = 0; i < 5 / STEP; i++) { foe.order = null; update(STEP); } // keep them from fighting
     if (holderOf(d) === -1) expect(G.aether[0]).toBe(before);
     foe.dead = true;
-    run(AETHER_PER_DEPOSIT / AETHER_RATE + 5);
+    // the rest, a load at a time
+    for (let trip = 0; trip < 20 && !d.dead; trip++) {
+      run(AETHER_CARRY / AETHER_RATE + 1);
+      for (const w of [u, v]) { const x = w.x, y = w.y; bringHome(w); w.x = x; w.y = y; }
+    }
     expect(d.dead).toBe(true);
     expect(deposits()).not.toContain(d);
     expect(G.aether[0] + G.aether[1]).toBeCloseTo(AETHER_PER_DEPOSIT, 0);

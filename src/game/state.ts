@@ -3,7 +3,7 @@
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
-import type { TechType } from '../data/era.ts';
+import type { TechType, UpgradeTrack } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 
@@ -23,12 +23,15 @@ export type Stance = (typeof STANCES)[number];
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
-export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
+/** What a unit is carrying home. */
+export type Cargo = 'ore' | 'wood' | 'oil';
+/** Gather ore from the ground, or (with `res`) haul wood or oil from the store of building `src`. */
+export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number; res?: 'wood' | 'oil'; src?: number }
 /** A medic tending a wounded ally; gives up if it strays too far from where it started (ox, oy). */
 export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
 export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech' | 'hospital' | 'armory';
 export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
@@ -65,8 +68,12 @@ export interface Ent extends Target {
   face: number;
   /** turret / weapon facing */
   tface: number;
-  /** ore carried (harvesters) */
+  /** load carried by harvesters and Workers (see `cargo`), or what a mill or derrick holds in store */
   carry: number;
+  /** what `carry` is; ore if unset */
+  cargo?: Cargo;
+  /** Aether carried home from a deposit */
+  ae?: number;
   scan: number;
   rep: number;
   px: number;
@@ -120,6 +127,8 @@ export interface Decal {
 
 export const G = {
   terr: new Uint8Array(MW * MH),
+  /** ground height at each tile's centre, in tiles (water sits at WATER_LEVEL) */
+  elev: new Float32Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
   /** oil left in the ground on each tile (never refills) */
@@ -168,6 +177,8 @@ export const G = {
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */
   heal: [] as number[],
+  /** each team's Armory upgrade levels */
+  upg: [] as Record<UpgradeTrack, number>[],
   prod: [] as Production[],
   nextId: 1,
   seed: 0,
@@ -227,6 +238,10 @@ export function say(team: number, msg: string): void {
 export const unitDef = (e: Ent) => UNIT[e.type as UnitType];
 export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 /** Living units (infantry and knights) bleed and heal; vehicles don't. */
+/** Anything that gathers ore: Workers until the Modern age, Harvesters after. */
+export const isHarvester = (e: Ent): boolean => e.kind === 'unit' && !!unitDef(e).haul;
+/** Ore it carries per trip. */
+export const haulOf = (e: Ent): number => unitDef(e).haul ?? 0;
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
 /** Aircraft fly straight over everything and only some weapons can reach them. */

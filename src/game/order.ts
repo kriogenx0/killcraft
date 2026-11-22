@@ -1,6 +1,6 @@
 // Giving orders to units. Every order goes through setOrder so stale paths are dropped.
 import { G, tileOf, type Ent, type Order, type Stance, type Tile } from './state.ts';
-import { MW, MH, TS, WATER } from './const.ts';
+import { MW, MH, TS, walkable } from './const.ts';
 import { clamp } from '../util/math.ts';
 import { nearestFree, pathFor } from './path.ts';
 
@@ -47,6 +47,11 @@ export function orderHarvest(u: Ent, tx: number, ty: number): void {
   setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0 });
 }
 
+/** Haul wood from a Lumber Mill or oil from an Oil Derrick back to base, over and over. */
+export function orderHaul(u: Ent, src: Ent): void {
+  setOrder(u, { t: 'harvest', st: 'go', tx: src.tx, ty: src.ty, wait: 0, res: src.type === 'mill' ? 'wood' : 'oil', src: src.id });
+}
+
 /** Take the current load to a refinery, then carry on harvesting. */
 export function orderReturn(u: Ent): void {
   setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
@@ -64,7 +69,7 @@ export function groupMove(us: Ent[], gx: number, gy: number): void {
     if (!G.blk[y * MW + x]) tiles.push([x, y]);
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
       const nx = x + dx, ny = y + dy, k = ny * MW + nx;
-      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen.has(k) || G.terr[k] === WATER) continue;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen.has(k) || !walkable(G.terr[k])) continue;
       seen.add(k);
       q.push([nx, ny]);
     }

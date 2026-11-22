@@ -1,11 +1,11 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { STANCES, valid, type Ent, type Stance } from './state.ts';
+import { STANCES, isHarvester, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderHarvest, orderReturn, orderStop, setStance } from './order.ts';
+import { groupMove, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, placeReady, toggleHold, type Buildable } from './production.ts';
 import { sell, toggleRepair } from './building.ts';
 
@@ -15,6 +15,7 @@ export type Command =
   | { c: 'stop'; ids: number[] }
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
+  | { c: 'haul'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
@@ -43,6 +44,8 @@ export function parseCommand(raw: unknown): Command | null {
     case 'stop':
     case 'return':
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
+    case 'haul':
+      return isIds(o.ids) && isInt(o.target) ? { c: 'haul', ids: o.ids, target: o.target } : null;
     case 'harvest':
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'harvest', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
     case 'rally':
@@ -84,11 +87,16 @@ export function applyCommand(team: number, cmd: Command): void {
       ownUnits(team, cmd.ids).forEach(orderStop);
       break;
     case 'harvest':
-      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'harvester') orderHarvest(u, cmd.tx, cmd.ty);
+      for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHarvest(u, cmd.tx, cmd.ty);
       break;
     case 'return':
-      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'harvester') orderReturn(u);
+      for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderReturn(u);
       break;
+    case 'haul': {
+      const b = ownBuilding(team, cmd.target);
+      if (b && b.done && (b.type === 'mill' || b.type === 'derrick')) for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHaul(u, b);
+      break;
+    }
     case 'rally': {
       const b = ownBuilding(team, cmd.id);
       if (b) b.rally = { x: cmd.x, y: cmd.y };

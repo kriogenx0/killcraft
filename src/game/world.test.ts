@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { G, hooks } from './state.ts';
+import { G, hooks, isHarvester } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, power } from './entity.ts';
-import { orderHarvest } from './order.ts';
+import { orderHarvest, orderHaul } from './order.ts';
 import { available, cancel, enqueue, placeReady, readyStructure } from './production.ts';
 import { canPlace } from './building.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodRate } from './economy.ts';
@@ -80,7 +80,8 @@ describe('production', () => {
     for (const t of START_UNITS) expect(UNIT[t].era).toBe(0);
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
-    expect(available(0, 'infantry')).toEqual(['swordsman', 'crossbowman', 'knight']);
+    expect(available(0, 'infantry')).toEqual(['swordsman', 'crossbowman', 'knight', 'worker']);
+    expect(available(0, 'infantry')).not.toContain('harvester');
     expect(available(0, 'structure')).not.toContain('turret');
     expect(enqueue(0, 'rifleman')).toBe(false);
   });
@@ -91,7 +92,7 @@ describe('production', () => {
     addBuilding('refinery', 0, 6, 46, false);
     expect(available(0, 'structure')).toContain('derrick');
     expect(available(0, 'structure')).not.toContain('works'); // needs oil first
-    expect(available(0, 'tech')).toEqual(['heal1']);
+    expect(available(0, 'tech')).toEqual([]);
     addBuilding('derrick', 0, 16, 50, false);
     expect(available(0, 'structure')).toContain('works');
     const works = addBuilding('works', 0, 19, 50, true);
@@ -125,22 +126,24 @@ describe('production', () => {
     expect(k.hp).toBe(k.maxhp);
   });
 
-  it('researches faster healing at the Construction Yard, one level at a time', () => {
+  it('researches faster healing at the Hospital, one level at a time', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     G.credits[0] = 5000;
+    expect(enqueue(0, 'heal1')).toBe(false); // needs a Hospital
+    addBuilding('hospital', 0, 16, 50, false);
     expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and World War
     expect(enqueue(0, 'heal1')).toBe(true);
     expect(enqueue(0, 'heal1')).toBe(false); // one research at a time
     run(30);
     expect(G.heal[0]).toBe(1);
-    expect(available(0, 'tech')).toEqual([]);
+    expect(available(0, 'hospital')).toEqual([]);
     G.era[0] = 1;
-    expect(available(0, 'tech')).toContain('heal2');
+    expect(available(0, 'hospital')).toEqual(['heal2']);
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);
     s.hp = foe.hp = 10;
     run(10);
-    expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * 10, 0);
+    expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * HOSPITAL_HEAL * 10, 0);
     expect(foe.hp - 10).toBeCloseTo(foe.maxhp * HEAL_RATE[0] * 10, 0);
   });
 
@@ -198,7 +201,17 @@ describe('production', () => {
     expect(woodRate(0)).toBeGreaterThan(0);
     G.wood[0] = 0;
     run(10);
-    expect(G.wood[0]).toBeGreaterThan(woodRate(0) * 8);
+    // the mill fills its own store; nothing is banked until a Worker carries it home
+    const mill = G.ents.find((e) => e.type === 'mill' && e.tx === woods[0] && e.ty === woods[1]);
+    if (!mill) throw new Error('no mill');
+    expect(mill.carry).toBeGreaterThan(woodRate(0) * 8);
+    expect(G.wood[0]).toBe(0);
+    const w = addUnit('worker', 0, mill.x, mill.y + 2 * TS);
+    const before = mill.carry;
+    orderHaul(w, mill);
+    run(120);
+    expect(G.wood[0]).toBeGreaterThan(before * 0.9);
+    expect(w.cargo).toBe('wood');
   });
 
   it('pumps oil from a well until it runs dry, and nothing away from a well', () => {
@@ -210,15 +223,24 @@ describe('production', () => {
     const start = oilLeft(d);
     expect(start).toBeGreaterThan(1000);
     run(10);
-    expect(G.oil[0]).toBeGreaterThan(20);
-    expect(G.oil[0]).toBeLessThan(40); // only the derrick on the well pumps
-    expect(oilLeft(d)).toBeCloseTo(start - G.oil[0], 0);
+    // pumped into the derrick's own store, not the bank
+    expect(G.oil[0]).toBe(0);
+    expect(d.carry).toBeGreaterThan(20);
+    expect(d.carry).toBeLessThan(40);
+    expect(far.carry).toBe(0); // only the derrick on the well pumps
+    expect(oilLeft(d)).toBeCloseTo(start - d.carry, 0);
     // drain it: the well never refills
     G.oilField.fill(0);
-    const before = G.oil[0];
+    const before = d.carry;
     run(5);
-    expect(G.oil[0]).toBe(before);
+    expect(d.carry).toBe(before);
     expect(oilRate(0)).toBe(0);
+    // a Worker carries the store to the Construction Yard
+    const w = addUnit('worker', 0, d.x, d.y + 2 * TS);
+    orderHaul(w, d);
+    run(150);
+    expect(d.carry).toBeLessThan(1);
+    expect(G.oil[0]).toBeCloseTo(before, 0);
   });
 
   it('cuts trees down, and they slowly grow back', () => {
@@ -256,13 +278,32 @@ describe('production', () => {
     expect(G.credits[0]).toBeCloseTo(5000, 0);
   });
 
-  it('turns ore into credits with the free harvester', () => {
+  it('turns ore into credits with the two free Workers', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('refinery', 0, 6, 46, true);
     G.credits[0] = 0;
     run(90);
-    expect(G.ents.some((e) => e.team === 0 && e.type === 'harvester')).toBe(true);
+    expect(G.ents.filter((e) => e.team === 0 && e.type === 'worker')).toHaveLength(2);
+    expect(G.ents.some((e) => e.team === 0 && e.type === 'harvester')).toBe(false);
     expect(G.credits[0]).toBeGreaterThan(1000);
+  });
+
+  it('gives a free Harvester instead in the Modern age, and still trains Workers to haul', () => {
+    G.era[0] = 2;
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    addBuilding('refinery', 0, 6, 46, true);
+    run(20);
+    expect(G.ents.filter((e) => e.team === 0 && e.type === 'harvester')).toHaveLength(1);
+    expect(G.ents.some((e) => e.team === 0 && e.type === 'worker')).toBe(false);
+    expect(available(0, 'infantry')).toContain('worker');
+  });
+
+  it('heals Workers like other people', () => {
+    const w = addUnit('worker', 0, 20 * TS, 50 * TS);
+    w.hp = w.maxhp / 2;
+    run(10);
+    expect(w.hp).toBeGreaterThan(w.maxhp / 2);
   });
 });
 
@@ -271,7 +312,8 @@ describe('harvesters sharing a field', () => {
     for (const a of ais) a.on = false;
     initWorld(1234);
     addBuilding('power', 0, 10, 50, false);
-    addBuilding('refinery', 0, 6, 46, true); // brings one harvester
+    G.era[0] = 2; // Modern: the refinery brings one harvester
+    addBuilding('refinery', 0, 6, 46, true);
     run(2);
     for (let i = 1; i < harvesters; i++) orderHarvest(addUnit('harvester', 0, (8 + i) * TS, 49.5 * TS), 14, 54);
     G.credits[0] = 0;
@@ -307,7 +349,7 @@ describe('a computer-vs-computer match', () => {
       if (G.over && G.winner !== team) continue;
       const types = G.ents.filter((e) => e.team === team).map((e) => e.type);
       expect(types).toContain('refinery');
-      expect(types).toContain('harvester');
+      expect(G.ents.some((e) => e.team === team && isHarvester(e))).toBe(true);
     }
     // nothing may stand inside a wall or building
     for (const u of G.ents.filter((e) => e.kind === 'unit')) expect(G.blk[Math.floor(u.y / TS) * MW + Math.floor(u.x / TS)]).toBe(0);

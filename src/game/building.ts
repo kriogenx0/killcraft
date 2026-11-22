@@ -3,6 +3,7 @@ import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state
 import { MW, MH, TS, GRASS } from './const.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
+import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
@@ -36,9 +37,12 @@ function completed(b: Ent): void {
     say(b.team, `${ERA[G.era[b.team]].name} age reached`);
   }
   if (b.type !== 'refinery') return;
-  // every refinery comes with a harvester
-  const [x, y] = exitTile(b), u = addUnit('harvester', b.team, (x + 0.5) * TS, (y + 0.5) * TS);
-  orderHarvest(u, x, y);
+  // every refinery comes with two Workers, or a Harvester in the Modern age
+  const modern = (G.era[b.team] ?? 0) >= UNIT.harvester.era;
+  for (let i = 0; i < (modern ? 1 : 2); i++) {
+    const [x, y] = exitTile(b), u = addUnit(modern ? 'harvester' : 'worker', b.team, (x + 0.5 + i * 0.4) * TS, (y + 0.5) * TS);
+    orderHarvest(u, x, y);
+  }
 }
 
 function effects(b: Ent, dt: number): void {
@@ -81,7 +85,7 @@ export function updBld(b: Ent, dt: number): void {
 export function tileFree(x: number, y: number, team: number): boolean {
   if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
   const i = y * MW + x;
-  if (G.blk[i] || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
+  if (G.blk[i] || G.terr[i] !== GRASS || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
   return !G.ents.some((e) => !e.dead && e.kind === 'unit' && tileOf(e.x) === x && tileOf(e.y) === y);
 }
 
