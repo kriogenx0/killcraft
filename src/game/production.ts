@@ -18,7 +18,7 @@ const QUEUE_MAX = 5;
 const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', air: 'airfield', tech: 'yard' };
 const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'air', 'tech'];
 const FUNDS_NOTICE = 6;
-const SHORT_MSG = { ore: 'Not enough ore', wood: 'Not enough wood', oil: 'Not enough oil' };
+const SHORT_MSG = { ore: 'Not enough ore', wood: 'Not enough wood', oil: 'Not enough oil', aether: 'Not enough Aether' };
 const lastFundsNotice: number[] = [];
 
 export const emptyProduction = (): Production => ({ structure: [], infantry: [], vehicle: [], air: [], tech: [] });
@@ -26,10 +26,12 @@ export const lineOf = (t: Buildable): ProductionLine => (isUnitType(t) ? UNIT[t]
 const defOf = (t: Buildable) => (isUnitType(t) ? UNIT[t] : isTechType(t) ? TECH[t] : BUILDING[t]);
 /** Ore price. */
 export const costOf = (t: Buildable): number => defOf(t).cost;
-export interface Price { ore: number; wood: number; oil: number }
-export const priceOf = (t: Buildable): Price => { const d = defOf(t); return { ore: d.cost, wood: d.wood ?? 0, oil: d.oil ?? 0 }; };
+export interface Price { ore: number; wood: number; oil: number; aether: number }
+export const priceOf = (t: Buildable): Price => { const d = defOf(t); return { ore: d.cost, wood: d.wood ?? 0, oil: d.oil ?? 0, aether: 'aether' in d ? d.aether ?? 0 : 0 }; };
 /** Does the team have enough of every resource for the whole price? */
-export const canAfford = (team: number, t: Buildable): boolean => { const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil; };
+export const canAfford = (team: number, t: Buildable): boolean => { const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
+/** Things that cost Aether stay hidden until the side first finds some. */
+const revealed = (team: number, t: Buildable): boolean => priceOf(t).aether <= 0 || !!G.aetherFound[team];
 const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
@@ -50,6 +52,11 @@ export function nextHeal(team: number): TechType | null {
   return TECH_TYPES.find((t) => TECH[t].heal === healOf(team) + 1 && TECH[t].era <= eraOf(team)) ?? null;
 }
 
+/** The Aether Ward, once the side has found Aether and until it's researched. */
+export function nextWard(team: number): TechType | null {
+  return G.ward[team] ? null : TECH_TYPES.find((t) => TECH[t].ward && TECH[t].era <= eraOf(team)) ?? null;
+}
+
 export function producerOf(team: number, line: ProductionLine): Ent | null {
   return G.ents.find((e) => !e.dead && e.team === team && e.type === PRODUCER[line] && e.done) ?? null;
 }
@@ -60,9 +67,9 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   const era = eraOf(team);
   if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].era <= era && BUILDING[t].requires.every((r) => hasBuilding(team, r)));
   if (line === 'tech') {
-    return [nextTech(team), nextHeal(team)].filter((t): t is TechType => !!t && TECH[t].requires.every((r) => hasBuilding(team, r)));
+    return [nextTech(team), nextHeal(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era);
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && revealed(team, t));
 }
 
 export function enqueue(team: number, type: Buildable): boolean {
@@ -83,6 +90,7 @@ export function cancel(team: number, type: Buildable): boolean {
       G.credits[team] += q[i].spent;
       G.wood[team] += p.wood * q[i].prog;
       G.oil[team] += p.oil * q[i].prog;
+      G.aether[team] = (G.aether[team] ?? 0) + p.aether * q[i].prog;
       q.splice(i, 1);
       return true;
     }
@@ -109,7 +117,12 @@ function deliver(team: number, type: UnitType): void {
 }
 
 function advance(team: number, type: TechType): void {
-  const { age, heal, name } = TECH[type];
+  const { age, heal, ward, name } = TECH[type];
+  if (ward) {
+    G.ward[team] = true;
+    say(team, `${name} researched`);
+    return;
+  }
   if (heal != null) {
     G.heal[team] = Math.min(MAX_HEAL, Math.max(healOf(team), heal));
     say(team, `${name} researched`);
@@ -126,8 +139,8 @@ export function updProduction(team: number, dt: number): void {
     if (!it || it.ready || it.hold) continue;
     if (!producerOf(team, line)) { cancel(team, it.type); continue; }
     const dp = Math.min((speed * dt) / timeOf(it.type), 1 - it.prog), p = priceOf(it.type);
-    const ore = p.ore * dp, wood = p.wood * dp, oil = p.oil * dp;
-    const short = G.credits[team] < ore ? 'ore' : G.wood[team] < wood ? 'wood' : G.oil[team] < oil ? 'oil' : null;
+    const ore = p.ore * dp, wood = p.wood * dp, oil = p.oil * dp, aether = p.aether * dp;
+    const short = G.credits[team] < ore ? 'ore' : G.wood[team] < wood ? 'wood' : G.oil[team] < oil ? 'oil' : (G.aether[team] ?? 0) < aether ? 'aether' : null;
     if (short) {
       if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, SHORT_MSG[short]); }
       continue;
@@ -135,6 +148,7 @@ export function updProduction(team: number, dt: number): void {
     G.credits[team] -= ore;
     G.wood[team] -= wood;
     G.oil[team] -= oil;
+    if (aether) G.aether[team] -= aether;
     it.spent += ore;
     it.prog += dp;
     if (it.prog < 1 - 1e-9) continue;

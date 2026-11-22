@@ -7,7 +7,7 @@
 // tank costs about a dozen draw calls no matter how many bolts it has.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { UnitType } from '../../../data/unit.ts';
+import { UNIT, type UnitType } from '../../../data/unit.ts';
 import type { BldType } from '../../../data/building.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
@@ -565,7 +565,34 @@ function catapult(team: number): Model {
   return { root, parts, height: 0.75 };
 }
 
+/** The same surface touched by Aether: tinted violet and faintly glowing. */
+const aetherMats = new Map<Mat, Mat>();
+function aetherTouched(m: Mat): Mat {
+  let a = aetherMats.get(m);
+  if (!a) {
+    a = m.clone();
+    if (a instanceof THREE.MeshStandardMaterial) {
+      a.color.lerp(new THREE.Color('#8a50c0'), 0.35);
+      a.emissive = new THREE.Color('#7a30e0');
+      a.emissiveIntensity = 0.45;
+    }
+    aetherMats.set(m, a);
+  }
+  return a;
+}
+
+/** A hidden unit: its regular unit's model, steeped in Aether, with a shard floating above. */
+function aetherUnit(type: UnitType, team: number): Model {
+  const look = UNIT[type].look ?? 'rifleman', m = makeUnit(look, team);
+  m.root.traverse((o) => { if (o instanceof THREE.Mesh) o.material = aetherTouched(o.material as Mat); });
+  const shard = mesh(octa(0.07), M.aether(), 0, m.height + 0.12, 0);
+  shard.scale.set(0.7, 1.4, 0.7);
+  m.root.add(shard);
+  return m;
+}
+
 function makeUnit(type: UnitType, team: number): Model {
+  if (UNIT[type].look) return aetherUnit(type, team);
   switch (type) {
     case 'rifleman': return rifleman(team);
     case 'rocket': return rocketeer(team);
@@ -580,6 +607,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'balloon': return balloon(team);
     case 'biplane': return biplane(team);
     case 'helicopter': return helicopter(team);
+    default: return rifleman(team);
   }
 }
 
@@ -974,12 +1002,14 @@ function industrial(m: Model): Model {
 
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
- * 0 wood and thatch (Medieval), 1 stone (Gunpowder), 2 brick and iron (Industrial), 3 concrete
- * and steel (Modern). The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
- * and the Oil Derrick (Industrial) starts at brick and iron.
+ * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
+ * Look 1, dressed stone, is what the Watchtower and Lumber Mill grow into after the Medieval age. The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
+ * and the Oil Derrick and Flak Cannon starts at brick and iron.
  */
+const ERA_LOOK = [0, 2, 3] as const;
+
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
-  const e = Math.max(0, Math.min(3, era)) as 0 | 1 | 2 | 3;
+  const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
   if (isFixedLook(type)) return 3;
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
   if (type === 'derrick' || type === 'flak') return e < 2 ? 2 : e;
@@ -988,7 +1018,7 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 }
 
 /** A structure as its team builds it in their current age (see data/era.ts). */
-export function buildingModel(type: BldType, team: number, era = 3, wallMask = 0): Model {
+export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1, wallMask = 0): Model {
   if (isFixedLook(type)) {
     if (type === 'palisade' || type === 'stonewall' || type === 'concretewall') return cached(`w:${type}:${team}:${wallMask}`, () => wallModel(type, team, wallMask));
     return cached(`b:${type}:${team}`, () => (type === 'pillbox' ? pillbox(team) : type === 'atturret' ? missileTurret(team) : bertha(team)));
@@ -1025,4 +1055,26 @@ function makeSource(): Model {
 
 export function sourceModel(): Model {
   return cached('source', makeSource);
+}
+
+/** A fallen star: a scorched black stone split open by tall glowing violet shards. */
+function makeAether(): Model {
+  const root = new THREE.Group();
+  root.add(scl(mesh(dodeca(0.28), M.starRock(), 0, 0.12, 0), 1.3, 0.55, 1.1));
+  root.add(rot(scl(mesh(dodeca(0.14), M.starRock(), 0.3, 0.05, 0.2), 1, 0.6, 1), 0.3, 0.6, 0));
+  root.add(rot(scl(mesh(dodeca(0.11), M.starRock(), -0.32, 0.04, -0.15), 1.2, 0.5, 1), 0.1, 0.2, 0.4));
+  for (const [x, z, h, a, b] of [[0, 0, 0.75, 0, 0], [-0.14, 0.08, 0.5, 0.35, 0.2], [0.15, 0.1, 0.45, -0.4, 0.1], [0.05, -0.16, 0.42, 0.25, -0.35], [-0.1, -0.1, 0.32, -0.2, -0.3], [0.2, -0.05, 0.28, -0.6, 0.2]]) {
+    const c = mesh(octa(0.1), M.aether(), x, 0.2 + h * 0.35, z);
+    c.scale.set(0.7, h * 4.2, 0.7);
+    c.rotation.set(b, 0, a);
+    root.add(c);
+  }
+  for (const [x, z, s] of [[0.36, -0.2, 0.04], [-0.3, 0.3, 0.035], [0.08, 0.38, 0.03], [-0.42, -0.05, 0.03]]) {
+    root.add(rot(scl(mesh(octa(s), M.aether(), x, s, z), 1, 1.8, 1), 0.2, x * 4, z * 3));
+  }
+  return { root, parts: {}, height: 1.1 };
+}
+
+export function aetherModel(): Model {
+  return cached('aether', makeAether);
 }

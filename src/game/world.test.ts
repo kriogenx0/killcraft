@@ -87,15 +87,16 @@ describe('production', () => {
     addBuilding('barracks', 0, 13, 50, false);
     expect(available(0, 'tech')).toEqual(['age1', 'heal1']);
     G.credits[0] = 5000;
+    G.wood[0] = 5000;
     expect(enqueue(0, 'age1')).toBe(true);
     expect(enqueue(0, 'age1')).toBe(false);
-    run(40);
+    run(45);
     expect(G.era[0]).toBe(1);
     expect(G.prod[0].tech).toEqual([]);
     expect(available(0, 'infantry')).toContain('rifleman');
     expect(available(0, 'infantry')).not.toContain('rocket');
     expect(available(0, 'structure')).toContain('turret');
-    // the Industrial age needs a War Factory
+    // the Modern age needs a War Factory
     expect(available(0, 'tech')).toEqual(['heal1']);
   });
 
@@ -115,7 +116,7 @@ describe('production', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     G.credits[0] = 5000;
-    expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and the Gunpowder age
+    expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and World War
     expect(enqueue(0, 'heal1')).toBe(true);
     expect(enqueue(0, 'age1')).toBe(false); // one research at a time
     run(30);

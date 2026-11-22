@@ -1,6 +1,6 @@
 // Wood, oil and salvage tuning. Ore comes from harvesters (see data/ore.ts).
 // Prices follow what a thing is made of and runs on: steel and stone cost ore, timber costs wood,
-// and anything with an engine or rocket costs oil. Nothing that runs on oil exists before the Industrial age.
+// and anything with an engine or rocket costs oil. Nothing that runs on oil exists before the World War age.
 // Ore and wood grow back; oil does not.
 
 /** A Lumber Mill cuts wood from trees within this many tiles of its footprint. */

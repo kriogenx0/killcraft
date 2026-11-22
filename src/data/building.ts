@@ -53,9 +53,9 @@ export const BUILDING: Record<BldType, BldDef> = {
   pillbox: { name: 'Pillbox', size: 1, top: 14, hp: 700, cost: 550, wood: 50, t: 11, era: 1, power: -10, sight: 7, requires: ['barracks'], weapon: 'pillboxmg', buildable: true, desc: 'Concrete bunker with a heavy machine gun. Shreds infantry; weak against tanks.' },
   atturret: { name: 'Missile Turret', size: 1, top: 18, hp: 550, cost: 900, oil: 150, t: 14, era: LAST_ERA, power: -30, sight: 8, requires: ['factory'], weapon: 'atmissile', buildable: true, desc: 'Guided anti-tank missiles with a long reach. Cracks heavy armor; poor against infantry.' },
   bertha: { name: 'Big Bertha', size: 2, top: 40, hp: 900, cost: 2800, wood: 100, t: 30, era: 1, power: -60, sight: 5, requires: ['factory'], weapon: 'bertha', buildable: true, desc: 'Huge siege howitzer that fires across a third of the map at anything your side can see. Shells take seconds to land, so moving targets can dodge.' },
-  derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 1200, t: 16, era: 2, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
+  derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 1200, t: 16, era: 1, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
   airfield: { name: 'Airfield', size: 3, top: 30, hp: 900, cost: 1200, wood: 300, t: 20, era: 1, power: -30, sight: 6, requires: ['refinery'], produces: 'air', buildable: true, desc: 'Builds aircraft: balloons, then biplanes and helicopters in later ages.' },
-  flak: { name: 'Flak Cannon', size: 1, top: 14, hp: 420, cost: 700, t: 10, era: 2, power: -20, sight: 8, requires: ['barracks'], weapon: 'flak', buildable: true, desc: 'Anti-aircraft gun with a long reach. Only fires at aircraft.' },
+  flak: { name: 'Flak Cannon', size: 1, top: 14, hp: 420, cost: 700, t: 10, era: 1, power: -20, sight: 8, requires: ['barracks'], weapon: 'flak', buildable: true, desc: 'Anti-aircraft gun with a long reach. Only fires at aircraft.' },
 };
 
 /** Order the structures appear in the sidebar. */

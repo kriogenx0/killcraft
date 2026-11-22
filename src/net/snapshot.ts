@@ -9,9 +9,11 @@ import { addBuilding, addSource, addUnit, kill } from '../game/entity.ts';
 import { fire } from '../game/combat.ts';
 import { nearPortal, rebuildBlk } from '../game/map.ts';
 import { warpFx } from '../game/fx.ts';
+import { addAether, cloakedFrom } from '../game/aether.ts';
+import { AETHER_PER_DEPOSIT } from '../data/aether.ts';
 import { lerp } from '../util/math.ts';
 
-const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source',
+const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether',
   'palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
@@ -35,6 +37,7 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
 export function visibleTo(e: Ent, team: number): boolean {
   if (e.team === team || e.team < 0) return true;
+  if (cloakedFrom(e, team)) return false;
   const v = G.sight[team][Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)];
   return e.kind === 'unit' ? v === 2 : v > 0;
 }
@@ -61,6 +64,7 @@ export function decodeOre(b64: string): void {
 const targets = new Map<number, { x: number; y: number; face: number; tface: number }>();
 
 function create(type: EntType, team: number, x: number, y: number): Ent {
+  if (type === 'aether') return addAether(Math.floor(x / TS), Math.floor(y / TS));
   if (type === 'source') return addSource(Math.floor(x / TS), Math.floor(y / TS));
   if (isUnitType(type)) return addUnit(type, team, x, y);
   const s = BUILDING[type as BldType].size;
@@ -87,7 +91,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     }
     if (hp < e.hp) e.flash = 0.1;
     e.hp = hp;
-    e.maxhp = isUnitType(type) ? UNIT[type as UnitType].hp : type === 'source' ? 1 : BUILDING[type as BldType].hp;
+    e.maxhp = isUnitType(type) ? UNIT[type as UnitType].hp : type === 'source' ? 1 : type === 'aether' ? AETHER_PER_DEPOSIT : BUILDING[type as BldType].hp;
     e.carry = carry;
     e.moving = (flags & MOVING) !== 0;
     e.done = (flags & DONE) !== 0;

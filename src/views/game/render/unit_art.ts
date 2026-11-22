@@ -331,8 +331,16 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
   g.translate(x, y);
   g.scale(scale, scale);
   ellipseFill(g, 1.5, 3, big ? 16 : 6, big ? 9 : 3, 'rgba(0,0,0,.3)');
-  switch (type) {
-    case 'rifleman': case 'rocket': infantry(g, type, T, p); break;
+  const look = UNIT[type].look; // hidden units: their regular unit wreathed in Aether
+  if (look) {
+    const halo = g.createRadialGradient(0, -4, 1, 0, -4, big ? 22 : 12);
+    halo.addColorStop(0, 'rgba(210,140,255,.55)');
+    halo.addColorStop(1, 'rgba(140,60,255,0)');
+    g.fillStyle = halo;
+    g.fillRect(-26, -30, 52, 44);
+  }
+  switch (look ?? type) {
+    case 'rifleman': case 'rocket': infantry(g, look ?? type, T, p); break;
     case 'swordsman': swordsman(g, T, p); break;
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
@@ -343,6 +351,11 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'biplane': biplane(g, T, p); break;
     case 'helicopter': helicopter(g, T, p); break;
     default: tank(g, T, p, type === 'heavy');
+  }
+  if (look) {
+    g.fillStyle = '#e8c0ff'; g.strokeStyle = '#5a1a90'; g.lineWidth = 0.8;
+    const y = big ? -22 : -20;
+    g.beginPath(); g.moveTo(0, y - 5); g.lineTo(2.5, y); g.lineTo(0, y + 5); g.lineTo(-2.5, y); g.closePath(); g.fill(); g.stroke();
   }
   g.restore();
 }
