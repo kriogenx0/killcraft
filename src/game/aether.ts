@@ -1,9 +1,9 @@
 // Aether deposits: placing them on the map, drawing Aether from a held deposit, and the tricks the
 // hidden units use (slowing hexes and cloaks). Tuning lives in data/aether.ts.
 import { G, hooks, say, unitDef, type Ent, type Tile } from './state.ts';
-import { GRASS, MH, MW, TS } from './const.ts';
+import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { layoutFor } from '../data/map.ts';
+import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
   AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REACH, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
@@ -20,7 +20,7 @@ function reachable(): Uint8Array {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, ny = y + dy, ni = ny * MW + nx;
-      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen[ni] || G.terr[ni] !== GRASS) continue;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen[ni] || !walkable(G.terr[ni])) continue;
       seen[ni] = 1;
       q.push(ni);
     }
@@ -61,7 +61,7 @@ export function placeAether(seed: number): void {
   G.waygates = [];
   G.warpTeam.fill(-1);
   for (const [sx, sy] of aetherSites(seed)) {
-    eachInDisk(sx, sy, 2, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; });
+    eachInDisk(sx, sy, 2, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); });
     const ok = reachable();
     let best: Tile | null = null, bd = 1e9;
     for (let y = 1; y < MH - 1; y++)

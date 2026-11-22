@@ -1,5 +1,6 @@
 // Portal gates: a ring of standing stones round a slowly turning swirl of light, one colour per linked pair.
 import * as THREE from 'three';
+import { heightAt } from './heights.ts';
 import { G } from '../../../game/state.ts';
 import { MW } from '../../../game/const.ts';
 import { PORTAL_COLORS } from '../../../data/map.ts';
@@ -42,7 +43,7 @@ function swirlTexture(): THREE.CanvasTexture {
 
 function makeGate(x: number, y: number, color: string, seed: number): Gate {
   const group = new THREE.Group();
-  group.position.set(x + 0.5, 0, y + 0.5);
+  group.position.set(x + 0.5, heightAt(x + 0.5, y + 0.5), y + 0.5);
   // worn stone platform
   const stone = mat('#8d877c', { rough: 0.95, flat: true }), dark = mat('#5e5a52', { rough: 1, flat: true });
   const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.15, 0.08, 10), dark);

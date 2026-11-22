@@ -9,9 +9,9 @@ export const ORE_REGROW = 8;
 export const ORE_REGROW_TILES = 2;
 export const ORE_REGROW_RADIUS = 5;
 
-/** Credits a harvester can carry. */
+/** Ore a harvester can carry (Workers carry less: see each unit's `haul`). */
 export const HARVESTER_CAPACITY = 600;
-/** Credits per second a harvester scoops while on ore. */
+/** Ore per second a harvester scoops while on ore (see each unit's `scoop`). */
 export const HARVEST_RATE = 160;
 /** Credits per second unloaded at a refinery. */
 export const UNLOAD_RATE = 300;

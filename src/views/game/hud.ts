@@ -1,5 +1,5 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, bldDef, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { isUnitProducer, type BldType } from '../../data/building.ts';
@@ -18,7 +18,6 @@ import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
 import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
-import { loadOf } from './render/unit_art.ts';
 import { ICON } from './render/icon.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, keyLabel } from './keyboard.ts';
@@ -147,7 +146,7 @@ function unitDetails(e: Ent): string {
   const heal = isOrganic(e) && insight(e) ? ` · Heals ${Math.round(e.maxhp * healRate(e.team) * 60)}/min` : '';
   let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${ab ? ` (-${ab}% damage)` : ''}${heal}</p>`;
   if (insight(e)) h += `<p class="hud-stats">${unitAction(e)} · ${STANCE_INFO[e.stance].label}</p>`;
-  if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
+  if (isHarvester(e)) h += `<p class="hud-stats">Ore ${Math.round(e.carry)} / ${haulOf(e)}</p>${barHtml(Math.min(1, e.carry / haulOf(e)), 'progress', 'Ore load')}`;
   return h;
 }
 
