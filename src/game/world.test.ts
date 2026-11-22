@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
@@ -13,7 +13,8 @@ import { OIL_WELLS } from '../data/map.ts';
 import { TREE_WOOD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
-import { HEAL_RATE } from '../data/era.ts';
+import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
+import { mulberry32 } from '../util/math.ts';
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
@@ -22,6 +23,8 @@ function run(seconds: number): void {
 const errors: unknown[] = [];
 
 beforeEach(() => {
+  // the computer players, harvesters and combat roll dice: seed them so every run plays out the same
+  vi.spyOn(Math, 'random').mockImplementation(mulberry32(20261122));
   errors.length = 0;
   hooks.error = (e) => errors.push(e);
   G.reveal = true;
@@ -29,6 +32,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   ais[0].on = false;
   ais[1].on = true;
   G.demo = false;
@@ -81,23 +85,32 @@ describe('production', () => {
     expect(enqueue(0, 'rifleman')).toBe(false);
   });
 
-  it('researches the next age at the Construction Yard and unlocks its units and structures', () => {
-    expect(available(0, 'tech')).toEqual([]); // needs a barracks first
+  it('finds oil, builds the Engine Works to reach World War, and pays oil for Modern', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
-    expect(available(0, 'tech')).toEqual(['age1', 'heal1']);
-    G.credits[0] = 5000;
-    G.wood[0] = 5000;
-    expect(enqueue(0, 'age1')).toBe(true);
-    expect(enqueue(0, 'age1')).toBe(false);
-    run(45);
+    addBuilding('refinery', 0, 6, 46, false);
+    expect(available(0, 'structure')).toContain('derrick');
+    expect(available(0, 'structure')).not.toContain('works'); // needs oil first
+    expect(available(0, 'tech')).toEqual(['heal1']);
+    addBuilding('derrick', 0, 16, 50, false);
+    expect(available(0, 'structure')).toContain('works');
+    const works = addBuilding('works', 0, 19, 50, true);
+    expect(available(0, 'structure')).not.toContain('works'); // one at a time
+    expect(G.era[0]).toBe(0);
+    run(5);
+    expect(works.done).toBe(true);
     expect(G.era[0]).toBe(1);
-    expect(G.prod[0].tech).toEqual([]);
+    expect(available(0, 'structure')).not.toContain('works');
     expect(available(0, 'infantry')).toContain('rifleman');
     expect(available(0, 'infantry')).not.toContain('rocket');
     expect(available(0, 'structure')).toContain('turret');
-    // the Modern age needs a War Factory
-    expect(available(0, 'tech')).toEqual(['heal1']);
+    // Modern: oil and nothing else
+    expect(available(0, 'tech')).toContain('age2');
+    G.credits[0] = 0; G.wood[0] = 0; G.oil[0] = 5000;
+    expect(enqueue(0, 'age2')).toBe(true);
+    run(65);
+    expect(G.era[0]).toBe(2);
+    expect(available(0, 'infantry')).toContain('rocket');
   });
 
   it('slowly heals infantry and knights but not vehicles', () => {
@@ -118,10 +131,10 @@ describe('production', () => {
     G.credits[0] = 5000;
     expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and World War
     expect(enqueue(0, 'heal1')).toBe(true);
-    expect(enqueue(0, 'age1')).toBe(false); // one research at a time
+    expect(enqueue(0, 'heal1')).toBe(false); // one research at a time
     run(30);
     expect(G.heal[0]).toBe(1);
-    expect(available(0, 'tech')).toEqual(['age1']);
+    expect(available(0, 'tech')).toEqual([]);
     G.era[0] = 1;
     expect(available(0, 'tech')).toContain('heal2');
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);
@@ -129,6 +142,33 @@ describe('production', () => {
     run(10);
     expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * 10, 0);
     expect(foe.hp - 10).toBeCloseTo(foe.maxhp * HEAL_RATE[0] * 10, 0);
+  });
+
+  it('heals faster with a Hospital, which also lets the Barracks train Medics', () => {
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    expect(available(0, 'infantry')).not.toContain('medic');
+    expect(available(0, 'structure')).toContain('hospital');
+    const k = addUnit('knight', 0, 20 * TS, 50 * TS);
+    k.hp = 10;
+    run(10);
+    const slow = k.hp - 10;
+    addBuilding('hospital', 0, 16, 50, false);
+    expect(available(0, 'infantry')).toContain('medic');
+    k.hp = 10;
+    run(10);
+    expect(k.hp - 10).toBeCloseTo(slow * HOSPITAL_HEAL, 0);
+  });
+
+  it('sends a medic to patch up a wounded ally nearby', () => {
+    const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), m = addUnit('medic', 0, 24 * TS, 50 * TS);
+    s.hp = 20;
+    run(8);
+    expect(m.order?.t === 'heal' || s.hp >= s.maxhp).toBe(true);
+    expect(s.hp).toBeGreaterThan(20 + s.maxhp * HEAL_RATE[0] * 8 + 15);
+    run(20);
+    expect(s.hp).toBe(s.maxhp);
+    expect(m.order).toBeNull();
   });
 
   it('stalls without credits instead of going into debt', () => {
@@ -260,7 +300,8 @@ describe('a computer-vs-computer match', () => {
     initWorld(99);
     run(360); // room for the lumber mill and the wood that research needs
     expect(errors).toEqual([]);
-    // both sides research past the Medieval age
+    // someone researches past the Medieval age (a slow economy can take a few more minutes)
+    for (let i = 0; i < 8 && !G.over && G.era.every((e) => e === 0); i++) run(30);
     expect(Math.max(...G.era)).toBeGreaterThan(0);
     for (const team of [0, 1]) {
       if (G.over && G.winner !== team) continue;

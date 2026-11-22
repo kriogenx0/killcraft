@@ -8,6 +8,7 @@ import { TAU } from '../../../util/math.ts';
 import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { MINI, terrain } from './terrain.ts';
 import { PING_LIFE, V } from '../view_state.ts';
+import { cloakedFrom } from '../../../game/aether.ts';
 
 const fog = { c: null as HTMLCanvasElement | null, img: null as ImageData | null, listeners: [] as (() => void)[] };
 
@@ -37,9 +38,10 @@ export function initFog(onChange?: () => void): void {
   updateFogImage();
 }
 
-/** Enemy units show only while seen; buildings once explored. */
+/** Enemy units show only while seen (and not cloaked); buildings once explored. */
 export function shownToPlayer(e: Ent): boolean {
   if (e.team === V.team) return true;
+  if (cloakedFrom(e, V.team)) return false;
   return e.kind === 'unit' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
 }
 
@@ -59,6 +61,8 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
   });
   for (const e of G.ents) {
     if (e.dead) continue;
+    if (e.type === 'aether') continue; // drawn over the fog below
+    if (cloakedFrom(e, V.team)) continue;
     if (e.team !== V.team && G.vis[tileOf(e.y) * MW + tileOf(e.x)] < (e.kind === 'unit' ? 2 : 1)) continue;
     m.fillStyle = e.team < 0 ? '#fff0a0' : teamColors(e.team).l;
     const s = e.w ? e.w * k : 3, x = (e.x / TS) * k - s / 2, y = (e.y / TS) * k - s / 2;
@@ -66,6 +70,13 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
     if (e.w) { m.strokeStyle = 'rgba(0,0,0,.6)'; m.lineWidth = 1; m.strokeRect(x, y, s, s); }
   }
   if (fog.c) m.drawImage(fog.c, 0, 0, MINI, MINI);
+  // Aether deposits glow on the radar even under fog: everyone saw where the stars fell
+  for (const e of G.ents) {
+    if (e.dead || e.type !== 'aether') continue;
+    const x = (e.x / TS) * k, y = (e.y / TS) * k, r = 2 + Math.sin(G.gameT * 3) * 0.6;
+    m.fillStyle = 'rgba(200,110,255,.35)'; m.beginPath(); m.arc(x, y, r + 2.5, 0, TAU); m.fill();
+    m.fillStyle = '#e8b8ff'; m.beginPath(); m.arc(x, y, r, 0, TAU); m.fill();
+  }
   for (const p of V.pings) {
     m.strokeStyle = `rgba(255,60,60,${1 - p.t / PING_LIFE})`; m.lineWidth = 2;
     m.beginPath(); m.arc((p.x / TS) * k, (p.y / TS) * k, 4 + ((p.t * 20) % 14), 0, TAU); m.stroke();

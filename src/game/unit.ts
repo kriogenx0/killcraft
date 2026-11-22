@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
+import { G, hooks, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -9,7 +9,9 @@ import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { part } from './fx.ts';
-import { HEAL_RATE } from '../data/era.ts';
+import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
+import { MEDIC_HEAL, MEDIC_RANGE } from '../data/unit.ts';
+import { hasBuilding } from './entity.ts';
 
 const AUTO_CHASE = 9 * TS;
 const ORE_SEARCH = 24;
@@ -87,6 +89,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   const a = Math.min(UNLOAD_RATE * dt, u.carry);
   u.carry -= a;
   G.credits[u.team] += a;
+  hooks.income(u.team, a);
   if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
 }
 
@@ -109,10 +112,43 @@ function unstick(u: Ent, dt: number): void {
   u.px = u.x; u.py = u.y;
 }
 
-/** Organic units slowly regain health; research at the yard speeds it up. */
+/** Fraction of max health a team's organic units regain each second: research and a Hospital speed it up. */
+export function healRate(team: number): number {
+  return (HEAL_RATE[G.heal[team] ?? 0] ?? HEAL_RATE[0]) * (hasBuilding(team, 'hospital') ? HOSPITAL_HEAL : 1);
+}
+
+/** healRate for each team, worked out once per step rather than once per unit. */
+const rates = [HEAL_RATE[0], HEAL_RATE[0]];
+export function refreshHealRates(): void {
+  for (let team = 0; team < G.teams; team++) rates[team] = healRate(team);
+}
+
+/** Organic units slowly regain health. */
 function regen(u: Ent, dt: number): void {
   if (u.hp >= u.maxhp || !isOrganic(u)) return;
-  u.hp = Math.min(u.maxhp, u.hp + u.maxhp * (HEAL_RATE[G.heal[u.team] ?? 0] ?? HEAL_RATE[0]) * dt);
+  u.hp = Math.min(u.maxhp, u.hp + u.maxhp * (rates[u.team] ?? HEAL_RATE[0]) * dt);
+}
+
+/** The most hurt organic ally (not the medic itself) within a radius, if any. */
+function woundedNear(u: Ent, r: number): Ent | null {
+  let best: Ent | null = null;
+  for (const e of G.ents) {
+    if (e === u || e.dead || e.team !== u.team || !isOrganic(e) || e.hp >= e.maxhp - 0.5) continue;
+    if (Math.hypot(e.x - u.x, e.y - u.y) > r) continue;
+    if (!best || e.hp / e.maxhp < best.hp / best.maxhp) best = e;
+  }
+  return best;
+}
+
+function updMedic(u: Ent, o: HealOrder, dt: number): void {
+  const t = valid(o.tgt);
+  if (!t || t.team !== u.team || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  const r = approach(u, t, MEDIC_RANGE, dt);
+  if (r === null) { setOrder(u, null); return; }
+  if (!r) return;
+  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), 8 * dt);
+  u.atkT = 0.25; // kneels and works: drawn like an attack
+  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
 }
 
 export function updUnit(u: Ent, dt: number): void {
@@ -132,6 +168,10 @@ export function updUnit(u: Ent, dt: number): void {
     u.scan -= dt;
     if (u.scan > 0) return;
     u.scan = 0.3 + Math.random() * 0.2;
+    if (u.type === 'medic') {
+      const t = woundedNear(u, d.sight * TS);
+      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y }); return; }
+    }
     if (u.stance === 'passive') {
       const threat = nearestThreat(u, Math.min(d.sight, 7));
       if (threat) orderFlee(u, threat);
@@ -180,6 +220,10 @@ export function updUnit(u: Ent, dt: number): void {
     }
     case 'harvest':
       if (u.type === 'harvester') updHarvester(u, o, dt);
+      else u.order = null;
+      break;
+    case 'heal':
+      if (u.type === 'medic') updMedic(u, o, dt);
       else u.order = null;
       break;
   }

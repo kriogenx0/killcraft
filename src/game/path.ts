@@ -34,8 +34,11 @@ export function nearestFree(gx: number, gy: number, maxr = 12): Tile | null {
   return null;
 }
 
-/** Tile path (excluding the start). If the goal can't be reached, ends at the closest reachable tile. */
-export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[] {
+/**
+ * Tile path (excluding the start). If the goal can't be reached, ends at the closest reachable tile.
+ * `team` may also step through its own Waygates; map portals are open to everyone.
+ */
+export function findPath(sx: number, sy: number, gx: number, gy: number, team = -1): Tile[] {
   sx = clamp(sx, 0, MW - 1); sy = clamp(sy, 0, MH - 1); gx = clamp(gx, 0, MW - 1); gy = clamp(gy, 0, MH - 1);
   if (G.blk[gy * MW + gx]) {
     const f = nearestFree(gx, gy);
@@ -77,7 +80,7 @@ export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[]
   // With portals the straight-line estimate can overshoot, so also consider "walk to a gate,
   // step through, then the best estimate from its exit" (settled over chains of gates).
   const gates: { x: number; y: number; rest: number }[] = [];
-  for (const p of G.portals)
+  for (const p of [...G.portals, ...G.waygates.filter((w) => w.team === team)])
     for (const [[x, y], [ex, ey]] of [[p.a, p.b], [p.b, p.a]] as const) gates.push({ x, y, rest: PORTAL_COST + oct(ex, ey, gx, gy) });
   for (let k = 0; k < gates.length; k++)
     for (const g of gates) {
@@ -111,7 +114,7 @@ export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[]
       }
     }
     const wi = G.warp[i];
-    if (wi >= 0 && !blk[wi] && closedStamp[wi] !== stamp) {
+    if (wi >= 0 && !blk[wi] && closedStamp[wi] !== stamp && (G.warpTeam[i] < 0 || G.warpTeam[i] === team)) {
       const ng = gScore[i] + PORTAL_COST;
       if (openStamp[wi] !== stamp || ng < gScore[wi]) {
         openStamp[wi] = stamp; gScore[wi] = ng; cameFrom[wi] = i; push(wi, ng + H(wi % MW, (wi / MW) | 0));
@@ -199,7 +202,7 @@ export function smoothPath(sx: number, sy: number, path: Tile[]): Tile[] {
 export function pathFor(u: Ent, gx: number, gy: number): Tile[] {
   // aircraft fly straight there, over anything
   if (isAir(u)) return tileOf(u.x) === gx && tileOf(u.y) === gy && Math.hypot(u.x - (gx + 0.5) * TS, u.y - (gy + 0.5) * TS) < 2 ? [] : [[clamp(gx, 0, MW - 1), clamp(gy, 0, MH - 1)]];
-  return smoothPath(u.x, u.y, findPath(tileOf(u.x), tileOf(u.y), gx, gy));
+  return smoothPath(u.x, u.y, findPath(tileOf(u.x), tileOf(u.y), gx, gy, u.team));
 }
 
 /** A free tile touching a footprint, nearest to the unit (with jitter so crowds spread out). */

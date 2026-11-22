@@ -68,7 +68,11 @@ function infantry(g: G2, type: UnitType, T: TeamColors, p: UnitPose): void {
   const gun = () => {
     const recoil = p.atk > 0 ? (1 - p.atk) * 2 : 0;
     const hx = cs * 3 + px * 2.5, hy = by + 1 + sn * 2;
-    if (type === 'rocket') {
+    if (type === 'gunner') {
+      // heavy gun with a cooling jacket
+      oline(g, hx - cs * recoil, hy - sn * recoil, hx + cs * (12 - recoil), hy + sn * (10 - recoil), 2.8, '#3a3e38');
+      blob(g, hx + cs * 2, hy + sn * 2 + 2, 2, 1.6, '#4e5430');
+    } else if (type === 'rocket') {
       // launcher on the shoulder
       oline(g, hx - cs * (5 + recoil), hy - 3 - sn * 5, hx + cs * (9 - recoil), hy - 3 + sn * 7, 3.4, '#5a6232');
       blob(g, hx + cs * (9 - recoil), hy - 3 + sn * 7, 1.8, 1.8, '#2a2e1a');
@@ -170,6 +174,17 @@ function helmet(g: G2, T: TeamColors, hy: number, cs: number, back: boolean, plu
   blob(g, 0, hy, 4, 4, shade(g, 0, hy, 4, STEEL[0], STEEL[1]));
   if (!back) { g.fillStyle = '#16161c'; g.fillRect(-2.8 + cs * 1, hy - 0.4, 5.6, 1.3); }
   if (plume) blob(g, 0, hy - 4.5, 1.5, 2.6, T.m);
+}
+
+function medic(g: G2, T: TeamColors, p: UnitPose): void {
+  const by = feet(g, p, '#3a3a3a');
+  // satchel at the hip
+  blob(g, -Math.cos(p.f) * 4, by + 2, 2.6, 2.2, '#7a5a38');
+  blob(g, 0, by, 5, 6, shade(g, 0, by, 6, '#f4f0e6', '#a8a498'));
+  g.fillStyle = '#c42a22'; g.fillRect(-1, by - 3.5, 2, 7); g.fillRect(-3.5, by - 1, 7, 2);
+  blob(g, 0, by - 8, 3.6, 3.6, SKIN);
+  g.beginPath(); g.arc(0, by - 8.6, 4.2, Math.PI, TAU); g.fillStyle = T.m; g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 0.8; g.stroke();
 }
 
 function swordsman(g: G2, T: TeamColors, p: UnitPose): void {
@@ -308,6 +323,22 @@ function biplane(g: G2, T: TeamColors, p: UnitPose): void {
   g.restore();
 }
 
+/** A quadcopter from above: four arms, four prop discs and a sensor ball. */
+function drone(g: G2, T: TeamColors, p: UnitPose): void {
+  g.save();
+  g.translate(0, -6);
+  g.rotate(p.f);
+  for (const [x, y] of [[5, 5], [5, -5], [-5, 5], [-5, -5]]) {
+    oline(g, 0, 0, x, y, 1.6, '#222');
+    g.globalAlpha = 0.45;
+    blob(g, x, y, 3.4, 3.4, '#1a1a1a', false);
+    g.globalAlpha = 1;
+  }
+  blob(g, 0, 0, 3.6, 2.8, shade(g, 0, 0, 4, T.l, T.d));
+  blob(g, 3, 0, 1.2, 1.2, '#9ec4d8');
+  g.restore();
+}
+
 /** An attack helicopter from above: body, tail boom and a rotor disc. */
 function helicopter(g: G2, T: TeamColors, p: UnitPose): void {
   g.save();
@@ -331,18 +362,33 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
   g.translate(x, y);
   g.scale(scale, scale);
   ellipseFill(g, 1.5, 3, big ? 16 : 6, big ? 9 : 3, 'rgba(0,0,0,.3)');
-  switch (type) {
-    case 'rifleman': case 'rocket': infantry(g, type, T, p); break;
+  const look = UNIT[type].look; // hidden units: their regular unit wreathed in Aether
+  if (look) {
+    const halo = g.createRadialGradient(0, -4, 1, 0, -4, big ? 22 : 12);
+    halo.addColorStop(0, 'rgba(210,140,255,.55)');
+    halo.addColorStop(1, 'rgba(140,60,255,0)');
+    g.fillStyle = halo;
+    g.fillRect(-26, -30, 52, 44);
+  }
+  switch (look ?? type) {
+    case 'rifleman': case 'gunner': case 'rocket': infantry(g, look ?? type, T, p); break;
     case 'swordsman': swordsman(g, T, p); break;
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
+    case 'medic': medic(g, T, p); break;
     case 'catapult': catapult(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;
     case 'harvester': harvester(g, T, p); break;
     case 'balloon': balloon(g, T); break;
     case 'biplane': biplane(g, T, p); break;
     case 'helicopter': helicopter(g, T, p); break;
+    case 'drone': drone(g, T, p); break;
     default: tank(g, T, p, type === 'heavy');
+  }
+  if (look) {
+    g.fillStyle = '#e8c0ff'; g.strokeStyle = '#5a1a90'; g.lineWidth = 0.8;
+    const y = big ? -22 : -20;
+    g.beginPath(); g.moveTo(0, y - 5); g.lineTo(2.5, y); g.lineTo(0, y + 5); g.lineTo(-2.5, y); g.closePath(); g.fill(); g.stroke();
   }
   g.restore();
 }

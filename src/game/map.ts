@@ -4,8 +4,7 @@ import { G, type Tile } from './state.ts';
 import { MW, MH, GRASS, WATER, TREE, SHALLOW, ROCK, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import {
-  START_YARDS, ORE_SOURCES, FORESTS, OIL_WELLS, PORTAL_LAYOUTS, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR,
-  WATER_LEVEL, HILL_HEIGHT, PLATEAU_HEIGHT, RIVER_CHANCE, COAST_CHANCE,
+  layoutFor, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR, WATER_LEVEL, HILL_HEIGHT, PLATEAU_HEIGHT, RIVER_CHANCE, COAST_CHANCE,
 } from '../data/map.ts';
 import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
 import { ORE_FIELD_RADIUS, ORE_TILE_MAX } from '../data/ore.ts';
@@ -80,14 +79,15 @@ function riverCourse(rnd: () => number): { pts: [number, number][]; fords: numbe
   return { pts, fords, width: 1.1 + rnd() * 0.5 };
 }
 
-/** Fill the terrain for one seed. Returns false if the two bases can't reach each other. */
+/** Fill the terrain for one seed. Returns false if any base can't reach the others. */
 function genMap(seed: number): boolean {
   const { terr, ore, oilField, treeWood, elev } = G;
+  const { yards, ore: sources, oil, forests } = layoutFor(G.teams);
   const rnd = mulberry32(seed);
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
   const h1 = valueGrid(rnd, 3), h2 = valueGrid(rnd, 7), h3 = valueGrid(rnd, 13), pl = valueGrid(rnd, 4), rp = valueGrid(rnd, 9);
   const river = rnd() < RIVER_CHANCE ? riverCourse(rnd) : null;
-  const coast = rnd() < COAST_CHANCE ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = 13 + rnd() * 6;
+  const coast = rnd() < COAST_CHANCE && G.teams <= 2 ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = 13 + rnd() * 6;
   terr.fill(GRASS);
   ore.fill(0);
   oilField.fill(0);
@@ -150,11 +150,11 @@ function genMap(seed: number): boolean {
       const i = y * MW + x, u = x / MW, v = y / MH, tn = (t1(u, v) + t2(u, v) * 0.6) / 1.6;
       if (terr[i] === GRASS && tn > 0.62 && rnd() < 0.8) terr[i] = TREE;
     }
-  for (const [cx, cy, r] of FORESTS) eachInDisk(cx, cy, r, (i) => { if (terr[i] === GRASS && rnd() < 0.85) terr[i] = TREE; });
+  for (const [cx, cy, r] of forests) eachInDisk(cx, cy, r, (i) => { if (terr[i] === GRASS && rnd() < 0.85) terr[i] = TREE; });
   const flats: [number, number, number][] = [];
   const clear = (cx: number, cy: number, r: number) => { flats.push([cx, cy, r]); eachInDisk(cx, cy, r, (i) => { terr[i] = GRASS; }); };
-  for (const [x, y] of START_YARDS) clear(x + 1, y + 1, 9);
-  for (const [x, y] of ORE_SOURCES) {
+  for (const [x, y] of yards) clear(x + 1, y + 1, 9);
+  for (const [x, y] of sources) {
     clear(x, y, ORE_FIELD_RADIUS + 1);
     eachInDisk(x, y, ORE_FIELD_RADIUS, (i, tx, ty) => {
       const d = Math.hypot(tx - x, ty - y);
@@ -162,7 +162,7 @@ function genMap(seed: number): boolean {
       if ((tx !== x || ty !== y) && rnd() < 0.97 - d * 0.06) ore[i] = Math.round(ORE_TILE_MAX * (0.55 + 0.45 * rnd()) * (1 - d / (ORE_FIELD_RADIUS + 3)));
     });
   }
-  for (const [x, y] of OIL_WELLS) {
+  for (const [x, y] of oil) {
     clear(x, y, OIL_WELL_RADIUS + 2);
     eachInDisk(x, y, OIL_WELL_RADIUS + 0.5, (i, tx, ty) => {
       ore[i] = 0;
@@ -171,7 +171,7 @@ function genMap(seed: number): boolean {
   }
   shapeHeights(flats);
   for (let i = 0; i < MW * MH; i++) treeWood[i] = terr[i] === TREE ? TREE_WOOD : 0;
-  return connected(START_YARDS[0], START_YARDS[1]);
+  return yards.every((y) => connected(yards[0], y));
 }
 
 /**
@@ -224,16 +224,16 @@ function connected(a: Tile, b: Tile): boolean {
 function placePortals(seed: number): void {
   G.portals = [];
   G.warp.fill(-1);
-  const rnd = mulberry32((seed * 7919 + 104729) >>> 0);
-  if (rnd() >= PORTAL_CHANCE) return;
-  const order = PORTAL_LAYOUTS.map((p) => ({ p, k: rnd() })).sort((a, b) => a.k - b.k).map((o) => o.p);
+  const rnd = mulberry32((seed * 7919 + 104729) >>> 0), { yards, portals } = layoutFor(G.teams);
+  if (rnd() >= PORTAL_CHANCE || !portals.length) return;
+  const order = portals.map((p) => ({ p, k: rnd() })).sort((a, b) => a.k - b.k).map((o) => o.p);
   const want = rnd() < PORTAL_DOUBLE_CHANCE ? 2 : 1;
   for (const [a, b] of order) {
     if (G.portals.length >= want) break;
     // clear a little plaza round each gate, then make sure both sides can walk to it
     const layers = [G.terr, G.ore, G.oilField, G.treeWood, G.elev], saved = layers.map((l) => l.slice());
     for (const [x, y] of [a, b]) eachInDisk(x, y, PORTAL_CLEAR, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); });
-    const home = reachable(yardTile(START_YARDS[0]));
+    const home = reachable(yardTile(yards[0]));
     if (!home[a[1] * MW + a[0]] || !home[b[1] * MW + b[0]]) { layers.forEach((l, k) => l.set(saved[k] as never)); continue; }
     G.portals.push({ a: [a[0], a[1]], b: [b[0], b[1]] });
     G.warp[a[1] * MW + a[0]] = b[1] * MW + b[0];
@@ -243,7 +243,7 @@ function placePortals(seed: number): void {
 
 /** Is a tile within `r` tiles (square) of a portal gate? */
 export function nearPortal(tx: number, ty: number, r = 1): boolean {
-  return G.portals.some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r));
+  return [...G.portals, ...G.waygates].some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r));
 }
 
 /** Generate a playable map, trying following seeds until the bases connect. Returns the seed used. */

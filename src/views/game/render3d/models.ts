@@ -7,11 +7,12 @@
 // tank costs about a dozen draw calls no matter how many bolts it has.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { UnitType } from '../../../data/unit.ts';
-import type { BldType } from '../../../data/building.ts';
+import { UNIT, type UnitType } from '../../../data/unit.ts';
+import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
+import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
-import { airfield, balloon, biplane, flak, helicopter } from './aircraft.ts';
+import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -131,6 +132,42 @@ function rifleman(team: number): Model {
     mesh(box(0.01, 0.02, 0.008), M.gun(), 0.26, 0.018, 0)); // front sight
   m.parts.gun = gun;
   m.root.add(gun);
+  return m;
+}
+
+/** World War: a machine gunner in a peaked cap with an ammo belt, a belt-fed gun and its bipod. */
+function gunner(team: number): Model {
+  const m = soldier({ torso: M.khaki(), legs: M.olive(), arms: M.khaki(), boots: M.leather() });
+  m.root.add(mesh(box(0.135, 0.09, 0.2), teamMat(team), 0, 0.34, 0)); // tunic front
+  helmet(m.root, teamMat(team, 'd'));
+  // bandolier across the chest and an ammo box on the back
+  m.root.add(rot(mesh(box(0.015, 0.2, 0.035), M.brass(), 0.072, 0.35, 0), 0.7, 0, 0));
+  m.root.add(mesh(box(0.08, 0.1, 0.12), M.olive(), -0.1, 0.33, 0));
+  m.parts.armL.rotation.z = m.parts.armR.rotation.z = 1.3;
+  const gun = group(0.15, 0.33, 0.05,
+    mesh(box(0.1, 0.05, 0.03), M.wood(), -0.13, -0.01, 0), // stock
+    mesh(box(0.14, 0.06, 0.045), M.gun(), 0, 0, 0), // receiver
+    along(mesh(cyl(0.024, 0.024, 0.2, 10), M.darkSteel(), 0.16, 0.005, 0)), // cooling jacket
+    along(mesh(cyl(0.008, 0.008, 0.06, 6), M.gun(), 0.29, 0.005, 0)), // muzzle
+    mesh(box(0.04, 0.05, 0.05), M.olive(), 0, -0.05, -0.04), // ammo pan
+    rod([0.2, -0.01, 0.015], [0.24, -0.13, 0.05], 0.005, M.gun(), 4), // bipod legs
+    rod([0.2, -0.01, -0.015], [0.24, -0.13, -0.05], 0.005, M.gun(), 4));
+  m.parts.gun = gun;
+  m.root.add(gun);
+  return m;
+}
+
+/** Unarmed: a white smock with red crosses, a team-colored cap and a satchel of bandages. */
+function medic(team: number): Model {
+  const white = M.white(), red = mat('#c42a22', { rough: 0.7 });
+  const m = soldier({ torso: white, legs: teamMat(team, 'd'), arms: white, boots: M.leather() });
+  for (const x of [0.067, -0.067]) {
+    m.root.add(mesh(box(0.006, 0.09, 0.026), red, x, 0.33, 0));
+    m.root.add(mesh(box(0.006, 0.026, 0.09), red, x, 0.33, 0));
+  }
+  m.root.add(scl(mesh(sph(0.066, 12, 8), teamMat(team), 0, 0.49, 0), 1, 0.6, 1)); // cap
+  m.root.add(mesh(box(0.06, 0.08, 0.1), M.leather(), -0.04, 0.25, -0.1)); // satchel
+  m.root.add(rod([0.06, 0.4, 0.09], [-0.04, 0.27, -0.09], 0.008, M.leather(), 4)); // strap
   return m;
 }
 
@@ -564,13 +601,42 @@ function catapult(team: number): Model {
   return { root, parts, height: 0.75 };
 }
 
+/** The same surface touched by Aether: tinted violet and faintly glowing. */
+const aetherMats = new Map<Mat, Mat>();
+function aetherTouched(m: Mat): Mat {
+  let a = aetherMats.get(m);
+  if (!a) {
+    a = m.clone();
+    if (a instanceof THREE.MeshStandardMaterial) {
+      a.color.lerp(new THREE.Color('#8a50c0'), 0.35);
+      a.emissive = new THREE.Color('#7a30e0');
+      a.emissiveIntensity = 0.45;
+    }
+    aetherMats.set(m, a);
+  }
+  return a;
+}
+
+/** A hidden unit: its regular unit's model, steeped in Aether, with a shard floating above. */
+function aetherUnit(type: UnitType, team: number): Model {
+  const look = UNIT[type].look ?? 'rifleman', m = makeUnit(look, team);
+  m.root.traverse((o) => { if (o instanceof THREE.Mesh) o.material = aetherTouched(o.material as Mat); });
+  const shard = mesh(octa(0.07), M.aether(), 0, m.height + 0.12, 0);
+  shard.scale.set(0.7, 1.4, 0.7);
+  m.root.add(shard);
+  return m;
+}
+
 function makeUnit(type: UnitType, team: number): Model {
+  if (UNIT[type].look) return aetherUnit(type, team);
   switch (type) {
     case 'rifleman': return rifleman(team);
+    case 'gunner': return gunner(team);
     case 'rocket': return rocketeer(team);
     case 'swordsman': return swordsman(team);
     case 'crossbowman': return crossbowman(team);
     case 'knight': return knight(team);
+    case 'medic': return medic(team);
     case 'jeep': return jeep(team);
     case 'tank': return tank(team, false);
     case 'heavy': return tank(team, true);
@@ -579,6 +645,8 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'balloon': return balloon(team);
     case 'biplane': return biplane(team);
     case 'helicopter': return helicopter(team);
+    case 'drone': return drone(team);
+    default: return rifleman(team);
   }
 }
 
@@ -900,6 +968,32 @@ function turret(team: number): Model {
   return { root, parts, height: 0.6 };
 }
 
+/** Engine Works: a sheet-roofed machine hall with two smokestacks, a fuel tank and a team banner. */
+function engineWorks(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  // hall with a pitched sheet roof and big doors facing +z
+  root.add(mesh(box(1.3, 0.55, 1.0), M.concrete(), -0.2, 0.33, -0.15));
+  root.add(rot(mesh(box(1.34, 0.04, 0.58), M.metalRoof(), -0.2, 0.7, -0.38), 0.45, 0, 0));
+  root.add(rot(mesh(box(1.34, 0.04, 0.58), M.metalRoof(), -0.2, 0.7, 0.08), -0.45, 0, 0));
+  root.add(mesh(box(0.5, 0.4, 0.02), M.darkSteel(), -0.2, 0.26, 0.36));
+  root.add(mesh(box(1.3, 0.08, 0.02), tm, -0.2, 0.52, 0.36));
+  windows(root, -0.75, 0.35, 4, 0.45, 0.36);
+  // smokestacks
+  for (const x of [-0.65, -0.35]) {
+    root.add(mesh(cyl(0.07, 0.09, 0.9, 12), M.lightConcrete(), x, 0.95, -0.5));
+    root.add(mesh(cyl(0.08, 0.08, 0.05, 12), M.dark(), x, 1.41, -0.5));
+  }
+  // fuel tank and pipe to the hall
+  root.add(mesh(cyl(0.22, 0.22, 0.5, 16), M.steel(), 0.68, 0.31, -0.45));
+  root.add(mesh(cyl(0.23, 0.23, 0.06, 16), tm, 0.68, 0.42, -0.45));
+  root.add(rod([0.5, 0.15, -0.4], [0.45, 0.15, -0.2], 0.03, M.darkSteel(), 8));
+  // crates of parts by the door
+  for (const [x, z] of [[0.6, 0.45], [0.75, 0.3]]) root.add(mesh(box(0.16, 0.14, 0.16), M.wood(), x, 0.13, z));
+  return { root, parts, height: 1.45 };
+}
+
 /** Oil Derrick: a pump jack whose walking beam nods (the `pump` part), with a storage tank. */
 function derrick(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
@@ -934,7 +1028,18 @@ function derrick(team: number): Model {
   return { root, parts, height: 1.0 };
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak'>, team: number): Model {
+/** A Hospital is a barracks-sized ward with a red-cross sign out front. */
+function hospital(m: Model): Model {
+  const red = mat('#c42a22', { rough: 0.7 }), h = Math.max(0.7, m.height * 0.8);
+  m.root.add(mesh(cyl(0.025, 0.03, h, 6), M.darkWood(), 0.78, h / 2, 0.82));
+  m.root.add(group(0.78, h + 0.1, 0.82,
+    mesh(box(0.3, 0.3, 0.03), M.white(), 0, 0, 0),
+    mesh(box(0.07, 0.22, 0.04), red, 0, 0, 0),
+    mesh(box(0.22, 0.07, 0.04), red, 0, 0, 0)));
+  return m;
+}
+
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | AetherBld>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -944,6 +1049,7 @@ function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak'>, team: number)
     case 'turret': return turret(team);
     case 'tower': case 'mill': return medievalBuilding(type, team, 'stone');
     case 'derrick': return derrick(team);
+    case 'works': return engineWorks(team);
   }
 }
 
@@ -969,15 +1075,15 @@ function industrial(m: Model): Model {
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
  * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
- * Look 1, dressed stone, is what the Watchtower and Lumber Mill grow into after the Medieval age. The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
- * and the Oil Derrick and Flak Cannon starts at brick and iron.
+ * The Watchtower and Lumber Mill grow into dressed stone (look 1) and stop there; the Oil Derrick,
+ * Engine Works and Flak Cannon are brick and iron until the Modern age, even in a Medieval town.
  */
 const ERA_LOOK = [0, 2, 3] as const;
 
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
-  if (type === 'derrick' || type === 'flak') return e < 2 ? 2 : e;
+  if (type === 'derrick' || type === 'works' || type === 'flak') return e < 2 ? 2 : e;
   if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
   return e;
 }
@@ -985,7 +1091,13 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 /** A structure as its team builds it in their current age (see data/era.ts). */
 export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1): Model {
   const lk = bldLook(type, era);
+  if (isAetherBld(type)) return cached(`b:${type}:${team}`, () => aetherBuilding(type, team)); // timeless: the same in every age
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
+  if (type === 'hospital') return cached(`b:${type}:${team}:${lk}`, () => hospital(
+    lk === 0 ? medievalBuilding('barracks', team, 'wood')
+      : lk === 1 ? medievalBuilding('barracks', team, 'stone')
+        : lk === 2 ? industrial(makeBuilding('barracks', team))
+          : makeBuilding('barracks', team)));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>
     lk === 0 ? medievalBuilding(type, team, 'wood')
@@ -1016,4 +1128,26 @@ function makeSource(): Model {
 
 export function sourceModel(): Model {
   return cached('source', makeSource);
+}
+
+/** A fallen star: a scorched black stone split open by tall glowing violet shards. */
+function makeAether(): Model {
+  const root = new THREE.Group();
+  root.add(scl(mesh(dodeca(0.28), M.starRock(), 0, 0.12, 0), 1.3, 0.55, 1.1));
+  root.add(rot(scl(mesh(dodeca(0.14), M.starRock(), 0.3, 0.05, 0.2), 1, 0.6, 1), 0.3, 0.6, 0));
+  root.add(rot(scl(mesh(dodeca(0.11), M.starRock(), -0.32, 0.04, -0.15), 1.2, 0.5, 1), 0.1, 0.2, 0.4));
+  for (const [x, z, h, a, b] of [[0, 0, 0.75, 0, 0], [-0.14, 0.08, 0.5, 0.35, 0.2], [0.15, 0.1, 0.45, -0.4, 0.1], [0.05, -0.16, 0.42, 0.25, -0.35], [-0.1, -0.1, 0.32, -0.2, -0.3], [0.2, -0.05, 0.28, -0.6, 0.2]]) {
+    const c = mesh(octa(0.1), M.aether(), x, 0.2 + h * 0.35, z);
+    c.scale.set(0.7, h * 4.2, 0.7);
+    c.rotation.set(b, 0, a);
+    root.add(c);
+  }
+  for (const [x, z, s] of [[0.36, -0.2, 0.04], [-0.3, 0.3, 0.035], [0.08, 0.38, 0.03], [-0.42, -0.05, 0.03]]) {
+    root.add(rot(scl(mesh(octa(s), M.aether(), x, s, z), 1, 1.8, 1), 0.2, x * 4, z * 3));
+  }
+  return { root, parts: {}, height: 1.1 };
+}
+
+export function aetherModel(): Model {
+  return cached('aether', makeAether);
 }

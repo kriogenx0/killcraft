@@ -5,7 +5,8 @@ import { exploredAt, seenAt } from '../../game/fog.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { centerCam, clampCam, ownSelected, selectedUnits, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
-import { ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
+import { ROTATE_KEYS, SCROLL_KEYS, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
+import { productionHotkey } from './sidebar.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
 import { midHeight, pickEntity } from './render3d/entities3d.ts';
@@ -136,7 +137,7 @@ function orbit(dx: number, dy: number): void {
 
 export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): void {
   const touches = new Map<number, { x: number; y: number }>();
-  let panned = false, pinch: { d: number; a: number } | null = null, orbiting: { x: number; y: number } | null = null;
+  let panned = false, pinch: { d: number; a: number; mx: number; my: number } | null = null, orbiting: { x: number; y: number } | null = null;
   const refreshRect = () => { const r = canvas.getBoundingClientRect(); canvasRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
 
   canvas.addEventListener('pointerdown', (ev) => {
@@ -171,10 +172,20 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       const prev = { ...t };
       t.x = ev.clientX; t.y = ev.clientY;
       if (touches.size >= 2) {
-        // two fingers: pinch to zoom, twist to turn
+        // two fingers: slide to pan, pinch to zoom, twist to turn; the map follows the fingers
         const [a, b] = [...touches.values()], d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
-        if (pinch) { V.cam.dist *= pinch.d / Math.max(1, d); V.cam.yaw -= ang - pinch.a; clampCam(); }
-        pinch = { d, a: ang };
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (pinch) {
+          const w0 = screenToWorld(pinch.mx, pinch.my), w1 = screenToWorld(mx, my);
+          if (w0 && w1) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; }
+          V.cam.dist *= pinch.d / Math.max(1, d);
+          // a clockwise twist (angle grows, screen y points down) turns the map clockwise with the fingers
+          let turn = ang - pinch.a;
+          if (turn > Math.PI) turn -= Math.PI * 2; else if (turn < -Math.PI) turn += Math.PI * 2;
+          V.cam.yaw += turn;
+          clampCam();
+        }
+        pinch = { d, a: ang, mx, my };
         panned = true;
         return;
       }
@@ -269,8 +280,10 @@ function onKey(ev: KeyboardEvent): void {
   if (k === '-' || k === '_') { V.speed = Math.max(0.5, V.speed / 2); return; }
   if (k === ' ') { ev.preventDefault(); if (G.lastAlert) centerCam(G.lastAlert.x, G.lastAlert.y); return; }
   if (k === 'home' || k === 'h') {
-    const y = G.ents.find((x) => !x.dead && x.team === V.team && x.kind === 'bld');
-    if (y) centerCam(y.x, y.y);
+    // select the Construction Yard (its keys build structures and research) and look at it
+    const own = G.ents.filter((x) => !x.dead && x.team === V.team && x.kind === 'bld');
+    const y = own.find((x) => x.type === 'yard' && x.done) ?? own[0];
+    if (y) { centerCam(y.x, y.y); if (y.type === 'yard') setSelection([y]); }
     return;
   }
   if (/^[1-9]$/.test(k)) {
@@ -287,7 +300,8 @@ function onKey(ev: KeyboardEvent): void {
     return;
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-  if (runHotkey(k)) ev.preventDefault();
+  const hk = normalizeKey(ev.key);
+  if (runHotkey(hk) || productionHotkey(hk)) ev.preventDefault();
 }
 
 /** Move the view by a screen offset (px), as if dragging the ground the other way. */

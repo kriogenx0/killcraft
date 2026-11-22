@@ -83,7 +83,7 @@ export function mountGameView(root: HTMLElement): void {
   setupWorldView();
   makeIcons(V.team);
   initHud({
-    credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
+    credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), aether: must(root, '.topbar-aether'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
     speed: speedBtn, pause: pauseBtn,
     details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'),
   });
@@ -126,6 +126,9 @@ export function mountGameView(root: HTMLElement): void {
     G.credits[V.team] = s.credits;
     G.wood[V.team] = s.wood ?? 0;
     G.oil[V.team] = s.oil ?? 0;
+    G.aether[V.team] = s.aether ?? 0;
+    G.aetherFound[V.team] = !!s.aetherFound;
+    G.ward[V.team] = !!s.ward;
     G.era[V.team] = s.era ?? 0;
     G.heal[V.team] = s.heal ?? 0;
     G.prod[V.team] = s.prod;

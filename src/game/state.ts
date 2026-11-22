@@ -9,7 +9,8 @@ import { clamp } from '../util/math.ts';
 
 export type Tile = [number, number];
 export type EntKind = 'unit' | 'bld' | 'source';
-export type EntType = UnitType | BldType | 'source';
+/** 'source' is an ore crystal rock, 'aether' an Aether deposit (its hp is the Aether left) */
+export type EntType = UnitType | BldType | 'source' | 'aether';
 
 /**
  * How a unit fights. There is only one way to move; the stance decides what happens on the way.
@@ -23,7 +24,9 @@ export type Stance = (typeof STANCES)[number];
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
-export type Order = MoveOrder | AttackOrder | HarvestOrder;
+/** A medic tending a wounded ally; gives up if it strays too far from where it started (ox, oy). */
+export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
+export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
 
 export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
 export interface ProductionItem {
@@ -82,6 +85,10 @@ export interface Ent extends Target {
   repairing: boolean;
   /** where newly built units go */
   rally: Point | null;
+  /** game time until which a hexed unit moves at reduced speed */
+  slowT?: number;
+  /** game time until which a cloaked unit shows after firing */
+  shownT?: number;
 }
 
 export interface Projectile {
@@ -103,6 +110,8 @@ export interface Particle {
 
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
+/** A linked pair of Waygates: like a portal, but only its team may use it. */
+export interface Waygate extends Portal { team: number }
 
 export interface Decal {
   kind: 'splat' | 'corpse' | 'rubble' | 'wreck' | 'scorch';
@@ -124,12 +133,18 @@ export const G = {
   portals: [] as Portal[],
   /** for each tile, the tile index its portal leads to, or -1 */
   warp: new Int32Array(MW * MH).fill(-1),
+  /** linked Waygate pairs (see game/aether.ts) */
+  waygates: [] as Waygate[],
+  /** for each warp tile, the only team that may use it, or -1 for anyone (map portals) */
+  warpTeam: new Int8Array(MW * MH).fill(-1),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
   /** fog of the team being viewed on this screen (an alias of sight[viewer]) */
   vis: new Uint8Array(MW * MH),
   /** the team this screen shows (the local player) */
   viewer: 0,
+  /** number of sides in the match (2, or 4 for a free-for-all) */
+  teams: 2,
   /** which teams are people (they only build on ground they've explored) */
   human: [true, false],
   /** running on the server: no visual effects */
@@ -145,6 +160,12 @@ export const G = {
   credits: [] as number[],
   wood: [] as number[],
   oil: [] as number[],
+  /** Aether, the rare resource (see data/aether.ts) */
+  aether: [] as number[],
+  /** each team has drawn Aether at least once, revealing its hidden units */
+  aetherFound: [] as boolean[],
+  /** each team has researched the Aether Ward */
+  ward: [] as boolean[],
   /** each team's age of technology (index into ERA) */
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */
@@ -179,6 +200,10 @@ export const hooks = {
   fired: (_shooter: Ent, _weapon: string, _target: Ent): void => {},
   /** an entity was destroyed */
   killed: (_e: Ent): void => {},
+  /** damage from `by` (if known) destroyed an entity; called just before `killed` */
+  killedBy: (_e: Ent, _by: Ent | null): void => {},
+  /** a harvester unloaded ore worth `amount` gold */
+  income: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },
 };
 

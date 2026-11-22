@@ -2,6 +2,7 @@
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
+import { ERA, LAST_ERA } from '../data/era.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
@@ -13,7 +14,9 @@ const RISE_TIME = 1.2;
 
 /** Free tile next to a building, nearest to `toward` (default: below the building, where doors are). */
 export function exitTile(b: Ent, toward?: Point): Tile {
-  const rx = toward ? toward.x : b.x, ry = toward ? toward.y : b.y + 400;
+  // without a rally point, units leave on the side facing the middle of the map, so no corner's
+  // troops start out walking toward the map edge
+  const rx = toward ? toward.x : (MW * TS) / 2, ry = toward ? toward.y : (MH * TS) / 2;
   let best: Tile | null = null, bd = 1e9;
   for (let y = b.ty - 1; y <= b.ty + b.h; y++)
     for (let x = b.tx - 1; x <= b.tx + b.w; x++) {
@@ -27,6 +30,11 @@ export function exitTile(b: Ent, toward?: Point): Tile {
 
 function completed(b: Ent): void {
   burst('dust', b.x, b.y + (b.h * TS) / 2, 14, 40, 100);
+  const to = bldDef(b).advances;
+  if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
+    G.era[b.team] = Math.min(LAST_ERA, to);
+    say(b.team, `${ERA[G.era[b.team]].name} age reached`);
+  }
   if (b.type !== 'refinery') return;
   // every refinery comes with a harvester
   const [x, y] = exitTile(b), u = addUnit('harvester', b.team, (x + 0.5) * TS, (y + 0.5) * TS);

@@ -13,7 +13,8 @@ import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
-import { bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
+import { waygateLinked } from '../../../game/aether.ts';
+import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
@@ -38,7 +39,7 @@ export function resetEntities3d(): void {
 }
 
 function create(e: Ent): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
   m.root.userData.id = e.id;
   if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
@@ -56,8 +57,9 @@ function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
   if (P.legL && P.legR) { P.legL.rotation.z = swing; P.legR.rotation.z = -swing; }
-  if (UNIT[e.type as UnitType]?.cls === 'infantry' && e.type !== 'knight') m.root.position.y = e.moving ? Math.abs(Math.sin(w)) * 0.025 : 0;
-  switch (e.type) {
+  const look = UNIT[e.type as UnitType]?.look ?? e.type; // hidden units move like their regular unit
+  if (UNIT[e.type as UnitType]?.cls === 'infantry' && look !== 'knight') m.root.position.y = e.moving ? Math.abs(Math.sin(w)) * 0.025 : 0;
+  switch (look) {
     case 'swordsman':
       // overhead cut when striking, sword lowered and swaying when not
       P.armR.rotation.z = atk > 0 ? lerp(2.8, 0.2, atk) : 0.35 + swing * 0.3;
@@ -68,7 +70,12 @@ function animateUnit(m: Model, e: Ent): void {
       recoil(P.lance, atk > 0 ? -Math.sin(atk * Math.PI) * 0.2 : 0);
       m.root.position.y = e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.04 : 0;
       break;
+    case 'medic':
+      // reaches out to bandage while tending someone
+      P.armR.rotation.z = P.armL.rotation.z = atk > 0 ? 1.1 + Math.sin(G.gameT * 10) * 0.15 : swing * 0.4;
+      break;
     case 'rifleman':
+    case 'gunner':
     case 'rocket':
     case 'crossbowman':
       recoil(P.gun, atk > 0 ? (1 - atk) * 0.04 : 0);
@@ -93,6 +100,7 @@ function animateUnit(m: Model, e: Ent): void {
     if (P.rotor) P.rotor.rotation.y = t * 22;
     if (P.tailRotor) P.tailRotor.rotation.z = t * 30;
     if (P.prop) P.prop.rotation.x = t * 40;
+    for (let i = 0; i < 4; i++) { const q = P[`prop${i}`]; if (q) q.rotation.y = t * (i % 2 ? -45 : 45); }
     if (P.envelope) P.envelope.rotation.z = Math.sin(t * 0.9 + e.id) * 0.04;
     // a biplane banks into its turns
     if (e.type === 'biplane') m.root.rotation.order = 'YXZ';
@@ -113,6 +121,10 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.balloon) P.balloon.rotation.z = Math.sin(G.gameT * 0.8 + e.id) * 0.06;
   if (P.sails && e.done) P.sails.rotation.z -= dt * 1.1;
   if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
+  // Aether structures: the shrine's star turns and bobs, the ward's eye pulses, a linked waygate's veil swirls
+  if (P.star && e.done) { P.star.rotation.y += dt * 0.8; P.star.position.y = 0.72 + Math.sin(G.gameT * 1.6 + e.id) * 0.04; }
+  if (P.eye && e.done) P.eye.scale.setScalar(1 + Math.sin(G.gameT * 3 + e.id) * 0.15);
+  if (P.veil) { P.veil.visible = e.done && waygateLinked(e); P.veil.rotation.z += dt * 1.2; }
 }
 
 /** Lean a vehicle with the slope it's on: nose up or down hills, and rolling across them. */
