@@ -51,6 +51,11 @@ const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team
 /** Keep fighting the same side until it falls, then turn on the nearest one left. */
 function foeOf(team: number): number {
   const A = ais[team];
+  // everyone turns on a side with a bounty on it (see bounty.ts)
+  if (G.leader >= 0 && G.leader !== team && standing(G.leader)) {
+    if (A.foe !== G.leader) { A.foe = G.leader; A.attacking = false; }
+    return G.leader;
+  }
   if (A.foe >= 0 && A.foe !== team && standing(A.foe)) return A.foe;
   const home = homeOf(team) ?? G.ents.find((e) => !e.dead && e.team === team);
   let best = -1, bestD = Infinity;
