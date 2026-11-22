@@ -3,7 +3,7 @@
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
-import type { TechType } from '../data/era.ts';
+import type { TechType, UpgradeTrack } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 
@@ -28,7 +28,7 @@ export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unl
 export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
 export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech' | 'hospital' | 'armory';
 export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
@@ -126,6 +126,8 @@ export interface Particle {
 
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
+/** A linked pair of Waygates: like a portal, but only its team may use it. */
+export interface Waygate extends Portal { team: number }
 
 export interface Decal {
   kind: 'splat' | 'corpse' | 'rubble' | 'wreck' | 'scorch';
@@ -134,6 +136,8 @@ export interface Decal {
 
 export const G = {
   terr: new Uint8Array(MW * MH),
+  /** ground height at each tile's centre, in tiles (water sits at WATER_LEVEL) */
+  elev: new Float32Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
   /** oil left in the ground on each tile (never refills) */
@@ -145,12 +149,18 @@ export const G = {
   portals: [] as Portal[],
   /** for each tile, the tile index its portal leads to, or -1 */
   warp: new Int32Array(MW * MH).fill(-1),
+  /** linked Waygate pairs (see game/aether.ts) */
+  waygates: [] as Waygate[],
+  /** for each warp tile, the only team that may use it, or -1 for anyone (map portals) */
+  warpTeam: new Int8Array(MW * MH).fill(-1),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
   /** fog of the team being viewed on this screen (an alias of sight[viewer]) */
   vis: new Uint8Array(MW * MH),
   /** the team this screen shows (the local player) */
   viewer: 0,
+  /** number of sides in the match (2, or 4 for a free-for-all) */
+  teams: 2,
   /** which teams are people (they only build on ground they've explored) */
   human: [true, false],
   /** running on the server: no visual effects */
@@ -178,6 +188,8 @@ export const G = {
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */
   heal: [] as number[],
+  /** each team's Armory upgrade levels */
+  upg: [] as Record<UpgradeTrack, number>[],
   prod: [] as Production[],
   nextId: 1,
   seed: 0,
@@ -208,6 +220,10 @@ export const hooks = {
   fired: (_shooter: Ent, _weapon: string, _target: Ent): void => {},
   /** an entity was destroyed */
   killed: (_e: Ent): void => {},
+  /** damage from `by` (if known) destroyed an entity; called just before `killed` */
+  killedBy: (_e: Ent, _by: Ent | null): void => {},
+  /** a harvester unloaded ore worth `amount` gold */
+  income: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },
 };
 

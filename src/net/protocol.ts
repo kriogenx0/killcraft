@@ -2,6 +2,7 @@
 import type { Command } from '../game/command.ts';
 import type { EntRow, FxEvent } from './snapshot.ts';
 import type { Production } from '../game/state.ts';
+import type { UpgradeTrack } from '../data/era.ts';
 
 export const MAX_NAME = 20;
 
@@ -69,6 +70,8 @@ export interface SnapMsg {
   era: number;
   /** the team's healing level */
   heal: number;
+  /** the team's Armory upgrade levels */
+  upg?: Record<UpgradeTrack, number>;
   prod: Production;
   ents: EntRow[];
   ev: FxEvent[];

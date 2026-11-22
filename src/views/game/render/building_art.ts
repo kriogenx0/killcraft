@@ -301,9 +301,86 @@ function drawHospital(g: G2, T: TeamColors): void {
   g.fillRect(28, 6, 8, 20); g.fillRect(22, 12, 20, 8);
 }
 
+function drawArmory(g: G2, T: TeamColors): void {
+  pad(g, 64, 64);
+  box(g, 6, 4, 52, 22, 22, '#6a5a4a', ['#8a7a68', '#4e4236']);
+  stripe(g, 6, 26, 52, 3, T);
+  g.fillStyle = '#1e1a16'; g.fillRect(26, 34, 12, 14); // forge door
+  g.fillStyle = '#ff8a30'; g.fillRect(28, 42, 8, 4); // glow
+  // crossed swords on the roof
+  oline(g, 20, 8, 44, 24, 2.5, '#d8dce4');
+  oline(g, 44, 8, 20, 24, 2.5, '#d8dce4');
+  // anvil out front
+  g.fillStyle = '#3a3a3e'; g.fillRect(46, 50, 12, 4); g.fillRect(49, 54, 6, 4);
+}
+
+function drawWorks(g: G2, T: TeamColors): void {
+  pad(g, 64, 64);
+  // smokestacks behind the hall
+  for (const x of [10, 22]) { g.fillStyle = hgrad(g, x, x + 8, ['#6a6a70', '#b8b8c0', '#5a5a5e']); g.beginPath(); g.rect(x, -14, 8, 40); g.fill(); outline(g); }
+  // hall and roof
+  g.fillStyle = hgrad(g, 4, 46, ['#8a8478', '#c8c0b0', '#7a7468']);
+  g.beginPath(); g.rect(4, 22, 42, 30); g.fill(); outline(g);
+  g.fillStyle = '#5a5e64'; g.beginPath(); g.moveTo(2, 24); g.lineTo(25, 10); g.lineTo(48, 24); g.closePath(); g.fill(); outline(g);
+  g.fillStyle = T.m; g.fillRect(4, 30, 42, 4);
+  g.fillStyle = '#2a2a2e'; g.fillRect(17, 38, 16, 14);
+  // fuel tank
+  g.fillStyle = hgrad(g, 48, 62, ['#5a5a5e', '#a8a8b0', '#3a3a3e']);
+  g.beginPath(); g.rect(48, 30, 14, 22); g.fill(); outline(g);
+}
+
+/** A glowing violet shard of Aether. */
+function shard(g: G2, x: number, y: number, h: number, w = 4): void {
+  const gr = g.createLinearGradient(x - w, y - h, x + w, y);
+  gr.addColorStop(0, '#fbeaff'); gr.addColorStop(0.5, '#c060ff'); gr.addColorStop(1, '#4a1080');
+  g.fillStyle = gr;
+  g.beginPath(); g.moveTo(x, y - h); g.lineTo(x + w, y - h * 0.35); g.lineTo(x, y); g.lineTo(x - w, y - h * 0.35); g.closePath(); g.fill(); outline(g, 1);
+}
+
+/** Star Shrine: standing stones in a ring around a floating shard. */
+function drawShrine(g: G2, T: TeamColors): void {
+  ellipseFill(g, 32, 40, 30, 14, 'rgba(0,0,0,.3)');
+  g.fillStyle = '#6e6a62'; g.beginPath(); g.ellipse(32, 40, 26, 12, 0, 0, TAU); g.fill(); outline(g);
+  const glow = g.createRadialGradient(32, 6, 2, 32, 6, 26);
+  glow.addColorStop(0, 'rgba(220,160,255,.7)'); glow.addColorStop(1, 'rgba(160,80,255,0)');
+  g.fillStyle = glow; g.fillRect(4, -22, 56, 56);
+  for (const [x, y, h] of [[10, 38, 26], [20, 30, 30], [44, 30, 28], [54, 38, 26], [16, 48, 22], [48, 48, 24], [32, 52, 20]]) {
+    g.fillStyle = hgrad(g, x - 4, x + 4, ['#6e6a62', '#b8b2a6', '#5a564e']);
+    g.beginPath(); g.rect(x - 4, y - h, 8, h); g.fill(); outline(g, 1);
+  }
+  g.fillStyle = T.m; g.fillRect(18, 6, 4, 8); g.fillRect(42, 8, 4, 8);
+  shard(g, 32, 18, 34, 7);
+}
+
+/** Ward Stone: a dark obelisk with a violet eye. */
+function drawWardstone(g: G2, T: TeamColors): void {
+  ellipseFill(g, 16, 30, 14, 5, 'rgba(0,0,0,.3)');
+  g.fillStyle = '#8a857b'; g.beginPath(); g.rect(4, 22, 24, 8); g.fill(); outline(g, 1);
+  g.fillStyle = hgrad(g, 8, 24, ['#3a3640', '#6a6670', '#2a2630']);
+  g.beginPath(); g.moveTo(8, 22); g.lineTo(12, -26); g.lineTo(16, -32); g.lineTo(20, -26); g.lineTo(24, 22); g.closePath(); g.fill(); outline(g);
+  g.fillStyle = T.m; g.fillRect(11, 12, 10, 4);
+  shard(g, 16, -2, 14, 4);
+  shard(g, 4, 30, 8, 2); shard(g, 28, 30, 7, 2);
+}
+
+/** Waygate: a stone arch over a violet veil. */
+function drawWaygate(g: G2, T: TeamColors): void {
+  ellipseFill(g, 32, 44, 30, 10, 'rgba(0,0,0,.3)');
+  g.fillStyle = '#8a857b'; g.beginPath(); g.rect(6, 38, 52, 10); g.fill(); outline(g, 1);
+  const veil = g.createRadialGradient(32, 12, 2, 32, 12, 22);
+  veil.addColorStop(0, '#fbeaff'); veil.addColorStop(0.5, '#b070ff'); veil.addColorStop(1, '#5a20a0');
+  g.fillStyle = veil; g.beginPath(); g.ellipse(32, 14, 15, 24, 0, 0, TAU); g.fill();
+  g.strokeStyle = '#b8b0a0'; g.lineWidth = 9;
+  g.beginPath(); g.moveTo(13, 40); g.lineTo(13, 10); g.arc(32, 10, 19, Math.PI, 0); g.lineTo(51, 40); g.stroke();
+  g.strokeStyle = '#000'; g.lineWidth = 1.2;
+  g.beginPath(); g.moveTo(8.5, 40); g.lineTo(8.5, 10); g.arc(32, 10, 23.5, Math.PI, 0); g.lineTo(55.5, 40); g.stroke();
+  g.fillStyle = T.m; g.beginPath(); g.rect(28, -16, 8, 8); g.fill(); outline(g, 1);
+}
+
 const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
-  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital,
+  mill: drawMill, derrick: drawDerrick, works: drawWorks, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital, armory: drawArmory,
+  shrine: drawShrine, wardstone: drawWardstone, waygate: drawWaygate,
 };
 
 /** Cached sprite for a building type and team. */

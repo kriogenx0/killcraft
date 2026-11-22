@@ -1,12 +1,12 @@
 // Wild creatures of Greek myth: placing their lairs, how they guard them, beating one down until it
 // kneels, and capturing it. Tuning lives in data/creatures.ts.
 import { G, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
-import { GRASS, MH, MW, TS } from './const.ts';
+import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { START_YARDS } from '../data/map.ts';
+import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import {
-  BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, RISE_HP,
+  BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_FFA_SITES, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, RISE_HP,
   SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN,
 } from '../data/creatures.ts';
 import { eachInDisk, nearPortal } from './map.ts';
@@ -15,17 +15,17 @@ import { canAttack, combatStep } from './combat.ts';
 import { orderMove, setOrder } from './order.ts';
 import { followPath } from './move.ts';
 
-const TEAMS = [0, 1];
+const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
 /** Ground tiles reachable on foot from the first base. */
 function reachable(): Uint8Array {
-  const seen = new Uint8Array(MW * MH), [ax, ay] = START_YARDS[0], start = (ay + 1) * MW + ax + 1, q = [start];
+  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, ny = y + dy, ni = ny * MW + nx;
-      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen[ni] || G.terr[ni] !== GRASS) continue;
+      if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen[ni] || !walkable(G.terr[ni])) continue;
       seen[ni] = 1;
       q.push(ni);
     }
@@ -42,6 +42,7 @@ function shuffled<T>(xs: readonly T[], rnd: () => number): T[] {
 /** The lairs a map with this seed gets, and the creature in each. */
 export function lairsFor(seed: number): [Tile, UnitType][] {
   const rnd = mulberry32(seed ^ 0xbea57), kinds = shuffled(BEASTS, rnd);
+  if (G.teams > 2) return LAIR_FFA_SITES.map((t, i) => [t, kinds[i % kinds.length]]);
   return shuffled(LAIR_PAIRS, rnd).slice(0, LAIR_PAIRS_PER_MAP).flat().map((t, i) => [t, kinds[i % kinds.length]]);
 }
 
@@ -57,9 +58,9 @@ export function addBeast(type: UnitType, x: number, y: number): Ent {
  * is cut off by water or woods, move it to the nearest ground both bases can walk to.
  */
 export function placeCreatures(seed: number): void {
-  G.tamed = [[], []];
+  G.tamed = teams().map(() => []);
   for (const [[sx, sy], type] of lairsFor(seed)) {
-    eachInDisk(sx, sy, 2, (i) => { if (!G.blk[i]) { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; } });
+    eachInDisk(sx, sy, 2, (i) => { if (!G.blk[i]) { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); } });
     const ok = reachable();
     let best: Tile | null = null, bd = 1e9;
     for (let y = 1; y < MH - 1; y++)
@@ -122,9 +123,9 @@ export function updWild(u: Ent, dt: number): void {
   u.hp = Math.min(u.maxhp, u.hp + u.maxhp * WILD_REGEN * dt);
 }
 
-/** Teams with a unit within reach of a kneeling creature. */
+/** Teams with a unit within reach of a creature. */
 function sidesNear(u: Ent, reach: number): boolean[] {
-  const near = [false, false];
+  const near = teams().map(() => false);
   for (const e of G.ents) {
     if (e === u || e.dead || e.kind !== 'unit' || e.team < 0) continue;
     if (Math.hypot(e.x - u.x, e.y - u.y) <= reach * TS) near[e.team] = true;
@@ -132,10 +133,10 @@ function sidesNear(u: Ent, reach: number): boolean[] {
   return near;
 }
 
-/** The side capturing a kneeling creature: it has a unit beside it and the enemy doesn't. -1 if nobody or contested. */
+/** The side capturing a kneeling creature: it has a unit beside it and no other side does. -1 if nobody or contested. */
 export function captorOf(u: Ent): number {
-  const near = sidesNear(u, CAPTURE_REACH);
-  return near[0] === near[1] ? -1 : near[0] ? 0 : 1;
+  const sides = sidesNear(u, CAPTURE_REACH).flatMap((n, t) => (n ? [t] : []));
+  return sides.length === 1 ? sides[0] : -1;
 }
 
 /** Health fell to the threshold: the creature stops fighting and kneels. Returns true if it did. */
@@ -146,7 +147,7 @@ export function subdue(u: Ent): boolean {
   Object.assign(w, { down: true, downT: G.gameT, by: -1, held: 0 });
   setOrder(u, null);
   const near = sidesNear(u, GUARD_RADIUS * 2), name = unitDef(u).name;
-  for (const t of TEAMS) if (near[t]) say(t, `The ${name} kneels! Stand beside it to capture it`);
+  for (const t of teams()) if (near[t]) say(t, `The ${name} kneels! Stand beside it to capture it`);
   return true;
 }
 
@@ -168,7 +169,7 @@ function capture(u: Ent, team: number): void {
   if (first) tamed.push(type);
   const where = UNIT[type].producer === 'air' ? 'Airfield' : 'Barracks';
   say(team, first ? `${name} captured! Train more at the ${where}` : `${name} captured!`);
-  say(1 - team, `The enemy captured a ${name}`);
+  for (const t of teams()) if (t !== team) say(t, `The enemy captured a ${name}`);
 }
 
 /** Advance `dt` seconds of capturing on every kneeling creature. */

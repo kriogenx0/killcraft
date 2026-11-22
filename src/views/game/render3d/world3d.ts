@@ -3,10 +3,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { G } from '../../../game/state.ts';
-import { MW, MH, WATER, TREE } from '../../../game/const.ts';
+import { MW, MH, TREE } from '../../../game/const.ts';
+import { buildHeights, heightAt, heights, VH, VW, WATER_LEVEL } from './heights.ts';
 import { ORE_TILE_MAX } from '../../../data/ore.ts';
 import { OIL_TILE_MAX } from '../../../data/economy.ts';
-import { hash } from '../../../util/math.ts';
+import { layoutFor } from '../../../data/map.ts';
+import { hash, mulberry32 } from '../../../util/math.ts';
+import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { terrain } from '../render/terrain.ts';
 import { fogCanvas } from '../render/minimap.ts';
 import { S } from './scene.ts';
@@ -37,28 +40,86 @@ function oakGeometry(): THREE.BufferGeometry {
   return mergeGeometries(parts) ?? parts[0];
 }
 
+/** A map-sized sheet following the ground (or the water, where it's higher), raised by `lift`. */
+function shapedPlane(lift: number, overWater = false): THREE.BufferGeometry {
+  const g = new THREE.PlaneGeometry(MW, MH, VW - 1, VH - 1).rotateX(-Math.PI / 2).translate(MW / 2, 0, MH / 2);
+  const pos = g.attributes.position as THREE.BufferAttribute;
+  for (let k = 0; k < pos.count; k++) {
+    const h = heights[k];
+    pos.setY(k, (overWater ? Math.max(h, WATER_LEVEL) : h) + lift);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+let ripples: THREE.CanvasTexture | null = null;
+
+/** A tiling normal map of small waves, from a sum of noise bumps. */
+function rippleTexture(): THREE.CanvasTexture {
+  const N = 128, c = mkCanvas(N, N), g = ctx2d(c), img = g.createImageData(N, N), hgt = new Float32Array(N * N);
+  const rnd = mulberry32(99), waves = Array.from({ length: 14 }, () => [1 + Math.floor(rnd() * 5), Math.floor(rnd() * 7) - 3, rnd() * 6.3, 0.4 + rnd()]);
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      let h = 0;
+      for (const [kx, ky, ph, a] of waves) h += Math.sin(((kx * x + ky * y) / N) * Math.PI * 2 + ph) * a;
+      hgt[y * N + x] = h;
+    }
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const dx = hgt[y * N + ((x + 1) % N)] - hgt[y * N + ((x + N - 1) % N)], dy = hgt[((y + 1) % N) * N + x] - hgt[((y + N - 1) % N) * N + x];
+      const nx = -dx * 0.9, ny = -dy * 0.9, l = Math.hypot(nx, ny, 1), o = (y * N + x) * 4;
+      img.data[o] = (nx / l * 0.5 + 0.5) * 255; img.data[o + 1] = (ny / l * 0.5 + 0.5) * 255; img.data[o + 2] = (1 / l * 0.5 + 0.5) * 255; img.data[o + 3] = 255;
+    }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(MW / 5, MH / 5);
+  return t;
+}
+
+function waterMaterial(): THREE.Material {
+  ripples ??= rippleTexture();
+  return new THREE.MeshStandardMaterial({
+    color: S.mood.water, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.62, depthWrite: false,
+    normalMap: ripples, normalScale: new THREE.Vector2(0.22, 0.22), envMapIntensity: 1.4,
+  });
+}
+
+/** Drift the ripples on the water. */
+export function animateWater(dt: number): void {
+  if (!ripples) return;
+  ripples.offset.x = (ripples.offset.x + dt * 0.035) % 1;
+  ripples.offset.y = (ripples.offset.y + dt * 0.02) % 1;
+}
+
+/** An irregular, lumpy puddle (for oil seeping from a well). */
+function puddleGeometry(): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [];
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2, r = 0.5 * (0.82 + 0.12 * Math.sin(a * 3 + 1) + 0.06 * Math.sin(a * 7 + 2));
+    pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
+  }
+  return new THREE.ShapeGeometry(new THREE.Shape(pts)).rotateX(-Math.PI / 2);
+}
+
 /** Rebuild the layer for the current map (after a new world is generated). */
 export function initWorld3d(): void {
   S.scene.remove(layer);
   layer.clear();
-  // ground: the painted terrain without trees
+  buildHeights();
+  // ground: the painted terrain without trees, shaped into hills, cliffs and lake beds
   const tex = new THREE.CanvasTexture(terrain.ground);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = S.renderer.capabilities.getMaxAnisotropy();
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH).rotateX(-Math.PI / 2).translate(MW / 2, 0, MH / 2), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+  const ground = new THREE.Mesh(shapedPlane(0), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
   ground.receiveShadow = true;
+  ground.castShadow = true;
   layer.add(ground);
-  // water: a glossy sheet over open water that catches the sun (coasts keep their painted shape)
-  const quads: THREE.BufferGeometry[] = [];
-  const wet = (x: number, y: number) => x < 0 || y < 0 || x >= MW || y >= MH || G.terr[y * MW + x] === WATER;
-  for (let i = 0; i < MW * MH; i++)
-    if (G.terr[i] === WATER && wet((i % MW) - 1, (i / MW) | 0) && wet((i % MW) + 1, (i / MW) | 0) && wet(i % MW, ((i / MW) | 0) - 1) && wet(i % MW, ((i / MW) | 0) + 1))
-      quads.push(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate((i % MW) + 0.5, 0.02, ((i / MW) | 0) + 0.5));
-  if (quads.length) {
-    const water = new THREE.Mesh(mergeGeometries(quads) ?? quads[0], new THREE.MeshStandardMaterial({ color: '#2a5f8a', roughness: 0.12, metalness: 0.2, transparent: true, opacity: 0.45 }));
-    water.receiveShadow = true;
-    layer.add(water);
-  }
+  // water: one sheet at the water line; the ground dips below it in lakes, rivers and the sea
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH).rotateX(-Math.PI / 2).translate(MW / 2, WATER_LEVEL, MH / 2), waterMaterial());
+  water.receiveShadow = true;
+  water.renderOrder = 1;
+  layer.add(water);
   // trees
   treeTiles = [];
   let nPine = 0, nOak = 0;
@@ -76,20 +137,20 @@ export function initWorld3d(): void {
   ore.count = 0;
   layer.add(ore);
   // oil wells: glossy black pools that shrink as derricks drain them
-  oil = new THREE.InstancedMesh(new THREE.CircleGeometry(0.62, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#1c1a20', roughness: 0.18, metalness: 0.55, emissive: '#06050a' }), 200);
+  oil = new THREE.InstancedMesh(puddleGeometry(), new THREE.MeshStandardMaterial({ color: '#2a2430', roughness: 0.1, metalness: 0, envMapIntensity: 1.2 }), 200);
   oil.receiveShadow = true;
   oil.count = 0;
   layer.add(oil);
   // fog of war: the minimap's fog image stretched over the map, softly filtered
   fogTex = new THREE.CanvasTexture(fogCanvas());
   fogTex.magFilter = THREE.LinearFilter;
-  const fog = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH).rotateX(-Math.PI / 2).translate(MW / 2, 0.06, MH / 2), new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, depthWrite: false, fog: false }));
+  const fog = new THREE.Mesh(shapedPlane(0.05, true), new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, depthWrite: false, fog: false }));
   fog.renderOrder = 2;
   layer.add(fog);
   // a black frame past the map's edges, so no sliver of ground shows at the border
   const B = 40, black = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
   for (const [w, h, x, z] of [[MW + 2 * B, B, MW / 2, -B / 2], [MW + 2 * B, B, MW / 2, MH + B / 2], [B, MH, -B / 2, MH / 2], [B, MH, MW + B / 2, MH / 2]]) {
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h).rotateX(-Math.PI / 2).translate(x, 0.06, z), black);
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h).rotateX(-Math.PI / 2).translate(x, -2, z), black);
     strip.renderOrder = 2;
     layer.add(strip);
   }
@@ -113,7 +174,8 @@ export function refreshTrees(force = false): void {
     if (!shownTrees[k]) return;
     const x = t.i % MW, y = (t.i / MW) | 0, h = hash(x, y), h2 = hash(y + 3.3, x - 7.1), s = 0.85 + h2 * 0.35;
     q.setFromAxisAngle(up, h * Math.PI * 2);
-    m4.compose(v.set(x + 0.5 + (h - 0.5) * 0.25, 0, y + 0.5 + (h2 - 0.5) * 0.25), q, sc.set(s, s * (0.9 + h * 0.3), s));
+    const px = x + 0.5 + (h - 0.5) * 0.25, pz = y + 0.5 + (h2 - 0.5) * 0.25;
+    m4.compose(v.set(px, heightAt(px, pz) - 0.03, pz), q, sc.set(s, s * (0.9 + h * 0.3), s));
     color.setHSL(0.28 + h * 0.06, 0.45, 0.32 + h2 * 0.12);
     if (t.pine) { pines?.setMatrixAt(np, m4); pines?.setColorAt(np, color); pineTrunks?.setMatrixAt(np, m4); np++; }
     else { oaks?.setMatrixAt(no, m4); oaks?.setColorAt(no, color); oakTrunks?.setMatrixAt(no, m4); no++; }
@@ -137,19 +199,25 @@ export function refreshOre(): void {
     for (let c = 0; c < k; c++) {
       const hx = hash(x * 7 + c, y * 3 - c), hy = hash(y * 5 + c, x - c * 2), s = 0.6 + f * 0.7 + hx * 0.3;
       q.setFromAxisAngle(v.set(hx - 0.5, 1, hy - 0.5).normalize(), hx * 6);
-      m4.compose(v.set(x + 0.15 + hx * 0.7, 0.05, y + 0.15 + hy * 0.7), q, sc.set(s, s, s));
+      const px = x + 0.15 + hx * 0.7, pz = y + 0.15 + hy * 0.7;
+      m4.compose(v.set(px, heightAt(px, pz) + 0.05, pz), q, sc.set(s, s, s));
       ore.setMatrixAt(n++, m4);
     }
   }
   ore.count = n;
   ore.instanceMatrix.needsUpdate = true;
   if (!oil) return;
+  // one dark pool at the heart of each well, shrinking as it's drained
   let k = 0;
-  for (let i = 0; i < MW * MH && k < oil.instanceMatrix.count; i++) {
-    if (G.oilField[i] <= 0 || !G.vis[i]) continue;
-    const x = i % MW, y = (i / MW) | 0, s = 0.5 + 0.8 * Math.min(1, G.oilField[i] / OIL_TILE_MAX), h = hash(x * 3 + 1, y * 5 - 2), h2 = hash(y * 7 - 3, x * 2 + 5);
-    q.setFromAxisAngle(up, h * Math.PI);
-    m4.compose(v.set(x + 0.5 + (h - 0.5) * 0.35, 0.03 + h2 * 0.004, y + 0.5 + (h2 - 0.5) * 0.35), q, sc.set(s * (1 + h * 0.35), 1, s));
+  for (const [wx, wy] of layoutFor(G.teams).oil) {
+    if (!G.vis[wy * MW + wx]) continue;
+    let left = 0, n = 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const i = (wy + dy) * MW + wx + dx; if (i >= 0 && i < MW * MH) { left += G.oilField[i]; n++; } }
+    const f = Math.min(1, left / (n * OIL_TILE_MAX * 0.45));
+    if (f <= 0.01) continue;
+    const s = 0.6 + 2.2 * Math.sqrt(f), h = hash(wx * 3 + 1, wy * 5 - 2), px = wx + 0.5, pz = wy + 0.5;
+    q.setFromAxisAngle(up, h * Math.PI * 2);
+    m4.compose(v.set(px, heightAt(px, pz) + 0.035, pz), q, sc.set(s * (1.1 + h * 0.3), 1, s));
     oil.setMatrixAt(k++, m4);
   }
   oil.count = k;

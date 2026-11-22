@@ -56,6 +56,20 @@ describe('creatures of myth', () => {
     }
   });
 
+  it('puts a lair on the way out of each corner in a four-player free-for-all', () => {
+    initWorld(77, 4);
+    const bs = wildBeasts();
+    expect(bs).toHaveLength(4);
+    expect(G.tamed).toHaveLength(4);
+    // a creature beaten down in a free-for-all is captured by the one side beside it
+    const b = bs[0];
+    dealDamage(b, b.maxhp, null);
+    addUnit('swordsman', 3, b.x, b.y + TS).stance = 'passive';
+    expect(captorOf(b)).toBe(3);
+    addUnit('swordsman', 2, b.x + TS, b.y).stance = 'passive';
+    expect(captorOf(b)).toBe(-1);
+  });
+
   it('kneels at a quarter health instead of dying, and takes no more damage while down', () => {
     const b = beast();
     dealDamage(b, b.maxhp * 5, null);

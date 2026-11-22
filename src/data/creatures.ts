@@ -20,7 +20,14 @@ export const LAIR_PAIRS: [Tile, Tile][] = [
   [[30, 20], [33, 43]],
   [[12, 10], [51, 53]],
 ];
-/** Pairs of lairs a map gets (so twice as many creatures). */
+/** Four-player free-for-all: one lair on the way out of each corner, toward the middle. */
+export const LAIR_FFA_SITES: Tile[] = [
+  [24, 39],
+  [39, 24],
+  [24, 24],
+  [39, 39],
+];
+/** Pairs of lairs a two-player map gets (so twice as many creatures). */
 export const LAIR_PAIRS_PER_MAP = 2;
 
 /** A wild creature kneels once its health falls to this fraction. */

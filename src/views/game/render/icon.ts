@@ -38,7 +38,27 @@ export function makeIcons(team = 0): void {
   // research: a gold medallion with the age's numeral
   const NUMERAL = ['I', 'II', 'III', 'IV'];
   for (const t of TECH_TYPES) {
-    const { age, heal, ward } = TECH[t];
+    const { age, heal, ward, upg } = TECH[t];
+    if (upg) {
+      // Armory upgrades: a sword (weapons) or shield (armor), steel for troops and dark iron for
+      // machines, one pip per level
+      const weapon = upg.track.endsWith('Weapon'), inf = upg.track.startsWith('inf'), lvl = upg.level;
+      ICON[t] = make((g) => {
+        g.fillStyle = inf ? '#3a5a3a' : '#4a4a58'; g.strokeStyle = '#000'; g.lineWidth = 2;
+        g.beginPath(); g.arc(W / 2, 20, 16, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.fillStyle = '#d8dce4'; g.lineWidth = 1.2;
+        if (weapon) {
+          g.beginPath(); g.moveTo(W / 2, 6); g.lineTo(W / 2 + 3, 10); g.lineTo(W / 2 + 3, 27); g.lineTo(W / 2 - 3, 27); g.lineTo(W / 2 - 3, 10); g.closePath(); g.fill(); g.stroke();
+          g.fillStyle = '#c8a040'; g.fillRect(W / 2 - 8, 27, 16, 3); g.fillRect(W / 2 - 1.5, 30, 3, 6);
+        } else {
+          g.beginPath(); g.moveTo(W / 2 - 11, 9); g.lineTo(W / 2 + 11, 9); g.lineTo(W / 2 + 10, 22); g.lineTo(W / 2, 33); g.lineTo(W / 2 - 10, 22); g.closePath(); g.fill(); g.stroke();
+          g.fillStyle = '#8a8e98'; g.fillRect(W / 2 - 1.5, 11, 3, 18);
+        }
+        g.fillStyle = '#e8c050';
+        for (let i = 0; i < lvl; i++) { g.beginPath(); g.arc(W / 2 + (i - (lvl - 1) / 2) * 8, 42, 2.5, 0, Math.PI * 2); g.fill(); }
+      });
+      continue;
+    }
     if (ward) {
       // the Aether Ward: a violet shard over a stone shield
       ICON[t] = make((g) => {

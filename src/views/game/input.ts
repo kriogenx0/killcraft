@@ -1,5 +1,6 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
 import { G, bldDef, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TS } from '../../game/const.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -47,7 +48,7 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   const tx = tileOf(wx), ty = tileOf(wy);
   if (!units.length) {
     const b = own[0];
-    if (b.kind === 'bld' && b.done && bldDef(b).produces && bldDef(b).produces !== 'structure') { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
+    if (b.kind === 'bld' && b.done && isUnitProducer(bldDef(b).produces)) { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
     return;
   }
   const harvesters = units.filter((u) => u.type === 'harvester'), rest = units.filter((u) => u.type !== 'harvester');
@@ -137,7 +138,7 @@ function orbit(dx: number, dy: number): void {
 
 export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): void {
   const touches = new Map<number, { x: number; y: number }>();
-  let panned = false, pinch: { d: number; a: number } | null = null, orbiting: { x: number; y: number } | null = null;
+  let panned = false, pinch: { d: number; a: number; mx: number; my: number } | null = null, orbiting: { x: number; y: number } | null = null;
   const refreshRect = () => { const r = canvas.getBoundingClientRect(); canvasRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
 
   canvas.addEventListener('pointerdown', (ev) => {
@@ -172,10 +173,20 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       const prev = { ...t };
       t.x = ev.clientX; t.y = ev.clientY;
       if (touches.size >= 2) {
-        // two fingers: pinch to zoom, twist to turn
+        // two fingers: slide to pan, pinch to zoom, twist to turn; the map follows the fingers
         const [a, b] = [...touches.values()], d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
-        if (pinch) { V.cam.dist *= pinch.d / Math.max(1, d); V.cam.yaw -= ang - pinch.a; clampCam(); }
-        pinch = { d, a: ang };
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (pinch) {
+          const w0 = screenToWorld(pinch.mx, pinch.my), w1 = screenToWorld(mx, my);
+          if (w0 && w1) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; }
+          V.cam.dist *= pinch.d / Math.max(1, d);
+          // a clockwise twist (angle grows, screen y points down) turns the map clockwise with the fingers
+          let turn = ang - pinch.a;
+          if (turn > Math.PI) turn -= Math.PI * 2; else if (turn < -Math.PI) turn += Math.PI * 2;
+          V.cam.yaw += turn;
+          clampCam();
+        }
+        pinch = { d, a: ang, mx, my };
         panned = true;
         return;
       }

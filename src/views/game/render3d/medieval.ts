@@ -3,7 +3,7 @@
 // slate and tile instead of thatch, lit windows, brick chimneys and cannon. Footprints, door sides
 // and named parts match the modern models in models.ts, so the animation code treats both alike.
 import * as THREE from 'three';
-import type { BldType } from '../../../data/building.ts';
+import type { AetherBld, BldType } from '../../../data/building.ts';
 import { across, along, group, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { M, box, cone, cyl, dome, lathe, prism, sph, teamMat, torus } from './materials.ts';
 
@@ -740,7 +740,7 @@ function sawmill(L: Look): Model {
   return { root, parts, height: 1.0 };
 }
 
-export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital'>, team: number, stage: 'wood' | 'stone'): Model {
+export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld>, team: number, stage: 'wood' | 'stone'): Model {
   if (stage === 'wood') {
     switch (type) {
       case 'yard': return fort(team);
@@ -751,7 +751,7 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
       case 'tower': return woodTower(team);
       case 'turret': break;
       case 'mill': return sawmill(look(team, false));
-      case 'derrick': break;
+      case 'derrick': case 'works': break;
     }
   }
   const L = look(team, true);
@@ -764,6 +764,6 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
     case 'turret': return bastion(L);
     case 'tower': return watchtower(L);
     case 'mill': return sawmill(L);
-    case 'derrick': throw new Error('The Oil Derrick has no medieval look');
+    case 'derrick': case 'works': throw new Error(`${type} has no medieval look`);
   }
 }

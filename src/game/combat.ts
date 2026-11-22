@@ -11,6 +11,7 @@ import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
 import { kneeling, subdue } from './creatures.ts';
+import { armorFactor, weaponFactor } from './upgrade.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -26,7 +27,7 @@ export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
   if (t.dead || t.kind === 'source' || kneeling(t)) return;
-  t.hp -= Math.max(1, wardDamage(t, dmg));
+  t.hp -= Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));
@@ -40,7 +41,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
     }
   }
   if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
-  if (t.hp <= 0) { kill(t); dropSalvage(t); return; }
+  if (t.hp <= 0) { hooks.killedBy(t, src); kill(t); dropSalvage(t); return; }
   // idle units react: engaging ones fight back, passive ones run
   if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
     if (t.stance === 'passive') orderFlee(t, src);

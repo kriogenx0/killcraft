@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
+import { G, hooks, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -90,6 +90,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   const a = Math.min(UNLOAD_RATE * dt, u.carry);
   u.carry -= a;
   G.credits[u.team] += a;
+  hooks.income(u.team, a);
   if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
 }
 
@@ -120,7 +121,7 @@ export function healRate(team: number): number {
 /** healRate for each team, worked out once per step rather than once per unit. */
 const rates = [HEAL_RATE[0], HEAL_RATE[0]];
 export function refreshHealRates(): void {
-  for (const team of [0, 1]) rates[team] = healRate(team);
+  for (let team = 0; team < G.teams; team++) rates[team] = healRate(team);
 }
 
 /** Organic units slowly regain health, and a few creatures (the Hydra) grow back wounds by themselves. */
