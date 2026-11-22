@@ -1,5 +1,5 @@
 // Interface state for the game view: camera, selection, pointer and command mode.
-import type { Ent, Point } from '../../game/state.ts';
+import { G, type Ent, type Point } from '../../game/state.ts';
 import type { BldType } from '../../data/building.ts';
 import { clampRig, defaultRig } from './camera_rig.ts';
 
@@ -50,7 +50,11 @@ export function centerCam(x: number, y: number): void {
   clampRig(V.cam);
 }
 
-export const ownSelected = (): Ent[] => V.sel.filter((e) => !e.dead && e.team === V.team);
+/** Watching computers play (AI vs AI): anything can be selected and inspected, nothing can be ordered. */
+export const spectating = (): boolean => G.demo;
+
+/** The selection this screen may give orders to: your own things, and nothing while spectating. */
+export const ownSelected = (): Ent[] => (spectating() ? [] : V.sel.filter((e) => !e.dead && e.team === V.team));
 export const selectedUnits = (): Ent[] => ownSelected().filter((e) => e.kind === 'unit');
 
 export function ageMarkers(dt: number): void {

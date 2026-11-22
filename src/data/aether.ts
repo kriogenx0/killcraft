@@ -26,6 +26,9 @@ export const AETHER_MIDDLE_CHANCE = 0.5;
 export const AETHER_PER_DEPOSIT = 200;
 /** Aether per second a side draws from a deposit it holds. Extra units don't draw any faster. */
 export const AETHER_RATE = 2;
+/** Aether one unit can carry. It counts once the unit brings it within AETHER_BANK_REACH tiles of its own Construction Yard or Refinery, and is lost if the unit dies. */
+export const AETHER_CARRY = 40;
+export const AETHER_BANK_REACH = 3;
 /** A unit holds a deposit from within this many tiles of it. */
 export const AETHER_REACH = 2.5;
 

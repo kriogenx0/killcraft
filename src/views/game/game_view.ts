@@ -115,7 +115,8 @@ export function mountGameView(root: HTMLElement): void {
   // ---- solo and AI vs AI ----
   const startSolo = (demo: boolean) => {
     closeModal(startModal);
-    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: [!demo, false] });
+    // spectators see the whole map, so they can follow and inspect every side
+    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: [!demo, false], reveal: G.reveal || demo });
     ais[0].on = demo;
     ais[1].on = true;
     V.team = 0;

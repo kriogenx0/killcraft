@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
+import { G, blkAt, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -8,6 +8,8 @@ import { acquire, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
+import { bankAt } from './haul.ts';
+import { millRate, oilLeft } from './economy.ts';
 import { part } from './fx.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE } from '../data/unit.ts';
@@ -15,6 +17,8 @@ import { hasBuilding } from './entity.ts';
 
 const AUTO_CHASE = 9 * TS;
 const ORE_SEARCH = 24;
+/** How far (px) a stuck unit edges aside to get past a unit in its way. */
+const SIDESTEP = 8;
 
 /**
  * Is this ore tile someone else's? Always: another harvester is scooping it, or one that claimed it
@@ -42,6 +46,9 @@ const SCOOP_REACH = TS * 1.05;
 
 function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (o.wait > 0) { o.wait -= dt; return; }
+  // carrying something else: take it home first
+  if ((o.st === 'go' || o.st === 'gather') && u.carry > 0 && (u.cargo ?? 'ore') !== (o.res ?? 'ore')) { o.st = 'ret'; u.path = null; }
+  if (o.res && (o.st === 'go' || o.st === 'gather')) { updHauler(u, o, dt); return; }
   if (o.st === 'go') {
     const i = o.ty * MW + o.tx;
     if (G.ore[i] <= 0 || oreTaken(i, u, false)) {
@@ -66,6 +73,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   }
   if (o.st === 'gather') {
     u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry));
+    u.cargo = 'ore';
     u.atkT = 0.2;
     u.face = turnToward(u.face, u.face + 1, 0.4 * dt); // slow sweep while scooping
     if (Math.random() < dt * 6) part('ore', u.x + Math.cos(u.face) * 14, u.y + Math.sin(u.face) * 14, { vz: 40, vx: (Math.random() - 0.5) * 30, max: 0.5, size: 2, col: '#f0c040' });
@@ -76,7 +84,8 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  const ref = nearestOwn(u, 'refinery');
+  // ore goes to a Refinery; wood and oil to a Refinery or the Construction Yard
+  const ref = bankAt(u, (u.cargo ?? 'ore') === 'ore' ? ['refinery'] : ['refinery', 'yard']);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {
     const r = approach(u, ref, NEAR, dt);
@@ -86,11 +95,42 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     return;
   }
   // unloading
-  const a = Math.min(UNLOAD_RATE * dt, u.carry);
+  const a = Math.min(UNLOAD_RATE * dt, u.carry), cargo = u.cargo ?? 'ore';
   u.carry -= a;
-  G.credits[u.team] += a;
-  hooks.income(u.team, a);
+  if (cargo === 'wood') G.wood[u.team] += a;
+  else if (cargo === 'oil') G.oil[u.team] += a;
+  else { G.credits[u.team] += a; hooks.income(u.team, a); }
   if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
+}
+
+/** Haul wood or oil: walk to a mill or derrick, fill up from its store, then head home. */
+function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
+  const type = o.res === 'wood' ? 'mill' : 'derrick';
+  let src = valid(o.src);
+  if (!src || src.team !== u.team || src.type !== type || !src.done) {
+    src = nearestOwn(u, type);
+    if (!src) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; return; }
+    o.src = src.id;
+    [o.tx, o.ty] = [src.tx, src.ty];
+    u.path = null;
+  }
+  if (o.st === 'go') {
+    const r = approach(u, src, NEAR, dt);
+    if (r === null) { o.wait = 1; return; }
+    if (r) o.st = 'gather';
+    return;
+  }
+  const take = Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry, src.carry);
+  if (take > 0) {
+    src.carry -= take;
+    u.carry += take;
+    u.cargo = o.res;
+    u.atkT = 0.2;
+  }
+  // full, or the store is empty: take what we have home; with nothing, wait for more
+  const refills = src.type === 'mill' ? millRate(src) > 0 : oilLeft(src) > 0;
+  if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0 && (u.carry >= Math.min(haulOf(u), 60) || !refills))) o.st = 'ret';
+  else if (src.carry <= 0.01) o.wait = 1;
 }
 
 function unstick(u: Ent, dt: number): void {
@@ -107,7 +147,12 @@ function unstick(u: Ent, dt: number): void {
     // close enough to the goal in a crowd counts as arrived; otherwise look for another way
     const last = u.path[u.path.length - 1], rem = Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y);
     if (rem < 2.5 * TS) u.path.length = 0;
-    else if (u.goal) u.path = pathFor(u, u.goal[0], u.goal[1]);
+    else {
+      // jammed nose to nose with someone: edge over to the right, like traffic, so both can pass
+      const sx = u.x - Math.sin(u.face) * SIDESTEP, sy = u.y + Math.cos(u.face) * SIDESTEP;
+      if (!blkAt(sx, sy)) { u.x = sx; u.y = sy; }
+      if (u.goal) u.path = pathFor(u, u.goal[0], u.goal[1]);
+    }
   }
   u.px = u.x; u.py = u.y;
 }
@@ -146,7 +191,7 @@ function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const r = approach(u, t, MEDIC_RANGE, dt);
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
-  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), 8 * dt);
+  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // kneels and works: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
 }

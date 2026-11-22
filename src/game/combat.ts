@@ -99,7 +99,13 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | n
 /** Rotate the weapon toward a target; returns true once it is aimed. */
 export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
   const want = Math.atan2(t.y - s.y, t.x - s.x);
-  if (!hasTurret) { s.face = s.tface = want; return true; }
+  if (!hasTurret) {
+    // on the move, shoot from the hip rather than steer off course; standing, turn the body to face
+    s.tface = want;
+    if (s.moving || weaponOf(s) === 'bomb') return true; // bombs just drop
+    s.face = turnToward(s.face, want, unitDef(s).turn * dt);
+    return angleDiff(s.face, want) < AIM_TOLERANCE;
+  }
   s.tface = turnToward(s.tface, want, TURRET_TURN * dt);
   return angleDiff(s.tface, want) < AIM_TOLERANCE;
 }

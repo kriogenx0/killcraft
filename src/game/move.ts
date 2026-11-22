@@ -24,6 +24,44 @@ export function angleDiff(a: number, b: number): number {
 /** Ground units wade slowly through shallow water. */
 export const terrainSpeed = (u: Ent): number => (!isAir(u) && G.terr[tileOf(u.y) * MW + tileOf(u.x)] === SHALLOW ? SHALLOW_SPEED : 1);
 
+/** Facing more than this far off its heading, a ground unit stops and turns on the spot before moving on. */
+const PIVOT = 1.3;
+
+/**
+ * Turn toward a point at the unit's own turn speed (UnitDef.turn) and move straight at it, at most
+ * `max` px. A ground unit facing well away turns on the spot first, and slows down while it is still
+ * turning; aircraft fly on while they turn and are never blocked. Returns 'arrived' when it reached
+ * the point this step, 'blocked' when the way is shut, else 'moving'.
+ */
+export function steer(u: Ent, tx: number, ty: number, max: number, dt: number, air: boolean): 'arrived' | 'moving' | 'blocked' {
+  const dx = tx - u.x, dy = ty - u.y, dist = Math.hypot(dx, dy);
+  u.moving = true;
+  let off = 0;
+  if (dist > 0.01) {
+    const want = Math.atan2(dy, dx);
+    u.face = turnToward(u.face, want, unitDef(u).turn * dt);
+    if (!air) off = angleDiff(u.face, want);
+  }
+  if (off > PIVOT) {
+    // turning on the spot is not being stuck: restart the stuck timer (see unstick in unit.ts)
+    u.stkT = 0.6; u.px = u.x; u.py = u.y;
+    return 'moving';
+  }
+  const step = max * Math.max(0.35, Math.cos(off));
+  u.walk += Math.min(step, dist) / 24;
+  if (dist <= step) {
+    u.x = tx; u.y = ty;
+    return 'arrived';
+  }
+  const nx = u.x + (dx / dist) * step, ny = u.y + (dy / dist) * step;
+  if (!air && blkAt(nx, ny) && !blkAt(u.x, u.y)) return 'blocked';
+  u.x = nx; u.y = ny;
+  return 'moving';
+}
+
+/** How far a unit may move this step, in px. */
+const stepOf = (u: Ent, dt: number): number => unitDef(u).spd * slowFactor(u) * terrainSpeed(u) * TS * dt;
+
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {
   if (!u.path || !u.path.length) return true;
@@ -35,35 +73,19 @@ export function followPath(u: Ent, dt: number): boolean {
   };
   const wp = u.path[0], air = isAir(u);
   if (!air && G.blk[wp[1] * MW + wp[0]]) return repath();
-  const d = unitDef(u), tx = (wp[0] + 0.5) * TS, ty = (wp[1] + 0.5) * TS, dx = tx - u.x, dy = ty - u.y;
-  const dist = Math.hypot(dx, dy), want = Math.atan2(dy, dx);
-  u.moving = true;
-  if (d.cls === 'vehicle') {
-    // vehicles turn on the spot before driving off
-    u.face = turnToward(u.face, want, 7 * dt);
-    if (angleDiff(u.face, want) > 1.3) return false;
-  } else if (air) u.face = turnToward(u.face, want, 6 * dt); // aircraft bank around without stopping
-  else u.face = want;
-  // vehicles slow down while still turning
-  const step = d.spd * slowFactor(u) * terrainSpeed(u) * TS * dt * (d.cls === 'vehicle' ? Math.max(0.35, Math.cos(angleDiff(u.face, want))) : 1);
-  u.walk += step / 24;
-  if (dist <= step) {
-    u.x = tx; u.y = ty;
+  const r = steer(u, (wp[0] + 0.5) * TS, (wp[1] + 0.5) * TS, stepOf(u, dt), dt, air);
+  if (r === 'blocked') return repath(); // something was built in the way
+  if (r === 'moving') return false;
+  u.path.shift();
+  const next = u.path[0];
+  if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) {
+    // step through the portal
+    warpFx(u.x, u.y);
+    u.x = u.px = (next[0] + 0.5) * TS; u.y = u.py = (next[1] + 0.5) * TS;
+    warpFx(u.x, u.y);
     u.path.shift();
-    const next = u.path[0];
-    if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) {
-      // step through the portal
-      warpFx(u.x, u.y);
-      u.x = u.px = (next[0] + 0.5) * TS; u.y = u.py = (next[1] + 0.5) * TS;
-      warpFx(u.x, u.y);
-      u.path.shift();
-    }
-    return !u.path.length;
   }
-  const nx = u.x + (dx / dist) * step, ny = u.y + (dy / dist) * step;
-  if (!air && blkAt(nx, ny) && !blkAt(u.x, u.y)) return repath(); // something was built in the way
-  u.x = nx; u.y = ny;
-  return false;
+  return !u.path.length;
 }
 
 /** Walk toward a target until within range. true = in range, false = still walking, null = unreachable. */
@@ -82,22 +104,14 @@ export function approach(u: Ent, t: Target, range: number, dt: number): boolean 
   }
   // no path left but still out of reach (a unit target on the same or a diagonal tile): step straight in
   if (t.w) return false;
-  const d = Math.hypot(t.x - u.x, t.y - u.y), step = Math.min(d, unitDef(u).spd * slowFactor(u) * terrainSpeed(u) * TS * dt);
-  const nx = u.x + ((t.x - u.x) / d) * step, ny = u.y + ((t.y - u.y) / d) * step;
-  if (d < 1 || blkAt(nx, ny)) return null; // across a blocked corner: can't get there from here
-  u.x = nx; u.y = ny; u.face = Math.atan2(t.y - u.y, t.x - u.x); u.moving = true;
-  return false;
+  if (Math.hypot(t.x - u.x, t.y - u.y) < 1) return null;
+  return steer(u, t.x, t.y, stepOf(u, dt), dt, false) === 'blocked' ? null : false; // across a blocked corner: can't get there from here
 }
 
-/** Aircraft head straight for a target, turning as they go. Never unreachable. */
+/** Aircraft head straight for a target, turning at their own speed as they go. Never unreachable. */
 function fly(u: Ent, t: Target, dt: number): false {
-  const d = Math.hypot(t.x - u.x, t.y - u.y);
   u.path = null;
-  if (d < 1) return false;
-  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), 6 * dt);
-  const step = Math.min(d, unitDef(u).spd * slowFactor(u) * TS * dt);
-  u.x += ((t.x - u.x) / d) * step; u.y += ((t.y - u.y) / d) * step;
-  u.moving = true;
+  if (Math.hypot(t.x - u.x, t.y - u.y) >= 1) steer(u, t.x, t.y, stepOf(u, dt), dt, true);
   return false;
 }
 

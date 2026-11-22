@@ -7,7 +7,7 @@ import { ORE_TILE_MAX } from '../data/ore.ts';
 import { UNIT, isUnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import {
-  DERRICK_REACH, MILL_MAX_TREES, MILL_RADIUS, OIL_PER_DERRICK, SALVAGE_SHARE, TREE_REGROW, TREE_WOOD, WOOD_PER_TREE,
+  DERRICK_REACH, DERRICK_STORE, MILL_MAX_TREES, MILL_STORE, MILL_RADIUS, OIL_PER_DERRICK, SALVAGE_SHARE, TREE_REGROW, TREE_WOOD, WOOD_PER_TREE,
 } from '../data/economy.ts';
 
 /** Visit tiles in a rectangle around a footprint (tx, ty, size s), clipped to the map. */
@@ -36,6 +36,9 @@ function teamTrees(team: number): number[] {
   return [...seen];
 }
 
+/** Most a mill or derrick holds in store before Workers carry it away. */
+export const storeMax = (b: Ent): number => (b.type === 'mill' ? MILL_STORE : b.type === 'derrick' ? DERRICK_STORE : 0);
+
 /** A tree with wood left is cut at the full rate; a cut-down one only gives what grows back. */
 const cutRate = (i: number): number => (G.treeWood[i] >= WOOD_PER_TREE ? WOOD_PER_TREE : Math.min(WOOD_PER_TREE, TREE_REGROW));
 
@@ -61,21 +64,31 @@ export const oilLeft = (d: Ent): number => oilNear(d.tx, d.ty, d.w);
 /** Oil per second a team's derricks pump (dry ones pump nothing). */
 export const oilRate = (team: number): number => working(team, 'derrick').filter((d) => oilLeft(d) > 0).length * OIL_PER_DERRICK;
 
-/** Add `dt` seconds of wood and oil income to both teams, and let cut trees grow back. */
+/**
+ * Mills cut `dt` seconds of wood and derricks pump `dt` seconds of oil into their own stores (not the
+ * bank: Workers carry it home), stopping when full. Cut trees grow back.
+ */
 export function collect(dt: number): void {
+  if (G.visualOnly) return; // online, the server's stores and trees are the truth
   for (let team = 0; team < G.teams; team++) {
-    for (const i of teamTrees(team)) {
-      const cut = Math.min(G.treeWood[i], WOOD_PER_TREE * dt);
-      G.treeWood[i] -= cut;
-      G.wood[team] += cut;
-    }
+    const seen = new Set<number>();
+    for (const m of working(team, 'mill'))
+      for (const i of millTrees(m.tx, m.ty, m.w)) {
+        if (seen.has(i)) continue;
+        seen.add(i);
+        const cut = Math.min(G.treeWood[i], WOOD_PER_TREE * dt, MILL_STORE - m.carry);
+        if (cut <= 0) continue;
+        G.treeWood[i] -= cut;
+        m.carry += cut;
+      }
     for (const d of working(team, 'derrick')) {
-      let want = OIL_PER_DERRICK * dt;
+      let want = Math.min(OIL_PER_DERRICK * dt, DERRICK_STORE - d.carry);
       for (const i of wellTiles(d.tx, d.ty, d.w)) {
+        if (want <= 0) break;
         const take = Math.min(want, G.oilField[i]);
         G.oilField[i] -= take;
-        G.oil[team] += take;
-        if ((want -= take) <= 0) break;
+        d.carry += take;
+        want -= take;
       }
     }
   }

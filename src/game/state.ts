@@ -23,7 +23,10 @@ export type Stance = (typeof STANCES)[number];
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
-export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
+/** What a unit is carrying home. */
+export type Cargo = 'ore' | 'wood' | 'oil';
+/** Gather ore from the ground, or (with `res`) haul wood or oil from the store of building `src`. */
+export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number; res?: 'wood' | 'oil'; src?: number }
 /** A medic tending a wounded ally; gives up if it strays too far from where it started (ox, oy). */
 export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
 export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
@@ -65,8 +68,12 @@ export interface Ent extends Target {
   face: number;
   /** turret / weapon facing */
   tface: number;
-  /** ore carried (harvesters) */
+  /** load carried by harvesters and Workers (see `cargo`), or what a mill or derrick holds in store */
   carry: number;
+  /** what `carry` is; ore if unset */
+  cargo?: Cargo;
+  /** Aether carried home from a deposit */
+  ae?: number;
   scan: number;
   rep: number;
   px: number;
