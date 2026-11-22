@@ -3,7 +3,8 @@
 import { G, type Tile } from './state.ts';
 import { MW, MH, GRASS, WATER, TREE } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { START_YARDS, ORE_SOURCES, FORESTS, PORTAL_LAYOUTS, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR } from '../data/map.ts';
+import { START_YARDS, ORE_SOURCES, FORESTS, OIL_WELLS, PORTAL_LAYOUTS, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR } from '../data/map.ts';
+import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
 import { ORE_FIELD_RADIUS, ORE_TILE_MAX } from '../data/ore.ts';
 
 function valueGrid(rnd: () => number, sz: number): (x: number, y: number) => number {
@@ -25,11 +26,12 @@ export function eachInDisk(cx: number, cy: number, r: number, fn: (i: number, x:
 
 /** Fill the terrain for one seed. Returns false if the two bases can't reach each other. */
 function genMap(seed: number): boolean {
-  const { terr, ore } = G;
+  const { terr, ore, oilField, treeWood } = G;
   const rnd = mulberry32(seed);
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
   terr.fill(GRASS);
   ore.fill(0);
+  oilField.fill(0);
   const clear = (cx: number, cy: number, r: number) => eachInDisk(cx, cy, r, (i) => { terr[i] = GRASS; });
 
   for (let y = 0; y < MH; y++)
@@ -49,6 +51,14 @@ function genMap(seed: number): boolean {
       if ((tx !== x || ty !== y) && rnd() < 0.97 - d * 0.06) ore[i] = Math.round(ORE_TILE_MAX * (0.55 + 0.45 * rnd()) * (1 - d / (ORE_FIELD_RADIUS + 3)));
     });
   }
+  for (const [x, y] of OIL_WELLS) {
+    clear(x, y, OIL_WELL_RADIUS + 2);
+    eachInDisk(x, y, OIL_WELL_RADIUS + 0.5, (i, tx, ty) => {
+      ore[i] = 0;
+      oilField[i] = Math.round(OIL_TILE_MAX * (1 - Math.hypot(tx - x, ty - y) / (OIL_WELL_RADIUS + 1.5)));
+    });
+  }
+  for (let i = 0; i < MW * MH; i++) treeWood[i] = terr[i] === TREE ? TREE_WOOD : 0;
   return connected(START_YARDS[0], START_YARDS[1]);
 }
 
@@ -87,10 +97,10 @@ function placePortals(seed: number): void {
   for (const [a, b] of order) {
     if (G.portals.length >= want) break;
     // clear a little plaza round each gate, then make sure both sides can walk to it
-    const saved = G.terr.slice(), savedOre = G.ore.slice();
-    for (const [x, y] of [a, b]) eachInDisk(x, y, PORTAL_CLEAR, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; });
+    const layers = [G.terr, G.ore, G.oilField, G.treeWood], saved = layers.map((l) => l.slice());
+    for (const [x, y] of [a, b]) eachInDisk(x, y, PORTAL_CLEAR, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; });
     const home = reachable(yardTile(START_YARDS[0]));
-    if (!home[a[1] * MW + a[0]] || !home[b[1] * MW + b[0]]) { G.terr.set(saved); G.ore.set(savedOre); continue; }
+    if (!home[a[1] * MW + a[0]] || !home[b[1] * MW + b[0]]) { layers.forEach((l, k) => l.set(saved[k] as never)); continue; }
     G.portals.push({ a: [a[0], a[1]], b: [b[0], b[1]] });
     G.warp[a[1] * MW + a[0]] = b[1] * MW + b[0];
     G.warp[b[1] * MW + b[0]] = a[1] * MW + a[0];

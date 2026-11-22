@@ -4,8 +4,8 @@ import { MW, NEAR, TS } from './const.ts';
 import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
 import { approach, followPath, turnToward } from './move.ts';
-import { acquire, combatStep } from './combat.ts';
-import { orderHarvest, setOrder } from './order.ts';
+import { acquire, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
+import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { part } from './fx.ts';
@@ -123,13 +123,18 @@ export function updUnit(u: Ent, dt: number): void {
   u.moving = false;
   unstick(u, dt);
   // vehicle turrets drift back to the hull's heading when idle
-  if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack') u.tface = turnToward(u.tface, u.face, 2 * dt);
+  if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
   const o = u.order;
+  if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {
+    if (u.stance === 'skirmish' && d.weapon) { fireOnTheMove(u, dt); return; } // holds its ground and shoots what's in range
     u.scan -= dt;
     if (u.scan > 0) return;
     u.scan = 0.3 + Math.random() * 0.2;
-    if (d.weapon) {
+    if (u.stance === 'passive') {
+      const threat = nearestThreat(u, Math.min(d.sight, 7));
+      if (threat) orderFlee(u, threat);
+    } else if (d.weapon) {
       const t = acquire(u, d.sight);
       if (t) setOrder(u, { t: 'attack', tgt: t.id, auto: true, ox: u.x, oy: u.y });
     } else if (u.type === 'harvester' && nearestOwn(u, 'refinery')) {
@@ -140,13 +145,17 @@ export function updUnit(u: Ent, dt: number): void {
     return;
   }
   switch (o.t) {
-    case 'move':
-      if (followPath(u, dt)) { u.order = null; u.path = null; }
-      break;
-    case 'amove': {
+    case 'move': {
+      if (u.stance === 'skirmish' || u.stance === 'passive' || !d.weapon) {
+        // keep going; a skirmisher shoots along the way
+        if (followPath(u, dt)) { u.order = null; u.path = null; }
+        if (u.stance === 'skirmish') fireOnTheMove(u, dt);
+        break;
+      }
+      // engage: stop to fight anything met on the way, then carry on
       let t = valid(o.sub);
       if (!t && o.sub) { o.sub = null; u.path = null; }
-      if (!t && d.weapon) {
+      if (!t) {
         u.scan -= dt;
         if (u.scan <= 0) {
           u.scan = 0.3;

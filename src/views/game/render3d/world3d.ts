@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { G } from '../../../game/state.ts';
 import { MW, MH, WATER, TREE } from '../../../game/const.ts';
 import { ORE_TILE_MAX } from '../../../data/ore.ts';
+import { OIL_TILE_MAX } from '../../../data/economy.ts';
 import { hash } from '../../../util/math.ts';
 import { terrain } from '../render/terrain.ts';
 import { fogCanvas } from '../render/minimap.ts';
@@ -16,6 +17,7 @@ const layer = new THREE.Group();
 let pines: THREE.InstancedMesh | null = null, pineTrunks: THREE.InstancedMesh | null = null;
 let oaks: THREE.InstancedMesh | null = null, oakTrunks: THREE.InstancedMesh | null = null;
 let ore: THREE.InstancedMesh | null = null;
+let oil: THREE.InstancedMesh | null = null;
 let fogTex: THREE.CanvasTexture | null = null;
 let treeTiles: { i: number; pine: boolean; idx: number }[] = [];
 let shownTrees = new Uint8Array(0);
@@ -73,6 +75,11 @@ export function initWorld3d(): void {
   ore.castShadow = true;
   ore.count = 0;
   layer.add(ore);
+  // oil wells: glossy black pools that shrink as derricks drain them
+  oil = new THREE.InstancedMesh(new THREE.CircleGeometry(0.62, 16).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#1c1a20', roughness: 0.18, metalness: 0.55, emissive: '#06050a' }), 200);
+  oil.receiveShadow = true;
+  oil.count = 0;
+  layer.add(oil);
   // fog of war: the minimap's fog image stretched over the map, softly filtered
   fogTex = new THREE.CanvasTexture(fogCanvas());
   fogTex.magFilter = THREE.LinearFilter;
@@ -136,6 +143,17 @@ export function refreshOre(): void {
   }
   ore.count = n;
   ore.instanceMatrix.needsUpdate = true;
+  if (!oil) return;
+  let k = 0;
+  for (let i = 0; i < MW * MH && k < oil.instanceMatrix.count; i++) {
+    if (G.oilField[i] <= 0 || !G.vis[i]) continue;
+    const x = i % MW, y = (i / MW) | 0, s = 0.5 + 0.8 * Math.min(1, G.oilField[i] / OIL_TILE_MAX), h = hash(x * 3 + 1, y * 5 - 2), h2 = hash(y * 7 - 3, x * 2 + 5);
+    q.setFromAxisAngle(up, h * Math.PI);
+    m4.compose(v.set(x + 0.5 + (h - 0.5) * 0.35, 0.03 + h2 * 0.004, y + 0.5 + (h2 - 0.5) * 0.35), q, sc.set(s * (1 + h * 0.35), 1, s));
+    oil.setMatrixAt(k++, m4);
+  }
+  oil.count = k;
+  oil.instanceMatrix.needsUpdate = true;
 }
 
 export function refreshFog(): void {

@@ -18,6 +18,14 @@ export const ORE_SOURCES: Tile[] = [
   [57, 29],
 ];
 
+/** Oil wells: pools of oil that never refill. One near each base, two in the contested middle. */
+export const OIL_WELLS: Tile[] = [
+  [15, 45],
+  [48, 18],
+  [24, 37],
+  [39, 26],
+];
+
 /** Guaranteed woods near each base, in reach of a Lumber Mill: [centerX, centerY, radius]. */
 export const FORESTS: [number, number, number][] = [
   [4, 41, 4],

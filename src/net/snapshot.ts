@@ -1,6 +1,6 @@
 // Compact per-team snapshots of the world. The server encodes what one team can see; the online
 // client decodes it into its own copy of the world, which the normal renderer then draws.
-import { G, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
+import { G, STANCES, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
 import { MW, TS } from '../game/const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -20,9 +20,12 @@ export type EntRow = [number, number, number, number, number, number, number, nu
 export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number];
 
 const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8;
+/** two bits above the flags: the stance of one of our own units (the HUD shows it) */
+const STANCE_SHIFT = 4;
 
 export function encodeEnt(e: Ent, own: boolean): EntRow {
-  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0);
+  const stance = own && e.kind === 'unit' ? STANCES.indexOf(e.stance) << STANCE_SHIFT : 0;
+  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | stance;
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
     Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y)];
@@ -88,6 +91,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     e.moving = (flags & MOVING) !== 0;
     e.done = (flags & DONE) !== 0;
     e.repairing = (flags & REPAIRING) !== 0;
+    e.stance = STANCES[(flags >> STANCE_SHIFT) & 3] ?? 'engage';
     if (flags & FIRING) e.atkT = Math.max(e.atkT, 0.05);
     e.prog = prog / 100;
     e.rally = rx >= 0 ? { x: rx, y: ry } : null;

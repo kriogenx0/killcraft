@@ -8,8 +8,8 @@ import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace } from './building.ts';
 import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
-import { treesNear } from './economy.ts';
-import { orderAMove, orderMove } from './order.ts';
+import { oilNear, treesNear } from './economy.ts';
+import { orderMove, setStance } from './order.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean }
 
@@ -20,6 +20,7 @@ export const ais: AiState[] = [
 
 const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'turret'];
 const MAX_WAVE = 30;
+const SKIRMISHERS = new Set<string>(['jeep']);
 
 export function resetAi(): void {
   for (const a of ais) { a.attackAt = 8; a.attacking = false; }
@@ -44,6 +45,7 @@ function findSite(team: number, type: BldType): Tile | null {
   const s = BUILDING[type].size, own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
+  if (type === 'derrick') return wellSite(team, s, yard);
   const foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
@@ -57,6 +59,18 @@ function findSite(team: number, type: BldType): Tile | null {
     const n = treesNear(tx, ty, s);
     if (n > bestTrees) { bestTrees = n; best = [tx, ty]; }
   }
+  return best;
+}
+
+/** The placeable spot near the base that reaches the most oil, if any reaches some. */
+function wellSite(team: number, s: number, yard: Ent): Tile | null {
+  let best: Tile | null = null, most = 0;
+  const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
+  for (let ty = cy - 16; ty <= cy + 16; ty++)
+    for (let tx = cx - 16; tx <= cx + 16; tx++) {
+      const oil = oilNear(tx, ty, s);
+      if (oil > most && canPlace(tx, ty, s, team, true)) { most = oil; best = [tx, ty]; }
+    }
   return best;
 }
 
@@ -127,12 +141,14 @@ function upkeep(team: number): void {
 function military(team: number): void {
   const A = ais[team], foe = 1 - team;
   const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
+  // fast raiders shoot on the move; everyone else stops to fight (the default stance)
+  for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (home) {
     const threat = G.ents.find((e) => !e.dead && e.team === foe && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
-        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderAMove(u, tileOf(threat.x), tileOf(threat.y));
+        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));
   }
   const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld');
   if (!targets.length) targets.push(...G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit'));
@@ -145,9 +161,9 @@ function military(team: number): void {
   if (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2)) {
     A.attacking = true;
     A.attackAt = Math.min(MAX_WAVE, A.attackAt + 3);
-    for (const u of army) if (!u.order || u.order.t === 'move') orderAMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
-    for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderAMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   }
   if (!home) return;
   // muster new troops in front of the base

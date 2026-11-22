@@ -1,17 +1,17 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { unitDef, valid, type Ent } from './state.ts';
+import { STANCES, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderAttack, orderHarvest, orderReturn, orderStop } from './order.ts';
+import { groupMove, orderHarvest, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, placeReady, toggleHold, type Buildable } from './production.ts';
 import { sell, toggleRepair } from './building.ts';
 
 export type Command =
-  | { c: 'move'; ids: number[]; tx: number; ty: number; amove: boolean }
-  | { c: 'attack'; ids: number[]; target: number }
+  | { c: 'move'; ids: number[]; tx: number; ty: number }
+  | { c: 'stance'; ids: number[]; stance: Stance }
   | { c: 'stop'; ids: number[] }
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
@@ -37,9 +37,9 @@ export function parseCommand(raw: unknown): Command | null {
   const o = raw as Record<string, unknown>;
   switch (o.c) {
     case 'move':
-      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'move', ids: o.ids, tx: o.tx as number, ty: o.ty as number, amove: o.amove === true } : null;
-    case 'attack':
-      return isIds(o.ids) && isInt(o.target) ? { c: 'attack', ids: o.ids, target: o.target } : null;
+      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'move', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
+    case 'stance':
+      return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
     case 'stop':
     case 'return':
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
@@ -75,13 +75,11 @@ function ownBuilding(team: number, id: number): Ent | null {
 export function applyCommand(team: number, cmd: Command): void {
   switch (cmd.c) {
     case 'move':
-      groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty, cmd.amove);
+      groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty);
       break;
-    case 'attack': {
-      const t = valid(cmd.target);
-      if (t && t.team !== team && t.team >= 0) for (const u of ownUnits(team, cmd.ids)) if (unitDef(u).weapon) orderAttack(u, t);
+    case 'stance':
+      for (const u of ownUnits(team, cmd.ids)) setStance(u, cmd.stance);
       break;
-    }
     case 'stop':
       ownUnits(team, cmd.ids).forEach(orderStop);
       break;
