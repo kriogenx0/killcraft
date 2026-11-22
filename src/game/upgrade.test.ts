@@ -38,9 +38,11 @@ describe('Armory upgrades', () => {
     Object.assign(G, { credits: [9000, 9000], wood: [9000, 9000], oil: [9000, 9000] });
     expect(enqueue(0, 'infWeapon1')).toBe(true);
     expect(enqueue(0, 'infArmor1')).toBe(false); // one at a time
-    expect(enqueue(0, 'age1')).toBe(true); // the yard researches at the same time
-    run(26);
+    addBuilding('hospital', 0, 19, 50, false);
+    expect(enqueue(0, 'heal1')).toBe(true); // the Hospital researches at the same time
+    run(30);
     expect(G.upg[0].infWeapon).toBe(1);
+    expect(G.heal[0]).toBe(1);
     // the next level waits for the World War age
     expect(G.era[0]).toBe(0);
     expect(available(0, 'armory')).toEqual(['infArmor1', 'vehWeapon1', 'vehArmor1']);

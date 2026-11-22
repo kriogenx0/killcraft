@@ -5,7 +5,8 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { available, enqueue } from './production.ts';
-import { cloakedFrom, deposits, holderOf } from './aether.ts';
+import { cloakedFrom, deposits, holderOf, syncWaygates, waygateLinked } from './aether.ts';
+import { findPath, isJump } from './path.ts';
 import { acquire, dealDamage, fire } from './combat.ts';
 import type { WeaponType } from '../data/weapon.ts';
 import { orderMove } from './order.ts';
@@ -174,5 +175,59 @@ describe('Aether', () => {
     expect(a.maxhp - a.hp).toBe(100);
     expect(b.maxhp - b.hp).toBe(90);
     expect(TECH.ward.aether).toBeGreaterThan(0);
+  });
+
+  it('reveals the Aether structures once found, and allows only one pair of Waygates', () => {
+    expect(available(0, 'structure')).not.toContain('shrine');
+    G.aetherFound[0] = true;
+    expect(available(0, 'structure')).toEqual(expect.arrayContaining(['shrine', 'wardstone']));
+    expect(available(0, 'structure')).not.toContain('waygate'); // World War
+    G.era[0] = 1;
+    expect(available(0, 'structure')).toContain('waygate');
+    addBuilding('waygate', 0, 10, 40, false);
+    addBuilding('waygate', 0, 14, 40, false);
+    expect(available(0, 'structure')).not.toContain('waygate');
+  });
+
+  it('heals units near a Star Shrine, machines included, but not the enemy', () => {
+    addBuilding('shrine', 0, 20, 40, false);
+    const tank = addUnit('tank', 0, 21 * TS, 43 * TS), foe = addUnit('tank', 1, 22 * TS, 43 * TS), far = addUnit('tank', 0, 40 * TS, 43 * TS);
+    for (const u of [tank, foe, far]) u.hp = u.maxhp / 2;
+    for (let t = 0; t < 10; t++) { for (const u of [tank, foe, far]) u.order = null; G.oreT = 0; update(STEP); }
+    expect(tank.hp).toBeGreaterThan(tank.maxhp / 2);
+    expect(foe.hp).toBeLessThanOrEqual(foe.maxhp / 2);
+    expect(far.hp).toBe(far.maxhp / 2);
+  });
+
+  it('lets a Ward Stone see cloaked jeeps from afar', () => {
+    const jeep = addUnit('phantom', 0, 30 * TS, 20 * TS);
+    expect(cloakedFrom(jeep, 1)).toBe(true);
+    const stone = addBuilding('wardstone', 1, 30, 25, false);
+    expect(cloakedFrom(jeep, 1)).toBe(false);
+    stone.dead = true;
+    expect(cloakedFrom(jeep, 1)).toBe(true);
+  });
+
+  it('links two Waygates into a shortcut only their side can use', () => {
+    G.portals = []; G.warp.fill(-1); G.warpTeam.fill(-1);
+    // clear two spots far apart
+    for (const [x0, y0] of [[8, 30], [50, 30]]) for (let y = y0 - 2; y < y0 + 5; y++) for (let x = x0 - 2; x < x0 + 5; x++) { G.terr[y * MW + x] = 0; G.blk[y * MW + x] = 0; }
+    const a = addBuilding('waygate', 0, 8, 30, false);
+    syncWaygates();
+    expect(waygateLinked(a)).toBe(false);
+    const b = addBuilding('waygate', 0, 50, 30, false);
+    syncWaygates();
+    expect(waygateLinked(a) && waygateLinked(b)).toBe(true);
+    const [w] = G.waygates;
+    const own = findPath(w.a[0], w.a[1] + 1, w.b[0], w.b[1] + 1, 0), theirs = findPath(w.a[0], w.a[1] + 1, w.b[0], w.b[1] + 1, 1);
+    const jumps = (p: [number, number][]) => p.some((t, i) => i > 0 && isJump(p[i - 1], t));
+    expect(jumps([[w.a[0], w.a[1] + 1], ...own])).toBe(true);
+    expect(own.length).toBeLessThan(6);
+    expect(jumps([[w.a[0], w.a[1] + 1], ...theirs])).toBe(false);
+    // knock one down: the link is gone
+    b.dead = true;
+    syncWaygates();
+    expect(G.waygates).toHaveLength(0);
+    expect(G.warp[w.a[1] * MW + w.a[0]]).toBe(-1);
   });
 });

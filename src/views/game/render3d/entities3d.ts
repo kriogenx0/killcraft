@@ -13,6 +13,7 @@ import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
+import { waygateLinked } from '../../../game/aether.ts';
 import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 
@@ -119,6 +120,10 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.balloon) P.balloon.rotation.z = Math.sin(G.gameT * 0.8 + e.id) * 0.06;
   if (P.sails && e.done) P.sails.rotation.z -= dt * 1.1;
   if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
+  // Aether structures: the shrine's star turns and bobs, the ward's eye pulses, a linked waygate's veil swirls
+  if (P.star && e.done) { P.star.rotation.y += dt * 0.8; P.star.position.y = 0.72 + Math.sin(G.gameT * 1.6 + e.id) * 0.04; }
+  if (P.eye && e.done) P.eye.scale.setScalar(1 + Math.sin(G.gameT * 3 + e.id) * 0.15);
+  if (P.veil) { P.veil.visible = e.done && waygateLinked(e); P.veil.rotation.z += dt * 1.2; }
 }
 
 // ---- selection rings, markers, rally flag, building ghost ----

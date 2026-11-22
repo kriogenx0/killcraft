@@ -63,7 +63,7 @@ export const oilRate = (team: number): number => working(team, 'derrick').filter
 
 /** Add `dt` seconds of wood and oil income to both teams, and let cut trees grow back. */
 export function collect(dt: number): void {
-  for (const team of [0, 1]) {
+  for (let team = 0; team < G.teams; team++) {
     for (const i of teamTrees(team)) {
       const cut = Math.min(G.treeWood[i], WOOD_PER_TREE * dt);
       G.treeWood[i] -= cut;

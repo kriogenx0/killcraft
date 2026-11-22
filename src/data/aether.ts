@@ -10,6 +10,13 @@ export const AETHER_SITES: Tile[] = [
   [19, 15],
   [44, 47],
 ];
+/** Four-player free-for-all: one deposit between each pair of neighbouring bases. */
+export const AETHER_FFA_SITES: Tile[] = [
+  [31, 19],
+  [32, 44],
+  [19, 32],
+  [44, 31],
+];
 /** The middle deposit only appears on some maps. */
 export const AETHER_MIDDLE: Tile = [27, 27];
 /** Chance a map gets the middle deposit. */
@@ -30,3 +37,12 @@ export const CLOAK_REVEAL = 2;
 export const CLOAK_DETECT = 2;
 /** Damage a building takes once its side has researched the Aether Ward. */
 export const WARD_FACTOR = 0.9;
+
+/** The Star Shrine heals your units within this many tiles of it... */
+export const SHRINE_RANGE = 4;
+/** ...by this share of their health per second (full in about 100 s). */
+export const SHRINE_HEAL = 0.01;
+/** A Ward Stone reveals cloaked enemies within this many tiles. */
+export const WARD_STONE_SIGHT = 6;
+/** A side links at most this many Waygates (one pair). */
+export const MAX_WAYGATES = 2;

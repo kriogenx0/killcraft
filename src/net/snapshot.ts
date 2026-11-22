@@ -9,11 +9,11 @@ import { addBuilding, addSource, addUnit, kill } from '../game/entity.ts';
 import { fire } from '../game/combat.ts';
 import { nearPortal, rebuildBlk } from '../game/map.ts';
 import { warpFx } from '../game/fx.ts';
-import { addAether, cloakedFrom } from '../game/aether.ts';
+import { addAether, cloakedFrom, syncWaygates } from '../game/aether.ts';
 import { AETHER_PER_DEPOSIT } from '../data/aether.ts';
 import { lerp } from '../util/math.ts';
 
-const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'armory'];
+const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY] */
@@ -116,6 +116,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
   for (const [id] of targets) if (!G.byId.get(id) || G.byId.get(id)?.dead) targets.delete(id);
   for (const [id, e] of G.byId) if (e.dead) G.byId.delete(id);
   if (structural) rebuildBlk();
+  syncWaygates(); // only for drawing: the server decides who walks through
 }
 
 const turn = (a: number, b: number, k: number) => {
