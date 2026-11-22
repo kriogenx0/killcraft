@@ -1,7 +1,7 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
-import { G, isAir, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -149,7 +149,7 @@ function construction(team: number): void {
  * comes once there's an infantry force worth healing.
  */
 function research(team: number): void {
-  if (countOf(team, 'refinery') < 1 || countOf(team, 'harvester') < 1) return;
+  if (countOf(team, 'refinery') < 1 || gatherers(team) < 1) return;
   const credits = G.credits[team];
   // healing is researched at the Hospital, alongside the yard
   const heal = available(team, 'hospital').filter(isTechType)[0];
@@ -163,6 +163,9 @@ function research(team: number): void {
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
 }
+
+/** Workers and harvesters on the team. */
+const gatherers = (team: number): number => G.ents.filter((e) => !e.dead && e.team === team && isHarvester(e)).length;
 
 /** At least half the wood and oil a research needs is in the bank. */
 const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
@@ -199,9 +202,9 @@ function training(team: number): void {
   // leave money for the next structure while it's being built
   const saving = prod.structure.length > 0 && credits < 500;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
-    const harvesters = countOf(team, 'harvester'), refineries = countOf(team, 'refinery');
+    const refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
-    if (harvesters < Math.min(6, refineries * 2) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
+    if (available(team, 'vehicle').includes('harvester') && countOf(team, 'harvester') < Math.min(6, refineries * 2) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
     else if (!saving && credits > 500)
       t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5]]);
     if (t) enqueue(team, t);
@@ -211,6 +214,9 @@ function training(team: number): void {
     const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2]]);
     if (t) enqueue(team, t);
   }
+  // before the Modern age, Workers gather the ore: about three per refinery
+  if (hasBuilding(team, 'barracks') && available(team, 'infantry').includes('worker') && countOf(team, 'worker') < Math.min(9, countOf(team, 'refinery') * 3) &&
+    !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {

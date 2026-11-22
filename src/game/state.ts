@@ -249,6 +249,10 @@ export function say(team: number, msg: string): void {
 export const unitDef = (e: Ent) => UNIT[e.type as UnitType];
 export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 /** Living units (infantry and knights) bleed and heal; vehicles don't. */
+/** Anything that gathers ore: Workers until the Modern age, Harvesters after. */
+export const isHarvester = (e: Ent): boolean => e.kind === 'unit' && !!unitDef(e).haul;
+/** Ore it carries per trip. */
+export const haulOf = (e: Ent): number => unitDef(e).haul ?? 0;
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
 /** Aircraft fly straight over everything and only some weapons can reach them. */

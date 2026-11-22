@@ -501,6 +501,26 @@ function tank(team: number, heavy: boolean): Model {
   return { root, parts, height: 0.5 * k };
 }
 
+/** Medieval and World War: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
+function worker(team: number): Model {
+  const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
+  m.root.add(mesh(box(0.135, 0.06, 0.2), teamMat(team), 0, 0.27, 0)); // sash
+  m.root.add(mesh(dome(0.07), mat('#6a5a40'), 0, 0.49, 0)); // hood
+  // wicker basket on the back, heaped with ore as it fills
+  m.root.add(mesh(cyl(0.07, 0.055, 0.14, 10), M.wattle(), -0.1, 0.36, 0));
+  const heap = mesh(dome(0.065), M.ore(), -0.1, 0.43, 0);
+  m.parts.heap = heap;
+  m.root.add(heap);
+  // pick over the shoulder
+  m.parts.armR.rotation.z = 1.0;
+  const pick = group(0.08, 0.45, 0.12,
+    rot(mesh(box(0.02, 0.3, 0.02), M.wood(), 0, 0, 0), 0, 0, -0.6),
+    rot(mesh(box(0.16, 0.02, 0.02), M.iron(), 0.09, 0.12, 0), 0, 0, -0.6));
+  m.parts.gun = pick;
+  m.root.add(pick);
+  return m;
+}
+
 function harvester(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team), td = teamMat(team, 'd');
@@ -643,6 +663,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'tank': return tank(team, false);
     case 'heavy': return tank(team, true);
     case 'harvester': return harvester(team);
+    case 'worker': return worker(team);
     case 'catapult': return catapult(team);
     case 'balloon': return balloon(team);
     case 'biplane': return biplane(team);

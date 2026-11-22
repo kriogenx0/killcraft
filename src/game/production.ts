@@ -95,7 +95,7 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   if (line === 'tech') {
     return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
 export function enqueue(team: number, type: Buildable): boolean {
@@ -138,7 +138,7 @@ function deliver(team: number, type: UnitType): void {
   const [x, y] = exitTile(b, b.rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
   say(team, `${UNIT[type].name} ready`);
-  if (type === 'harvester') orderHarvest(u, x, y);
+  if (UNIT[type].haul) orderHarvest(u, x, y);
   else if (b.rally) orderMove(u, tileOf(b.rally.x), tileOf(b.rally.y));
 }
 

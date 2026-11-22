@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, hooks, isAir, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
+import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
-import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
+import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
 import { approach, followPath, turnToward } from './move.ts';
 import { acquire, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
@@ -25,7 +25,7 @@ const ORE_SEARCH = 24;
 function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
   const cx = ((i % MW) + 0.5) * TS, cy = (((i / MW) | 0) + 0.5) * TS;
   for (const h of G.ents) {
-    if (h === u || h.dead || h.type !== 'harvester' || h.order?.t !== 'harvest') continue;
+    if (h === u || h.dead || !isHarvester(h) || h.order?.t !== 'harvest') continue;
     const o = h.order;
     if (o.ty * MW + o.tx === i && (o.st === 'gather' || (o.st === 'go' && (choosing || h.id < u.id)))) return true;
     if (choosing && o.st === 'gather' && Math.abs(h.x - cx) < TS * 1.1 && Math.abs(h.y - cy) < TS * 1.1) return true;
@@ -66,14 +66,14 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     return;
   }
   if (o.st === 'gather') {
-    u.carry += takeOre(o.tx, o.ty, Math.min(HARVEST_RATE * dt, HARVESTER_CAPACITY - u.carry));
+    u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry));
     u.atkT = 0.2;
     u.face = turnToward(u.face, u.face + 1, 0.4 * dt); // slow sweep while scooping
     if (Math.random() < dt * 6) part('ore', u.x + Math.cos(u.face) * 14, u.y + Math.sin(u.face) * 14, { vz: 40, vx: (Math.random() - 0.5) * 30, max: 0.5, size: 2, col: '#f0c040' });
-    if (u.carry >= HARVESTER_CAPACITY - 0.5) { o.st = 'ret'; return; }
+    if (u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; return; }
     if (G.ore[o.ty * MW + o.tx] <= 0) {
       const t = pickOre(u, o.tx, o.ty, 4);
-      if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > HARVESTER_CAPACITY * 0.3 ? 'ret' : 'go';
+      if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > haulOf(u) * 0.3 ? 'ret' : 'go';
     }
     return;
   }
@@ -182,9 +182,9 @@ export function updUnit(u: Ent, dt: number): void {
     } else if (d.weapon) {
       const t = acquire(u, d.sight);
       if (t) setOrder(u, { t: 'attack', tgt: t.id, auto: true, ox: u.x, oy: u.y });
-    } else if (u.type === 'harvester' && nearestOwn(u, 'refinery')) {
+    } else if (isHarvester(u) && nearestOwn(u, 'refinery')) {
       u.scan = 1.5;
-      if (u.carry > HARVESTER_CAPACITY * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
+      if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
       else orderHarvest(u, tileOf(u.x), tileOf(u.y));
     }
     return;
@@ -223,7 +223,7 @@ export function updUnit(u: Ent, dt: number): void {
       break;
     }
     case 'harvest':
-      if (u.type === 'harvester') updHarvester(u, o, dt);
+      if (isHarvester(u)) updHarvester(u, o, dt);
       else u.order = null;
       break;
     case 'heal':
