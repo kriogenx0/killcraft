@@ -5,9 +5,11 @@ import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
-  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REACH, AETHER_SITES,
+  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
+import { bankAt } from './haul.ts';
+import { edgeDist } from './path.ts';
 import { eachInDisk, nearPortal, setBlk } from './map.ts';
 
 const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
@@ -95,19 +97,38 @@ export function holderOf(d: Ent): number {
   return holder;
 }
 
-/** Draw `dt` seconds of Aether from every held deposit. */
+/**
+ * Draw `dt` seconds of Aether from every held deposit into the holder's nearest unit with room to
+ * carry it. Nothing is banked here: see bankAether.
+ */
 export function drawAether(dt: number): void {
   for (const d of deposits()) {
     const team = holderOf(d);
     if (team < 0) continue;
-    const a = Math.min(d.hp, AETHER_RATE * dt);
+    const r = AETHER_REACH * TS;
+    const carrier = G.ents
+      .filter((e) => !e.dead && e.kind === 'unit' && e.team === team && (e.ae ?? 0) < AETHER_CARRY - 0.01 && Math.hypot(e.x - d.x, e.y - d.y) <= r)
+      .sort((a, b) => Math.hypot(a.x - d.x, a.y - d.y) - Math.hypot(b.x - d.x, b.y - d.y))[0];
+    if (!carrier) continue; // everyone here is full: take it home
+    const a = Math.min(d.hp, AETHER_RATE * dt, AETHER_CARRY - (carrier.ae ?? 0));
     d.hp -= a;
-    G.aether[team] = (G.aether[team] ?? 0) + a;
-    if (!G.aetherFound[team]) { G.aetherFound[team] = true; say(team, 'Aether found! Hidden units revealed'); }
+    carrier.ae = (carrier.ae ?? 0) + a;
     if (d.hp <= 0.01) {
       exhaust(d);
       for (const t of teams()) say(t, 'An Aether deposit has run dry');
     }
+  }
+}
+
+/** Units carrying Aether bank it once they're near their own Construction Yard or Refinery. */
+export function bankAether(): void {
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || !u.ae) continue;
+    const home = bankAt(u, ['yard', 'refinery']);
+    if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
+    G.aether[u.team] = (G.aether[u.team] ?? 0) + u.ae;
+    u.ae = 0;
+    if (!G.aetherFound[u.team]) { G.aetherFound[u.team] = true; say(u.team, 'Aether found! Hidden units revealed'); }
   }
 }
 

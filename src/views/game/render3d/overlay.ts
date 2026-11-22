@@ -1,8 +1,7 @@
 // Flat things drawn over the 3D view: health bars and the drag-select box.
-import { G, unitDef } from '../../../game/state.ts';
+import { G, haulOf, isHarvester, unitDef } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
 import { shownToPlayer } from '../render/minimap.ts';
-import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
 import { clamp } from '../../../util/math.ts';
 import { S, worldToScreen } from './scene.ts';
 import { modelHeight } from './entities3d.ts';
@@ -21,7 +20,7 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     const x = x0 - bw / 2;
     g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - 1, y0 - 1, bw + 2, 6);
     g.fillStyle = f > 0.6 ? '#3d3' : f > 0.3 ? '#ec3' : '#e33'; g.fillRect(x, y0, bw * f, 4);
-    if (e.type === 'harvester' && e.team === V.team) { g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 5, bw * Math.min(1, e.carry / HARVESTER_CAPACITY), 2); }
+    if (isHarvester(e) && e.team === V.team) { g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 5, bw * Math.min(1, e.carry / haulOf(e)), 2); }
   }
   drawDamage(g, r.left, r.top);
   if (V.mouse.down && V.mouse.drag) {

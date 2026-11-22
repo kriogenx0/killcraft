@@ -52,6 +52,7 @@ export function report(results: MatchResult[]): string {
   const perMin = sides.map((s) => s.income / Math.max(1, (s.outAt ?? results.find((r) => r.stats.includes(s))?.length ?? 1) / 60));
   out.push(table(['', 'Median', '10th', '90th'], [
     ['Gold harvested per minute alive', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(perMin, q)))],
+    ['Bounty gold earned', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.bounty ?? 0), q)))],
     ['Gold harvested in total', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.income), q)))],
     ['Average gold in the bank', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgBank), q)))],
     ['Average wood in store', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgWood), q)))],
@@ -91,6 +92,25 @@ export function report(results: MatchResult[]): string {
       .sort((x, y) => Math.abs(y[1] - y[2]) - Math.abs(x[1] - x[2]))
       .map(([t, a, b]) => [t, `${(a * 100).toFixed(1)}%`, `${(b * 100).toFixed(1)}%`, `${a > b ? '+' : ''}${((a - b) * 100).toFixed(1)} pts`])));
     out.push('', `Winners harvested a median ${Math.round(quantile(winners.map((s) => s.income), 0.5))} gold; first knocked out sides harvested ${Math.round(quantile(decided.flatMap((r) => r.stats.filter((s) => s.place === teams)).map((s) => s.income), 0.5))}.`);
+  }
+  // how much does an early lead decide the match?
+  if (decided.length) {
+    out.push('', '## Does an early lead snowball?', '');
+    out.push('The leader at a checkpoint has the most gold harvested so far plus army on the field. Even odds would be 1 in ' + teams + '.', '');
+    const rows: (string | number)[][] = [];
+    for (const min of [5, 10, 15, 20]) {
+      const at = decided.filter((r) => r.length > min * 60 + 30 && r.stats.every((s) => s.timeline.some((p) => p.t === min * 60)));
+      if (at.length < 5) continue;
+      let leaderWins = 0, lastWins = 0;
+      for (const r of at) {
+        const score = r.stats.map((s) => { const p = s.timeline.find((q) => q.t === min * 60); return p ? p.income + p.army : 0; });
+        const lead = score.indexOf(Math.max(...score)), last = score.indexOf(Math.min(...score));
+        if (r.winner === lead) leaderWins++;
+        if (r.winner === last) lastWins++;
+      }
+      rows.push([`${min}:00`, at.length, pct(leaderWins, at.length), pct(lastWins, at.length)]);
+    }
+    out.push(table(['Checkpoint', 'Matches still going', 'Leader went on to win', 'Last place went on to win'], rows));
   }
   return out.join('\n');
 }
