@@ -143,7 +143,7 @@ export function refreshHud(): void {
   els.wood.textContent = String(Math.floor(G.wood[V.team] ?? 0));
   els.oil.textContent = String(Math.floor(G.oil[V.team] ?? 0));
   setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees.`);
-  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the Industrial age on.`);
+  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the World War age on.`);
   els.power.textContent = `${p.used} / ${p.made}`;
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
   const era = ERA[eraOf(V.team)]?.name ?? '';

@@ -968,12 +968,14 @@ function industrial(m: Model): Model {
 
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
- * 0 wood and thatch (Medieval), 1 stone (Gunpowder), 2 brick and iron (Industrial), 3 concrete
- * and steel (Modern). The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
- * and the Oil Derrick (Industrial) starts at brick and iron.
+ * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
+ * Look 1, dressed stone, is what the Watchtower and Lumber Mill grow into after the Medieval age. The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
+ * and the Oil Derrick and Flak Cannon starts at brick and iron.
  */
+const ERA_LOOK = [0, 2, 3] as const;
+
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
-  const e = Math.max(0, Math.min(3, era)) as 0 | 1 | 2 | 3;
+  const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
   if (type === 'derrick' || type === 'flak') return e < 2 ? 2 : e;
   if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
@@ -981,7 +983,7 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 }
 
 /** A structure as its team builds it in their current age (see data/era.ts). */
-export function buildingModel(type: BldType, team: number, era = 3): Model {
+export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1): Model {
   const lk = bldLook(type, era);
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));

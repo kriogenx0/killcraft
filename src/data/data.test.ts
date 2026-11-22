@@ -46,12 +46,12 @@ describe('static data', () => {
     expect(UNIT.harvester.era).toBe(0);
   });
 
-  it('never asks for oil before the Industrial age, when the Oil Derrick arrives', () => {
-    expect(BUILDING.derrick.era).toBe(2);
+  it('never asks for oil before World War, when the Oil Derrick arrives', () => {
+    expect(BUILDING.derrick.era).toBe(1);
     expect(BUILDING.derrick.oil ?? 0).toBe(0);
-    for (const u of UNIT_TYPES) if (UNIT[u].era < 2) expect(UNIT[u].oil ?? 0).toBe(0);
-    for (const b of BLD_TYPES) if (BUILDING[b].era < 2) expect(BUILDING[b].oil ?? 0).toBe(0);
-    for (const t of TECH_TYPES) if (TECH[t].era < 2) expect(TECH[t].oil ?? 0).toBe(0); // era: the age a research starts in
+    for (const u of UNIT_TYPES) if (UNIT[u].era < 1) expect(UNIT[u].oil ?? 0).toBe(0);
+    for (const b of BLD_TYPES) if (BUILDING[b].era < 1) expect(BUILDING[b].oil ?? 0).toBe(0);
+    for (const t of TECH_TYPES) if (TECH[t].era < 1) expect(TECH[t].oil ?? 0).toBe(0); // era: the age a research starts in
   });
 
   it('lets a side start cutting wood without needing any', () => {
