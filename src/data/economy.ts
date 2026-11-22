@@ -34,7 +34,7 @@ export const SALVAGE_SHARE = 0.3;
 /**
  * Catch-up for a runaway leader. The side whose army and buildings are worth this many times the
  * runner-up's is "in the lead", and whoever destroys its units or buildings is paid this share of
- * their gold price.
+ * their ore price.
  */
 export const BOUNTY_LEAD = 1.3;
 export const BOUNTY_SHARE = 0.5;

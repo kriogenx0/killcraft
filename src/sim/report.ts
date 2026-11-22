@@ -52,9 +52,9 @@ export function report(results: MatchResult[]): string {
   const perMin = sides.map((s) => s.income / Math.max(1, (s.outAt ?? results.find((r) => r.stats.includes(s))?.length ?? 1) / 60));
   out.push(table(['', 'Median', '10th', '90th'], [
     ['Gold harvested per minute alive', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(perMin, q)))],
-    ['Bounty gold earned', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.bounty ?? 0), q)))],
+    ['Bounty ore banked', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.bounty ?? 0), q)))],
     ['Gold harvested in total', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.income), q)))],
-    ['Average gold in the bank', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgBank), q)))],
+    ['Average ore in the bank', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgBank), q)))],
     ['Average wood in store', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgWood), q)))],
     ['Average oil in store', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgOil), q)))],
     ['Peak bank', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.peakBank), q)))],
@@ -66,7 +66,7 @@ export function report(results: MatchResult[]): string {
   for (const s of sides) { sumInto(built, s.built); sumInto(lost, s.lost); sumInto(kills, s.killsBy); sumInto(value, s.killValueBy); }
   const types = Object.keys({ ...built, ...kills }).sort((a, b) => (built[b] ?? 0) * priceOf(b) - (built[a] ?? 0) * priceOf(a));
   out.push('', '## Units and structures', '');
-  out.push('Prices count gold, wood and oil together. Value traded is the price of everything a type destroyed, divided by what was spent building that type. Above 1 means it more than paid for itself.', '');
+  out.push('Prices count ore, wood and oil together. Value traded is the price of everything a type destroyed, divided by what was spent building that type. Above 1 means it more than paid for itself.', '');
   out.push(table(['Type', 'Built per side', 'Share of spending', 'Lost', 'Kills', 'Kills each', 'Value traded'], (() => {
     const spentAll = types.reduce((a, t) => a + (built[t] ?? 0) * priceOf(t), 0);
     return types.map((t) => {
@@ -91,12 +91,12 @@ export function report(results: MatchResult[]): string {
       .filter(([, a, b]) => a + b > 0.01)
       .sort((x, y) => Math.abs(y[1] - y[2]) - Math.abs(x[1] - x[2]))
       .map(([t, a, b]) => [t, `${(a * 100).toFixed(1)}%`, `${(b * 100).toFixed(1)}%`, `${a > b ? '+' : ''}${((a - b) * 100).toFixed(1)} pts`])));
-    out.push('', `Winners harvested a median ${Math.round(quantile(winners.map((s) => s.income), 0.5))} gold; first knocked out sides harvested ${Math.round(quantile(decided.flatMap((r) => r.stats.filter((s) => s.place === teams)).map((s) => s.income), 0.5))}.`);
+    out.push('', `Winners harvested a median ${Math.round(quantile(winners.map((s) => s.income), 0.5))} ore; first knocked out sides harvested ${Math.round(quantile(decided.flatMap((r) => r.stats.filter((s) => s.place === teams)).map((s) => s.income), 0.5))}.`);
   }
   // how much does an early lead decide the match?
   if (decided.length) {
     out.push('', '## Does an early lead snowball?', '');
-    out.push('The leader at a checkpoint has the most gold harvested so far plus army on the field. Even odds would be 1 in ' + teams + '.', '');
+    out.push('The leader at a checkpoint has the most ore harvested so far plus army on the field. Even odds would be 1 in ' + teams + '.', '');
     const rows: (string | number)[][] = [];
     for (const min of [5, 10, 15, 20]) {
       const at = decided.filter((r) => r.length > min * 60 + 30 && r.stats.every((s) => s.timeline.some((p) => p.t === min * 60)));

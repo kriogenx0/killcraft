@@ -17,7 +17,7 @@ import { bankAether, drawAether, placeAether, shrineHeal, syncWaygates } from '.
 import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
-import { updLeader } from './bounty.ts';
+import { bankLoot, updLeader } from './bounty.ts';
 
 const FOG_INTERVAL = 0.2;
 const AI_INTERVAL = 1;
@@ -82,7 +82,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); shrineHeal(ORE_INTERVAL); syncWaygates(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   G.aiT -= dt;

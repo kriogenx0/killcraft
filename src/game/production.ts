@@ -1,8 +1,8 @@
 // Sidebar production: one structure and one research (an age, or the Aether Ward) at a time from the Construction Yard,
 // one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
-// Ore, wood and oil are spent as work progresses; production stalls when any of them runs out,
-// and runs at half speed on low power.
+// The whole price (ore, wood, oil, Aether) is paid when an order starts; an order the side can't
+// afford doesn't start, and cancelling refunds it in full. Production runs at half speed on low power.
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
@@ -94,25 +94,43 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
+/** The first resource the team lacks for the whole price, or null if it can pay. */
+function shortOf(team: number, t: Buildable): keyof typeof SHORT_MSG | null {
+  const p = priceOf(t);
+  return G.credits[team] < p.ore ? 'ore' : G.wood[team] < p.wood ? 'wood' : G.oil[team] < p.oil ? 'oil' : (G.aether[team] ?? 0) < p.aether ? 'aether' : null;
+}
+
+function fundsNotice(team: number, short: keyof typeof SHORT_MSG): void {
+  if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, SHORT_MSG[short]); }
+}
+
+/** Start an order, paying its whole price now. Returns false if it can't start (or can't be afforded). */
 export function enqueue(team: number, type: Buildable): boolean {
   const line = lineOf(type), q = G.prod[team][line];
   if (!available(team, line).includes(type)) return false;
   const research = line === 'tech' || line === 'hospital' || line === 'armory', max = line === 'structure' || research ? 1 : QUEUE_MAX;
   if (q.length >= max) { say(team, line === 'structure' ? 'Already building' : research ? 'Already researching' : 'Queue is full'); return false; }
-  q.push({ type, prog: 0, spent: 0, ready: false, hold: false });
+  const short = shortOf(team, type);
+  if (short) { fundsNotice(team, short); return false; }
+  const p = priceOf(type);
+  G.credits[team] -= p.ore;
+  G.wood[team] -= p.wood;
+  G.oil[team] -= p.oil;
+  if (p.aether) G.aether[team] -= p.aether;
+  q.push({ type, prog: 0, spent: p.ore, ready: false, hold: false });
   return true;
 }
 
-/** Remove the last queued item of a type and refund what was spent on it. */
+/** Remove the last queued item of a type and refund its whole price. */
 export function cancel(team: number, type: Buildable): boolean {
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
     if (q[i].type === type) {
       const p = priceOf(q[i].type);
-      G.credits[team] += q[i].spent;
-      G.wood[team] += p.wood * q[i].prog;
-      G.oil[team] += p.oil * q[i].prog;
-      G.aether[team] = (G.aether[team] ?? 0) + p.aether * q[i].prog;
+      G.credits[team] += p.ore;
+      G.wood[team] += p.wood;
+      G.oil[team] += p.oil;
+      G.aether[team] = (G.aether[team] ?? 0) + p.aether;
       q.splice(i, 1);
       return true;
     }
@@ -166,19 +184,7 @@ export function updProduction(team: number, dt: number): void {
     const q = G.prod[team][line], it = q[0];
     if (!it || it.ready || it.hold) continue;
     if (!producerOf(team, line)) { cancel(team, it.type); continue; }
-    const dp = Math.min((speed * dt) / timeOf(it.type), 1 - it.prog), p = priceOf(it.type);
-    const ore = p.ore * dp, wood = p.wood * dp, oil = p.oil * dp, aether = p.aether * dp;
-    const short = G.credits[team] < ore ? 'ore' : G.wood[team] < wood ? 'wood' : G.oil[team] < oil ? 'oil' : (G.aether[team] ?? 0) < aether ? 'aether' : null;
-    if (short) {
-      if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, SHORT_MSG[short]); }
-      continue;
-    }
-    G.credits[team] -= ore;
-    G.wood[team] -= wood;
-    G.oil[team] -= oil;
-    if (aether) G.aether[team] -= aether;
-    it.spent += ore;
-    it.prog += dp;
+    it.prog += Math.min((speed * dt) / timeOf(it.type), 1 - it.prog);
     if (it.prog < 1 - 1e-9) continue;
     if (line === 'structure') { it.ready = true; say(team, 'Construction complete'); }
     else if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }

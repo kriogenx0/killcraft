@@ -124,16 +124,15 @@ describe('Aether', () => {
     expect(errors).toEqual([]);
   });
 
-  it('spends Aether on hidden units, and stalls without it', () => {
+  it('spends Aether on hidden units, and can\'t start one without it', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 12, 46, false);
     G.aetherFound[0] = true;
     G.aether[0] = 0;
     G.credits[0] = G.wood[0] = 5000;
-    expect(enqueue(0, 'wraith')).toBe(true);
-    run(UNIT.wraith.t + 2);
-    expect(G.ents.some((e) => e.type === 'wraith')).toBe(false);
+    expect(enqueue(0, 'wraith')).toBe(false);
     G.aether[0] = 100;
+    expect(enqueue(0, 'wraith')).toBe(true);
     run(UNIT.wraith.t + 2);
     expect(G.ents.some((e) => e.type === 'wraith' && e.team === 0)).toBe(true);
     expect(G.aether[0]).toBeCloseTo(100 - (UNIT.wraith.aether ?? 0), 0);

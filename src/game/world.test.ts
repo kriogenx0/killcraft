@@ -13,6 +13,7 @@ import { OIL_WELLS } from '../data/map.ts';
 import { TREE_WOOD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
+import { BUILDING } from '../data/building.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { mulberry32 } from '../util/math.ts';
 
@@ -54,13 +55,11 @@ describe('production', () => {
     }
   });
 
-  it('spends credits gradually and places a finished structure', () => {
+  it('pays the whole price up front and places a finished structure', () => {
     expect(available(0, 'structure')).toEqual(['power', 'mill']);
     expect(enqueue(0, 'power')).toBe(true);
-    run(4);
-    expect(G.credits[0]).toBeLessThan(START_CREDITS);
-    expect(G.credits[0]).toBeGreaterThan(START_CREDITS - 300);
-    run(6);
+    expect(G.credits[0]).toBe(START_CREDITS - BUILDING.power.cost);
+    run(10);
     expect(readyStructure(0)).toBe('power');
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
     if (!yard) throw new Error('no yard');
@@ -261,21 +260,20 @@ describe('production', () => {
     expect(salvageOf(tank)).toBeGreaterThan(0);
   });
 
-  it('stalls without wood and refunds every resource on cancel', () => {
+  it("won't start an order it can't pay for in full, and refunds all of it on cancel", () => {
     addBuilding('power', 0, 10, 50, false);
     G.credits[0] = 5000;
-    G.wood[0] = 0;
-    enqueue(0, 'barracks');
-    run(15);
-    expect(readyStructure(0)).toBeNull();
+    G.wood[0] = (BUILDING.barracks.wood ?? 0) - 1;
+    expect(enqueue(0, 'barracks')).toBe(false);
     expect(G.credits[0]).toBe(5000);
-    G.wood[0] = 50; // half the price: half built, then stuck
-    run(15);
-    expect(readyStructure(0)).toBeNull();
-    expect(G.wood[0]).toBeLessThan(1);
+    G.wood[0] = BUILDING.barracks.wood ?? 0;
+    expect(enqueue(0, 'barracks')).toBe(true);
+    expect(G.wood[0]).toBe(0);
+    expect(G.credits[0]).toBe(5000 - BUILDING.barracks.cost);
+    run(4); // part built
     cancel(0, 'barracks');
-    expect(G.wood[0]).toBeCloseTo(50, 0);
-    expect(G.credits[0]).toBeCloseTo(5000, 0);
+    expect(G.wood[0]).toBe(BUILDING.barracks.wood ?? 0);
+    expect(G.credits[0]).toBe(5000);
   });
 
   it('turns ore into credits with the two free Workers', () => {

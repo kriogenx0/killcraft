@@ -1,5 +1,5 @@
 // Plays one computer-only match headlessly and records what happened: who won and when, how fast
-// each side advanced through the ages, what it built, what killed what, and how it spent its gold.
+// each side advanced through the ages, what it built, what killed what, and how it spent its ore.
 // Used by the balance runner (run.ts); runs in Node with no DOM.
 import { G, hooks, unitDef, type Ent } from '../game/state.ts';
 import { STEP } from '../game/const.ts';
@@ -10,7 +10,7 @@ import { UNIT, isUnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import { mulberry32 } from '../util/math.ts';
 
-/** What a unit or structure is worth: its gold, wood and oil added together. */
+/** What a unit or structure is worth: its ore, wood and oil added together. */
 export const priceOf = (type: string): number => {
   const d = isUnitType(type) ? UNIT[type] : BUILDING[type as BldType];
   return d ? d.cost + (d.wood ?? 0) + (d.oil ?? 0) : 0;
@@ -30,15 +30,15 @@ export interface TeamStats {
   killsBy: Record<string, number>;
   /** enemy units and structures destroyed, by the victim's type */
   killed: Record<string, number>;
-  /** gold value of what each type destroyed (the victims' prices) */
+  /** value of what each type destroyed (the victims' prices) */
   killValueBy: Record<string, number>;
-  /** gold harvested */
+  /** ore harvested */
   income: number;
-  /** gold paid in bounties for destroying the leader's things */
+  /** ore banked from bounty loot for destroying the leader's things */
   bounty: number;
-  /** gold spent (start + income - bank; sales and refunds count as negative spending) */
+  /** ore spent (start + income - bank; sales and refunds count as negative spending) */
   spent: number;
-  /** average gold in the bank, sampled every second */
+  /** average ore in the bank, sampled every second */
   avgBank: number;
   /** average wood and oil in store, sampled every second */
   avgWood: number;
@@ -46,7 +46,7 @@ export interface TeamStats {
   peakBank: number;
   /** largest armed force at once */
   peakArmy: number;
-  /** every 5 minutes: gold harvested so far and the price of the armed units alive */
+  /** every 5 minutes: ore harvested so far and the price of the armed units alive */
   timeline: { t: number; income: number; army: number }[];
   /** game seconds when this side was eliminated, or null if it survived */
   outAt: number | null;

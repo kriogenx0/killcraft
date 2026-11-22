@@ -1,13 +1,13 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them.
-import { G, type ProductionLine, isAir, isHarvester, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
-import { TECH, isTechType, type TechType } from '../data/era.ts';
+import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { TECH, isTechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace, sell } from './building.ts';
-import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
+import { available, canAfford, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
 import { oilLeft, oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
@@ -21,13 +21,13 @@ interface AiState {
   foe: number;
   /** units kept home to guard an Aether crystal */
   guards: Set<number>;
-  /** progress of each line's first item and when it last moved, to spot a queue stuck for want of wood, oil or Aether */
-  stall: Map<ProductionLine, { type: string; prog: number; t: number }>;
+  /** ore set aside for the next structure, which must be paid for in full before it starts */
+  reserve: number;
 }
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), stall: new Map() },
-  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), stall: new Map() },
+  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), reserve: 0 },
+  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0 },
 ];
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
@@ -40,8 +40,8 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
 export function resetAi(teams = 2): void {
-  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), stall: new Map() });
-  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.stall.clear(); a.foe = teams === 2 ? 1 - team : -1; });
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0 });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -89,7 +89,7 @@ function nextStructure(team: number): BldType | null {
   const aether = G.aether[team] ?? 0;
   if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
   if (can.includes('shrine') && countOf(team, 'shrine') < 1 && aether >= (BUILDING.shrine.aether ?? 0) + 40 && G.credits[team] > 1200) return 'shrine';
-  // short of wood with gold to spare: another mill, by fresh trees
+  // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 4 && can.includes('turret')) return 'turret';
@@ -138,9 +138,10 @@ function construction(team: number): void {
     else cancel(team, ready);
     return;
   }
-  if (G.prod[team].structure.length) return;
+  if (G.prod[team].structure.length) { ais[team].reserve = 0; return; }
   const t = nextStructure(team);
-  if (t) enqueue(team, t);
+  // structures are paid for up front: save up for one rather than spend everything on troops
+  ais[team].reserve = t && !enqueue(team, t) ? costOf(t) : 0;
 }
 
 /**
@@ -153,11 +154,11 @@ function research(team: number): void {
   // healing is researched at the Hospital, alongside the yard
   const heal = available(team, 'hospital').filter(isTechType)[0];
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
-  if (heal && !G.prod[team].hospital.length && infantry >= 4 && credits > costOf(heal) * 0.6 + 300 && hasHalf(team, heal)) enqueue(team, heal);
+  if (heal && !G.prod[team].hospital.length && infantry >= 4 && credits > costOf(heal) + 300 && canAfford(team, heal)) enqueue(team, heal);
   if (G.prod[team].tech.length) return;
   const can = available(team, 'tech').filter(isTechType);
   const age = can.find((t) => TECH[t].age != null);
-  if (age && G.credits[team] > costOf(age) * 0.6 + 200 && hasHalf(team, age)) { enqueue(team, age); return; }
+  if (age && G.credits[team] > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); return; }
   const ward = can.find((t) => TECH[t].ward);
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
@@ -192,7 +193,6 @@ function assignHaulers(team: number): void {
 const gatherers = (team: number): number => G.ents.filter((e) => !e.dead && e.team === team && isHarvester(e)).length;
 
 /** At least half the wood and oil a research needs is in the bank. */
-const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
 
 /**
  * Armory upgrades once there's an army to improve, favoring whichever side (troops or machines) the
@@ -222,9 +222,9 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  const prod = G.prod[team], credits = G.credits[team];
-  // leave money for the next structure while it's being built
-  const saving = prod.structure.length > 0 && credits < 500;
+  const prod = G.prod[team], credits = G.credits[team] - ais[team].reserve;
+  // saving up for the next structure
+  const saving = credits < 150;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
     const refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
@@ -328,31 +328,14 @@ function military(team: number): void {
   // muster new troops in front of the base
   const a = Math.atan2(tgt.y - home.y, tgt.x - home.x);
   for (const u of idle) {
+    // idle troops carrying bounty loot take it home to bank it
+    if (u.loot) { orderMove(u, tileOf(home.x), tileOf(home.y) + 3); continue; }
     const d = Math.hypot(u.x - home.x, u.y - home.y);
     if (d > 9 * TS && (!A.attacking || d < 12 * TS)) orderMove(u, tileOf(home.x + Math.cos(a) * 6 * TS), tileOf(home.y + Math.sin(a) * 6 * TS));
   }
 }
 
-/** Seconds an item may sit without progress before the computer gives up on it. */
-const STALL_LIMIT = 20;
-
-/**
- * Cancel a unit or research that has stopped for want of wood, oil or Aether, so it doesn't block
- * everything queued behind it (Aether in particular may never come back).
- */
-function unstall(team: number): void {
-  const A = ais[team];
-  for (const line of ['infantry', 'vehicle', 'air', 'tech'] as const) {
-    const it = G.prod[team][line][0];
-    if (!it || it.hold) { A.stall.delete(line); continue; }
-    const s = A.stall.get(line);
-    if (!s || s.type !== it.type || s.prog !== it.prog) { A.stall.set(line, { type: it.type, prog: it.prog, t: G.gameT }); continue; }
-    if (G.gameT - s.t >= STALL_LIMIT) { cancel(team, it.type); A.stall.delete(line); }
-  }
-}
-
 export function aiThink(team: number): void {
-  unstall(team);
   construction(team);
   assignHaulers(team);
   research(team);

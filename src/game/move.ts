@@ -59,6 +59,8 @@ export function steer(u: Ent, tx: number, ty: number, max: number, dt: number, a
     if (canStep(u.x, u.y, nx, u.y)) ny = u.y;
     else if (canStep(u.x, u.y, u.x, ny)) nx = u.x;
     else return 'blocked';
+    // heading straight into a wall: "sliding" along the other axis goes nowhere
+    if (nx === u.x && ny === u.y) return 'blocked';
   }
   u.x = nx; u.y = ny;
   return 'moving';
