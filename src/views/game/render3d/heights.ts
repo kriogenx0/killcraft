@@ -23,14 +23,15 @@ export function buildHeights(): void {
       const fx = vx / RES - 0.5, fy = vy / RES - 0.5, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
       let h = (elevAt(ix, iy) * (1 - tx) + elevAt(ix + 1, iy) * tx) * (1 - ty) + (elevAt(ix, iy + 1) * (1 - tx) + elevAt(ix + 1, iy + 1) * tx) * ty;
       // cliffs: rock tiles rise into broken crags above the plateau they ring
-      const tx0 = Math.floor((vx - 0.5) / RES), ty0 = Math.floor((vy - 0.5) / RES);
+      // the tiles this vertex touches: one at a tile's centre, two or four on its edges
+      const xs = vx % RES ? [Math.floor(vx / RES)] : [vx / RES - 1, vx / RES], ys = vy % RES ? [Math.floor(vy / RES)] : [vy / RES - 1, vy / RES];
       let rocks = 0, top = -9;
-      for (const [x, y] of [[tx0, ty0], [tx0 + 1, ty0], [tx0, ty0 + 1], [tx0 + 1, ty0 + 1]])
-        if (rockAt(x, y)) { rocks++; top = Math.max(top, elevAt(x, y)); }
+      for (const x of xs) for (const y of ys) if (rockAt(x, y)) { rocks++; top = Math.max(top, elevAt(x, y)); }
+      rocks /= xs.length * ys.length;
       if (rocks) {
         // cliff tops are broken crags, and the face drops sharply to the ground below
         const n = hash(vx * 0.37, vy * 0.53);
-        h = rocks >= 2 ? top + n * 0.35 : Math.max(h, top * 0.75 + h * 0.25) + n * 0.2;
+        h = rocks >= 0.5 ? top + n * 0.35 : Math.max(h, top * 0.75 + h * 0.25) + n * 0.2;
       }
       heights[vy * VW + vx] = h;
     }

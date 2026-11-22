@@ -1,9 +1,8 @@
 // The battlefield's static layer: textured ground, glinting water, instanced trees and ore
 // crystals, and the fog-of-war sheet laid over the ground.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { G } from '../../../game/state.ts';
-import { MW, MH, TREE } from '../../../game/const.ts';
+import { MW, MH } from '../../../game/const.ts';
 import { buildHeights, heightAt, heights, VH, VW, WATER_LEVEL } from './heights.ts';
 import { ORE_TILE_MAX } from '../../../data/ore.ts';
 import { OIL_TILE_MAX } from '../../../data/economy.ts';
@@ -13,32 +12,16 @@ import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { terrain } from '../render/terrain.ts';
 import { fogCanvas } from '../render/minimap.ts';
 import { S } from './scene.ts';
-import { M, mat } from './materials.ts';
+import { M } from './materials.ts';
+import { animateTrees, initTrees, refreshTrees } from './trees3d.ts';
 
 const ORE_PER_TILE = 5;
 const layer = new THREE.Group();
-let pines: THREE.InstancedMesh | null = null, pineTrunks: THREE.InstancedMesh | null = null;
-let oaks: THREE.InstancedMesh | null = null, oakTrunks: THREE.InstancedMesh | null = null;
 let ore: THREE.InstancedMesh | null = null;
 let oil: THREE.InstancedMesh | null = null;
 let fogTex: THREE.CanvasTexture | null = null;
-let treeTiles: { i: number; pine: boolean; idx: number }[] = [];
-let shownTrees = new Uint8Array(0);
 
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-
-function pineGeometry(): THREE.BufferGeometry {
-  const a = new THREE.ConeGeometry(0.42, 0.62, 8).translate(0, 0.55, 0);
-  const b = new THREE.ConeGeometry(0.32, 0.52, 8).translate(0, 0.88, 0);
-  const c = new THREE.ConeGeometry(0.2, 0.4, 8).translate(0, 1.15, 0);
-  return mergeGeometries([a, b, c]) ?? a;
-}
-
-function oakGeometry(): THREE.BufferGeometry {
-  const parts = [[0, 0.78, 0, 0.36], [0.2, 0.68, 0.1, 0.26], [-0.18, 0.66, -0.08, 0.27], [0.02, 0.95, -0.12, 0.24]]
-    .map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z));
-  return mergeGeometries(parts) ?? parts[0];
-}
 
 /** A map-sized sheet following the ground (or the water, where it's higher), raised by `lift`. */
 function shapedPlane(lift: number, overWater = false): THREE.BufferGeometry {
@@ -50,6 +33,46 @@ function shapedPlane(lift: number, overWater = false): THREE.BufferGeometry {
   }
   g.computeVertexNormals();
   return g;
+}
+
+let detail: THREE.CanvasTexture | null = null;
+
+/** A fine, tiling grain (grass blades, grit) to keep the ground crisp up close. */
+function detailTexture(): THREE.CanvasTexture {
+  const N = 256, c = mkCanvas(N, N), g = ctx2d(c), img = g.createImageData(N, N), rnd = mulberry32(7);
+  const val = new Float32Array(N * N);
+  // soft noise plus short strokes, wrapped so it tiles
+  for (let k = 0; k < N * N; k++) val[k] = 0.5 + (rnd() - 0.5) * 0.25;
+  for (let k = 0; k < 2600; k++) {
+    const x = rnd() * N, y = rnd() * N, len = 2 + rnd() * 4, dark = rnd() < 0.5 ? -0.22 : 0.18, lean = (rnd() - 0.5) * 0.8;
+    for (let t = 0; t < len; t++) {
+      const px = Math.floor(x + lean * t + N) % N, py = Math.floor(y - t + N) % N;
+      val[py * N + px] += dark * (1 - t / len);
+    }
+  }
+  for (let k = 0; k < N * N; k++) {
+    const v = Math.max(0, Math.min(255, val[k] * 255));
+    img.data.set([v, v, v, 255], k * 4);
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+/** The painted ground, with fine grain mixed in up close. */
+function groundMaterial(map: THREE.Texture): THREE.Material {
+  detail ??= detailTexture();
+  const m = new THREE.MeshStandardMaterial({ map, roughness: 1 });
+  const tex = detail;
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uDetail = { value: tex };
+    shader.fragmentShader = 'uniform sampler2D uDetail;\n' + shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      float grain = texture2D(uDetail, vMapUv * ${(MW * 1.5).toFixed(1)}).r * 0.6 + texture2D(uDetail, vMapUv * ${(MW * 0.37).toFixed(2)}).r * 0.4;
+      diffuseColor.rgb *= 0.72 + grain * 0.56;`);
+  };
+  m.customProgramCacheKey = () => 'ground-detail';
+  return m;
 }
 
 let ripples: THREE.CanvasTexture | null = null;
@@ -87,6 +110,7 @@ function waterMaterial(): THREE.Material {
 
 /** Drift the ripples on the water. */
 export function animateWater(dt: number): void {
+  animateTrees(dt);
   if (!ripples) return;
   ripples.offset.x = (ripples.offset.x + dt * 0.035) % 1;
   ripples.offset.y = (ripples.offset.y + dt * 0.02) % 1;
@@ -111,7 +135,7 @@ export function initWorld3d(): void {
   const tex = new THREE.CanvasTexture(terrain.ground);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = S.renderer.capabilities.getMaxAnisotropy();
-  const ground = new THREE.Mesh(shapedPlane(0), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+  const ground = new THREE.Mesh(shapedPlane(0), groundMaterial(tex));
   ground.receiveShadow = true;
   ground.castShadow = true;
   layer.add(ground);
@@ -120,17 +144,7 @@ export function initWorld3d(): void {
   water.receiveShadow = true;
   water.renderOrder = 1;
   layer.add(water);
-  // trees
-  treeTiles = [];
-  let nPine = 0, nOak = 0;
-  for (let i = 0; i < MW * MH; i++) if (G.terr[i] === TREE) { const pine = hash(i % MW, (i / MW) | 0) > 0.42; treeTiles.push({ i, pine, idx: pine ? nPine++ : nOak++ }); }
-  const leaves = mat('#2f6a2c', { rough: 0.85, flat: true }), trunk = M.darkWood();
-  pines = new THREE.InstancedMesh(pineGeometry(), leaves, Math.max(1, nPine));
-  pineTrunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.08, 0.35, 6).translate(0, 0.17, 0), trunk, Math.max(1, nPine));
-  oaks = new THREE.InstancedMesh(oakGeometry(), mat('#4a8a36', { rough: 0.85, flat: true }), Math.max(1, nOak));
-  oakTrunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.1, 0.5, 6).translate(0, 0.25, 0), trunk, Math.max(1, nOak));
-  for (const im of [pines, pineTrunks, oaks, oakTrunks]) { im.castShadow = true; im.receiveShadow = true; im.count = 0; layer.add(im); }
-  shownTrees = new Uint8Array(treeTiles.length);
+  initTrees(layer);
   // ore crystals
   ore = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09).scale(0.8, 1.7, 0.8), M.ore(), 2600);
   ore.castShadow = true;
@@ -155,37 +169,7 @@ export function initWorld3d(): void {
     layer.add(strip);
   }
   S.scene.add(layer);
-  refreshTrees(true);
   refreshOre();
-}
-
-/** Show trees once their tile has been explored. */
-export function refreshTrees(force = false): void {
-  if (!pines || !oaks || !pineTrunks || !oakTrunks) return;
-  let changed = force;
-  for (let k = 0; k < treeTiles.length; k++) {
-    const seen = G.vis[treeTiles[k].i] > 0 ? 1 : 0;
-    if (seen !== shownTrees[k]) { shownTrees[k] = seen; changed = true; }
-  }
-  if (!changed) return;
-  let np = 0, no = 0;
-  const color = new THREE.Color();
-  treeTiles.forEach((t, k) => {
-    if (!shownTrees[k]) return;
-    const x = t.i % MW, y = (t.i / MW) | 0, h = hash(x, y), h2 = hash(y + 3.3, x - 7.1), s = 0.85 + h2 * 0.35;
-    q.setFromAxisAngle(up, h * Math.PI * 2);
-    const px = x + 0.5 + (h - 0.5) * 0.25, pz = y + 0.5 + (h2 - 0.5) * 0.25;
-    m4.compose(v.set(px, heightAt(px, pz) - 0.03, pz), q, sc.set(s, s * (0.9 + h * 0.3), s));
-    color.setHSL(0.28 + h * 0.06, 0.45, 0.32 + h2 * 0.12);
-    if (t.pine) { pines?.setMatrixAt(np, m4); pines?.setColorAt(np, color); pineTrunks?.setMatrixAt(np, m4); np++; }
-    else { oaks?.setMatrixAt(no, m4); oaks?.setColorAt(no, color); oakTrunks?.setMatrixAt(no, m4); no++; }
-  });
-  pines.count = pineTrunks.count = np;
-  oaks.count = oakTrunks.count = no;
-  for (const im of [pines, pineTrunks, oaks, oakTrunks]) {
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-  }
 }
 
 /** Crystals on every explored ore tile, more of them on richer tiles. */
