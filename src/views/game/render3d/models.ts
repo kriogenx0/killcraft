@@ -11,6 +11,7 @@ import type { UnitType } from '../../../data/unit.ts';
 import type { BldType } from '../../../data/building.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
+import { airfield, balloon, biplane, flak, helicopter } from './aircraft.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -575,6 +576,9 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'heavy': return tank(team, true);
     case 'harvester': return harvester(team);
     case 'catapult': return catapult(team);
+    case 'balloon': return balloon(team);
+    case 'biplane': return biplane(team);
+    case 'helicopter': return helicopter(team);
   }
 }
 
@@ -930,7 +934,7 @@ function derrick(team: number): Model {
   return { root, parts, height: 1.0 };
 }
 
-function makeBuilding(type: BldType, team: number): Model {
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak'>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -971,14 +975,16 @@ function industrial(m: Model): Model {
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = Math.max(0, Math.min(3, era)) as 0 | 1 | 2 | 3;
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
-  if (type === 'derrick') return e < 2 ? 2 : e;
-  if (type === 'turret') return e < 1 ? 1 : e;
+  if (type === 'derrick' || type === 'flak') return e < 2 ? 2 : e;
+  if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
   return e;
 }
 
 /** A structure as its team builds it in their current age (see data/era.ts). */
 export function buildingModel(type: BldType, team: number, era = 3): Model {
   const lk = bldLook(type, era);
+  if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
+  if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>
     lk === 0 ? medievalBuilding(type, team, 'wood')
       : lk === 1 ? medievalBuilding(type, team, 'stone')

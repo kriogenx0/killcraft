@@ -1,7 +1,7 @@
 import type { WeaponType } from './weapon.ts';
 import type { Producer } from './unit.ts';
 
-export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick';
+export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'airfield' | 'flak';
 
 export interface BldDef {
   name: string;
@@ -41,10 +41,12 @@ export const BUILDING: Record<BldType, BldDef> = {
   tower: { name: 'Watchtower', size: 1, top: 44, hp: 420, cost: 400, wood: 150, t: 9, era: 0, power: -10, sight: 7, requires: ['barracks'], weapon: 'ballista', buildable: true, desc: 'Stone tower with a ballista on top. Strong against infantry and cavalry.' },
   turret: { name: 'Gun Turret', size: 1, top: 12, hp: 450, cost: 600, t: 10, era: 1, power: -20, sight: 7, requires: ['barracks'], weapon: 'turretcannon', buildable: true, desc: 'Defensive cannon. Strong against vehicles.' },
   derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 1200, t: 16, era: 2, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
+  airfield: { name: 'Airfield', size: 3, top: 30, hp: 900, cost: 1200, wood: 300, t: 20, era: 1, power: -30, sight: 6, requires: ['refinery'], produces: 'air', buildable: true, desc: 'Builds aircraft: balloons, then biplanes and helicopters in later ages.' },
+  flak: { name: 'Flak Cannon', size: 1, top: 14, hp: 420, cost: 700, t: 10, era: 2, power: -20, sight: 8, requires: ['barracks'], weapon: 'flak', buildable: true, desc: 'Anti-aircraft gun with a long reach. Only fires at aircraft.' },
 };
 
 /** Order the structures appear in the sidebar. */
-export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'factory', 'tower', 'turret', 'derrick'];
+export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'factory', 'tower', 'turret', 'derrick', 'airfield', 'flak'];
 
 /** New structures must be placed within this many tiles of an existing one. */
 export const BUILD_RADIUS = 3;

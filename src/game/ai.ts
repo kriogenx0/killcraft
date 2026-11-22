@@ -1,6 +1,6 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves.
-import { G, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, isAir, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -18,7 +18,7 @@ export const ais: AiState[] = [
   { on: true, attackAt: 8, attacking: false },
 ];
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'turret'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -36,6 +36,9 @@ function nextStructure(team: number): BldType | null {
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
+  // answer enemy aircraft with flak
+  const foeAir = G.ents.filter((e) => !e.dead && e.team === 1 - team && isAir(e)).length;
+  if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
   return null;
@@ -51,8 +54,9 @@ function findSite(team: number, type: BldType): Tile | null {
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
-    const a = (type === 'turret' || type === 'tower') && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
-    const rad = (type === 'turret' || type === 'tower' ? 4 : 2.5) + Math.random() * (4 + k / 25);
+    const def = type === 'turret' || type === 'tower' || type === 'flak';
+    const a = def && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
+    const rad = (def ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
     if (!canPlace(tx, ty, s, team, true)) continue;
     if (type !== 'mill') return [tx, ty];
@@ -105,7 +109,7 @@ function research(team: number): void {
 const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
 
 /** Pick from weighted options, skipping anything the team can't build yet or lacks the wood or oil for. */
-function pick(team: number, line: 'infantry' | 'vehicle', options: [UnitType, number][]): UnitType | null {
+function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [UnitType, number][]): UnitType | null {
   const can = available(team, line), enough = (t: UnitType) => { const p = priceOf(t); return G.wood[team] >= p.wood && G.oil[team] >= p.oil; };
   const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t));
   let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
@@ -123,6 +127,11 @@ function training(team: number): void {
     if (harvesters < Math.min(6, refineries * 2) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
     else if (!saving && credits > 500)
       t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5]]);
+    if (t) enqueue(team, t);
+  }
+  // a few aircraft once there's money to spare
+  if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3]]);
     if (t) enqueue(team, t);
   }
   // spend a growing bank on more troops

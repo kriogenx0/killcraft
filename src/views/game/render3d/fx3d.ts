@@ -121,7 +121,7 @@ function updateParticles(): void {
     const k = p.life / p.max;
     if (p.kind === 'tracer') {
       if (nt >= 400) continue;
-      tracerPos.set([p.x / TS, Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, 0.25, p.ey / TS], nt * 6);
+      tracerPos.set([p.x / TS, Math.max(0.15, p.z / TS + 0.2), p.y / TS, p.ex / TS, 0.25 + p.ez / TS, p.ey / TS], nt * 6);
       nt++;
       continue;
     }
