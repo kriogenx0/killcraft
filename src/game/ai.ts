@@ -109,7 +109,8 @@ function research(team: number): void {
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
   if (heal && infantry >= 4 && credits > costOf(heal) * 0.6 + 300 && hasHalf(team, heal)) { enqueue(team, heal); return; }
   const ward = can.find((t) => TECH[t].ward);
-  if (ward && credits > costOf(ward) + 600 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
+  // the Ward is a luxury: only once past the first age, with the bank to spare
+  if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
 }
 
 /** At least half the wood and oil a research needs is in the bank. */

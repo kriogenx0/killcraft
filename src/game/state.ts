@@ -106,6 +106,9 @@ export interface Particle {
   ez: number;
 }
 
+/** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
+export interface Portal { a: Tile; b: Tile }
+
 export interface Decal {
   kind: 'splat' | 'corpse' | 'rubble' | 'wreck' | 'scorch';
   x: number; y: number; t: number; max: number; team: number; seed: number; w: number; r: number; a: number;
@@ -120,6 +123,10 @@ export const G = {
   /** wood left on each tree tile (grows back) */
   treeWood: new Float32Array(MW * MH),
   blk: new Uint8Array(MW * MH),
+  /** linked portal pairs on this map */
+  portals: [] as Portal[],
+  /** for each tile, the tile index its portal leads to, or -1 */
+  warp: new Int32Array(MW * MH).fill(-1),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
   /** fog of the team being viewed on this screen (an alias of sight[viewer]) */

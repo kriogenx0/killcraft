@@ -2,7 +2,8 @@
 import { G, blkAt, isAir, unitDef, type Ent, type Target } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
-import { edgeDist, pathFor, pathTo } from './path.ts';
+import { edgeDist, isJump, pathFor, pathTo } from './path.ts';
+import { warpFx } from './fx.ts';
 import { slowFactor } from './aether.ts';
 
 /** Turn an angle toward a target angle by at most `max` radians. */
@@ -45,6 +46,14 @@ export function followPath(u: Ent, dt: number): boolean {
   if (dist <= step) {
     u.x = tx; u.y = ty;
     u.path.shift();
+    const next = u.path[0];
+    if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) {
+      // step through the portal
+      warpFx(u.x, u.y);
+      u.x = u.px = (next[0] + 0.5) * TS; u.y = u.py = (next[1] + 0.5) * TS;
+      warpFx(u.x, u.y);
+      u.path.shift();
+    }
     return !u.path.length;
   }
   const nx = u.x + (dx / dist) * step, ny = u.y + (dy / dist) * step;

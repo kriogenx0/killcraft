@@ -8,7 +8,7 @@ import {
   AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REACH, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, SLOW_FACTOR, WARD_FACTOR,
 } from '../data/aether.ts';
-import { eachInDisk, setBlk } from './map.ts';
+import { eachInDisk, nearPortal, setBlk } from './map.ts';
 
 const TEAMS = [0, 1];
 
@@ -58,13 +58,13 @@ export function placeAether(seed: number): void {
   G.aetherFound = [false, false];
   G.ward = [false, false];
   for (const [sx, sy] of aetherSites(seed)) {
-    eachInDisk(sx, sy, 2, (i) => { if (G.terr[i] !== GRASS) G.terr[i] = GRASS; G.ore[i] = 0; });
+    eachInDisk(sx, sy, 2, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; });
     const ok = reachable();
     let best: Tile | null = null, bd = 1e9;
     for (let y = 1; y < MH - 1; y++)
       for (let x = 1; x < MW - 1; x++) {
         const d = Math.hypot(x - sx, y - sy);
-        if (d < bd && ok[y * MW + x] && G.ore[y * MW + x] === 0 && !G.blk[y * MW + x]) { bd = d; best = [x, y]; }
+        if (d < bd && ok[y * MW + x] && G.ore[y * MW + x] === 0 && !G.oilField[y * MW + x] && !G.blk[y * MW + x] && !nearPortal(x, y, 3)) { bd = d; best = [x, y]; }
       }
     if (best) addAether(best[0], best[1]);
   }

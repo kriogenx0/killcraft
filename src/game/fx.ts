@@ -44,6 +44,13 @@ export function explosion(x: number, y: number, size: number): void {
   burst('debris', x, y, Math.round(size / 2), 80, 220);
 }
 
+/** A shimmer where a unit enters or leaves a portal. */
+export function warpFx(x: number, y: number): void {
+  if (G.headless || !visible(x, y)) return;
+  part('flash', x, y, { max: 0.25, size: 26, col: '#b48cff' });
+  burst('spark', x, y, 10, 40, 140, '#c9a8ff');
+}
+
 /** A heavy rock landing: dust, flying stones and a dent in the ground, no fire. */
 export function impact(x: number, y: number, size: number): void {
   if (G.headless) return;

@@ -32,6 +32,24 @@ export const FORESTS: [number, number, number][] = [
   [59, 22, 4],
 ];
 
+/**
+ * Portal layouts. Some maps get one or two linked pairs, chosen by the map seed. Every pair
+ * mirrors itself through the map centre (like the bases and ore), so neither side gets a better gate.
+ */
+export const PORTAL_LAYOUTS: [Tile, Tile][] = [
+  [[4, 4], [59, 59]], // the two empty corners
+  [[26, 6], [37, 57]], // top edge to bottom edge
+  [[5, 20], [58, 43]], // left edge to right edge
+  [[22, 44], [41, 19]], // a shortcut between the two front lines
+];
+/** Share of maps with portals, and of those, the share with two pairs. */
+export const PORTAL_CHANCE = 0.5;
+export const PORTAL_DOUBLE_CHANCE = 0.3;
+/** Colour of each linked pair, so players can tell which gates go together. */
+export const PORTAL_COLORS = ['#a070ff', '#3fd8c4'];
+/** Ground kept clear around each gate (tiles). */
+export const PORTAL_CLEAR = 2.5;
+
 export const START_CREDITS = 3500;
 export const START_WOOD = 400;
 export const START_OIL = 0;

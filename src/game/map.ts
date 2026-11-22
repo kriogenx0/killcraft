@@ -3,7 +3,7 @@
 import { G, type Tile } from './state.ts';
 import { MW, MH, GRASS, WATER, TREE } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { START_YARDS, ORE_SOURCES, FORESTS, OIL_WELLS } from '../data/map.ts';
+import { START_YARDS, ORE_SOURCES, FORESTS, OIL_WELLS, PORTAL_LAYOUTS, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR } from '../data/map.ts';
 import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
 import { ORE_FIELD_RADIUS, ORE_TILE_MAX } from '../data/ore.ts';
 
@@ -62,8 +62,9 @@ function genMap(seed: number): boolean {
   return connected(START_YARDS[0], START_YARDS[1]);
 }
 
-function connected(a: Tile, b: Tile): boolean {
-  const seen = new Uint8Array(MW * MH), start = (a[1] + 1) * MW + a[0] + 1, q = [start];
+/** Tiles reachable on foot from a tile. */
+function reachable(from: Tile): Uint8Array {
+  const seen = new Uint8Array(MW * MH), start = from[1] * MW + from[0], q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;
@@ -76,13 +77,46 @@ function connected(a: Tile, b: Tile): boolean {
       q.push(ni);
     }
   }
-  return seen[(b[1] + 1) * MW + b[0] + 1] === 1;
+  return seen;
+}
+
+const yardTile = (t: Tile): Tile => [t[0] + 1, t[1] + 1];
+
+function connected(a: Tile, b: Tile): boolean {
+  return reachable(yardTile(a))[(b[1] + 1) * MW + b[0] + 1] === 1;
+}
+
+/** Some seeds get one or two portal pairs. Uses its own random stream so terrain stays the same per seed. */
+function placePortals(seed: number): void {
+  G.portals = [];
+  G.warp.fill(-1);
+  const rnd = mulberry32((seed * 7919 + 104729) >>> 0);
+  if (rnd() >= PORTAL_CHANCE) return;
+  const order = PORTAL_LAYOUTS.map((p) => ({ p, k: rnd() })).sort((a, b) => a.k - b.k).map((o) => o.p);
+  const want = rnd() < PORTAL_DOUBLE_CHANCE ? 2 : 1;
+  for (const [a, b] of order) {
+    if (G.portals.length >= want) break;
+    // clear a little plaza round each gate, then make sure both sides can walk to it
+    const layers = [G.terr, G.ore, G.oilField, G.treeWood], saved = layers.map((l) => l.slice());
+    for (const [x, y] of [a, b]) eachInDisk(x, y, PORTAL_CLEAR, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; });
+    const home = reachable(yardTile(START_YARDS[0]));
+    if (!home[a[1] * MW + a[0]] || !home[b[1] * MW + b[0]]) { layers.forEach((l, k) => l.set(saved[k] as never)); continue; }
+    G.portals.push({ a: [a[0], a[1]], b: [b[0], b[1]] });
+    G.warp[a[1] * MW + a[0]] = b[1] * MW + b[0];
+    G.warp[b[1] * MW + b[0]] = a[1] * MW + a[0];
+  }
+}
+
+/** Is a tile within `r` tiles (square) of a portal gate? */
+export function nearPortal(tx: number, ty: number, r = 1): boolean {
+  return G.portals.some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r));
 }
 
 /** Generate a playable map, trying following seeds until the bases connect. Returns the seed used. */
 export function generateMap(seed: number): number {
   let s = seed;
   for (let tries = 0; tries < 80 && !genMap(s); tries++) s++;
+  placePortals(s);
   G.seed = s;
   return s;
 }
