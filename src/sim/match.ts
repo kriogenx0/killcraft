@@ -34,6 +34,8 @@ export interface TeamStats {
   killValueBy: Record<string, number>;
   /** gold harvested */
   income: number;
+  /** gold paid in bounties for destroying the leader's things */
+  bounty: number;
   /** gold spent (start + income - bank; sales and refunds count as negative spending) */
   spent: number;
   /** average gold in the bank, sampled every second */
@@ -92,10 +94,11 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions):
 
   const stats: TeamStats[] = Array.from({ length: G.teams }, (_, team) => ({
     team, ageAt: [0, null, null, null], healAt: [0, null, null, null], built: {}, lost: {}, killsBy: {}, killed: {}, killValueBy: {},
-    timeline: [], income: 0, spent: 0, avgBank: 0, avgWood: 0, avgOil: 0, peakBank: START_CREDITS, peakArmy: 0, outAt: null, place: 0,
+    timeline: [], income: 0, bounty: 0, spent: 0, avgBank: 0, avgWood: 0, avgOil: 0, peakBank: START_CREDITS, peakArmy: 0, outAt: null, place: 0,
   }));
   const seen = new Set<number>(G.ents.map((e) => e.id));
   hooks.income = (team, a) => { stats[team].income += a; };
+  hooks.bounty = (team, a) => { stats[team].bounty += a; };
   hooks.killedBy = (v: Ent, by: Ent | null) => {
     if (v.team < 0) return;
     bump(stats[v.team].lost, v.type);
@@ -141,7 +144,7 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions):
     s.avgWood = Math.round(s.avgWood / Math.max(1, samples));
     s.avgOil = Math.round(s.avgOil / Math.max(1, samples));
     s.income = Math.round(s.income);
-    s.spent = Math.round(START_CREDITS + s.income - G.credits[s.team]);
+    s.spent = Math.round(START_CREDITS + s.income + s.bounty - G.credits[s.team]);
     s.peakBank = Math.round(s.peakBank);
   }
   // places: survivors share first (or the winner alone), then in reverse order of elimination

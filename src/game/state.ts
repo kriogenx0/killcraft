@@ -171,6 +171,8 @@ export const G = {
   aether: [] as number[],
   /** each team has drawn Aether at least once, revealing its hidden units */
   aetherFound: [] as boolean[],
+  /** the side with a bounty on it for being far ahead (see bounty.ts), or -1 */
+  leader: -1,
   /** each team has researched the Aether Ward */
   ward: [] as boolean[],
   /** each team's age of technology (index into ERA) */
@@ -213,6 +215,8 @@ export const hooks = {
   killedBy: (_e: Ent, _by: Ent | null): void => {},
   /** a harvester unloaded ore worth `amount` gold */
   income: (_team: number, _amount: number): void => {},
+  /** a side was paid a bounty for destroying something of the leader's */
+  bounty: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },
 };
 
