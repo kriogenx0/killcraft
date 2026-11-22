@@ -1,5 +1,5 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
-import { G, hooks, bldDef, unitDef, valid, type Ent } from './state.ts';
+import { G, hooks, altOf, bldDef, isAir, unitDef, valid, type Ent } from './state.ts';
 import { TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
@@ -17,11 +17,17 @@ const AIM_TOLERANCE = 0.2;
 export const armorOf = (e: Ent): ArmorClass => (e.kind === 'unit' ? unitDef(e).armor : 'building');
 export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unitDef(e).weapon : e.kind === 'bld' ? bldDef(e).weapon ?? null : null);
 
+/** Can this weapon hurt this target at all? (Swords can't reach aircraft; flak only fires upward.) */
+export const canHit = (wt: WeaponType | null, t: Ent): boolean => !!wt && t.kind !== 'source' && WEAPON[wt].vs[armorOf(t)] > 0;
+/** Can this unit or turret attack this target? */
+export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
+
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
   if (t.dead || t.kind === 'source') return;
   t.hp -= Math.max(1, dmg);
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
+  else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));
   else burst('spark', t.x + (Math.random() - 0.5) * (t.w || 0.6) * TS * 0.6, t.y - 6, 3, 50, 140);
   if (t.team >= 0) {
     if (t.team === G.viewer) G.lastAlert = { x: t.x, y: t.y };
@@ -35,7 +41,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
   // idle units react: engaging ones fight back, passive ones run
   if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
     if (t.stance === 'passive') orderFlee(t, src);
-    else if (t.stance === 'engage' && unitDef(t).weapon && src.kind === 'unit') setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
+    else if (t.stance === 'engage' && src.kind === 'unit' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
   }
 }
 
@@ -47,7 +53,7 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
   if (!w.splash) return;
   blast(x, y, w.splash);
   for (const e of G.ents) {
-    if (e === t || e.dead || e.kind !== 'unit' || (src && e.team === src.team)) continue;
+    if (e === t || e.dead || e.kind !== 'unit' || (src && e.team === src.team) || !canHit(wt, e)) continue;
     if (Math.hypot(e.x - x, e.y - y) < w.splash + unitDef(e).radius) dealDamage(e, w.dmg * 0.5 * w.vs[armorOf(e)], src);
   }
 }
@@ -55,19 +61,21 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
 /** Fire a weapon from a unit or turret at a target. */
 export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   // buildings shoot from their top (a tall tower from its battlements), units from the hip
-  const z = s.kind === 'bld' ? Math.max(16, bldDef(s).top) : 8;
-  const w = WEAPON[wt], mx = s.x + Math.cos(s.tface) * (s.kind === 'bld' ? 16 : 12), my = s.y - (s.kind === 'bld' ? z - 2 : 6) + Math.sin(s.tface) * 10;
+  // aircraft shoot from where they fly
+  const air = isAir(s), z = s.kind === 'bld' ? Math.max(16, bldDef(s).top) : air ? altOf(s) : 8;
+  const w = WEAPON[wt], mx = s.x + Math.cos(s.tface) * (s.kind === 'bld' ? 16 : 12), my = s.y - (s.kind === 'bld' ? z - 2 : air ? 0 : 6) + Math.sin(s.tface) * 10;
   s.atkT = 0.25;
   hooks.fired(s, wt, t);
   if (w.proj === 'melee') { hit(wt, t, s, t.x, t.y); return; }
   // gunpowder flashes; bows and catapults don't
-  if (w.proj === 'bullet' || w.proj === 'shell' || w.proj === 'rocket') part('flash', mx, my, { max: 0.08, size: w.proj === 'bullet' ? 7 : 14 });
+  const bomb = wt === 'bomb';
+  if (!bomb && (w.proj === 'bullet' || w.proj === 'shell' || w.proj === 'rocket')) part('flash', mx, my, { max: 0.08, size: w.proj === 'bullet' ? 7 : 14, z: air ? z : 0 });
   if (w.proj === 'bullet') {
-    part('tracer', mx, my, { ex: t.x + (Math.random() - 0.5) * 8, ey: t.y - 6 + (Math.random() - 0.5) * 8, max: 0.07 });
+    part('tracer', mx, my, { ex: t.x + (Math.random() - 0.5) * 8, ey: t.y - 6 + (Math.random() - 0.5) * 8, ez: altOf(t), max: 0.07, z: air ? z : 0 });
     hit(wt, t, s, t.x, t.y);
     return;
   }
-  G.projs.push({ kind: w.proj, x: mx, y: my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
+  G.projs.push({ kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
 }
 
 /** Best enemy within a radius (tiles): armed units first, then other units, then buildings. */
@@ -77,7 +85,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | n
   for (const e of G.ents) {
     if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit')) continue;
     const dist = edgeDist(s, e);
-    if (dist > r) continue;
+    if (dist > r || !canAttack(s, e)) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : weaponOf(e) ? 0 : 40);
     if (score < bs) { bs = score; best = e; }
   }
@@ -95,7 +103,7 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
-  if (!d.weapon) return false;
+  if (!d.weapon || !canHit(d.weapon, t)) return false;
   const w = WEAPON[d.weapon], r = approach(u, t, w.range * TS, dt);
   if (r === null) return false;
   if (r && aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
@@ -168,7 +176,7 @@ export function updProjs(dt: number): void {
     p.tr += st;
     const k = clamp(p.tr / Math.max(p.d0, 1), 0, 1);
     const [arc, cap] = ARC[p.kind] ?? [0, 0];
-    p.z = lerp(p.z0, 4, k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
+    p.z = lerp(p.z0, 4 + altOf(t), k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
     if (p.kind === 'rocket' && Math.random() < 0.8) part('trail', p.x, p.y - p.z, { max: 0.6, size: 2.5, soft: true });
     if (dist <= st + 6) {
       p.dead = true;

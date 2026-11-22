@@ -15,13 +15,13 @@ import { tileOf } from './state.ts';
 export type Buildable = UnitType | BldType | TechType;
 
 const QUEUE_MAX = 5;
-const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', tech: 'yard' };
-const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'tech'];
+const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', air: 'airfield', tech: 'yard' };
+const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'air', 'tech'];
 const FUNDS_NOTICE = 6;
 const SHORT_MSG = { ore: 'Not enough ore', wood: 'Not enough wood', oil: 'Not enough oil' };
 const lastFundsNotice: number[] = [];
 
-export const emptyProduction = (): Production => ({ structure: [], infantry: [], vehicle: [], tech: [] });
+export const emptyProduction = (): Production => ({ structure: [], infantry: [], vehicle: [], air: [], tech: [] });
 export const lineOf = (t: Buildable): ProductionLine => (isUnitType(t) ? UNIT[t].producer : isTechType(t) ? 'tech' : 'structure');
 const defOf = (t: Buildable) => (isUnitType(t) ? UNIT[t] : isTechType(t) ? TECH[t] : BUILDING[t]);
 /** Ore price. */

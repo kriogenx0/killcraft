@@ -278,6 +278,53 @@ function catapult(g: G2, T: TeamColors, p: UnitPose): void {
   g.restore();
 }
 
+/** A hot-air balloon seen from above and the side: striped envelope over a basket. */
+function balloon(g: G2, T: TeamColors): void {
+  g.save();
+  g.translate(0, -10);
+  oline(g, -5, 2, -2, 10, 0.8, '#a8885a');
+  oline(g, 5, 2, 2, 10, 0.8, '#a8885a');
+  g.fillStyle = '#8c7048'; g.fillRect(-3.5, 9, 7, 5); g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 0.8; g.strokeRect(-3.5, 9, 7, 5);
+  blob(g, 0, -4, 9, 10, shade(g, 0, -4, 10, '#f2ece0', '#a89c80'));
+  g.save();
+  g.beginPath(); g.ellipse(0, -4, 9, 10, 0, 0, TAU); g.clip();
+  g.fillStyle = T.m;
+  for (const x of [-6, 0, 6]) g.fillRect(x - 1.6, -15, 3.2, 22);
+  g.restore();
+  g.restore();
+}
+
+/** A biplane from above: two wings across a fuselage, roundels and a propeller disc. */
+function biplane(g: G2, T: TeamColors, p: UnitPose): void {
+  g.save();
+  g.translate(0, -6);
+  g.rotate(p.f);
+  panel(g, -3, -13, 7, 26, 1.5, '#e4dcc0', '#a49c80'); // top wing
+  for (const y of [-9, 9]) blob(g, 0.5, y, 2.4, 2.4, T.m);
+  panel(g, -11, -2.5, 20, 5, 2, T.l, T.d); // fuselage
+  panel(g, -12, -5, 3, 10, 1, '#e4dcc0', '#a49c80'); // tailplane
+  blob(g, 10, 0, 2, 2, '#3a3a3a');
+  oline(g, 11, -5, 11, 5, 1.2, 'rgba(60,40,20,.6)');
+  g.restore();
+}
+
+/** An attack helicopter from above: body, tail boom and a rotor disc. */
+function helicopter(g: G2, T: TeamColors, p: UnitPose): void {
+  g.save();
+  g.translate(0, -6);
+  g.rotate(p.f);
+  oline(g, -4, 0, -15, 0, 2.2, T.d);
+  panel(g, -16, -4, 3, 8, 1, T.d, '#222');
+  panel(g, -3, -7, 4, 14, 1, '#4a4f58', '#2a2d30'); // stub wings
+  blob(g, 1, 0, 7, 4.2, shade(g, 1, 0, 7, T.l, T.d));
+  blob(g, 5, 0, 2.6, 2.2, '#9ec4d8');
+  g.globalAlpha = 0.45;
+  g.strokeStyle = '#1a1a1a'; g.lineWidth = 1.4;
+  g.beginPath(); g.moveTo(-12, -9); g.lineTo(12, 9); g.moveTo(-12, 9); g.lineTo(12, -9); g.stroke();
+  g.beginPath(); g.arc(0, 0, 14, 0, TAU); g.stroke();
+  g.restore();
+}
+
 export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: number, p: UnitPose, scale = 1): void {
   const T = teamColors(team), big = UNIT[type].radius > 8;
   g.save();
@@ -292,6 +339,9 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'catapult': catapult(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;
     case 'harvester': harvester(g, T, p); break;
+    case 'balloon': balloon(g, T); break;
+    case 'biplane': biplane(g, T, p); break;
+    case 'helicopter': helicopter(g, T, p); break;
     default: tank(g, T, p, type === 'heavy');
   }
   g.restore();
