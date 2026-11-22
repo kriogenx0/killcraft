@@ -76,12 +76,14 @@ export function approach(u: Ent, t: Target, range: number, dt: number): boolean 
     if (followPath(u, dt)) u.path = [];
     return false;
   }
-  // no path left but still out of reach (a unit target on the same or a diagonal tile): step straight in
-  if (t.w) return false;
-  const d = Math.hypot(t.x - u.x, t.y - u.y), step = Math.min(d, unitDef(u).spd * slowFactor(u) * TS * dt);
-  const nx = u.x + ((t.x - u.x) / d) * step, ny = u.y + ((t.y - u.y) / d) * step;
+  // no path left but still out of reach (a unit target on the same or a diagonal tile, or a short
+  // reach to the corner of a building beside us): step straight in toward its nearest point
+  const ax = t.w ? clamp(u.x, t.tx * TS, (t.tx + t.w) * TS) : t.x, ay = t.w ? clamp(u.y, t.ty * TS, (t.ty + t.h) * TS) : t.y;
+  const d = Math.hypot(ax - u.x, ay - u.y), step = Math.min(d, unitDef(u).spd * slowFactor(u) * TS * dt);
+  if (t.w && d > TS * 1.5) return false; // still a walk away: wait for the next path
+  const nx = u.x + ((ax - u.x) / d) * step, ny = u.y + ((ay - u.y) / d) * step;
   if (d < 1 || blkAt(nx, ny)) return null; // across a blocked corner: can't get there from here
-  u.x = nx; u.y = ny; u.face = Math.atan2(t.y - u.y, t.x - u.x); u.moving = true;
+  u.x = nx; u.y = ny; u.face = Math.atan2(ay - u.y, ax - u.x); u.moving = true;
   return false;
 }
 
