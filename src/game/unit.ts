@@ -1,9 +1,9 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, blkAt, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
+import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
-import { approach, followPath, turnToward } from './move.ts';
+import { approach, canStep, followPath, turnToward } from './move.ts';
 import { acquire, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
@@ -38,7 +38,16 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
 
 /** The nearest ore no other harvester has claimed; shares a tile only if every field is taken. */
 function pickOre(u: Ent, tx: number, ty: number, r: number): [number, number] | null {
-  return nearestOre(tx, ty, r, 1, (i) => oreTaken(i, u, true)) ?? nearestOre(tx, ty, r);
+  const bad = cantReach.get(u);
+  return nearestOre(tx, ty, r, 1, (i) => !!bad?.has(i) || oreTaken(i, u, true)) ?? nearestOre(tx, ty, r, 1, bad && ((i) => bad.has(i)));
+}
+
+/** Ore tiles each harvester found it couldn't walk up to, so it doesn't keep trying them. Forgotten once it scoops. */
+const cantReach = new WeakMap<Ent, Set<number>>();
+function giveUpOn(u: Ent, i: number): void {
+  let bad = cantReach.get(u);
+  if (!bad || bad.size > 64) cantReach.set(u, (bad = new Set()));
+  bad.add(i);
 }
 
 /** A harvester's scoop reaches the next tile over. */
@@ -60,11 +69,26 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     // close enough to scoop: harvesters don't need to sit on the tile
     const d = Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS);
     if (d < SCOOP_REACH) { o.st = 'gather'; u.path = null; return; }
-    if (!u.path) { u.goal = [o.tx, o.ty]; u.path = pathFor(u, o.tx, o.ty); }
+    if (!u.path) {
+      u.goal = [o.tx, o.ty];
+      u.path = pathFor(u, o.tx, o.ty);
+      // a path that stops short of the tile (walled in by trees or rock): pick other ore
+      const end = u.path[u.path.length - 1] ?? [tileOf(u.x), tileOf(u.y)];
+      if (Math.max(Math.abs(end[0] - o.tx), Math.abs(end[1] - o.ty)) > 1) {
+        giveUpOn(u, o.ty * MW + o.tx);
+        u.path = null;
+        o.wait = 0.3;
+        const t = pickOre(u, tileOf(u.x), tileOf(u.y), ORE_SEARCH);
+        if (t) [o.tx, o.ty] = t;
+        return;
+      }
+    }
     if (followPath(u, dt)) {
       u.path = null;
-      if (d < TS * 1.3) { o.st = 'gather'; return; }
-      // couldn't get there: try another tile nearby
+      // the path ends beside the tile (even across a corner it can't cut): scoop from there
+      if (d < TS * 1.5) { o.st = 'gather'; return; }
+      // couldn't get there: try another tile nearby, not the same one again
+      giveUpOn(u, o.ty * MW + o.tx);
       o.wait = 0.5;
       const t = pickOre(u, tileOf(u.x), tileOf(u.y), 3);
       if (t) [o.tx, o.ty] = t;
@@ -72,6 +96,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     return;
   }
   if (o.st === 'gather') {
+    cantReach.delete(u);
     u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry));
     u.cargo = 'ore';
     u.atkT = 0.2;
@@ -91,7 +116,6 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     const r = approach(u, ref, NEAR, dt);
     if (r === null) { o.wait = 1; return; }
     if (r) o.st = 'unload';
-    else if (u.path && !u.path.length) o.wait = 0.3;
     return;
   }
   // unloading
@@ -150,7 +174,7 @@ function unstick(u: Ent, dt: number): void {
     else {
       // jammed nose to nose with someone: edge over to the right, like traffic, so both can pass
       const sx = u.x - Math.sin(u.face) * SIDESTEP, sy = u.y + Math.cos(u.face) * SIDESTEP;
-      if (!blkAt(sx, sy)) { u.x = sx; u.y = sy; }
+      if (canStep(u.x, u.y, sx, sy)) { u.x = sx; u.y = sy; }
       if (u.goal) u.path = pathFor(u, u.goal[0], u.goal[1]);
     }
   }
