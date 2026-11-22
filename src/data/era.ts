@@ -51,7 +51,7 @@ export const MAX_HEAL = HEAL_RATE.length - 1;
 const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
 
 export const TECH: Record<TechType, TechDef> = {
-  age1: { name: 'World War', era: 0, age: 1, cost: 1200, wood: 250, t: 40, requires: ['barracks'], desc: `Advance to the World War age. Unlocks ${ERA[1].desc}` },
+  age1: { name: 'World War', era: 0, age: 1, cost: 1000, wood: 150, t: 35, requires: ['barracks'], desc: `Advance to the World War age. Unlocks ${ERA[1].desc}` },
   age2: { name: 'Modern Age', era: 1, age: 2, cost: 3000, wood: 600, oil: 400, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[2].desc}` },
   heal1: { name: 'Field Dressing', era: 0, heal: 1, cost: 400, t: 25, requires: ['barracks'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
   heal2: { name: 'Surgeons', era: 1, heal: 2, cost: 800, t: 35, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },
