@@ -290,9 +290,20 @@ function drawDerrick(g: G2, T: TeamColors): void {
   oline(g, 4, 50, 38, 50, 2.5, '#5a5a5e');
 }
 
+function drawHospital(g: G2, T: TeamColors): void {
+  pad(g, 64, 64);
+  box(g, 6, 2, 52, 26, 22, '#e8e4da', ['#d0cabc', '#9a9486']);
+  stripe(g, 6, 28, 52, 3, T);
+  windows(g, 12, 36, 2, 34);
+  g.fillStyle = '#5a3a28'; g.fillRect(27, 38, 10, 12); // door
+  // red cross on the roof
+  g.fillStyle = '#c42a22';
+  g.fillRect(28, 6, 8, 20); g.fillRect(22, 12, 20, 8);
+}
+
 const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
-  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak,
+  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital,
 };
 
 /** Cached sprite for a building type and team. */

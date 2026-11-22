@@ -1,7 +1,8 @@
 import type { ArmorClass, WeaponType } from './weapon.ts';
+import type { BldType } from './building.ts';
 
 export type UnitType = 'rifleman' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester'
-  | 'balloon' | 'biplane' | 'helicopter';
+  | 'balloon' | 'biplane' | 'helicopter' | 'medic';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -22,6 +23,8 @@ export interface UnitDef {
   t: number;
   /** the age (see data/era.ts) that unlocks this unit */
   era: number;
+  /** buildings that must exist before this unit can be trained */
+  requires?: BldType[];
   sight: number;
   producer: Producer;
   /** has a turret that aims independently of the hull */
@@ -38,6 +41,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   rocket: { name: 'Rocket Soldier', cls: 'infantry', armor: 'none', hp: 45, spd: 1.9, weapon: 'rocket', cost: 300, oil: 50, t: 8, era: 2, sight: 5, producer: 'infantry', turret: false, radius: 6, desc: 'Anti-armor infantry. Strong against vehicles.' },
   swordsman: { name: 'Swordsman', cls: 'infantry', armor: 'light', hp: 90, spd: 2.2, weapon: 'sword', cost: 150, t: 6, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 6, desc: 'Plate armor, sword and shield. Beats riflemen up close and shrugs off bullets.' },
   crossbowman: { name: 'Crossbowman', cls: 'infantry', armor: 'none', hp: 50, spd: 2.0, weapon: 'crossbow', cost: 200, wood: 30, t: 7, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Armor-piercing bolts. Good against swordsmen and knights.' },
+  medic: { name: 'Medic', cls: 'infantry', armor: 'none', hp: 60, spd: 2.2, weapon: null, cost: 200, t: 7, era: 0, requires: ['hospital'], sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Unarmed. Walks to wounded infantry and knights nearby and patches them up.' },
   knight: { name: 'Knight', cls: 'infantry', armor: 'light', hp: 160, spd: 4.6, weapon: 'lance', cost: 450, wood: 50, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, desc: 'Armored horseman. Fast charges against infantry and harvesters.' },
   jeep: { name: 'Scout Jeep', cls: 'vehicle', armor: 'light', hp: 170, spd: 5.0, weapon: 'mg', cost: 400, oil: 50, t: 9, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, desc: 'Fast scout with a machine gun.' },
   tank: { name: 'Battle Tank', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, weapon: 'cannon', cost: 700, oil: 150, t: 14, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
@@ -50,6 +54,10 @@ export const UNIT: Record<UnitType, UnitDef> = {
   biplane: { name: 'Biplane', cls: 'air', armor: 'air', hp: 190, spd: 6.0, weapon: 'planegun', cost: 300, wood: 150, oil: 150, t: 13, era: 1, sight: 8, producer: 'air', turret: false, radius: 12, alt: 1.6, desc: 'Fast wood-and-canvas fighter. Shreds balloons, aircraft and infantry.' },
   helicopter: { name: 'Attack Helicopter', cls: 'air', armor: 'air', hp: 340, spd: 4.4, weapon: 'missile', cost: 700, oil: 300, t: 18, era: 2, sight: 7, producer: 'air', turret: false, radius: 13, alt: 1.3, desc: 'Steel gunship firing guided missiles. Deadly against tanks.' },
 };
+
+/** Medics heal this many hit points a second, standing within this many px of their patient. */
+export const MEDIC_HEAL = 6;
+export const MEDIC_RANGE = 20;
 
 export const UNIT_TYPES = Object.keys(UNIT) as UnitType[];
 

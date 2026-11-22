@@ -172,6 +172,17 @@ function helmet(g: G2, T: TeamColors, hy: number, cs: number, back: boolean, plu
   if (plume) blob(g, 0, hy - 4.5, 1.5, 2.6, T.m);
 }
 
+function medic(g: G2, T: TeamColors, p: UnitPose): void {
+  const by = feet(g, p, '#3a3a3a');
+  // satchel at the hip
+  blob(g, -Math.cos(p.f) * 4, by + 2, 2.6, 2.2, '#7a5a38');
+  blob(g, 0, by, 5, 6, shade(g, 0, by, 6, '#f4f0e6', '#a8a498'));
+  g.fillStyle = '#c42a22'; g.fillRect(-1, by - 3.5, 2, 7); g.fillRect(-3.5, by - 1, 7, 2);
+  blob(g, 0, by - 8, 3.6, 3.6, SKIN);
+  g.beginPath(); g.arc(0, by - 8.6, 4.2, Math.PI, TAU); g.fillStyle = T.m; g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 0.8; g.stroke();
+}
+
 function swordsman(g: G2, T: TeamColors, p: UnitPose): void {
   const cs = Math.cos(p.f), sn = Math.sin(p.f), back = sn < -0.3, by = feet(g, p, '#4c525c');
   // kite shield on the off hand
@@ -336,6 +347,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'swordsman': swordsman(g, T, p); break;
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
+    case 'medic': medic(g, T, p); break;
     case 'catapult': catapult(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;
     case 'harvester': harvester(g, T, p); break;

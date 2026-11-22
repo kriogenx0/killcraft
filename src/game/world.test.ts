@@ -13,7 +13,7 @@ import { OIL_WELLS } from '../data/map.ts';
 import { TREE_WOOD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
-import { HEAL_RATE } from '../data/era.ts';
+import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
@@ -129,6 +129,33 @@ describe('production', () => {
     run(10);
     expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * 10, 0);
     expect(foe.hp - 10).toBeCloseTo(foe.maxhp * HEAL_RATE[0] * 10, 0);
+  });
+
+  it('heals faster with a Hospital, which also lets the Barracks train Medics', () => {
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    expect(available(0, 'infantry')).not.toContain('medic');
+    expect(available(0, 'structure')).toContain('hospital');
+    const k = addUnit('knight', 0, 20 * TS, 50 * TS);
+    k.hp = 10;
+    run(10);
+    const slow = k.hp - 10;
+    addBuilding('hospital', 0, 16, 50, false);
+    expect(available(0, 'infantry')).toContain('medic');
+    k.hp = 10;
+    run(10);
+    expect(k.hp - 10).toBeCloseTo(slow * HOSPITAL_HEAL, 0);
+  });
+
+  it('sends a medic to patch up a wounded ally nearby', () => {
+    const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), m = addUnit('medic', 0, 24 * TS, 50 * TS);
+    s.hp = 20;
+    run(8);
+    expect(m.order?.t === 'heal' || s.hp >= s.maxhp).toBe(true);
+    expect(s.hp).toBeGreaterThan(20 + s.maxhp * HEAL_RATE[0] * 8 + 15);
+    run(20);
+    expect(s.hp).toBe(s.maxhp);
+    expect(m.order).toBeNull();
   });
 
   it('stalls without credits instead of going into debt', () => {

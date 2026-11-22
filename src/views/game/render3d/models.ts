@@ -134,6 +134,20 @@ function rifleman(team: number): Model {
   return m;
 }
 
+/** Unarmed: a white smock with red crosses, a team-colored cap and a satchel of bandages. */
+function medic(team: number): Model {
+  const white = M.white(), red = mat('#c42a22', { rough: 0.7 });
+  const m = soldier({ torso: white, legs: teamMat(team, 'd'), arms: white, boots: M.leather() });
+  for (const x of [0.067, -0.067]) {
+    m.root.add(mesh(box(0.006, 0.09, 0.026), red, x, 0.33, 0));
+    m.root.add(mesh(box(0.006, 0.026, 0.09), red, x, 0.33, 0));
+  }
+  m.root.add(scl(mesh(sph(0.066, 12, 8), teamMat(team), 0, 0.49, 0), 1, 0.6, 1)); // cap
+  m.root.add(mesh(box(0.06, 0.08, 0.1), M.leather(), -0.04, 0.25, -0.1)); // satchel
+  m.root.add(rod([0.06, 0.4, 0.09], [-0.04, 0.27, -0.09], 0.008, M.leather(), 4)); // strap
+  return m;
+}
+
 function rocketeer(team: number): Model {
   const m = soldier({ torso: M.olive(), legs: M.olive(), arms: M.olive(), boots: M.rubber() });
   m.root.add(mesh(box(0.135, 0.09, 0.2), teamMat(team), 0, 0.34, 0));
@@ -571,6 +585,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'swordsman': return swordsman(team);
     case 'crossbowman': return crossbowman(team);
     case 'knight': return knight(team);
+    case 'medic': return medic(team);
     case 'jeep': return jeep(team);
     case 'tank': return tank(team, false);
     case 'heavy': return tank(team, true);
@@ -934,7 +949,18 @@ function derrick(team: number): Model {
   return { root, parts, height: 1.0 };
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak'>, team: number): Model {
+/** A Hospital is a barracks-sized ward with a red-cross sign out front. */
+function hospital(m: Model): Model {
+  const red = mat('#c42a22', { rough: 0.7 }), h = Math.max(0.7, m.height * 0.8);
+  m.root.add(mesh(cyl(0.025, 0.03, h, 6), M.darkWood(), 0.78, h / 2, 0.82));
+  m.root.add(group(0.78, h + 0.1, 0.82,
+    mesh(box(0.3, 0.3, 0.03), M.white(), 0, 0, 0),
+    mesh(box(0.07, 0.22, 0.04), red, 0, 0, 0),
+    mesh(box(0.22, 0.07, 0.04), red, 0, 0, 0)));
+  return m;
+}
+
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital'>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -986,6 +1012,11 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1): Model {
   const lk = bldLook(type, era);
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
+  if (type === 'hospital') return cached(`b:${type}:${team}:${lk}`, () => hospital(
+    lk === 0 ? medievalBuilding('barracks', team, 'wood')
+      : lk === 1 ? medievalBuilding('barracks', team, 'stone')
+        : lk === 2 ? industrial(makeBuilding('barracks', team))
+          : makeBuilding('barracks', team)));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>
     lk === 0 ? medievalBuilding(type, team, 'wood')

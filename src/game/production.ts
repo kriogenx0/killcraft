@@ -62,7 +62,7 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   if (line === 'tech') {
     return [nextTech(team), nextHeal(team)].filter((t): t is TechType => !!t && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era);
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
 export function enqueue(team: number, type: Buildable): boolean {

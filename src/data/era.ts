@@ -44,6 +44,8 @@ export interface TechDef {
  */
 export const HEAL_RATE = [0.002, 0.004, 0.008, 0.016];
 export const MAX_HEAL = HEAL_RATE.length - 1;
+/** Having a Hospital makes organic units heal this much faster. */
+export const HOSPITAL_HEAL = 1.5;
 const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
 
 export const TECH: Record<TechType, TechDef> = {
@@ -51,7 +53,7 @@ export const TECH: Record<TechType, TechDef> = {
   age2: { name: 'Modern Age', era: 1, age: 2, cost: 3000, wood: 600, oil: 400, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[2].desc}` },
   heal1: { name: 'Field Dressing', era: 0, heal: 1, cost: 400, t: 25, requires: ['barracks'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
   heal2: { name: 'Surgeons', era: 1, heal: 2, cost: 800, t: 35, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },
-  heal3: { name: 'Field Hospitals', era: 2, heal: 3, cost: 1200, t: 45, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(3)}).` },
+  heal3: { name: 'Antibiotics', era: 2, heal: 3, cost: 1200, t: 45, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(3)}).` },
 };
 
 export const TECH_TYPES = Object.keys(TECH) as TechType[];

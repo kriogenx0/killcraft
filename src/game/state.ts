@@ -23,7 +23,9 @@ export type Stance = (typeof STANCES)[number];
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
-export type Order = MoveOrder | AttackOrder | HarvestOrder;
+/** A medic tending a wounded ally; gives up if it strays too far from where it started (ox, oy). */
+export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
+export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
 
 export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
 export interface ProductionItem {

@@ -18,7 +18,7 @@ export const ais: AiState[] = [
   { on: true, attackAt: 8, attacking: false },
 ];
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'hospital', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -137,7 +137,9 @@ function training(team: number): void {
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
-    const t = pick(team, 'infantry', [['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3]]);
+    // about one medic for every six fighters on foot
+    const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3]]);
     if (t) enqueue(team, t);
   }
 }
@@ -173,6 +175,12 @@ function military(team: number): void {
     for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
     for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
+  }
+  // medics trail the army: each idle one walks to the nearest fighter that's away from it
+  for (const m of G.ents) {
+    if (m.dead || m.team !== team || m.type !== 'medic' || m.order || !army.length) continue;
+    const near = army.reduce((a, p) => (Math.hypot(p.x - m.x, p.y - m.y) < Math.hypot(a.x - m.x, a.y - m.y) ? p : a));
+    if (Math.hypot(near.x - m.x, near.y - m.y) > 3 * TS) orderMove(m, tileOf(near.x), tileOf(near.y));
   }
   if (!home) return;
   // muster new troops in front of the base
