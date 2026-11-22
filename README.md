@@ -65,6 +65,7 @@ The live game runs on Coolify from this repo's `main` branch:
   - Rockets beat armor, rifles beat unarmored infantry, swords beat rifles, crossbows pierce plate, tanks beat almost everything.
 - **Orders:** left-click or drag to select. Right-click to move, send harvesters to ore or a refinery, or set a factory's rally point. Select a building to repair or sell it.
 - **Stances:** there is no separate attack order. Units only move, and each unit's stance decides how it fights. Pick one from the command card for a unit or a whole selection:
+  - Units that fight always turn on whoever attacks them first, and never keep hitting a building or harvester that can't fight back while an armed enemy is within reach.
   - **Stop & attack** (default): the unit stops to fight enemies it meets, then carries on to where it was going. Idle units engage anything in sight.
   - **Move & attack** (attack while moving): the unit shoots whatever is in range without stopping or turning aside. Idle, it holds its ground and fires.
   - **Don't attack:** the unit holds fire and runs away from armed enemies that come close or shoot at it.
