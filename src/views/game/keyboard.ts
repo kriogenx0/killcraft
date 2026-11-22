@@ -9,7 +9,10 @@ export const SCROLL_KEYS: Record<string, [number, number]> = {
   d: [1, 0], arrowright: [1, 0],
 };
 
-/** Command card hotkeys. None of these may also scroll the map. */
+/** Held keys that turn the camera around its target (+1 = clockwise when seen from above). */
+export const ROTATE_KEYS: Record<string, number> = { q: 1, e: -1 };
+
+/** Command card hotkeys. None of these may also move the camera. */
 export const COMMAND_KEYS = { move: 'M', stop: 'X', amove: 'F', repair: 'R' } as const;
 
 /** Direction to scroll for the keys being held (opposite keys cancel out). */

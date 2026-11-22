@@ -10,6 +10,7 @@
 <body>
   <main class="view-game">
     <canvas class="game-canvas" role="img" aria-label="Battlefield"></canvas>
+    <canvas class="game-overlay" aria-hidden="true"></canvas>
 
     <header class="topbar ui-panel">
       <span class="ui-resource"><i class="ui-resource-icon ui-resource-icon--credits" aria-hidden="true"></i><span class="ui-resource-label">Credits</span> <b class="ui-resource-value topbar-credits">0</b></span>
@@ -44,7 +45,7 @@
         <b>Build:</b> click a structure in the sidebar. When it says READY, click it again and place it near your base. Right-click to hold or cancel.<br>
         <b>Mouse:</b> left-click or drag to select. Right-click to move, attack, harvest ore or set a rally point.<br>
         <b>Touch:</b> tap to select or give an order. Drag to scroll.<br>
-        <kbd class="ui-key">W</kbd><kbd class="ui-key">A</kbd><kbd class="ui-key">S</kbd><kbd class="ui-key">D</kbd> scroll · <kbd class="ui-key">F</kbd> attack-move · <kbd class="ui-key">X</kbd> stop · <kbd class="ui-key">Ctrl</kbd>+<kbd class="ui-key">1-9</kbd> group ·
+        <kbd class="ui-key">W</kbd><kbd class="ui-key">A</kbd><kbd class="ui-key">S</kbd><kbd class="ui-key">D</kbd> scroll · <kbd class="ui-key">Q</kbd>/<kbd class="ui-key">E</kbd> or middle-drag turn · wheel zoom · <kbd class="ui-key">Shift</kbd>+wheel tilt · <kbd class="ui-key">F</kbd> attack-move · <kbd class="ui-key">X</kbd> stop · <kbd class="ui-key">Ctrl</kbd>+<kbd class="ui-key">1-9</kbd> group ·
         <kbd class="ui-key">H</kbd> base · <kbd class="ui-key">Space</kbd> last alert · <kbd class="ui-key">P</kbd> pause
       </p>
       <div class="ui-modal-actions">

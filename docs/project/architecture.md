@@ -6,7 +6,8 @@ Killcraft is a single-page real-time strategy game modelled on Command & Conquer
 
 - TypeScript (strict), Vite, SCSS (`sass-embedded`)
 - Vitest for unit and simulation tests, ESLint with `typescript-eslint`
-- Canvas 2D for all game art; every sprite is drawn in code, so there are no image assets
+- three.js (WebGL) for the 3D battlefield: every unit and building is a procedural model built from boxes, cylinders and spheres in code, so there are no model or image files
+- Canvas 2D for the terrain painting (used as the ground texture), the minimap, the sidebar icons and the health-bar overlay
 - Node 24 game server (`server/`) using `ws`; it runs the TypeScript engine directly with Node's built-in type stripping, so engine code must stay erasable (`erasableSyntaxOnly`, `verbatimModuleSyntax`)
 - Docker (`deploy/`): one container runs the server, which serves `dist/` plus the WebSocket lobby, with `/health` and `/status`
 
@@ -21,7 +22,10 @@ src/
   net/                    protocol types, snapshot encoding/decoding, browser WebSocket client
   components/             shared UI components (ui-button, ui-bar, ui-chip, ui-modal, ...)
   styles/                 reset, theme tokens, typography and spacing scales
-  views/game/             the game view: frame loop, sidebar, HUD, input, and render/ (all canvas art)
+  views/game/             the game view: frame loop, sidebar, HUD, input, camera_rig (orbit math), keyboard layout
+    render3d/             3D battlefield: scene + camera, world3d (ground, water, trees, ore, fog sheet),
+                          models (procedural units/buildings), entities3d (sync, animation, picking), fx3d, overlay
+    render/               2D canvas: terrain painting, minimap, and the icon art for the sidebar
   views/lobby/            the online lobby
 server/
   main.ts                 starts the HTTP + WebSocket server (config.ts reads the environment)
@@ -41,7 +45,7 @@ deploy/                   Dockerfile, docker-compose.yml
                                           │        projectiles, separation, particles,
                                           │        ore regrowth, fog, AI
                                           ▼
-                      render/renderer.ts draws G + view state (V) to the canvas
+                      render3d/ syncs a 3D model per entity and draws the scene with three.js
                       hud.ts / sidebar.ts reflect credits, power, selection and production in the DOM
 ```
 
@@ -64,4 +68,4 @@ deploy/                   Dockerfile, docker-compose.yml
 ## Testing the page
 
 The game view reads URL options so a headless browser can check it:
-`?seed=N` map seed, `?auto` skip the title screen, `?demo` AI vs AI, `?online` open the lobby (`?online=quick` also joins quick match), `?sim=S` simulate S seconds before the first frame, `?reveal` no fog, `?cam=x,y` centre on a tile, `?sel=type` select your units of that type, `?queue=a,b` start producing these. The root element gets `data-errors="n"` if anything throws.
+`?view=yaw,pitch,dist` camera angle (degrees) and distance (tiles), `?seed=N` map seed, `?auto` skip the title screen, `?demo` AI vs AI, `?online` open the lobby (`?online=quick` also joins quick match), `?sim=S` simulate S seconds before the first frame, `?reveal` no fog, `?cam=x,y` centre on a tile, `?sel=type` select your units of that type, `?queue=a,b` start producing these. The root element gets `data-errors="n"` if anything throws.

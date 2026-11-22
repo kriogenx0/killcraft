@@ -1,0 +1,239 @@
+// Keeps a 3D model for every entity the player can see, animates them, and draws the selection
+// rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
+import * as THREE from 'three';
+import { G, valid, type Ent } from '../../../game/state.ts';
+import { TS } from '../../../game/const.ts';
+import { BUILDING, type BldType } from '../../../data/building.ts';
+import { UNIT, type UnitType } from '../../../data/unit.ts';
+import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
+import { nearBase, tileFree } from '../../../game/building.ts';
+import { lerp } from '../../../util/math.ts';
+import { shownToPlayer } from '../render/minimap.ts';
+import { MARKER_LIFE, V } from '../view_state.ts';
+import { S, raycastObjects, worldToScreen } from './scene.ts';
+import { buildingModel, sourceModel, unitModel, type Model } from './models.ts';
+import { teamMat } from './materials.ts';
+
+interface Obj { model: Model; key: string }
+
+/** Units are drawn larger than life so they read clearly next to buildings. */
+const UNIT_SCALE = 1.4;
+
+const holder = new THREE.Group();
+const overlays = new THREE.Group();
+const objs = new Map<number, Obj>();
+
+export function resetEntities3d(): void {
+  holder.clear();
+  overlays.clear();
+  objs.clear();
+  ringPool.length = 0;
+  markerPool.length = 0;
+  ghost = null;
+  rally = null;
+  S.scene.add(holder, overlays);
+}
+
+function create(e: Ent): Model {
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team);
+  m.root.userData.id = e.id;
+  if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
+  for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
+  holder.add(m.root);
+  return m;
+}
+
+/** Recoil: slide a part back along its local x from its rest position. */
+function recoil(p: THREE.Object3D | undefined, amount: number): void {
+  const rest = p?.userData.rest as THREE.Vector3 | undefined;
+  if (p && rest) p.position.x = rest.x - amount;
+}
+
+function animateUnit(m: Model, e: Ent): void {
+  const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
+  const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
+  if (P.legL && P.legR) { P.legL.rotation.z = swing; P.legR.rotation.z = -swing; }
+  if (UNIT[e.type as UnitType]?.cls === 'infantry' && e.type !== 'knight') m.root.position.y = e.moving ? Math.abs(Math.sin(w)) * 0.025 : 0;
+  switch (e.type) {
+    case 'swordsman':
+      // overhead cut when striking, sword lowered and swaying when not
+      P.armR.rotation.z = atk > 0 ? lerp(2.8, 0.2, atk) : 0.35 + swing * 0.3;
+      P.armL.rotation.z = 0.9 - swing * 0.2;
+      break;
+    case 'knight':
+      for (const [k, s] of [['legFL', 1], ['legBR', 1], ['legFR', -1], ['legBL', -1]] as const) P[k].rotation.z = (e.moving ? Math.sin(w * 1.3) * 0.7 : 0) * s;
+      recoil(P.lance, atk > 0 ? -Math.sin(atk * Math.PI) * 0.2 : 0);
+      m.root.position.y = e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.04 : 0;
+      break;
+    case 'rifleman':
+    case 'rocket':
+    case 'crossbowman':
+      recoil(P.gun, atk > 0 ? (1 - atk) * 0.04 : 0);
+      break;
+    case 'harvester': {
+      const load = Math.min(1, e.carry / HARVESTER_CAPACITY);
+      P.heap.visible = load > 0.02;
+      P.heap.scale.y = 0.08 + load * 0.55;
+      P.scoop.rotation.z = !e.moving && e.atkT > 0 ? Math.sin(G.gameT * 9) * 0.25 : 0;
+      break;
+    }
+    case 'catapult':
+      P.arm.rotation.z = e.atkT > 0 ? lerp(0.35, -1.9, Math.min(1, atk * 1.6)) : 0.35;
+      P.stone.visible = e.atkT <= 0;
+      break;
+  }
+  if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
+  if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
+}
+
+function animateBuilding(m: Model, e: Ent, dt: number): void {
+  const P = m.parts, atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
+  m.root.scale.y = Math.max(0.02, e.prog);
+  if (P.turret) P.turret.rotation.y = -e.tface;
+  if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.12 : 0);
+  if (P.crane) P.crane.rotation.y = Math.sin(G.gameT * 0.25 + e.id) * 0.7;
+  if (P.radar) P.radar.rotation.y += dt * 1.3;
+  if (P.flag) P.flag.rotation.y = Math.sin(G.gameT * 3 + e.id) * 0.25;
+}
+
+// ---- selection rings, markers, rally flag, building ghost ----
+
+const ringPool: THREE.Mesh[] = [];
+const markerPool: THREE.Mesh[] = [];
+const ringMats = { own: basic('#5f5'), enemy: basic('#f55'), neutral: basic('#ff5') };
+let rally: THREE.Group | null = null;
+let ghost: { type: BldType; group: THREE.Group; tiles: THREE.Mesh[] } | null = null;
+
+function basic(color: string, opacity = 0.9): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, fog: false, side: THREE.DoubleSide });
+}
+
+const ringGeo = new THREE.RingGeometry(0.82, 1, 32).rotateX(-Math.PI / 2);
+const squareGeo = new THREE.RingGeometry(0.9, 1, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2);
+
+function updateRings(): void {
+  let n = 0;
+  for (const e of V.sel) {
+    if (e.dead || !objs.get(e.id)?.model.root.visible) continue;
+    let r = ringPool[n];
+    if (!r) { r = new THREE.Mesh(ringGeo, ringMats.own); r.renderOrder = 3; ringPool.push(r); overlays.add(r); }
+    n++;
+    r.visible = true;
+    r.material = e.team === V.team ? ringMats.own : e.team < 0 ? ringMats.neutral : ringMats.enemy;
+    r.geometry = e.w ? squareGeo : ringGeo;
+    const size = e.w ? e.w * 0.72 : UNIT[e.type as UnitType].radius / TS + 0.16;
+    r.scale.setScalar(size);
+    r.position.set(e.x / TS, 0.08, e.y / TS);
+  }
+  for (let i = n; i < ringPool.length; i++) ringPool[i].visible = false;
+}
+
+function updateMarkers(): void {
+  V.markers.forEach((mk, i) => {
+    let r = markerPool[i];
+    if (!r) { r = new THREE.Mesh(ringGeo, basic('#fff')); r.renderOrder = 3; markerPool.push(r); overlays.add(r); }
+    const k = mk.t / MARKER_LIFE, m = r.material as THREE.MeshBasicMaterial;
+    r.visible = true;
+    m.color.set(mk.color);
+    m.opacity = 1 - k;
+    r.scale.setScalar(0.45 * (1 - k * 0.6));
+    r.position.set(mk.x / TS, 0.09, mk.y / TS);
+  });
+  for (let i = V.markers.length; i < markerPool.length; i++) markerPool[i].visible = false;
+}
+
+function updateRally(): void {
+  const b = V.sel.find((e) => !e.dead && e.kind === 'bld' && e.team === V.team && e.rally);
+  if (!rally) {
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineDashedMaterial({ color: '#fff', dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.7 }));
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.7, 6).translate(0, 0.35, 0), basic('#444', 1));
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.01).translate(0.16, 0.6, 0), teamMat(V.team));
+    rally = new THREE.Group();
+    rally.add(line, new THREE.Group().add(pole, flag));
+    overlays.add(rally);
+  }
+  rally.visible = !!b?.rally;
+  if (!b?.rally) return;
+  const line = rally.children[0] as THREE.Line, flag = rally.children[1];
+  line.geometry.setFromPoints([new THREE.Vector3(b.x / TS, 0.1, b.y / TS), new THREE.Vector3(b.rally.x / TS, 0.1, b.rally.y / TS)]);
+  line.computeLineDistances();
+  flag.position.set(b.rally.x / TS, 0, b.rally.y / TS);
+}
+
+function ghostFor(type: BldType): NonNullable<typeof ghost> {
+  if (ghost?.type === type) return ghost;
+  if (ghost) overlays.remove(ghost.group);
+  const model = buildingModel(type, V.team), see = basic('#9cf', 0.45);
+  model.root.traverse((o) => { if (o instanceof THREE.Mesh) { o.material = see; o.castShadow = false; } });
+  const group = new THREE.Group(), tiles: THREE.Mesh[] = [];
+  group.add(model.root);
+  const s = BUILDING[type].size, tileGeo = new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2);
+  for (let i = 0; i < s * s; i++) {
+    const t = new THREE.Mesh(tileGeo, basic('#4f4', 0.4));
+    t.position.set((i % s) - s / 2 + 0.5, 0.1, Math.floor(i / s) - s / 2 + 0.5);
+    t.renderOrder = 3;
+    tiles.push(t);
+    group.add(t);
+  }
+  ghost = { type, group, tiles };
+  overlays.add(group);
+  return ghost;
+}
+
+function updateGhost(): void {
+  const m = V.mode;
+  if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
+  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team);
+  g.group.visible = true;
+  g.group.position.set(m.tx + s / 2, 0, m.ty + s / 2);
+  g.tiles.forEach((t, i) => {
+    const ok = near && tileFree(m.tx + (i % s), m.ty + Math.floor(i / s), V.team);
+    (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
+  });
+}
+
+/** Create, move, animate and remove models to match the world. Call once per frame. */
+export function syncEntities(dt: number): void {
+  const seen = new Set<number>();
+  for (const e of G.ents) {
+    if (e.dead) continue;
+    seen.add(e.id);
+    let o = objs.get(e.id);
+    const key = `${e.type}|${e.team}`;
+    if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
+    if (!o) { o = { model: create(e), key }; objs.set(e.id, o); }
+    const r = o.model.root;
+    r.visible = shownToPlayer(e);
+    if (!r.visible) continue;
+    r.position.set(e.x / TS, r.position.y, e.y / TS);
+    if (e.kind === 'unit') { r.rotation.y = -e.face; animateUnit(o.model, e); }
+    else if (e.kind === 'bld') animateBuilding(o.model, e, dt);
+  }
+  for (const [id, o] of objs) if (!seen.has(id)) { holder.remove(o.model.root); objs.delete(id); }
+  updateRings();
+  updateMarkers();
+  updateRally();
+  updateGhost();
+}
+
+/** How tall an entity's model is (tiles), for placing health bars. */
+export const modelHeight = (e: Ent): number => objs.get(e.id)?.model.height ?? 0.6;
+
+/** The entity under a screen point: models first, then the nearest small unit within reach. */
+export function pickEntity(sx: number, sy: number): Ent | null {
+  const roots: THREE.Object3D[] = [];
+  for (const o of objs.values()) if (o.model.root.visible) roots.push(o.model.root);
+  for (const h of raycastObjects(sx, sy, roots)) {
+    let o: THREE.Object3D | null = h.object;
+    while (o && o.userData.id === undefined) o = o.parent;
+    const e = o ? valid(o.userData.id as number) : null;
+    if (e) return e;
+  }
+  let best: Ent | null = null, bd = 24;
+  for (const e of G.ents) {
+    if (e.dead || e.kind !== 'unit' || !objs.get(e.id)?.model.root.visible) continue;
+    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.5), d = Math.hypot(p.sx - sx, p.sy - sy);
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}

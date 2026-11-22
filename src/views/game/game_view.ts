@@ -16,18 +16,26 @@ import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
 import { mountLobby } from '../lobby/lobby_view.ts';
+import { BUILDING, type BldType } from '../../data/building.ts';
+import { canPlace } from '../../game/building.ts';
 import { initTerrain } from './render/terrain.ts';
 import { makeIcons } from './render/icon.ts';
-import { drawMinimap, initFog, render, updatePlacement } from './render/renderer.ts';
+import { drawMinimap, initFog } from './render/minimap.ts';
+import { initScene, renderScene, resizeScene, updateCamera, viewFootprint } from './render3d/scene.ts';
+import { initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
+import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
+import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
+import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
-import { initInput, scrollCamera } from './input.ts';
+import { initInput, scrollCamera, updatePlacement } from './input.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
 
 const MAX_STEPS_PER_FRAME = 16;
 const MESSAGE_TIME = 2600;
 const FOG_INTERVAL = 0.2;
 const RESIGN_CONFIRM = 3000;
+const ORE_REFRESH = 0.5;
 
 function must<T extends Element>(root: Element, selector: string): T {
   const el = root.querySelector<T>(selector);
@@ -36,7 +44,7 @@ function must<T extends Element>(root: Element, selector: string): T {
 }
 
 export function mountGameView(root: HTMLElement): void {
-  const canvas = must<HTMLCanvasElement>(root, '.game-canvas'), g = ctx2d(canvas);
+  const canvas = must<HTMLCanvasElement>(root, '.game-canvas'), overlay = must<HTMLCanvasElement>(root, '.game-overlay'), og = ctx2d(overlay);
   const minimap = must<HTMLCanvasElement>(root, '.sidebar-minimap'), mg = ctx2d(minimap);
   const sidebar = must<HTMLElement>(root, '.sidebar'), topbar = must<HTMLElement>(root, '.topbar');
   const message = must<HTMLElement>(root, '.game-message');
@@ -55,10 +63,19 @@ export function mountGameView(root: HTMLElement): void {
   hooks.alert = (team, x, y) => { if (team === V.team) V.pings.push({ x, y, t: 0 }); };
   hooks.error = (err) => { console.error(err); root.dataset.errors = String(++errors); };
 
+  /** Build everything drawn for the current map: terrain art, fog, and the 3D layers. */
+  const setupWorldView = () => {
+    initTerrain(G.seed);
+    initFog(refreshFog);
+    initWorld3d();
+    resetEntities3d();
+    initFx3d();
+  };
+
   G.reveal = q.has('reveal');
+  initScene(canvas);
   initWorld(q.has('seed') ? Number(q.get('seed')) : Math.floor(Math.random() * 1e6));
-  initTerrain(G.seed);
-  initFog();
+  setupWorldView();
   makeIcons(V.team);
   initHud({
     credits: must(root, '.topbar-credits'), power: must(root, '.topbar-power'), time: must(root, '.topbar-time'),
@@ -69,13 +86,16 @@ export function mountGameView(root: HTMLElement): void {
   initInput(canvas, minimap);
 
   const resize = () => {
-    V.vw = canvas.width = window.innerWidth;
-    V.vh = canvas.height = window.innerHeight;
+    V.vw = window.innerWidth;
+    V.vh = window.innerHeight;
     V.topH = topbar.offsetHeight;
     // the sidebar docks right on wide screens and at the bottom on narrow ones
     const r = sidebar.getBoundingClientRect(), right = r.left > V.vw / 2;
-    V.viewW = right ? r.left : V.vw;
-    V.viewH = right ? V.vh : r.top;
+    V.viewW = Math.max(1, Math.round(right ? r.left : V.vw));
+    V.viewH = Math.max(1, Math.round(right ? V.vh : r.top));
+    resizeScene(V.viewW, V.viewH);
+    overlay.width = V.viewW;
+    overlay.height = V.viewH;
     clampCam();
   };
   window.addEventListener('resize', resize);
@@ -133,8 +153,7 @@ export function mountGameView(root: HTMLElement): void {
     G.byId.clear();
     rebuildBlk();
     resetSnapshots();
-    initTerrain(G.seed);
-    initFog();
+    setupWorldView();
     makeIcons(m.team);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
     root.classList.add('view-game--online');
@@ -165,7 +184,7 @@ export function mountGameView(root: HTMLElement): void {
 
   applyTestOptions(q, startSolo, (quick) => { closeModal(startModal); lobby.open(quick); });
 
-  let last = performance.now(), acc = 0, fogT = 0;
+  let last = performance.now(), acc = 0, fogT = 0, oreT = 0;
   const frame = (t: number) => {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (t - last) / 1000 || 0);
@@ -195,11 +214,17 @@ export function mountGameView(root: HTMLElement): void {
     }
     scrollCamera(dt);
     clampCam();
-    updatePlacement();
+    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
+    oreT -= dt;
+    if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); }
     try {
-      render(g);
-      drawMinimap(mg);
+      updateCamera();
+      syncEntities(dt);
+      updateFx3d();
+      renderScene();
+      drawOverlay(og);
+      drawMinimap(mg, viewFootprint());
       refreshHud();
       refreshSidebar();
     } catch (err) {
@@ -212,7 +237,8 @@ export function mountGameView(root: HTMLElement): void {
 /**
  * URL options for testing: ?seed=N map seed, ?auto start a solo game, ?demo AI vs AI, ?online open
  * the lobby (?online=quick also joins quick match), ?sim=S simulate S seconds before the first frame, ?reveal no fog, ?cam=x,y center on a
- * tile, ?sel=type select up to six of your units of that type, ?queue=a,b start building these.
+ * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
+ * of your units of that type, ?queue=a,b start building these.
  */
 function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void, openLobby: (quick: boolean) => void): void {
   if (q.has('online')) { openLobby(q.get('online') === 'quick'); return; }
@@ -225,6 +251,13 @@ function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void
   if (cam) {
     const [x, y] = cam.split(',').map(Number);
     centerCam(x * TS, y * TS);
+  }
+  // camera angle: ?view=yawDegrees,pitchDegrees,distanceTiles
+  const view = q.get('view');
+  if (view) {
+    const [yaw, pitch, dist] = view.split(',').map(Number);
+    Object.assign(V.cam, { yaw: (yaw * Math.PI) / 180, pitch: (pitch * Math.PI) / 180, dist });
+    clampCam();
   }
   const sel = q.get('sel');
   if (sel) setSelection(G.ents.filter((e) => e.team === V.team && e.type === sel).slice(0, 6));

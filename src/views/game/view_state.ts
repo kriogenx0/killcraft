@@ -1,8 +1,7 @@
 // Interface state for the game view: camera, selection, pointer and command mode.
 import type { Ent, Point } from '../../game/state.ts';
 import type { BldType } from '../../data/building.ts';
-import { MW, MH, TS } from '../../game/const.ts';
-import { clamp } from '../../util/math.ts';
+import { clampRig, defaultRig } from './camera_rig.ts';
 
 export type Mode =
   | { t: 'move' }
@@ -17,11 +16,12 @@ export const MARKER_LIFE = 0.6;
 export const PING_LIFE = 3;
 
 export const V = {
-  cam: { x: 0, y: 0 },
+  /** orbit camera: target on the ground (px), yaw, pitch, distance */
+  cam: defaultRig(),
   /** whole window */
   vw: 0,
   vh: 0,
-  /** battlefield area not covered by the sidebar */
+  /** battlefield area not covered by the sidebar (the 3D view's size) */
   viewW: 0,
   viewH: 0,
   topH: 32,
@@ -41,14 +41,14 @@ export const V = {
 };
 
 export function clampCam(): void {
-  V.cam.x = clamp(V.cam.x, 0, Math.max(0, MW * TS - V.viewW));
-  V.cam.y = clamp(V.cam.y, -V.topH, Math.max(0, MH * TS - V.viewH));
+  clampRig(V.cam);
 }
 
+/** Point the camera at a world spot (px). */
 export function centerCam(x: number, y: number): void {
-  V.cam.x = x - V.viewW / 2;
-  V.cam.y = y - (V.viewH + V.topH) / 2;
-  clampCam();
+  V.cam.x = x;
+  V.cam.y = y;
+  clampRig(V.cam);
 }
 
 export const ownSelected = (): Ent[] => V.sel.filter((e) => !e.dead && e.team === V.team);

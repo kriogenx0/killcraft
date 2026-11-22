@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMMAND_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
+import { COMMAND_KEYS, ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
 
 const ev = (o: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: unknown }> = {}) =>
   ({ ctrlKey: false, metaKey: false, altKey: false, target: { tagName: 'CANVAS' }, ...o });
@@ -20,8 +20,11 @@ describe('keyboard', () => {
     expect(scrollVector(['m', 'p'])).toEqual([0, 0]);
   });
 
-  it('never uses a scroll key as a command hotkey', () => {
-    for (const k of Object.values(COMMAND_KEYS)) expect(SCROLL_KEYS[k.toLowerCase()]).toBeUndefined();
+  it('never uses a camera key as a command hotkey', () => {
+    for (const k of Object.values(COMMAND_KEYS)) {
+      expect(SCROLL_KEYS[k.toLowerCase()]).toBeUndefined();
+      expect(ROTATE_KEYS[k.toLowerCase()]).toBeUndefined();
+    }
   });
 
   it('ignores keys typed into fields or held with Cmd, Ctrl or Alt', () => {

@@ -1,32 +1,35 @@
-// Mouse, touch and keyboard controls for the battlefield and minimap.
+// Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
 import { G, bldDef, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { MW, MH, TS } from '../../game/const.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { dispatch, ids } from './dispatch.ts';
-import { centerCam, ownSelected, selectedUnits, V } from './view_state.ts';
+import { centerCam, clampCam, ownSelected, selectedUnits, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
-import { SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
+import { ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
+import { panDelta } from './camera_rig.ts';
+import { screenToWorld, worldToScreen } from './render3d/scene.ts';
+import { modelHeight, pickEntity } from './render3d/entities3d.ts';
 
 const DRAG_START = 6;
 const DOUBLE_TAP = 350;
+const ORBIT_SPEED = 0.006;
+const ZOOM_STEP = 1.12;
 
 function shownAt(e: Ent): boolean {
   if (e.team === V.team) return true;
   return e.kind === 'unit' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
 }
 
+/** The entity at a world point (px), for clicks on the minimap. */
 export function entityAt(wx: number, wy: number): Ent | null {
   let best: Ent | null = null, bd = 1e9;
   for (const e of G.ents) {
     if (e.dead || !shownAt(e)) continue;
     if (e.w) {
-      if (wx >= e.tx * TS && wx < (e.tx + e.w) * TS && wy >= e.ty * TS - 10 && wy < (e.ty + e.h) * TS) {
-        const d = Math.hypot(wx - e.x, wy - e.y) + 100;
-        if (d < bd) { bd = d; best = e; }
-      }
+      if (wx >= e.tx * TS && wx < (e.tx + e.w) * TS && wy >= e.ty * TS && wy < (e.ty + e.h) * TS) return e;
     } else {
-      const r = unitDef(e).radius, d = Math.hypot(wx - e.x, wy - (e.y - (r < 8 ? 6 : 0)));
-      if (d < r + 7 && d < bd) { bd = d; best = e; }
+      const d = Math.hypot(wx - e.x, wy - e.y);
+      if (d < unitDef(e).radius + 7 && d < bd) { bd = d; best = e; }
     }
   }
   return best;
@@ -36,11 +39,11 @@ const mark = (x: number, y: number, color: string) => V.markers.push({ x, y, t: 
 const isEnemy = (e: Ent | null): boolean => !!e && e.team !== V.team && e.team >= 0;
 
 /** Context command at a world point: attack, harvest, unload, rally or move. */
-export function worldCommand(wx: number, wy: number): void {
+export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   const own = ownSelected();
   if (!own.length) return;
   const units = own.filter((e) => e.kind === 'unit');
-  const tx = tileOf(wx), ty = tileOf(wy), hit = entityAt(wx, wy);
+  const tx = tileOf(wx), ty = tileOf(wy);
   if (!units.length) {
     const b = own[0];
     if (b.kind === 'bld' && b.done && bldDef(b).produces && bldDef(b).produces !== 'structure') { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
@@ -62,7 +65,7 @@ export function worldCommand(wx: number, wy: number): void {
 }
 
 /** Finish a targeting command (move, attack-move or place) at a world point. */
-function useMode(wx: number, wy: number): void {
+function useMode(wx: number, wy: number, hit: Ent | null): void {
   const m = V.mode;
   if (!m) return;
   if (m.t === 'place') {
@@ -71,28 +74,38 @@ function useMode(wx: number, wy: number): void {
     return;
   }
   V.mode = null;
-  const us = selectedUnits(), hit = entityAt(wx, wy);
+  const us = selectedUnits();
   if (hit && isEnemy(hit)) { dispatch({ c: 'attack', ids: ids(us), target: hit.id }); mark(wx, wy, '#f44'); }
   else { dispatch({ c: 'move', ids: ids(us), tx: tileOf(wx), ty: tileOf(wy), amove: m.t === 'amove' }); mark(wx, wy, m.t === 'amove' ? '#f44' : '#5f5'); }
   refreshCommands(true);
 }
 
+/** Your units whose on-screen position passes a test. */
+function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
+  return G.ents.filter((e) => {
+    if (e.dead || e.kind !== 'unit' || e.team !== V.team) return false;
+    const p = worldToScreen(e.x, e.y, modelHeight(e) * 0.4);
+    return p.front && test(p.sx, p.sy);
+  });
+}
+
 function boxSelect(x0: number, y0: number, x1: number, y1: number, add: boolean): void {
-  const l = Math.min(x0, x1) + V.cam.x, r = Math.max(x0, x1) + V.cam.x, t = Math.min(y0, y1) + V.cam.y, b = Math.max(y0, y1) + V.cam.y;
-  const us = G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && e.x >= l - 8 && e.x <= r + 8 && e.y >= t - 8 && e.y <= b + 8);
+  const l = Math.min(x0, x1), r = Math.max(x0, x1), t = Math.min(y0, y1), b = Math.max(y0, y1);
+  const us = unitsOnScreen((sx, sy) => sx >= l - 6 && sx <= r + 6 && sy >= t - 6 && sy <= b + 6);
   // prefer combat units over harvesters in a box
   const army = us.filter((u) => u.type !== 'harvester'), pick = army.length ? army : us;
   if (pick.length) setSelection(add ? [...new Set([...selectedUnits(), ...pick])] : pick);
   else if (!add) setSelection([]);
 }
 
+let canvasRect = { left: 0, top: 0, right: 0, bottom: 0 };
 function selectSameType(e: Ent): void {
-  const { cam, viewW, viewH } = V;
-  setSelection(G.ents.filter((o) => !o.dead && o.team === V.team && o.type === e.type && o.x > cam.x && o.x < cam.x + viewW && o.y > cam.y && o.y < cam.y + viewH));
+  const r = canvasRect;
+  setSelection(unitsOnScreen((sx, sy) => sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom).filter((u) => u.type === e.type));
 }
 
 function clickSelect(sx: number, sy: number, add: boolean): void {
-  const e = entityAt(sx + V.cam.x, sy + V.cam.y);
+  const e = pickEntity(sx, sy);
   if (!e) { if (!add) setSelection([]); return; }
   if (add && e.kind === 'unit' && e.team === V.team && V.sel.every((s) => s.kind === 'unit' && s.team === V.team)) {
     setSelection(V.sel.includes(e) ? V.sel.filter((s) => s !== e) : [...V.sel, e]);
@@ -104,16 +117,15 @@ function clickSelect(sx: number, sy: number, add: boolean): void {
 let lastTap = { t: 0, id: 0 };
 /** Touch: tap selects your own things; with something selected, tapping elsewhere gives an order. */
 function tap(sx: number, sy: number): void {
-  const wx = sx + V.cam.x, wy = sy + V.cam.y;
-  if (V.mode) { useMode(wx, wy); return; }
-  const e = entityAt(wx, wy), now = performance.now();
+  const w = screenToWorld(sx, sy), e = pickEntity(sx, sy), now = performance.now();
+  if (V.mode) { if (w) useMode(w.x, w.y, e); return; }
   if (e && e.team === V.team) {
     if (lastTap.id === e.id && now - lastTap.t < DOUBLE_TAP && e.kind === 'unit') selectSameType(e);
     else setSelection([e]);
     lastTap = { t: now, id: e.id };
     return;
   }
-  if (ownSelected().length) worldCommand(wx, wy);
+  if (ownSelected().length && w) worldCommand(w.x, w.y, e);
   else setSelection(e ? [e] : []);
 }
 
@@ -122,42 +134,73 @@ function minimapWorld(ev: PointerEvent, mini: HTMLCanvasElement): [number, numbe
   return [((ev.clientX - r.left) / r.width) * MW * TS, ((ev.clientY - r.top) / r.height) * MH * TS];
 }
 
+/** Turn and tilt the camera by a screen drag (px). */
+function orbit(dx: number, dy: number): void {
+  V.cam.yaw -= dx * ORBIT_SPEED;
+  V.cam.pitch += dy * ORBIT_SPEED * 0.8;
+  clampCam();
+}
+
 export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): void {
-  let touch: { id: number; x: number; y: number; panned: boolean } | null = null;
+  const touches = new Map<number, { x: number; y: number }>();
+  let panned = false, pinch: { d: number; a: number } | null = null, orbiting: { x: number; y: number } | null = null;
+  const refreshRect = () => { const r = canvas.getBoundingClientRect(); canvasRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
 
   canvas.addEventListener('pointerdown', (ev) => {
-    if (!V.started || G.demo) return;
+    if (!V.started) return;
+    refreshRect();
     V.mouse.x = ev.clientX; V.mouse.y = ev.clientY;
-    if (ev.pointerType === 'touch') { touch = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, panned: false }; return; }
-    const wx = ev.clientX + V.cam.x, wy = ev.clientY + V.cam.y;
+    if (ev.pointerType === 'touch') {
+      touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (touches.size === 1) { panned = false; V.mouse.sx = ev.clientX; V.mouse.sy = ev.clientY; }
+      pinch = null;
+      return;
+    }
+    if (ev.button === 1) { ev.preventDefault(); orbiting = { x: ev.clientX, y: ev.clientY }; canvas.setPointerCapture(ev.pointerId); return; }
+    if (G.demo) return;
+    const w = screenToWorld(ev.clientX, ev.clientY);
     if (ev.button === 2) {
-      if (V.mode) { V.mode = null; refreshCommands(true); } else worldCommand(wx, wy);
+      if (V.mode) { V.mode = null; refreshCommands(true); }
+      else if (w) worldCommand(w.x, w.y, pickEntity(ev.clientX, ev.clientY));
       return;
     }
     if (ev.button !== 0) return;
-    if (V.mode) { useMode(wx, wy); return; }
+    if (V.mode) { if (w) useMode(w.x, w.y, pickEntity(ev.clientX, ev.clientY)); return; }
     Object.assign(V.mouse, { down: true, drag: false, sx: ev.clientX, sy: ev.clientY });
     canvas.setPointerCapture(ev.pointerId);
   });
 
   window.addEventListener('pointermove', (ev) => {
     V.mouse.x = ev.clientX; V.mouse.y = ev.clientY; V.mouse.inside = ev.pointerType === 'mouse';
-    if (touch && ev.pointerId === touch.id) {
-      const dx = ev.clientX - touch.x, dy = ev.clientY - touch.y;
-      if (touch.panned || Math.hypot(dx, dy) > DRAG_START) {
-        touch.panned = true;
-        V.cam.x -= dx; V.cam.y -= dy;
-        touch.x = ev.clientX; touch.y = ev.clientY;
+    if (orbiting) { orbit(ev.clientX - orbiting.x, ev.clientY - orbiting.y); orbiting = { x: ev.clientX, y: ev.clientY }; return; }
+    const t = touches.get(ev.pointerId);
+    if (t) {
+      const prev = { ...t };
+      t.x = ev.clientX; t.y = ev.clientY;
+      if (touches.size >= 2) {
+        // two fingers: pinch to zoom, twist to turn
+        const [a, b] = [...touches.values()], d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+        if (pinch) { V.cam.dist *= pinch.d / Math.max(1, d); V.cam.yaw -= ang - pinch.a; clampCam(); }
+        pinch = { d, a: ang };
+        panned = true;
+        return;
       }
+      if (!panned && Math.hypot(t.x - V.mouse.sx, t.y - V.mouse.sy) < DRAG_START) return;
+      // one finger: drag the ground under it
+      const w0 = screenToWorld(prev.x, prev.y), w1 = screenToWorld(t.x, t.y);
+      if (w0 && w1) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; clampCam(); }
+      panned = true;
       return;
     }
     if (V.mouse.down && Math.hypot(V.mouse.x - V.mouse.sx, V.mouse.y - V.mouse.sy) > DRAG_START) V.mouse.drag = true;
   });
 
   canvas.addEventListener('pointerup', (ev) => {
-    if (touch && ev.pointerId === touch.id) {
-      if (!touch.panned) tap(ev.clientX, ev.clientY);
-      touch = null;
+    if (orbiting && ev.button === 1) { orbiting = null; return; }
+    if (touches.has(ev.pointerId)) {
+      touches.delete(ev.pointerId);
+      if (!touches.size && !panned && !G.demo) tap(ev.clientX, ev.clientY);
+      if (touches.size < 2) pinch = null;
       return;
     }
     if (ev.button !== 0 || !V.mouse.down) return;
@@ -167,11 +210,19 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
     V.mouse.drag = false;
   });
 
-  canvas.addEventListener('pointercancel', () => { touch = null; V.mouse.down = false; V.mouse.drag = false; });
+  canvas.addEventListener('pointercancel', (ev) => { touches.delete(ev.pointerId); pinch = null; orbiting = null; V.mouse.down = false; V.mouse.drag = false; });
+  canvas.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    // wheel zooms; with Shift it tilts
+    if (ev.shiftKey) V.cam.pitch += Math.sign(ev.deltaY || ev.deltaX) * 0.06;
+    else V.cam.dist *= ev.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    clampCam();
+  }, { passive: false });
   document.addEventListener('pointerleave', () => { V.mouse.inside = false; });
   canvas.addEventListener('dblclick', (ev) => {
     if (!V.started || G.demo) return;
-    const e = entityAt(ev.clientX + V.cam.x, ev.clientY + V.cam.y);
+    refreshRect();
+    const e = pickEntity(ev.clientX, ev.clientY);
     if (e?.kind === 'unit' && e.team === V.team) selectSameType(e);
   });
   canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
@@ -181,8 +232,8 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
   mini.addEventListener('pointerdown', (ev) => {
     if (!V.started) return;
     const [wx, wy] = minimapWorld(ev, mini);
-    if (ev.button === 2) { worldCommand(wx, wy); return; }
-    if (V.mode && V.mode.t !== 'place') { useMode(wx, wy); return; }
+    if (ev.button === 2) { worldCommand(wx, wy, entityAt(wx, wy)); return; }
+    if (V.mode && V.mode.t !== 'place') { useMode(wx, wy, entityAt(wx, wy)); return; }
     miniDrag = true;
     mini.setPointerCapture(ev.pointerId);
     centerCam(wx, wy);
@@ -209,7 +260,7 @@ function onKey(ev: KeyboardEvent): void {
   if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return; // typing, not playing
   if (k === 'meta' || k === 'control') { keys.clear(); return; }
   if (tracksKey(ev)) keys.add(k);
-  if (SCROLL_KEYS[k] && tracksKey(ev)) { ev.preventDefault(); return; } // W A S D and arrows only scroll
+  if ((SCROLL_KEYS[k] || ROTATE_KEYS[k]) && tracksKey(ev)) { ev.preventDefault(); return; } // camera keys only move the camera
   if (target.closest?.('button') && (k === 'enter' || k === ' ')) return; // let buttons activate
   if (k === 'escape') { V.mode = null; refreshCommands(true); return; }
   if (k === 'p' || k === 'pause') { V.paused = !V.paused; return; }
@@ -238,14 +289,32 @@ function onKey(ev: KeyboardEvent): void {
   if (runHotkey(k)) ev.preventDefault();
 }
 
-/** Scroll the camera with W A S D, the arrow keys, or by holding the mouse at the screen edge. */
+/** Pan with W A S D, the arrow keys or the screen edge; turn with Q and E. */
 export function scrollCamera(dt: number): void {
-  const sp = 900 * dt, m = V.mouse, edge = m.inside && !m.down;
+  const m = V.mouse, edge = m.inside && !m.down;
   let [dx, dy] = scrollVector(keys);
   if (edge) {
     if (m.x <= 4) dx = -1; else if (m.x >= V.vw - 5) dx = 1;
     if (m.y <= 4) dy = -1; else if (m.y >= V.vh - 5) dy = 1;
   }
-  V.cam.x += dx * sp;
-  V.cam.y += dy * sp;
+  let turn = 0;
+  for (const k of keys) turn += ROTATE_KEYS[k] ?? 0;
+  if (!dx && !dy && !turn) return;
+  const sp = V.cam.dist * 48 * dt, [px, py] = panDelta(V.cam.yaw, dx * sp, dy * sp);
+  V.cam.x += px;
+  V.cam.y += py;
+  V.cam.yaw += turn * 1.8 * dt;
+  clampCam();
+}
+
+/** Snap the building ghost to the tile under the pointer. */
+export function updatePlacement(canPlaceAt: (tx: number, ty: number) => boolean, size: (t: string) => number): void {
+  const m = V.mode;
+  if (m?.t !== 'place') return;
+  const w = screenToWorld(V.mouse.x, V.mouse.y);
+  if (!w) return;
+  const s = size(m.type);
+  m.tx = Math.max(0, Math.min(MW - s, Math.round(w.x / TS - s / 2)));
+  m.ty = Math.max(0, Math.min(MH - s, Math.round(w.y / TS - s / 2)));
+  m.ok = canPlaceAt(m.tx, m.ty);
 }

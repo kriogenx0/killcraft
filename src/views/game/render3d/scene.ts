@@ -1,0 +1,107 @@
+// The three.js scene: renderer, orbit camera, sun and sky light, and conversions between the
+// screen, the 3D scene and world px. Scene units are tiles: x east, y up, z south.
+import * as THREE from 'three';
+import { TS } from '../../../game/const.ts';
+import { eye } from '../camera_rig.ts';
+import { V } from '../view_state.ts';
+
+export const S = {
+  renderer: null as unknown as THREE.WebGLRenderer,
+  scene: new THREE.Scene(),
+  camera: new THREE.PerspectiveCamera(45, 1, 0.5, 400),
+  sun: new THREE.DirectionalLight('#fff1dc', 2.2),
+  raycaster: new THREE.Raycaster(),
+  ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+  canvas: null as unknown as HTMLCanvasElement,
+};
+
+const SKY = '#1b222b';
+
+export function initScene(canvas: HTMLCanvasElement): void {
+  S.canvas = canvas;
+  const r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  r.shadowMap.enabled = true;
+  r.shadowMap.type = THREE.PCFSoftShadowMap;
+  r.toneMapping = THREE.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.05;
+  S.renderer = r;
+  S.scene.background = new THREE.Color(SKY);
+  S.scene.fog = new THREE.Fog(SKY, 30, 90);
+  S.scene.add(new THREE.HemisphereLight('#d8ecff', '#3e4a2a', 1.1));
+  const sun = S.sun;
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
+  S.scene.add(sun, sun.target);
+}
+
+/** Size the drawing area to the part of the window the sidebar doesn't cover. */
+export function resizeScene(w: number, h: number): void {
+  S.renderer.setSize(w, h, false);
+  S.canvas.style.width = `${w}px`;
+  S.canvas.style.height = `${h}px`;
+  S.camera.aspect = w / Math.max(1, h);
+  S.camera.updateProjectionMatrix();
+}
+
+/** Place the camera from the rig, and keep the sun's shadow box around what's on screen. */
+export function updateCamera(): void {
+  const c = V.cam, [ex, ey, ez] = eye(c), tx = c.x / TS, tz = c.y / TS;
+  S.camera.position.set(ex, ey, ez);
+  S.camera.lookAt(tx, 0, tz);
+  const span = c.dist * 1.1 + 8, sun = S.sun, sc = sun.shadow.camera;
+  sun.position.set(tx - 14, 26, tz + 10);
+  sun.target.position.set(tx, 0, tz);
+  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 80;
+  sc.updateProjectionMatrix();
+  const fog = S.scene.fog as THREE.Fog;
+  fog.near = c.dist * 1.6;
+  fog.far = c.dist * 4 + 20;
+}
+
+const ndc = new THREE.Vector2(), hit = new THREE.Vector3();
+
+function ray(sx: number, sy: number): THREE.Raycaster {
+  const r = S.canvas.getBoundingClientRect();
+  ndc.set(((sx - r.left) / r.width) * 2 - 1, -((sy - r.top) / r.height) * 2 + 1);
+  S.raycaster.setFromCamera(ndc, S.camera);
+  return S.raycaster;
+}
+
+/** The world point (px) on the ground under a screen point, or null if it points at the sky. */
+export function screenToWorld(sx: number, sy: number): { x: number; y: number } | null {
+  const p = ray(sx, sy).ray.intersectPlane(S.ground, hit);
+  return p ? { x: p.x * TS, y: p.z * TS } : null;
+}
+
+const proj = new THREE.Vector3();
+/** Where a world point (px, at `h` tiles above the ground) appears on screen, in client px. */
+export function worldToScreen(x: number, y: number, h = 0): { sx: number; sy: number; front: boolean } {
+  proj.set(x / TS, h, y / TS).project(S.camera);
+  const r = S.canvas.getBoundingClientRect();
+  return { sx: r.left + ((proj.x + 1) / 2) * r.width, sy: r.top + ((1 - proj.y) / 2) * r.height, front: proj.z < 1 };
+}
+
+/** Raycast into the scene under a screen point. */
+export function raycastObjects(sx: number, sy: number, objects: THREE.Object3D[]): THREE.Intersection[] {
+  return ray(sx, sy).intersectObjects(objects, true);
+}
+
+/** The ground area on screen as four world points (px), for the minimap. */
+export function viewFootprint(): [number, number][] {
+  const r = S.canvas.getBoundingClientRect();
+  return [[r.left, r.top], [r.right, r.top], [r.right, r.bottom], [r.left, r.bottom]].map(([sx, sy]) => {
+    const rc = ray(sx, sy);
+    const p = rc.ray.intersectPlane(S.ground, hit);
+    if (p && p.distanceTo(S.camera.position) < 120) return [p.x * TS, p.z * TS] as [number, number];
+    // looking at the horizon: use a far point straight below the ray
+    const far = rc.ray.at(90, hit);
+    return [far.x * TS, far.z * TS] as [number, number];
+  });
+}
+
+export function renderScene(): void {
+  S.renderer.render(S.scene, S.camera);
+}

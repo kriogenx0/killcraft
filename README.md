@@ -32,7 +32,7 @@ To let people outside your network play, deploy the Docker image (`deploy/`) to 
 - **Orders:** left-click or drag to select. Right-click to move, attack, send harvesters to ore or a refinery, or set a factory's rally point. Select a building to repair or sell it.
 - **Touch:** tap to select; with something selected, tap elsewhere to give an order. Drag to scroll.
 - **Surrender** (online): the button in the top bar, clicked twice.
-- **Scrolling:** `W` `A` `S` `D`, the arrow keys, or the mouse at the screen edge.
+- **Camera (3D):** `W` `A` `S` `D`, the arrow keys or the screen edge to pan; `Q`/`E` or middle-drag to turn; mouse wheel to zoom; `Shift`+wheel or middle-drag up and down to tilt. On touch screens: drag to pan, pinch to zoom, twist with two fingers to turn.
 - **Keys:** `F` attack-move, `M` move, `X` stop, `R` repair, `Ctrl`+`1-9` assign a group and `1-9` recall it, `H` jump to base, `Space` jump to the last alert, `+`/`-` game speed, `P` pause. Selling has no key, so it can't happen by accident.
 
 See [docs/project/architecture.md](docs/project/architecture.md) for how the code is organised.
