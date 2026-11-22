@@ -1,6 +1,6 @@
 # Killcraft
 
-A real-time strategy game in the browser in the spirit of Command & Conquer. Harvest ore for credits, keep your base powered, build from the sidebar, and destroy everything the enemy owns. Play the computer, or play other people online.
+A real-time strategy game in the browser in the spirit of Command & Conquer. Harvest ore for gold, keep your base powered, build from the sidebar, and destroy everything the enemy owns. Play the computer, or play other people online.
 
 ## Run it
 
@@ -32,17 +32,17 @@ The live game runs on Coolify from this repo's `main` branch:
 
 ## How to play
 
-- **Economy:** credits are the only resource. Build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it as credits. Each field holds about 14,000 credits and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
+- **Economy:** gold is the only resource. Build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it as gold. Each field holds about 14,000 gold and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
 - **Power:** every structure but the Power Plant uses power. If you use more than you make, production runs at half speed and turrets fire slowly.
-- **Building:** click a structure in the sidebar. Credits are spent as it builds, and it pauses if you run out. When it says READY, click it again and place it within 3 tiles of your base. Right-click a sidebar item to put it on hold, again to cancel (or use its × button).
+- **Building:** click a structure in the sidebar. Gold is spent as it builds, and it pauses if you run out. When it says READY, click it again and place it within 3 tiles of your base. Right-click a sidebar item to put it on hold, again to cancel (or use its × button).
 - **Ages:** every side starts in the Medieval age and advances by researching the next age at the Construction Yard (it appears at the end of the structure list, one age at a time, and builds alongside your structures). Older units stay available after you advance, and the top bar shows your current age. Your base grows up with each age: it starts primitive (a log palisade fort, a post mill, clay furnaces, a thatched roundhouse) in the Medieval age, is rebuilt in stone with slate roofs and cannon in the Gunpowder age, in brick and iron in the Industrial age, and in concrete and steel in the Modern age. The sidebar pictures follow along.
 
   | Age | Research | Needs | Unlocks |
   | --- | --- | --- | --- |
   | Medieval | (start) | | Swordsman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, and every base structure but the Gun Turret |
-  | Gunpowder | $1000, 35s | Barracks | Rifleman, Gun Turret |
-  | Industrial | $2000, 50s | War Factory | Scout Jeep, Battle Tank |
-  | Modern | $3000, 65s | War Factory | Rocket Soldier, Heavy Tank |
+  | Gunpowder | 1000 gold, 35s | Barracks | Rifleman, Gun Turret |
+  | Industrial | 2000 gold, 50s | War Factory | Scout Jeep, Battle Tank |
+  | Modern | 3000 gold, 65s | War Factory | Rocket Soldier, Heavy Tank |
 
 - **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (Gunpowder) fires shells that beat vehicles.
 - **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. You start with two Swordsmen, a Crossbowman and a Knight.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UNIT, UNIT_TYPES } from './unit.ts';
 import { BUILDING, BLD_TYPES } from './building.ts';
 import { WEAPON } from './weapon.ts';
-import { ERA, TECH, TECH_TYPES } from './era.ts';
+import { ERA, HEAL_RATE, TECH, TECH_TYPES } from './era.ts';
 import { ORE_SOURCES, START_YARDS } from './map.ts';
 import { MW, MH } from '../game/const.ts';
 
@@ -25,10 +25,20 @@ describe('static data', () => {
   });
 
   it('reaches every age by research, one step at a time, and unlocks something in each', () => {
-    expect(TECH_TYPES.map((t) => TECH[t].era).sort()).toEqual(ERA.map((_, i) => i).slice(1));
+    const ages = TECH_TYPES.filter((t) => TECH[t].age != null);
+    expect(ages.map((t) => TECH[t].age).sort()).toEqual(ERA.map((_, i) => i).slice(1));
+    for (const t of ages) expect(TECH[t].era).toBe((TECH[t].age ?? 0) - 1);
     for (const t of TECH_TYPES) for (const r of TECH[t].requires) expect(BUILDING[r]).toBeDefined();
     for (let era = 0; era < ERA.length; era++)
       expect(UNIT_TYPES.some((u) => UNIT[u].era === era) || BLD_TYPES.some((b) => BUILDING[b].era === era)).toBe(true);
+  });
+
+  it('researches healing one level at a time, slow to start and faster with each level', () => {
+    const heals = TECH_TYPES.filter((t) => TECH[t].heal != null);
+    expect(heals.map((t) => TECH[t].heal).sort()).toEqual(HEAL_RATE.map((_, i) => i).slice(1));
+    for (const t of heals) expect(TECH[t].era).toBeLessThan(ERA.length);
+    expect(1 / HEAL_RATE[0]).toBeGreaterThan(300); // unresearched: well over five minutes to heal fully
+    for (let i = 1; i < HEAL_RATE.length; i++) expect(HEAL_RATE[i]).toBeGreaterThan(HEAL_RATE[i - 1]);
   });
 
   it('starts with a working medieval economy', () => {

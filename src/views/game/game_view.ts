@@ -121,6 +121,7 @@ export function mountGameView(root: HTMLElement): void {
     G.gameT = s.t;
     G.credits[V.team] = s.credits;
     G.era[V.team] = s.era ?? 0;
+    G.heal[V.team] = s.heal ?? 0;
     G.prod[V.team] = s.prod;
     if (s.ore) decodeOre(s.ore);
     applySnapshot(s.ents, s.ev, (ev) => {

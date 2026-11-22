@@ -9,6 +9,7 @@ import { available, enqueue, placeReady, readyStructure } from './production.ts'
 import { canPlace } from './building.ts';
 import { START_CREDITS, START_UNITS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
+import { HEAL_RATE } from '../data/era.ts';
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
@@ -80,7 +81,7 @@ describe('production', () => {
     expect(available(0, 'tech')).toEqual([]); // needs a barracks first
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
-    expect(available(0, 'tech')).toEqual(['age1']);
+    expect(available(0, 'tech')).toEqual(['age1', 'heal1']);
     G.credits[0] = 5000;
     expect(enqueue(0, 'age1')).toBe(true);
     expect(enqueue(0, 'age1')).toBe(false);
@@ -91,7 +92,38 @@ describe('production', () => {
     expect(available(0, 'infantry')).not.toContain('rocket');
     expect(available(0, 'structure')).toContain('turret');
     // the Industrial age needs a War Factory
-    expect(available(0, 'tech')).toEqual([]);
+    expect(available(0, 'tech')).toEqual(['heal1']);
+  });
+
+  it('slowly heals infantry and knights but not vehicles', () => {
+    const k = addUnit('knight', 0, 20 * TS, 50 * TS), h = addUnit('harvester', 0, 24 * TS, 50 * TS);
+    k.hp = k.maxhp / 2; h.hp = h.maxhp / 2;
+    run(10);
+    expect(h.hp).toBe(h.maxhp / 2);
+    const gained = k.hp - k.maxhp / 2;
+    expect(gained).toBeGreaterThan(0);
+    expect(gained).toBeCloseTo(k.maxhp * HEAL_RATE[0] * 10, 0);
+    run(600);
+    expect(k.hp).toBe(k.maxhp);
+  });
+
+  it('researches faster healing at the Construction Yard, one level at a time', () => {
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    G.credits[0] = 5000;
+    expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and the Gunpowder age
+    expect(enqueue(0, 'heal1')).toBe(true);
+    expect(enqueue(0, 'age1')).toBe(false); // one research at a time
+    run(30);
+    expect(G.heal[0]).toBe(1);
+    expect(available(0, 'tech')).toEqual(['age1']);
+    G.era[0] = 1;
+    expect(available(0, 'tech')).toContain('heal2');
+    const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);
+    s.hp = foe.hp = 10;
+    run(10);
+    expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * 10, 0);
+    expect(foe.hp - 10).toBeCloseTo(foe.maxhp * HEAL_RATE[0] * 10, 0);
   });
 
   it('stalls without credits instead of going into debt', () => {

@@ -31,7 +31,7 @@ export interface BldDef {
 export const BUILDING: Record<BldType, BldDef> = {
   yard: { name: 'Construction Yard', size: 3, top: 40, hp: 1400, cost: 3000, t: 60, era: 0, power: 15, sight: 6, requires: [], produces: 'structure', buildable: false, desc: 'Builds every other structure.' },
   power: { name: 'Power Plant', size: 2, top: 38, hp: 400, cost: 300, t: 8, era: 0, power: 100, sight: 4, requires: [], buildable: true, desc: 'Provides 100 power.' },
-  refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Turns ore into credits. Comes with a free harvester.' },
+  refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Turns ore into gold. Comes with a free harvester.' },
   barracks: { name: 'Barracks', size: 2, top: 22, hp: 500, cost: 300, t: 8, era: 0, power: -20, sight: 5, requires: ['power'], produces: 'infantry', buildable: true, desc: 'Trains infantry.' },
   factory: { name: 'War Factory', size: 3, top: 34, hp: 1000, cost: 2000, t: 18, era: 0, power: -30, sight: 5, requires: ['refinery'], produces: 'vehicle', buildable: true, desc: 'Builds vehicles.' },
   tower: { name: 'Watchtower', size: 1, top: 44, hp: 420, cost: 400, t: 9, era: 0, power: -10, sight: 7, requires: ['barracks'], weapon: 'ballista', buildable: true, desc: 'Stone tower with a ballista on top. Strong against infantry and cavalry.' },

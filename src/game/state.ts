@@ -118,6 +118,8 @@ export const G = {
   credits: [] as number[],
   /** each team's age of technology (index into ERA) */
   era: [] as number[],
+  /** each team's healing level (index into HEAL_RATE) */
+  heal: [] as number[],
   prod: [] as Production[],
   nextId: 1,
   seed: 0,
@@ -172,4 +174,6 @@ export function say(team: number, msg: string): void {
 
 export const unitDef = (e: Ent) => UNIT[e.type as UnitType];
 export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
+/** Living units (infantry and knights) bleed and heal; vehicles don't. */
+export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';

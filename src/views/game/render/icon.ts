@@ -35,7 +35,20 @@ export function makeIcons(team = 0): void {
   // research: a gold medallion with the age's numeral
   const NUMERAL = ['I', 'II', 'III', 'IV'];
   for (const t of TECH_TYPES) {
-    const era = TECH[t].era;
+    const { age, heal } = TECH[t];
+    if (heal != null) {
+      // healing research: a white medallion with a red cross, one pip per level
+      ICON[t] = make((g) => {
+        g.fillStyle = '#f4f0e6'; g.strokeStyle = '#000'; g.lineWidth = 2;
+        g.beginPath(); g.arc(W / 2, 20, 16, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.fillStyle = '#c42a22';
+        g.fillRect(W / 2 - 3.5, 9, 7, 22);
+        g.fillRect(W / 2 - 11, 16.5, 22, 7);
+        for (let i = 0; i < heal; i++) { g.beginPath(); g.arc(W / 2 + (i - (heal - 1) / 2) * 8, 42, 2.5, 0, Math.PI * 2); g.fill(); }
+      });
+      continue;
+    }
+    const era = age ?? 0;
     ICON[t] = make((g) => {
       const grad = g.createRadialGradient(W / 2 - 6, 14, 2, W / 2, 20, 22);
       grad.addColorStop(0, '#fff2c0');
@@ -75,8 +88,12 @@ export function makeIcons(team = 0): void {
     g.fillStyle = '#1a1e18'; g.fillRect(-3, -18, 6, 10);
   });
   ICON.sell = cmd((g) => {
-    g.fillStyle = '#e8c040'; g.strokeStyle = '#000'; g.lineWidth = 2;
-    g.beginPath(); g.arc(0, 0, 15, 0, Math.PI * 2); g.fill(); g.stroke();
-    g.fillStyle = '#5a4008'; g.font = 'bold 20px Georgia'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', 0, 1);
+    // a small stack of gold coins
+    g.strokeStyle = '#000'; g.lineWidth = 2;
+    for (const [x, y] of [[-6, 8], [6, 8], [0, 0], [0, -8]]) {
+      g.fillStyle = '#b88a18'; g.beginPath(); g.ellipse(x, y + 3, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#e8c040'; g.beginPath(); g.ellipse(x, y, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    }
+    g.strokeStyle = '#8a5a00'; g.lineWidth = 1; g.beginPath(); g.ellipse(0, -8, 6, 2.5, 0, 0, Math.PI * 2); g.stroke();
   });
 }

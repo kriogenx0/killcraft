@@ -1,5 +1,6 @@
 // Ages of technology. Every side starts in the Medieval age and researches its way forward at the
 // Construction Yard; each age unlocks newer units and structures, and older ones stay available.
+// The yard also researches faster healing for organic units.
 import type { BldType } from './building.ts';
 
 export interface EraDef {
@@ -17,12 +18,16 @@ export const ERA: EraDef[] = [
 export const START_ERA = 0;
 export const LAST_ERA = ERA.length - 1;
 
-export type TechType = 'age1' | 'age2' | 'age3';
+export type TechType = 'age1' | 'age2' | 'age3' | 'heal1' | 'heal2' | 'heal3';
 
 export interface TechDef {
   name: string;
-  /** the age this research reaches */
+  /** the age a team must be in to start this research */
   era: number;
+  /** the age this research reaches (age research) */
+  age?: number;
+  /** the healing level this research reaches (see HEAL_RATE) */
+  heal?: number;
   cost: number;
   /** research time in seconds at full power */
   t: number;
@@ -31,10 +36,21 @@ export interface TechDef {
   desc: string;
 }
 
+/**
+ * Organic units (infantry, knights) slowly heal on their own. Fraction of max health regained per
+ * second at each healing level: level 0 takes over eight minutes to heal fully, level 3 about a minute.
+ */
+export const HEAL_RATE = [0.002, 0.004, 0.008, 0.016];
+export const MAX_HEAL = HEAL_RATE.length - 1;
+const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
+
 export const TECH: Record<TechType, TechDef> = {
-  age1: { name: 'Gunpowder Age', era: 1, cost: 1000, t: 35, requires: ['barracks'], desc: `Advance to the Gunpowder age. Unlocks ${ERA[1].desc}` },
-  age2: { name: 'Industrial Age', era: 2, cost: 2000, t: 50, requires: ['factory'], desc: `Advance to the Industrial age. Unlocks ${ERA[2].desc}` },
-  age3: { name: 'Modern Age', era: 3, cost: 3000, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[3].desc}` },
+  age1: { name: 'Gunpowder Age', era: 0, age: 1, cost: 1000, t: 35, requires: ['barracks'], desc: `Advance to the Gunpowder age. Unlocks ${ERA[1].desc}` },
+  age2: { name: 'Industrial Age', era: 1, age: 2, cost: 2000, t: 50, requires: ['factory'], desc: `Advance to the Industrial age. Unlocks ${ERA[2].desc}` },
+  age3: { name: 'Modern Age', era: 2, age: 3, cost: 3000, t: 65, requires: ['factory'], desc: `Advance to the Modern age. Unlocks ${ERA[3].desc}` },
+  heal1: { name: 'Field Dressing', era: 0, heal: 1, cost: 400, t: 25, requires: ['barracks'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
+  heal2: { name: 'Surgeons', era: 1, heal: 2, cost: 800, t: 35, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },
+  heal3: { name: 'Field Hospitals', era: 2, heal: 3, cost: 1200, t: 45, requires: ['barracks'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(3)}).` },
 };
 
 export const TECH_TYPES = Object.keys(TECH) as TechType[];

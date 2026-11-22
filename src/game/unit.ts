@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
+import { G, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVESTER_CAPACITY, HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -9,6 +9,7 @@ import { orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { part } from './fx.ts';
+import { HEAL_RATE } from '../data/era.ts';
 
 const AUTO_CHASE = 9 * TS;
 const ORE_SEARCH = 24;
@@ -107,8 +108,15 @@ function unstick(u: Ent, dt: number): void {
   u.px = u.x; u.py = u.y;
 }
 
+/** Organic units slowly regain health; research at the yard speeds it up. */
+function regen(u: Ent, dt: number): void {
+  if (u.hp >= u.maxhp || !isOrganic(u)) return;
+  u.hp = Math.min(u.maxhp, u.hp + u.maxhp * (HEAL_RATE[G.heal[u.team] ?? 0] ?? HEAL_RATE[0]) * dt);
+}
+
 export function updUnit(u: Ent, dt: number): void {
   const d = unitDef(u);
+  regen(u, dt);
   u.cd = Math.max(0, u.cd - dt);
   u.flash = Math.max(0, u.flash - dt);
   u.atkT = Math.max(0, u.atkT - dt);
