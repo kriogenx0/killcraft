@@ -101,10 +101,13 @@ export function mountGameView(root: HTMLElement): void {
     const r = sidebar.getBoundingClientRect(), right = r.left > V.vw / 2;
     V.viewW = Math.max(1, Math.round(right ? r.left : V.vw));
     V.viewH = Math.max(1, Math.round(right ? V.vh : r.top));
+    if (V.viewW === overlay.width && V.viewH === overlay.height) return;
     resizeScene(V.viewW, V.viewH);
     overlay.width = V.viewW;
     overlay.height = V.viewH;
     clampCam();
+    // resizing clears the canvas, so draw again now rather than show a blank frame
+    try { updateCamera(); renderScene(); drawOverlay(og); } catch (err) { hooks.error(err); }
   };
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(sidebar);

@@ -36,7 +36,7 @@ export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
   prog: number;
-  /** ore paid so far (wood and oil are paid at the same pace, so they're prog × price) */
+  /** ore paid for it (the whole price is paid when the order starts) */
   spent: number;
   /** finished structure waiting to be placed */
   ready: boolean;
@@ -74,6 +74,8 @@ export interface Ent extends Target {
   cargo?: Cargo;
   /** Aether carried home from a deposit */
   ae?: number;
+  /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
+  loot?: number;
   scan: number;
   rep: number;
   px: number;
@@ -85,6 +87,9 @@ export interface Ent extends Target {
   stance: Stance;
   /** the enemy a skirmishing unit is shooting at without stopping */
   shot: number | null;
+  /** the enemy that started attacking this unit, and when it last hit */
+  foe: number | null;
+  foeT: number;
   // buildings
   done: boolean;
   /** 0..1 rise-up animation after placement */
@@ -214,7 +219,7 @@ export const hooks = {
   killed: (_e: Ent): void => {},
   /** damage from `by` (if known) destroyed an entity; called just before `killed` */
   killedBy: (_e: Ent, _by: Ent | null): void => {},
-  /** a harvester unloaded ore worth `amount` gold */
+  /** a harvester unloaded `amount` ore */
   income: (_team: number, _amount: number): void => {},
   /** a side was paid a bounty for destroying something of the leader's */
   bounty: (_team: number, _amount: number): void => {},

@@ -47,10 +47,13 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
     }
   }
   if (t.hp <= 0) { hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
+  if (t.kind !== 'unit' || !src || src.dead || src.team === t.team || src.team < 0) return;
+  // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
+  if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
   // idle units react: engaging ones fight back, passive ones run
-  if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
+  if (!t.order) {
     if (t.stance === 'passive') orderFlee(t, src);
-    else if (t.stance === 'engage' && src.kind === 'unit' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
+    else if (t.stance === 'engage' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
   }
 }
 
@@ -98,12 +101,34 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   G.projs.push({ kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
 }
 
+/** How long (s) a unit remembers who hit it. */
+const FOE_MEMORY = 4;
+
+/** The enemy that is attacking this unit, if it hit lately and can be fought back. */
+export function attacker(u: Ent): Ent | null {
+  const f = valid(u.foe);
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !canAttack(u, f) || cloakedFrom(f, u.team)) return null;
+  return f;
+}
+
+/**
+ * A better target than the current one, or null to keep it. Whoever is attacking the unit comes
+ * first; and nobody keeps hacking at something that can't fight back (a plain building, a
+ * harvester) while an armed enemy is within reach.
+ */
+export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number): Ent | null {
+  const a = attacker(u);
+  if (a && a !== cur && edgeDist(u, a) <= radiusTiles * TS) return a;
+  if (cur && !weaponOf(cur)) return acquire(u, radiusTiles, false, true);
+  return null;
+}
+
 /** Best enemy within a radius (tiles): armed units first, then other units, then buildings. */
-export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | null {
+export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false): Ent | null {
   const r = radiusTiles * TS;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
-    if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || cloakedFrom(e, s.team)) continue;
+    if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || !canAttack(s, e)) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : weaponOf(e) ? 0 : 40);
@@ -146,15 +171,15 @@ export function fireOnTheMove(u: Ent, dt: number): void {
   const w = WEAPON[d.weapon];
   let t = valid(u.shot);
   if (t && (edgeDist(u, t) > w.range * TS || cloakedFrom(t, u.team))) t = null;
-  if (!t) {
-    u.shot = null;
-    u.scan -= dt;
-    if (u.scan > 0) return;
+  u.scan -= dt;
+  if (!t) u.shot = null;
+  if (u.scan <= 0) {
     u.scan = 0.3;
-    t = acquire(u, w.range);
-    if (!t) return;
-    u.shot = t.id;
+    // shoot back at an attacker in range first, and prefer armed enemies over buildings
+    const b = betterTarget(u, t, w.range) ?? (t ? null : acquire(u, w.range));
+    if (b) { t = b; u.shot = b.id; }
   }
+  if (!t) return;
   if (aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
 }
 

@@ -13,10 +13,22 @@ import { mulberry32 } from '../util/math.ts';
 export const STUCK_AFTER = 8;
 /** How long (seconds) a unit may walk about without getting a tile closer to its goal. */
 export const CIRCLING_AFTER = 20;
+/** Dropping a target and taking the same one up again within REFIGHT_GAP seconds is a stutter; STUTTERS of them within STUTTER_WINDOW seconds get reported. */
+export const REFIGHT_GAP = 2;
+export const STUTTERS = 4;
+export const STUTTER_WINDOW = 20;
+
+/** The enemy a unit is fighting right now, if any. */
+const fightOf = (u: Ent): number | null => (u.order?.t === 'attack' ? u.order.tgt : u.order?.t === 'move' ? u.order.sub : null);
+
+interface FightWatch { cur: number | null; dropped: Map<number, number>; flips: number[] }
 
 export interface StuckReport {
-  /** 'still': not moving at all; 'circling': moving, but getting no closer */
-  kind: 'still' | 'circling';
+  /**
+   * 'still': not moving at all; 'circling': moving, but getting no closer; 'stutter': dropping a
+   * fight and taking it up again with the same enemy, over and over
+   */
+  kind: 'still' | 'circling' | 'stutter';
   seed: number;
   t: number;
   id: number;
@@ -86,13 +98,33 @@ export function findStuck(seed: number, seconds: number, teams = 4): StuckReport
   initWorld(seed, teams);
   G.viewer = -1;
   for (let t = 0; t < G.teams; t++) ais[t].on = true;
-  const watch = new Map<number, Watch>(), out: StuckReport[] = [], told = new Set<string>();
+  const watch = new Map<number, Watch>(), fights = new Map<number, FightWatch>(), out: StuckReport[] = [], told = new Set<string>();
+  const report = (kind: StuckReport['kind'], u: Ent, key: string) => out.push({
+    kind, seed, t: Math.round(G.gameT), id: u.id, type: u.type, team: u.team, stance: u.stance, order: key,
+    x: Math.round(u.x / TS * 10) / 10, y: Math.round(u.y / TS * 10) / 10, path: u.path ? u.path.length : null,
+    dist: distToGoal(u) == null ? null : Math.round((distToGoal(u) as number) * 10) / 10,
+  });
   try {
     while (!G.over && G.gameT < seconds) {
       update(STEP);
       for (const u of G.ents) {
         if (u.dead || u.kind !== 'unit') continue;
         const key = orderKey(u), dist = pathLeft(u) ?? distToGoal(u) ?? 0;
+        // stutter: the same enemy dropped and taken up again moments later
+        const fight = fightOf(u);
+        let f = fights.get(u.id);
+        if (!f) fights.set(u.id, (f = { cur: fight, dropped: new Map(), flips: [] }));
+        if (fight !== f.cur) {
+          // switching to a more pressing enemy is fine; letting go of the fight altogether is what we watch
+          if (f.cur != null && fight == null) f.dropped.set(f.cur, G.gameT);
+          const was = fight == null ? undefined : f.dropped.get(fight);
+          if (was != null && G.gameT - was < REFIGHT_GAP && valid(fight)) {
+            f.flips.push(G.gameT);
+            while (f.flips.length && G.gameT - f.flips[0] > STUTTER_WINDOW) f.flips.shift();
+            if (f.flips.length >= STUTTERS && !told.has(`${u.id}|stutter`)) { told.add(`${u.id}|stutter`); report('stutter', u, key); }
+          }
+          f.cur = fight;
+        }
         const w = watch.get(u.id);
         if (!w || key !== w.key || busy(u) || !u.order || u.carry !== w.carry) {
           watch.set(u.id, { x: u.x, y: u.y, since: G.gameT, key, carry: u.carry, best: dist, bestT: G.gameT, path: u.path });
@@ -109,13 +141,9 @@ export function findStuck(seed: number, seconds: number, teams = 4): StuckReport
         const tag = `${u.id}|${key}`;
         if (told.has(tag)) continue;
         told.add(tag);
-        out.push({
-          kind, seed, t: Math.round(G.gameT), id: u.id, type: u.type, team: u.team, stance: u.stance, order: key,
-          x: Math.round(u.x / TS * 10) / 10, y: Math.round(u.y / TS * 10) / 10, path: u.path ? u.path.length : null,
-          dist: distToGoal(u) == null ? null : Math.round((distToGoal(u) as number) * 10) / 10,
-        });
+        report(kind, u, key);
       }
-      for (const id of watch.keys()) if (!G.byId.get(id) || G.byId.get(id)?.dead) watch.delete(id);
+      for (const id of watch.keys()) if (!G.byId.get(id) || G.byId.get(id)?.dead) { watch.delete(id); fights.delete(id); }
     }
   } finally {
     Math.random = prevRandom;

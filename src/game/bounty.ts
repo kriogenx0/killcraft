@@ -1,8 +1,14 @@
 // Bounty on the leader: a catch-up rule so a side that pulls far ahead becomes a target. Every few
 // seconds the side whose army and buildings are worth clearly more than anyone else's is marked as
-// the leader, and destroying its units or buildings pays the attacker part of their price.
+// the leader. Destroying its units or buildings earns part of their price as loot: the unit that
+// landed the blow carries it, and it counts once that unit brings it home (like Aether). Loot a
+// turret earns, or a carrier drops when it dies, is left on the ground as ore for gatherers.
 // Tuning lives in data/economy.ts.
 import { G, hooks, say, type Ent } from './state.ts';
+import { TS } from './const.ts';
+import { AETHER_BANK_REACH } from '../data/aether.ts';
+import { bankAt } from './haul.ts';
+import { edgeDist } from './path.ts';
 import { UNIT, isUnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import { BOUNTY_LEAD, BOUNTY_SHARE } from '../data/economy.ts';
@@ -10,7 +16,7 @@ import { teamColors } from '../data/team.ts';
 
 const priceOf = (e: Ent): number => (isUnitType(e.type) ? UNIT[e.type].cost : e.kind === 'bld' ? BUILDING[e.type as BldType].cost : 0);
 
-/** Gold price of everything each side has standing. */
+/** Ore price of everything each side has standing. */
 export function worth(): number[] {
   const w = new Array(G.teams).fill(0);
   for (const e of G.ents) if (!e.dead && e.team >= 0 && e.kind !== 'source') w[e.team] += priceOf(e);
@@ -29,11 +35,27 @@ export function updLeader(): void {
     say(t, t === leader ? 'You are in the lead: enemies earn a bounty for everything of yours they destroy' : `${teamColors(leader).name} leads: bounty on their units and buildings`);
 }
 
-/** Pay the attacker its bounty when something of the leader's is destroyed. */
+/**
+ * Something is about to be destroyed: if it's the leader's, the unit that destroyed it picks up the
+ * bounty as loot. A building that destroyed it leaves the loot as ore where the victim falls.
+ */
 export function payBounty(victim: Ent, by: Ent | null): void {
   if (!by || by.team < 0 || victim.team !== G.leader || by.team === victim.team) return;
-  const gold = Math.round(priceOf(victim) * BOUNTY_SHARE);
-  if (gold <= 0) return;
-  G.credits[by.team] += gold;
-  hooks.bounty(by.team, gold);
+  const ore = Math.round(priceOf(victim) * BOUNTY_SHARE);
+  if (ore <= 0) return;
+  if (by.kind === 'unit' && !by.dead) by.loot = (by.loot ?? 0) + ore;
+  else victim.carry += ore; // dropped with the victim's salvage
+}
+
+/** Loot counts once its carrier is near its own Construction Yard or a Refinery. */
+export function bankLoot(): void {
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || !u.loot) continue;
+    const home = bankAt(u, ['yard', 'refinery']);
+    if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
+    G.credits[u.team] += u.loot;
+    hooks.bounty(u.team, u.loot);
+    say(u.team, `Bounty brought home: ${Math.round(u.loot)} ore`);
+    u.loot = 0;
+  }
 }

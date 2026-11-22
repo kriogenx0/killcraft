@@ -4,7 +4,7 @@ import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
-import { acquire, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
+import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
@@ -311,7 +311,7 @@ export function updUnit(u: Ent, dt: number): void {
       const threat = nearestThreat(u, Math.min(d.sight, 7));
       if (threat) orderFlee(u, threat);
     } else if (d.weapon) {
-      const t = acquire(u, d.sight);
+      const t = attacker(u) ?? acquire(u, d.sight);
       if (t) setOrder(u, { t: 'attack', tgt: t.id, auto: true, ox: u.x, oy: u.y });
     } else if (isHarvester(u) && nearestOwn(u, 'refinery')) {
       u.scan = 1.5;
@@ -330,14 +330,13 @@ export function updUnit(u: Ent, dt: number): void {
       }
       // engage: stop to fight anything met on the way, then carry on
       let t = valid(o.sub);
-      if (!t && o.sub) { o.sub = null; u.path = null; }
-      if (!t) {
-        u.scan -= dt;
-        if (u.scan <= 0) {
-          u.scan = 0.3;
-          t = acquire(u, d.sight);
-          if (t) { o.sub = t.id; u.path = null; }
-        }
+      if (!t && o.sub) { o.sub = null; u.path = null; u.scan = 0; } // it fell: look for the next one now
+      u.scan -= dt;
+      if (u.scan <= 0) {
+        u.scan = 0.3;
+        // fight back against whoever is attacking first, and armed enemies before buildings
+        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight);
+        if (b) { t = b; o.sub = b.id; u.path = null; }
       }
       if (t) {
         if (!combatStep(u, t, dt)) { o.sub = null; u.path = null; }
@@ -348,9 +347,15 @@ export function updUnit(u: Ent, dt: number): void {
       break;
     }
     case 'attack': {
-      const t = valid(o.tgt);
+      let t = valid(o.tgt);
+      u.scan -= dt;
+      if (t && u.scan <= 0) {
+        u.scan = 0.3;
+        const b = betterTarget(u, t, d.sight);
+        if (b) { t = b; o.tgt = b.id; u.path = null; }
+      }
       const gaveUp = !t || (o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) || !combatStep(u, t, dt);
-      if (gaveUp) { u.order = null; u.path = null; }
+      if (gaveUp) { u.order = null; u.path = null; u.scan = 0; }
       break;
     }
     case 'harvest':

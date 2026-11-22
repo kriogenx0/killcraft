@@ -98,7 +98,7 @@ export function collect(dt: number): void {
 /** Ore a destroyed unit or building leaves behind: a share of its price, plus any ore it carried. */
 export function salvageOf(e: Ent): number {
   const price = isUnitType(e.type) ? UNIT[e.type].cost : e.kind === 'bld' ? BUILDING[e.type as BldType].cost : 0;
-  return Math.round(price * SALVAGE_SHARE + e.carry);
+  return Math.round(price * SALVAGE_SHARE + e.carry + (e.loot ?? 0));
 }
 
 /** Scatter a destroyed thing's salvage as ore on open ground around where it stood. */

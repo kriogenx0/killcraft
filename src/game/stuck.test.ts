@@ -91,6 +91,25 @@ describe('units never stand around with an order', () => {
     expect(G.credits[0]).toBeGreaterThan(40);
   });
 
+  it('walks round to a reachable side of a building when the nearest side is a walled-off pocket', () => {
+    emptyMap();
+    const ref = addBuilding('refinery', 0, 24, 20, false);
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true;
+    // tiles (23,20)-(23,21) beside the refinery, sealed off by rock from the worker's side
+    for (let y = 19; y <= 23; y++) rock(22, y);
+    rock(23, 19); rock(23, 22);
+    rebuildBlk();
+    run(STEP);
+    const w = addUnit('worker', 0, 20.5 * TS, 21.5 * TS);
+    w.carry = 50;
+    G.credits[0] = 0;
+    orderHarvest(w, 40, 40);
+    if (w.order?.t === 'harvest') w.order.st = 'ret';
+    run(20);
+    expect(ref.dead).toBe(false);
+    expect(G.credits[0]).toBeGreaterThan(40);
+  });
+
   it('never squeezes diagonally between two blocks that touch at a corner', () => {
     emptyMap();
     rock(20, 20); rock(21, 21);
@@ -130,9 +149,10 @@ describe('units never stand around with an order', () => {
     expect(G.ore[20 * MW + 20]).toBeLessThan(500);
   });
 
-  it('in a four-player computer match, nobody sits still or walks in circles with an order', () => {
-    // before the fixes this match had a dozen units stuck: swords at building corners, workers at
-    // unreachable ore, crowds at waypoints and units wedged against wall corners
+  it('in a four-player computer match, nobody sits still, walks in circles or stutters with an order', () => {
+    // before the fixes this match had a dozen units stuck (swords at building corners, workers at
+    // unreachable ore, crowds at waypoints, units wedged against wall corners) and 90 that kept
+    // dropping a fight and taking it up again because the computer re-gave their move order
     const stuck = findStuck(1, 900);
     expect(stuck).toEqual([]);
   }, 60_000);

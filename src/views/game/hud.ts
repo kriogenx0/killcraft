@@ -149,6 +149,7 @@ function unitDetails(e: Ent): string {
   let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${ab ? ` (-${ab}% damage)` : ''}${heal}</p>`;
   if (insight(e)) h += `<p class="hud-stats">${unitAction(e)} · ${STANCE_INFO[e.stance].label}</p>`;
   if (isHarvester(e)) h += `<p class="hud-stats">${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}</p>${barHtml(Math.min(1, e.carry / haulOf(e)), 'progress', 'Load')}`;
+  if (e.loot) h += `<p class="hud-stats">Bounty ${Math.round(e.loot)} ore: bring it near your Construction Yard or a Refinery</p>`;
   if (e.ae) h += `<p class="hud-stats">Aether ${Math.round(e.ae)}: bring it near your Construction Yard or a Refinery</p>`;
   return h;
 }

@@ -56,9 +56,13 @@ export function steer(u: Ent, tx: number, ty: number, max: number, dt: number, a
   let nx = u.x + (dx / dist) * step, ny = u.y + (dy / dist) * step;
   if (!air && !canStep(u.x, u.y, nx, ny) && !blkAt(u.x, u.y)) {
     // clipping a corner: slide along it; only a wall straight ahead blocks the way
-    if (canStep(u.x, u.y, nx, u.y)) ny = u.y;
-    else if (canStep(u.x, u.y, u.x, ny)) nx = u.x;
+    // (sliding has to get somewhere: a wall square ahead leaves nothing to slide along)
+    const min = step * 0.02;
+    if (Math.abs(nx - u.x) > min && canStep(u.x, u.y, nx, u.y)) ny = u.y;
+    else if (Math.abs(ny - u.y) > min && canStep(u.x, u.y, u.x, ny)) nx = u.x;
     else return 'blocked';
+    // heading straight into a wall: "sliding" along the other axis goes nowhere
+    if (nx === u.x && ny === u.y) return 'blocked';
   }
   u.x = nx; u.y = ny;
   return 'moving';
