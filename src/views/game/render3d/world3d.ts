@@ -13,6 +13,7 @@ import { terrain } from '../render/terrain.ts';
 import { fogCanvas } from '../render/minimap.ts';
 import { S } from './scene.ts';
 import { M } from './materials.ts';
+import { surface } from './surfaces.ts';
 import { animateTrees, initTrees, refreshTrees } from './trees3d.ts';
 
 const ORE_PER_TILE = 5;
@@ -86,13 +87,25 @@ function groundMaterial(map: THREE.Texture): THREE.Material {
   bump.needsUpdate = true;
   // the grain doubles as a bump map, so blades and grit catch the sun
   const m = new THREE.MeshStandardMaterial({ map, roughness: 1, bumpMap: bump, bumpScale: 1.2 });
+  const rock = surface('stone');
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uDetail = { value: tex };
-    shader.fragmentShader = 'uniform sampler2D uDetail;\n' + shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    shader.uniforms.uRock = { value: rock };
+    // steep faces (cliffs, banks) get rock projected from the side, instead of the top-down paint stretched down them
+    shader.vertexShader = 'varying vec3 vWorld; varying vec3 vUp;\n' + shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      vWorld = position; vUp = normal;`);
+    shader.fragmentShader = 'uniform sampler2D uDetail; uniform sampler2D uRock; varying vec3 vWorld; varying vec3 vUp;\n' + shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
       float grain = texture2D(uDetail, vMapUv * ${(MW * 1.5).toFixed(1)}).r * 0.6 + texture2D(uDetail, vMapUv * ${(MW * 0.37).toFixed(2)}).r * 0.4;
-      diffuseColor.rgb *= 0.72 + grain * 0.56;`);
+      diffuseColor.rgb *= 0.72 + grain * 0.56;
+      float steep = smoothstep(0.55, 0.85, 1.0 - abs(normalize(vUp).y));
+      if (steep > 0.0) {
+        vec3 w = abs(normalize(vUp)); w /= (w.x + w.z + 0.0001);
+        vec3 rx = texture2D(uRock, vWorld.zy * 0.8).rgb, rz = texture2D(uRock, vWorld.xy * 0.8).rgb;
+        vec3 face = (rx * w.x + rz * w.z) * vec3(0.46, 0.42, 0.37);
+        diffuseColor.rgb = mix(diffuseColor.rgb, face, steep);
+      }`);
   };
-  m.customProgramCacheKey = () => 'ground-detail';
+  m.customProgramCacheKey = () => 'ground-detail-rock';
   return m;
 }
 
