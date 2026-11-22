@@ -1,7 +1,7 @@
 // Sidebar production: one structure and one research (an age, or faster healing) at a time from the Construction Yard,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
-// Credits are spent as work progresses; production stalls when money runs out and
-// runs at half speed on low power.
+// Ore, wood and oil are spent as work progresses; production stalls when any of them runs out,
+// and runs at half speed on low power.
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
@@ -18,12 +18,18 @@ const QUEUE_MAX = 5;
 const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', tech: 'yard' };
 const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'tech'];
 const FUNDS_NOTICE = 6;
+const SHORT_MSG = { ore: 'Not enough ore', wood: 'Not enough wood', oil: 'Not enough oil' };
 const lastFundsNotice: number[] = [];
 
 export const emptyProduction = (): Production => ({ structure: [], infantry: [], vehicle: [], tech: [] });
 export const lineOf = (t: Buildable): ProductionLine => (isUnitType(t) ? UNIT[t].producer : isTechType(t) ? 'tech' : 'structure');
 const defOf = (t: Buildable) => (isUnitType(t) ? UNIT[t] : isTechType(t) ? TECH[t] : BUILDING[t]);
+/** Ore price. */
 export const costOf = (t: Buildable): number => defOf(t).cost;
+export interface Price { ore: number; wood: number; oil: number }
+export const priceOf = (t: Buildable): Price => { const d = defOf(t); return { ore: d.cost, wood: d.wood ?? 0, oil: d.oil ?? 0 }; };
+/** Does the team have enough of every resource for the whole price? */
+export const canAfford = (team: number, t: Buildable): boolean => { const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil; };
 const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
@@ -73,7 +79,10 @@ export function cancel(team: number, type: Buildable): boolean {
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
     if (q[i].type === type) {
+      const p = priceOf(q[i].type);
       G.credits[team] += q[i].spent;
+      G.wood[team] += p.wood * q[i].prog;
+      G.oil[team] += p.oil * q[i].prog;
       q.splice(i, 1);
       return true;
     }
@@ -116,13 +125,17 @@ export function updProduction(team: number, dt: number): void {
     const q = G.prod[team][line], it = q[0];
     if (!it || it.ready || it.hold) continue;
     if (!producerOf(team, line)) { cancel(team, it.type); continue; }
-    const dp = Math.min((speed * dt) / timeOf(it.type), 1 - it.prog), cost = costOf(it.type) * dp;
-    if (G.credits[team] < cost) {
-      if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, 'Not enough gold'); }
+    const dp = Math.min((speed * dt) / timeOf(it.type), 1 - it.prog), p = priceOf(it.type);
+    const ore = p.ore * dp, wood = p.wood * dp, oil = p.oil * dp;
+    const short = G.credits[team] < ore ? 'ore' : G.wood[team] < wood ? 'wood' : G.oil[team] < oil ? 'oil' : null;
+    if (short) {
+      if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, SHORT_MSG[short]); }
       continue;
     }
-    G.credits[team] -= cost;
-    it.spent += cost;
+    G.credits[team] -= ore;
+    G.wood[team] -= wood;
+    G.oil[team] -= oil;
+    it.spent += ore;
     it.prog += dp;
     if (it.prog < 1 - 1e-9) continue;
     if (line === 'structure') { it.ready = true; say(team, 'Construction complete'); }

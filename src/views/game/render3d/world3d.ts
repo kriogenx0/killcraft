@@ -79,6 +79,13 @@ export function initWorld3d(): void {
   const fog = new THREE.Mesh(new THREE.PlaneGeometry(MW, MH).rotateX(-Math.PI / 2).translate(MW / 2, 0.06, MH / 2), new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, depthWrite: false, fog: false }));
   fog.renderOrder = 2;
   layer.add(fog);
+  // a black frame past the map's edges, so no sliver of ground shows at the border
+  const B = 40, black = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
+  for (const [w, h, x, z] of [[MW + 2 * B, B, MW / 2, -B / 2], [MW + 2 * B, B, MW / 2, MH + B / 2], [B, MH, -B / 2, MH / 2], [B, MH, MW + B / 2, MH / 2]]) {
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h).rotateX(-Math.PI / 2).translate(x, 0.06, z), black);
+    strip.renderOrder = 2;
+    layer.add(strip);
+  }
   S.scene.add(layer);
   refreshTrees(true);
   refreshOre();

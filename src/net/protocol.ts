@@ -54,7 +54,10 @@ export interface SnapMsg {
   k: 'snap';
   /** game time */
   t: number;
+  /** ore */
   credits: number;
+  wood: number;
+  oil: number;
   /** the team's age of technology */
   era: number;
   /** the team's healing level */

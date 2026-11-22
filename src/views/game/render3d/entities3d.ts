@@ -97,6 +97,7 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.radar) P.radar.rotation.y += dt * 1.3;
   if (P.flag) P.flag.rotation.y = Math.sin(G.gameT * 3 + e.id) * 0.25;
   if (P.sails && e.done) P.sails.rotation.z -= dt * 1.1;
+  if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
 }
 
 // ---- selection rings, markers, rally flag, building ghost ----

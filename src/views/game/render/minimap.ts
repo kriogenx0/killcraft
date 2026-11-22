@@ -21,7 +21,7 @@ function updateFogImage(): void {
   if (!fog.c || !fog.img) return;
   const d = fog.img.data;
   for (let i = 0; i < MW * MH; i++) {
-    d[i * 4] = 4; d[i * 4 + 1] = 6; d[i * 4 + 2] = 10;
+    d[i * 4] = 0; d[i * 4 + 1] = 0; d[i * 4 + 2] = 0; // pure black, so unexplored ground matches the void past the map
     d[i * 4 + 3] = G.vis[i] === 2 ? 0 : G.vis[i] === 1 ? 120 : 255;
   }
   ctx2d(fog.c).putImageData(fog.img, 0, 0);

@@ -18,10 +18,10 @@ export const ORE_SOURCES: Tile[] = [
   [57, 29],
 ];
 
-/** Guaranteed woods near each base: [centerX, centerY, radius]. */
+/** Guaranteed woods near each base, in reach of a Lumber Mill: [centerX, centerY, radius]. */
 export const FORESTS: [number, number, number][] = [
-  [3, 44, 3],
-  [60, 19, 3],
+  [4, 41, 4],
+  [59, 22, 4],
 ];
 
 /**
@@ -42,5 +42,7 @@ export const PORTAL_COLORS = ['#a070ff', '#3fd8c4'];
 /** Ground kept clear around each gate (tiles). */
 export const PORTAL_CLEAR = 2.5;
 
-export const START_CREDITS = 3000;
+export const START_CREDITS = 3500;
+export const START_WOOD = 400;
+export const START_OIL = 0;
 export const START_UNITS = ['swordsman', 'swordsman', 'crossbowman', 'knight'] as const;

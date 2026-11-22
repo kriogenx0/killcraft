@@ -22,7 +22,7 @@ export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
   prog: number;
-  /** credits paid so far */
+  /** ore paid so far (wood and oil are paid at the same pace, so they're prog × price) */
   spent: number;
   /** finished structure waiting to be placed */
   ready: boolean;
@@ -98,7 +98,7 @@ export interface Decal {
 
 export const G = {
   terr: new Uint8Array(MW * MH),
-  /** ore credits on each tile */
+  /** ore on each tile */
   ore: new Int16Array(MW * MH),
   blk: new Uint8Array(MW * MH),
   /** linked portal pairs on this map */
@@ -122,7 +122,10 @@ export const G = {
   projs: [] as Projectile[],
   fx: [] as Particle[],
   decals: [] as Decal[],
+  /** ore */
   credits: [] as number[],
+  wood: [] as number[],
+  oil: [] as number[],
   /** each team's age of technology (index into ERA) */
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */

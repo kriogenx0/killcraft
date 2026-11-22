@@ -81,7 +81,7 @@ export function mountGameView(root: HTMLElement): void {
   setupWorldView();
   makeIcons(V.team);
   initHud({
-    credits: must(root, '.topbar-credits'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
+    credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
     speed: speedBtn, pause: pauseBtn,
     details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'),
   });
@@ -122,6 +122,8 @@ export function mountGameView(root: HTMLElement): void {
   const onSnapshot = (s: SnapMsg) => {
     G.gameT = s.t;
     G.credits[V.team] = s.credits;
+    G.wood[V.team] = s.wood ?? 0;
+    G.oil[V.team] = s.oil ?? 0;
     G.era[V.team] = s.era ?? 0;
     G.heal[V.team] = s.heal ?? 0;
     G.prod[V.team] = s.prod;

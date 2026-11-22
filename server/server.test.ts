@@ -1,4 +1,5 @@
 // Starts the real server and plays the opening of a match with two WebSocket clients.
+import { START_CREDITS } from '../src/data/map.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { startServer, type RunningServer } from './main.ts';
@@ -55,7 +56,7 @@ describe('game server', () => {
     expect(startA.opponent).toBe('bBobb'); // names are cleaned of markup
 
     const first = (await a.next('snap')) as SnapMsg;
-    expect(first.credits).toBe(3000);
+    expect(first.credits).toBe(START_CREDITS);
     const own = first.ents.filter((r) => r[2] === startA.team);
     expect(own.length).toBeGreaterThan(0);
     // the enemy base starts far away, under fog
@@ -63,7 +64,7 @@ describe('game server', () => {
 
     a.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'build', type: 'power' } }));
     a.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'build', type: 'nuke' } })); // ignored
-    const later = (await a.next('snap', (m) => m.k === 'snap' && m.credits < 3000)) as SnapMsg;
+    const later = (await a.next('snap', (m) => m.k === 'snap' && m.credits < START_CREDITS)) as SnapMsg;
     expect(later.prod.structure[0]?.type).toBe('power');
 
     b.ws.close();

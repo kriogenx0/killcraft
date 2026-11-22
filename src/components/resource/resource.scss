@@ -13,7 +13,9 @@
     border-radius: 50%;
     box-shadow: 0 0 0 1px #000;
 
-    &--gold { background: radial-gradient(circle at 35% 35%, #fff6b0, #e8b020 50%, #8a5a00); }
+    &--ore { border-radius: 0; box-shadow: none; clip-path: polygon(50% 0, 90% 40%, 50% 100%, 10% 40%); background: linear-gradient(135deg, #fff0a0, #e8b028 45%, #8a5a08); }
+    &--wood { border-radius: 3px; background: linear-gradient(90deg, #5a3414, #b07a40 30%, #8a5428 60%, #4a2a10); }
+    &--oil { border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: radial-gradient(circle at 35% 35%, #8a8aa0, #22222e 55%, #050508); }
     &--power { background: radial-gradient(circle at 35% 35%, #e8fff0, #40d070 50%, #106030); }
     &--era { background: radial-gradient(circle at 35% 35%, #f0e8ff, #9a70e0 50%, #40207a); }
   }

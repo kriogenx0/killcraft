@@ -214,8 +214,56 @@ function drawSource(g: G2): void {
   }
 }
 
+/** Lumber Mill: a timber shed with a water-driven saw, a log pile and fresh planks. */
+function drawMill(g: G2, T: TeamColors): void {
+  ellipseFill(g, 34, 62, 32, 8, 'rgba(0,0,0,.25)');
+  g.fillStyle = vgrad(g, 0, 64, '#8a6a44', '#5e4628');
+  g.beginPath(); g.rect(1, 1, 62, 62); g.fill(); outline(g, 1);
+  // shed: thatched roof over a plank wall
+  box(g, 6, -18, 40, 22, 26, vgrad(g, -18, 4, '#d8b86a', '#9a7a3a'), ['#9a6a3a', '#5e3e1e']);
+  g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1;
+  for (let x = 12; x < 46; x += 6) { g.beginPath(); g.moveTo(x, 4); g.lineTo(x, 30); g.stroke(); }
+  g.fillStyle = '#2a1a0e'; g.fillRect(20, 14, 12, 16);
+  g.fillStyle = T.m; g.fillRect(6, 2, 40, 3);
+  // saw wheel on the side
+  g.fillStyle = '#4a2e14'; g.beginPath(); g.arc(52, 10, 11, 0, TAU); g.fill(); outline(g);
+  oline(g, 52, -1, 52, 21, 2, '#7a5028'); oline(g, 41, 10, 63, 10, 2, '#7a5028');
+  g.fillStyle = '#c8ccd0'; g.beginPath(); g.arc(52, 10, 3, 0, TAU); g.fill();
+  // log pile
+  for (const [x, y] of [[10, 50], [20, 50], [30, 50], [15, 43], [25, 43]]) {
+    g.fillStyle = '#7a5028'; g.beginPath(); g.rect(x - 4, y - 3, 8, 6); g.fill();
+    g.fillStyle = '#d8b07a'; g.beginPath(); g.arc(x + 4, y, 3, 0, TAU); g.fill(); outline(g, 0.8);
+  }
+  // stacked planks
+  for (let i = 0; i < 3; i++) { g.fillStyle = i % 2 ? '#c89a5a' : '#b0844a'; g.beginPath(); g.rect(40, 50 - i * 4, 20, 4); g.fill(); outline(g, 0.8); }
+}
+
+/** Oil Derrick: a steel pump jack on a pad, with a storage tank. */
+function drawDerrick(g: G2, T: TeamColors): void {
+  pad(g, 64, 64);
+  // storage tank
+  g.fillStyle = hgrad(g, 38, 60, ['#5a5a5e', '#a8a8b0', '#6a6a70', '#3a3a3e']);
+  g.beginPath(); g.rect(38, 22, 22, 30); g.fill(); outline(g);
+  g.fillStyle = '#8a8a92'; g.beginPath(); g.ellipse(49, 22, 11, 4, 0, 0, TAU); g.fill(); outline(g, 1);
+  g.fillStyle = T.m; g.fillRect(38, 34, 22, 4);
+  // A-frame and walking beam
+  oline(g, 10, 50, 20, 4, 3, '#2a2a2e'); oline(g, 30, 50, 20, 4, 3, '#2a2a2e');
+  g.save(); g.translate(20, 4); g.rotate(-0.18);
+  g.fillStyle = '#e8b020'; g.beginPath(); g.rect(-20, -3, 38, 6); g.fill(); outline(g);
+  // horse head and counterweight
+  g.fillStyle = '#e8b020'; g.beginPath(); g.moveTo(-20, -6); g.quadraticCurveTo(-28, 2, -20, 12); g.lineTo(-17, 12); g.lineTo(-17, -6); g.closePath(); g.fill(); outline(g);
+  g.fillStyle = '#3a3a3e'; g.beginPath(); g.arc(15, 8, 7, 0, TAU); g.fill(); outline(g);
+  g.restore();
+  // polished rod and wellhead
+  oline(g, 0, 16, 0, 46, 1.5, '#c8ccd0');
+  g.fillStyle = '#3a3a3e'; g.beginPath(); g.rect(-4, 44, 8, 8); g.fill(); outline(g, 1);
+  // pipe to the tank
+  oline(g, 4, 50, 38, 50, 2.5, '#5a5a5e');
+}
+
 const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
+  mill: drawMill, derrick: drawDerrick,
 };
 
 /** Cached sprite for a building type and team. */

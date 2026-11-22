@@ -15,7 +15,7 @@ export const S = {
   canvas: null as unknown as HTMLCanvasElement,
 };
 
-const SKY = '#1b222b';
+const SKY = '#000000'; // everything past the map's edges is black
 
 export function initScene(canvas: HTMLCanvasElement): void {
   S.canvas = canvas;
