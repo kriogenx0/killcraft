@@ -3,7 +3,8 @@ import type { BldType } from './building.ts';
 
 export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
-  | 'wraith' | 'hexblade' | 'phantom' | 'starfall';
+  | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
+  | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -24,6 +25,13 @@ export interface UnitDef {
   aether?: number;
   /** stays unseen by enemies until it fires or an enemy comes close (see CLOAK_* in data/aether.ts) */
   cloak?: boolean;
+  /**
+   * a creature of Greek myth (data/creatures.ts). Wild ones guard lairs on the map; a side can only
+   * train a kind once it has captured one.
+   */
+  beast?: boolean;
+  /** fraction of max health regained each second, whatever the side's healing research (the Hydra) */
+  regen?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
   look?: UnitType;
   /** build time in seconds at full power */
@@ -69,6 +77,16 @@ export const UNIT: Record<UnitType, UnitDef> = {
   hexblade: { name: 'Hex Rifleman', cls: 'infantry', armor: 'none', hp: 55, spd: 2.0, weapon: 'hexrifle', cost: 110, wood: 20, aether: 25, t: 6, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, look: 'rifleman', desc: 'Hexed shot slows whatever it hits to half speed for a moment.' },
   phantom: { name: 'Phantom Jeep', cls: 'vehicle', armor: 'light', hp: 170, spd: 5.0, weapon: 'mg', cost: 450, oil: 50, aether: 60, t: 10, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, cloak: true, look: 'jeep', desc: 'Scout jeep wrapped in Aether. Unseen until it fires or an enemy comes close.' },
   starfall: { name: 'Starfall Tank', cls: 'vehicle', armor: 'heavy', hp: 380, spd: 2.8, weapon: 'starbeam', cost: 750, oil: 150, aether: 100, t: 16, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 13, look: 'tank', desc: 'Battle tank with a beam of starlight. Slow to fire, but tears through buildings.' },
+  // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
+  // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
+  centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 220, spd: 4.2, weapon: 'centaurbow', cost: 350, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 11, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry.' },
+  minotaur: { name: 'Minotaur', cls: 'infantry', armor: 'light', hp: 460, spd: 2.4, weapon: 'axe', cost: 450, aether: 45, t: 12, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 12, beast: true, desc: 'Bull-headed brute with a great double axe. Slow, tough, and smashes buildings.' },
+  cyclops: { name: 'Cyclops', cls: 'infantry', armor: 'heavy', hp: 650, spd: 1.8, weapon: 'hurl', cost: 650, aether: 70, t: 16, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 15, beast: true, desc: 'One-eyed giant who hurls boulders from long range. Crushes tanks and walls.' },
+  hydra: { name: 'Hydra', cls: 'infantry', armor: 'light', hp: 560, spd: 1.6, weapon: 'hydrabite', cost: 600, aether: 60, t: 15, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 14, beast: true, regen: 0.012, desc: 'Many-headed serpent. Bites three foes at once and keeps growing back its wounds.' },
+  cerberus: { name: 'Cerberus', cls: 'infantry', armor: 'light', hp: 380, spd: 4.0, weapon: 'hellfire', cost: 500, aether: 50, t: 12, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 12, beast: true, desc: 'Three-headed hound of the underworld. Breathes fire over a crowd of infantry.' },
+  harpy: { name: 'Harpy', cls: 'air', armor: 'air', hp: 130, spd: 6.0, weapon: 'talons', cost: 250, aether: 25, t: 8, era: 0, sight: 8, producer: 'air', turret: false, radius: 9, alt: 1.4, beast: true, desc: 'Shrieking winged hag. Swoops on harvesters and infantry; easy prey for archers.' },
+  pegasus: { name: 'Pegasus', cls: 'air', armor: 'air', hp: 240, spd: 6.5, weapon: 'hoof', cost: 400, aether: 45, t: 11, era: 0, sight: 10, producer: 'air', turret: false, radius: 12, alt: 1.6, beast: true, desc: 'Winged horse. The fastest thing in the sky, it charges down on foes and sees far.' },
+  griffin: { name: 'Griffin', cls: 'air', armor: 'air', hp: 340, spd: 4.8, weapon: 'griffclaw', cost: 500, aether: 55, t: 13, era: 0, sight: 8, producer: 'air', turret: false, radius: 13, alt: 1.5, beast: true, desc: 'Eagle-lion that dives on vehicles and tears aircraft out of the sky.' },
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */

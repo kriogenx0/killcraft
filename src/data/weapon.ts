@@ -2,7 +2,8 @@
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak'
-  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun';
+  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun'
+  | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder';
 
@@ -21,6 +22,8 @@ export interface WeaponDef {
   vs: Record<ArmorClass, number>;
   /** seconds a hit unit is slowed (see SLOW_FACTOR in data/aether.ts) */
   slow?: number;
+  /** melee: strikes this many foes in reach at once (the Hydra's heads) */
+  heads?: number;
 }
 
 export const WEAPON: Record<WeaponType, WeaponDef> = {
@@ -47,4 +50,13 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   wraithlance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.95, heavy: 0.85, building: 0.4, air: 0 } },
   hexrifle: { dmg: 9, range: 3.5, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, slow: 1.5, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
   starbeam: { dmg: 44, range: 5, cd: 2.4, proj: 'bullet', speed: 0, splash: 0, vs: { none: 0.35, light: 0.8, heavy: 0.85, building: 1.5, air: 0 } },
+  // creatures of Greek myth
+  centaurbow: { dmg: 15, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 0.7 } },
+  axe: { dmg: 40, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
+  hurl: { dmg: 55, range: 6, cd: 3.2, proj: 'boulder', speed: 260, splash: 16, vs: { none: 0.6, light: 0.9, heavy: 1.1, building: 1.4, air: 0 } },
+  hydrabite: { dmg: 20, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
+  hellfire: { dmg: 26, range: 1.8, cd: 1.4, proj: 'shell', speed: 300, splash: 16, vs: { none: 1.2, light: 0.8, heavy: 0.4, building: 0.6, air: 0 } },
+  talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },
+  hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },
+  griffclaw: { dmg: 32, range: 0.8, cd: 1.2, proj: 'melee', speed: 0, splash: 0, vs: { none: 0.8, light: 1, heavy: 1, building: 0.5, air: 1.2 } },
 };

@@ -10,6 +10,7 @@ import { dropSalvage } from './economy.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
+import { kneeling, subdue } from './creatures.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -24,7 +25,7 @@ export const canHit = (wt: WeaponType | null, t: Ent): boolean => !!wt && t.kind
 export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
-  if (t.dead || t.kind === 'source') return;
+  if (t.dead || t.kind === 'source' || kneeling(t)) return;
   t.hp -= Math.max(1, wardDamage(t, dmg));
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
@@ -38,6 +39,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
       hooks.alert(t.team, t.x, t.y);
     }
   }
+  if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
   if (t.hp <= 0) { kill(t); dropSalvage(t); return; }
   // idle units react: engaging ones fight back, passive ones run
   if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
@@ -69,7 +71,12 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   s.atkT = 0.25;
   unveil(s);
   hooks.fired(s, wt, t);
-  if (w.proj === 'melee') { hit(wt, t, s, t.x, t.y); return; }
+  if (w.proj === 'melee') {
+    hit(wt, t, s, t.x, t.y);
+    // many heads bite many foes
+    if (w.heads) for (const e of otherFoesInReach(s, t, wt, w.heads - 1)) hit(wt, e, s, e.x, e.y);
+    return;
+  }
   // gunpowder flashes; bows and catapults don't
   const bomb = wt === 'bomb';
   if (!bomb && (w.proj === 'bullet' || w.proj === 'shell' || w.proj === 'rocket')) part('flash', mx, my, { max: 0.08, size: w.proj === 'bullet' ? 7 : 14, z: air ? z : 0 });
@@ -81,15 +88,29 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   G.projs.push({ kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
 }
 
-/** Best enemy within a radius (tiles): armed units first, then other units, then buildings. */
+/** Up to `n` foes besides `t` within a melee weapon's reach of `s`. */
+function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number): Ent[] {
+  const r = WEAPON[wt].range * TS, out: Ent[] = [];
+  for (const e of G.ents) {
+    if (out.length >= n) break;
+    if (e === t || e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+    if (edgeDist(s, e) <= r) out.push(e);
+  }
+  return out;
+}
+
+/**
+ * Best enemy within a radius (tiles): armed units first, then other units, then buildings. Wild
+ * creatures (data/creatures.ts) are fair game too, after real enemies.
+ */
 export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | null {
   const r = radiusTiles * TS;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
-    if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || cloakedFrom(e, s.team)) continue;
+    if (e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || !canAttack(s, e)) continue;
-    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : weaponOf(e) ? 0 : 40);
+    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 80 : weaponOf(e) ? 0 : 40);
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -106,7 +127,7 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
-  if (!d.weapon || !canHit(d.weapon, t) || cloakedFrom(t, u.team)) return false;
+  if (!d.weapon || !canHit(d.weapon, t) || cloakedFrom(t, u.team) || kneeling(t)) return false;
   const w = WEAPON[d.weapon], r = approach(u, t, w.range * TS, dt);
   if (r === null) return false;
   if (r && aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
