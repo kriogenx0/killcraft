@@ -11,11 +11,19 @@ export type Tile = [number, number];
 export type EntKind = 'unit' | 'bld' | 'source';
 export type EntType = UnitType | BldType | 'source';
 
-export interface MoveOrder { t: 'move' }
-export interface AMoveOrder { t: 'amove'; gx: number; gy: number; sub: number | null }
+/**
+ * How a unit fights. There is only one way to move; the stance decides what happens on the way.
+ * engage: stop to fight enemies it meets (the default) · skirmish: shoot on the move without
+ * stopping · passive: never attack, and run away from armed enemies.
+ */
+export const STANCES = ['engage', 'skirmish', 'passive'] as const;
+export type Stance = (typeof STANCES)[number];
+
+/** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
-export type Order = MoveOrder | AMoveOrder | AttackOrder | HarvestOrder;
+export type Order = MoveOrder | AttackOrder | HarvestOrder;
 
 export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'tech';
 export interface ProductionItem {
@@ -64,6 +72,9 @@ export interface Ent extends Target {
   walk: number;
   moving: boolean;
   atkT: number;
+  stance: Stance;
+  /** the enemy a skirmishing unit is shooting at without stopping */
+  shot: number | null;
   // buildings
   done: boolean;
   /** 0..1 rise-up animation after placement */

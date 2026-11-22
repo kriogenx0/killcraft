@@ -13,7 +13,7 @@ export const SCROLL_KEYS: Record<string, [number, number]> = {
 export const ROTATE_KEYS: Record<string, number> = { q: 1, e: -1 };
 
 /** Command card hotkeys. None of these may also move the camera. */
-export const COMMAND_KEYS = { move: 'M', stop: 'X', amove: 'F', repair: 'R' } as const;
+export const COMMAND_KEYS = { move: 'M', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V', repair: 'R' } as const;
 
 /** Direction to scroll for the keys being held (opposite keys cancel out). */
 export function scrollVector(held: Iterable<string>): [number, number] {

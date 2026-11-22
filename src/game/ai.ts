@@ -8,7 +8,7 @@ import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace } from './building.ts';
 import { available, cancel, costOf, enqueue, placeReady, readyStructure } from './production.ts';
-import { orderAMove, orderMove } from './order.ts';
+import { orderMove, setStance } from './order.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean }
 
@@ -19,6 +19,7 @@ export const ais: AiState[] = [
 
 const PLAN: BldType[] = ['power', 'refinery', 'barracks', 'tower', 'power', 'factory', 'tower', 'turret', 'power', 'refinery', 'turret', 'power', 'turret'];
 const MAX_WAVE = 30;
+const SKIRMISHERS = new Set<string>(['jeep']);
 
 export function resetAi(): void {
   for (const a of ais) { a.attackAt = 8; a.attacking = false; }
@@ -117,12 +118,14 @@ function upkeep(team: number): void {
 function military(team: number): void {
   const A = ais[team], foe = 1 - team;
   const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
+  // fast raiders shoot on the move; everyone else stops to fight (the default stance)
+  for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (home) {
     const threat = G.ents.find((e) => !e.dead && e.team === foe && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
-        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderAMove(u, tileOf(threat.x), tileOf(threat.y));
+        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));
   }
   const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld');
   if (!targets.length) targets.push(...G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit'));
@@ -135,9 +138,9 @@ function military(team: number): void {
   if (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2)) {
     A.attacking = true;
     A.attackAt = Math.min(MAX_WAVE, A.attackAt + 3);
-    for (const u of army) if (!u.order || u.order.t === 'move') orderAMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
-    for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderAMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   }
   if (!home) return;
   // muster new troops in front of the base

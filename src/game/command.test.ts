@@ -16,15 +16,18 @@ describe('commands', () => {
     expect(parseCommand({ c: 'move', ids: 'all', tx: 1, ty: 3 })).toBeNull();
     expect(parseCommand({ c: 'build', type: '__proto__' })).toBeNull();
     expect(parseCommand({ c: 'explode' })).toBeNull();
-    expect(parseCommand({ c: 'move', ids: [1, 2], tx: 5, ty: 6 })).toEqual({ c: 'move', ids: [1, 2], tx: 5, ty: 6, amove: false });
+    expect(parseCommand({ c: 'move', ids: [1, 2], tx: 5, ty: 6, amove: true })).toEqual({ c: 'move', ids: [1, 2], tx: 5, ty: 6 });
+    expect(parseCommand({ c: 'attack', ids: [1], target: 2 })).toBeNull();
+    expect(parseCommand({ c: 'stance', ids: [1], stance: 'berserk' })).toBeNull();
+    expect(parseCommand({ c: 'stance', ids: [1], stance: 'passive' })).toEqual({ c: 'stance', ids: [1], stance: 'passive' });
   });
 
   it("never lets a team order the other team's units", () => {
     const enemy = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
-    applyCommand(0, { c: 'move', ids: enemy.map((e) => e.id), tx: 2, ty: 2, amove: false });
+    applyCommand(0, { c: 'move', ids: enemy.map((e) => e.id), tx: 2, ty: 2});
     for (const e of enemy) expect(e.order).toBeNull();
     const own = G.ents.filter((e) => e.team === 0 && e.kind === 'unit');
-    applyCommand(0, { c: 'move', ids: own.map((e) => e.id), tx: 2, ty: 2, amove: false });
+    applyCommand(0, { c: 'move', ids: own.map((e) => e.id), tx: 2, ty: 2});
     for (const e of own) expect(e.order?.t).toBe('move');
   });
 

@@ -4,7 +4,7 @@ import { MH, MW, STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addUnit } from './entity.ts';
-import { orderAttack } from './order.ts';
+import { groupMove, orderAttack, setStance } from './order.ts';
 import type { UnitType } from '../data/unit.ts';
 
 function run(seconds: number): void {
@@ -70,5 +70,49 @@ describe('medieval arms', () => {
     run(25);
     expect(yard.hp).toBeLessThan(before - 100);
     expect(Math.hypot(cat.x - yard.x, cat.y - yard.y)).toBeGreaterThan(5 * TS);
+  });
+});
+
+describe('stances', () => {
+  beforeEach(() => {
+    for (const a of ais) a.on = false;
+    G.reveal = true;
+    hooks.error = (e) => { throw e; };
+    initWorld(1234);
+    for (const e of G.ents) if (e.kind === 'unit') e.dead = true;
+    G.ents = G.ents.filter((e) => !e.dead);
+  });
+
+  /** A unit walks the length of a strip of open ground, past an enemy harvester beside its path. */
+  function walkPast(type: UnitType, stance: 'engage' | 'skirmish' | 'passive', seconds: number): { u: Ent; prey: Ent; gx: number } {
+    const [x, y] = openGround(16);
+    const u = addUnit(type, 0, x, y), prey = addUnit('harvester', 1, x + 6 * TS, y + TS);
+    setStance(u, stance);
+    const gx = Math.floor(x / TS) + 15;
+    groupMove([u], gx, Math.floor(y / TS));
+    run(seconds);
+    return { u, prey, gx };
+  }
+
+  it('stop and attack (the default): a moving unit stops to fight what it meets', () => {
+    const { u, prey, gx } = walkPast('tank', 'engage', 8);
+    expect(prey.hp).toBeLessThan(prey.maxhp);
+    expect(u.x).toBeLessThan((gx - 2) * TS); // still busy with the harvester
+  });
+
+  it('attack while moving: shoots on the way without stopping', () => {
+    const { u, prey, gx } = walkPast('jeep', 'skirmish', 8);
+    expect(prey.hp).toBeLessThan(prey.maxhp);
+    expect(Math.abs(u.x - (gx + 0.5) * TS)).toBeLessThan(TS);
+  });
+
+  it('do not attack: holds fire and runs from armed enemies', () => {
+    const [x, y] = openGround(8);
+    const u = addUnit('rifleman', 0, x + 4 * TS, y), foe = addUnit('tank', 1, x, y);
+    setStance(u, 'passive');
+    setStance(foe, 'passive');
+    run(6);
+    expect(foe.hp).toBe(foe.maxhp);
+    expect(Math.hypot(u.x - foe.x, u.y - foe.y)).toBeGreaterThan(6 * TS);
   });
 });

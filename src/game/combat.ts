@@ -7,7 +7,7 @@ import { edgeDist } from './path.ts';
 import { angleDiff, approach, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
 import { burst, explosion, impact, part } from './fx.ts';
-import { setOrder } from './order.ts';
+import { orderFlee, setOrder } from './order.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -31,9 +31,11 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
     }
   }
   if (t.hp <= 0) { kill(t); return; }
-  // idle armed units fight back
-  if (t.kind === 'unit' && !t.order && unitDef(t).weapon && src && !src.dead && src.team !== t.team && src.kind === 'unit')
-    setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
+  // idle units react: engaging ones fight back, passive ones run
+  if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
+    if (t.stance === 'passive') orderFlee(t, src);
+    else if (t.stance === 'engage' && unitDef(t).weapon && src.kind === 'unit') setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
+  }
 }
 
 function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): void {
@@ -97,6 +99,39 @@ export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   if (r === null) return false;
   if (r && aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
   return true;
+}
+
+/**
+ * Shoot whatever is in range without stopping or turning aside: for skirmishing units, whether
+ * they are moving or standing still. Turrets track freely; others turn to fire.
+ */
+export function fireOnTheMove(u: Ent, dt: number): void {
+  const d = unitDef(u);
+  if (!d.weapon) return;
+  const w = WEAPON[d.weapon];
+  let t = valid(u.shot);
+  if (t && edgeDist(u, t) > w.range * TS) t = null;
+  if (!t) {
+    u.shot = null;
+    u.scan -= dt;
+    if (u.scan > 0) return;
+    u.scan = 0.3;
+    t = acquire(u, w.range);
+    if (!t) return;
+    u.shot = t.id;
+  }
+  if (aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
+}
+
+/** The nearest armed enemy unit within a radius (tiles), for passive units to run from. */
+export function nearestThreat(u: Ent, radiusTiles: number): Ent | null {
+  let best: Ent | null = null, bd = radiusTiles * TS;
+  for (const e of G.ents) {
+    if (e.dead || e.kind !== 'unit' || e.team === u.team || e.team < 0 || !unitDef(e).weapon) continue;
+    const dist = Math.hypot(e.x - u.x, e.y - u.y);
+    if (dist < bd) { bd = dist; best = e; }
+  }
+  return best;
 }
 
 /** Building weapons (turrets). */

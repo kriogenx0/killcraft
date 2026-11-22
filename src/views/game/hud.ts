@@ -1,5 +1,5 @@
 // The top bar (gold, power, age, time) and the selection panel with its commands.
-import { G, bldDef, isOrganic, unitDef, type Ent } from '../../game/state.ts';
+import { G, STANCES, bldDef, isOrganic, unitDef, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
@@ -43,6 +43,14 @@ export function setSelection(list: Ent[]): void {
   refreshCommands(true);
 }
 
+const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
+  engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on (default)' },
+  skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping' },
+  passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies' },
+};
+
+const isStance = (id: string): id is Stance => (STANCES as readonly string[]).includes(id);
+
 export function commandList(): Command[] {
   if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: 'Cancel the current command' }];
   const s = ownSelected();
@@ -52,7 +60,7 @@ export function commandList(): Command[] {
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
-      { id: 'amove', label: 'Attack', hotkey: COMMAND_KEYS.amove, icon: ICON.amove, tip: 'Attack-move: fight anything on the way' },
+      ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
     ];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs gold while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
@@ -65,7 +73,8 @@ export function commandList(): Command[] {
 export function runCommand(id: string): void {
   const s = ownSelected();
   if (id === 'cancel') V.mode = null;
-  else if (id === 'move' || id === 'amove') V.mode = { t: id };
+  else if (id === 'move') V.mode = { t: id };
+  else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'sell' && s[0]) { dispatch({ c: 'sell', id: s[0].id }); V.sel = []; }
