@@ -20,6 +20,8 @@ Each match runs on the server, which sends each player only what their side can 
 
 To let people outside your network play, deploy the Docker image (`deploy/`) to any host that runs containers and keeps WebSockets open, such as Coolify, Fly.io or a VPS. It serves the game and the lobby on one port (8080 in the container), with `/health` and `/status` checks.
 
+The live game is at https://killcraft.kriogenx.com, hosted on Render from `render.yaml` (auto-deploys on every push to `main`). DNS: a `CNAME` record `killcraft` → `killcraft.onrender.com` at the kriogenx.com DNS host.
+
 ## How to play
 
 - **Economy:** credits are the only resource. Build a Power Plant, then a Refinery: it comes with a Harvester that collects ore and unloads it as credits. Each field holds about 14,000 credits and slowly regrows around its crystal rock; harvesters split a field between them instead of crowding one spot.
