@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { G, hooks, isHarvester } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
@@ -340,6 +340,11 @@ describe('a computer-vs-computer match', () => {
     ais[0].on = true;
     ais[1].on = true;
     initWorld(99);
+    // gatherers lost to raids don't count against harvesting
+    const raided = [0, 0], income = [0, 0], prev = { ...hooks };
+    onTestFinished(() => { Object.assign(hooks, prev); });
+    hooks.killedBy = (v) => { if (isHarvester(v)) raided[v.team]++; };
+    hooks.income = (team, a) => { income[team] += a; };
     run(360); // room for the lumber mill and the wood that research needs
     expect(errors).toEqual([]);
     // someone researches past the Medieval age (a slow economy can take a few more minutes)
@@ -349,7 +354,8 @@ describe('a computer-vs-computer match', () => {
       if (G.over && G.winner !== team) continue;
       const types = G.ents.filter((e) => e.team === team).map((e) => e.type);
       expect(types).toContain('refinery');
-      expect(G.ents.some((e) => e.team === team && isHarvester(e))).toBe(true);
+      expect(income[team]).toBeGreaterThan(0);
+      if (!raided[team]) expect(G.ents.some((e) => e.team === team && isHarvester(e))).toBe(true);
     }
     // nothing may stand inside a wall or building
     for (const u of G.ents.filter((e) => e.kind === 'unit')) expect(G.blk[Math.floor(u.y / TS) * MW + Math.floor(u.x / TS)]).toBe(0);

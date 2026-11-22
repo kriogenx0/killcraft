@@ -1,8 +1,8 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
-import { MW, NEAR, TS } from './const.ts';
+import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
+import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
-import { nearestFree, pathFor } from './path.ts';
+import { DIRS, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { acquire, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderHarvest, setOrder } from './order.ts';
@@ -133,7 +133,13 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
   let src = valid(o.src);
   if (!src || src.team !== u.team || src.type !== type || !src.done) {
     src = nearestOwn(u, type);
-    if (!src) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; return; }
+    if (!src) {
+      // the mill or derrick is gone: dig ore instead of standing about
+      o.res = undefined; o.src = undefined; o.st = u.carry > 0 ? 'ret' : 'go';
+      [o.tx, o.ty] = [tileOf(u.x), tileOf(u.y)];
+      u.path = null;
+      return;
+    }
     o.src = src.id;
     [o.tx, o.ty] = [src.tx, src.ty];
     u.path = null;
@@ -157,6 +163,62 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
   else if (src.carry <= 0.01) o.wait = 1;
 }
 
+/** A walking ground unit touching u, in front of it and heading back toward it. */
+function oncoming(u: Ent): Ent | null {
+  const r = unitDef(u).radius;
+  for (const e of G.ents) {
+    if (e === u || e.dead || e.kind !== 'unit' || isAir(e) || !e.path?.length) continue;
+    const dx = e.x - u.x, dy = e.y - u.y;
+    if (Math.hypot(dx, dy) > r + unitDef(e).radius + 10) continue;
+    if (dx * Math.cos(u.face) + dy * Math.sin(u.face) > 0 && dx * Math.cos(e.face) + dy * Math.sin(e.face) < 0) return e;
+  }
+  return null;
+}
+
+/** The tiles a unit is about to walk through: to its next two waypoints. */
+function routeOf(e: Ent): Set<number> {
+  const out = new Set<number>([tileOf(e.y) * MW + tileOf(e.x)]);
+  let x = e.x, y = e.y;
+  for (const [tx, ty] of (e.path ?? []).slice(0, 2)) {
+    const cx = (tx + 0.5) * TS, cy = (ty + 0.5) * TS, n = Math.max(1, Math.ceil(Math.hypot(cx - x, cy - y) / 8));
+    for (let k = 0; k <= n; k++) out.add(tileOf(y + ((cy - y) * k) / n) * MW + tileOf(x + ((cx - x) * k) / n));
+    x = cx; y = cy;
+  }
+  return out;
+}
+
+/**
+ * The nearest free tile, a few steps away at most, that is off another unit's way and on our side
+ * of it: somewhere to let it pass.
+ */
+function pullOver(u: Ent, e: Ent): Tile | null {
+  const avoid = routeOf(e), start = tileOf(u.y) * MW + tileOf(u.x), theirs = tileOf(e.y) * MW + tileOf(e.x), seen = new Set([start]);
+  let ring = [start];
+  for (let depth = 0; depth < 6 && ring.length; depth++) {
+    const next: number[] = [];
+    let best: Tile | null = null, bestGap = 0;
+    for (const i of ring) {
+      const x = i % MW, y = (i / MW) | 0;
+      for (const [dx, dy] of DIRS) {
+        const nx = x + dx, ny = y + dy, ni = ny * MW + nx;
+        if (nx < 0 || ny < 0 || nx >= MW || ny >= MH || seen.has(ni) || G.blk[ni] || ni === theirs) continue;
+        if (dx && dy && (G.blk[y * MW + nx] || G.blk[ny * MW + x])) continue;
+        seen.add(ni);
+        next.push(ni);
+        if (avoid.has(ni)) continue;
+        const cx = (nx + 0.5) * TS, cy = (ny + 0.5) * TS, gap = Math.hypot(cx - e.x, cy - e.y) - Math.hypot(cx - u.x, cy - u.y);
+        if (gap > bestGap) { bestGap = gap; best = [nx, ny]; }
+      }
+    }
+    if (best) return best;
+    ring = next;
+  }
+  return null;
+}
+
+/** The tile each unit last pulled over to, while it's still heading there. */
+const pulledOver = new WeakMap<Ent, Tile>();
+
 function unstick(u: Ent, dt: number): void {
   if (isAir(u)) return; // nothing blocks aircraft
   if (G.blk[tileOf(u.y) * MW + tileOf(u.x)]) {
@@ -168,11 +230,15 @@ function unstick(u: Ent, dt: number): void {
   if (u.stkT > 0) return;
   u.stkT = 0.6;
   if (Math.hypot(u.x - u.px, u.y - u.py) < 4) {
+    // jammed nose to nose with someone in a lane too narrow to pass: the later unit pulls over
+    if (u.path[0] === pulledOver.get(u)) u.path.shift(); // couldn't get there either
+    const e = oncoming(u), bay = e && e.id < u.id ? pullOver(u, e) : null;
+    if (bay) { u.path.unshift(bay); pulledOver.set(u, bay); u.px = u.x; u.py = u.y; return; }
     // close enough to the goal in a crowd counts as arrived; otherwise look for another way
-    const last = u.path[u.path.length - 1], rem = Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y);
-    if (rem < 2.5 * TS) u.path.length = 0;
+    const last = u.path[u.path.length - 1];
+    if (!last || Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 2.5 * TS) u.path.length = 0;
     else {
-      // jammed nose to nose with someone: edge over to the right, like traffic, so both can pass
+      // edge over to the right, like traffic, so both can pass
       const sx = u.x - Math.sin(u.face) * SIDESTEP, sy = u.y + Math.cos(u.face) * SIDESTEP;
       if (canStep(u.x, u.y, sx, sy)) { u.x = sx; u.y = sy; }
       if (u.goal) u.path = pathFor(u, u.goal[0], u.goal[1]);

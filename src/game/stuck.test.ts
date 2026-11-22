@@ -6,7 +6,7 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { rebuildBlk } from './map.ts';
-import { orderAttack, orderHarvest } from './order.ts';
+import { orderAttack, orderHarvest, orderHaul, orderMove } from './order.ts';
 import { canStep } from './move.ts';
 import { findStuck } from '../sim/stuck.ts';
 import { mulberry32 } from '../util/math.ts';
@@ -15,7 +15,7 @@ function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
 }
 
-/** An empty grass map: no units, buildings, ore, trees or portals. */
+/** An empty grass map: no units, ore, trees or portals, and only a power plant in a corner for each side. */
 function emptyMap(): void {
   initWorld(1234);
   for (const a of ais) a.on = false;
@@ -27,6 +27,9 @@ function emptyMap(): void {
   G.waygates = [];
   G.warp.fill(-1);
   G.warpTeam.fill(-1);
+  // a plant in a far corner for each side, so the match doesn't end
+  addBuilding('power', 0, 1, 61, false);
+  addBuilding('power', 1, 61, 1, false);
   rebuildBlk();
 }
 
@@ -94,6 +97,37 @@ describe('units never stand around with an order', () => {
     rebuildBlk();
     expect(canStep(20.9 * TS, 21.1 * TS, 21.1 * TS, 20.9 * TS)).toBe(false);
     expect(canStep(20.9 * TS, 21.1 * TS, 20.9 * TS, 21.3 * TS)).toBe(true);
+  });
+
+  it('two units meeting head-on in a one-tile lane let each other by', () => {
+    emptyMap();
+    // a lane four tiles long, with open ground at both ends
+    for (let x = 20; x <= 23; x++) { rock(x, 19); rock(x, 21); }
+    rebuildBlk();
+    const a = addUnit('harvester', 0, 17.5 * TS, 20.5 * TS), b = addUnit('harvester', 0, 26.5 * TS, 20.5 * TS);
+    orderMove(a, 27, 20);
+    orderMove(b, 16, 20);
+    run(30);
+    expect(a.order).toBeNull();
+    expect(b.order).toBeNull();
+    expect(a.x).toBeGreaterThan(24 * TS);
+    expect(b.x).toBeLessThan(20 * TS);
+  });
+
+  it('a hauler whose derrick is gone digs ore instead of waiting', () => {
+    emptyMap();
+    addBuilding('refinery', 0, 10, 10, false);
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true;
+    const well = addBuilding('derrick', 0, 30, 30, false);
+    G.ore[20 * MW + 20] = 500;
+    run(STEP);
+    const w = addUnit('worker', 0, 25.5 * TS, 25.5 * TS);
+    orderHaul(w, well);
+    well.dead = true;
+    run(20);
+    expect(w.order?.t === 'harvest' && w.order.res).toBeFalsy();
+    expect(w.carry + G.credits[0]).toBeGreaterThan(0);
+    expect(G.ore[20 * MW + 20]).toBeLessThan(500);
   });
 
   it('in a four-player computer match, nobody sits still or walks in circles with an order', () => {
