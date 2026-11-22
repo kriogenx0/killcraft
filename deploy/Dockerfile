@@ -12,6 +12,8 @@ RUN npm run build
 FROM node:24-slim
 WORKDIR /app
 ENV NODE_ENV=production SERVER_PORT=8080 STATIC_DIR=/app/dist
+# Coolify's health check runs curl or wget inside the container, and the slim image has neither
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 # the server runs the same game engine as the browser, straight from TypeScript
