@@ -81,23 +81,32 @@ describe('production', () => {
     expect(enqueue(0, 'rifleman')).toBe(false);
   });
 
-  it('researches the next age at the Construction Yard and unlocks its units and structures', () => {
-    expect(available(0, 'tech')).toEqual([]); // needs a barracks first
+  it('finds oil, builds the Engine Works to reach World War, and pays oil for Modern', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
-    expect(available(0, 'tech')).toEqual(['age1', 'heal1']);
-    G.credits[0] = 5000;
-    G.wood[0] = 5000;
-    expect(enqueue(0, 'age1')).toBe(true);
-    expect(enqueue(0, 'age1')).toBe(false);
-    run(45);
+    addBuilding('refinery', 0, 6, 46, false);
+    expect(available(0, 'structure')).toContain('derrick');
+    expect(available(0, 'structure')).not.toContain('works'); // needs oil first
+    expect(available(0, 'tech')).toEqual(['heal1']);
+    addBuilding('derrick', 0, 16, 50, false);
+    expect(available(0, 'structure')).toContain('works');
+    const works = addBuilding('works', 0, 19, 50, true);
+    expect(available(0, 'structure')).not.toContain('works'); // one at a time
+    expect(G.era[0]).toBe(0);
+    run(5);
+    expect(works.done).toBe(true);
     expect(G.era[0]).toBe(1);
-    expect(G.prod[0].tech).toEqual([]);
+    expect(available(0, 'structure')).not.toContain('works');
     expect(available(0, 'infantry')).toContain('rifleman');
     expect(available(0, 'infantry')).not.toContain('rocket');
     expect(available(0, 'structure')).toContain('turret');
-    // the Modern age needs a War Factory
-    expect(available(0, 'tech')).toEqual(['heal1']);
+    // Modern: oil and nothing else
+    expect(available(0, 'tech')).toContain('age2');
+    G.credits[0] = 0; G.wood[0] = 0; G.oil[0] = 5000;
+    expect(enqueue(0, 'age2')).toBe(true);
+    run(65);
+    expect(G.era[0]).toBe(2);
+    expect(available(0, 'infantry')).toContain('rocket');
   });
 
   it('slowly heals infantry and knights but not vehicles', () => {
@@ -118,10 +127,10 @@ describe('production', () => {
     G.credits[0] = 5000;
     expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and World War
     expect(enqueue(0, 'heal1')).toBe(true);
-    expect(enqueue(0, 'age1')).toBe(false); // one research at a time
+    expect(enqueue(0, 'heal1')).toBe(false); // one research at a time
     run(30);
     expect(G.heal[0]).toBe(1);
-    expect(available(0, 'tech')).toEqual(['age1']);
+    expect(available(0, 'tech')).toEqual([]);
     G.era[0] = 1;
     expect(available(0, 'tech')).toContain('heal2');
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);

@@ -7,7 +7,7 @@ import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, isTechType, type TechType } from '../data/era.ts';
-import { addUnit, hasBuilding, lowPower } from './entity.ts';
+import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { exitTile, placeBuilding } from './building.ts';
 import { orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
@@ -35,6 +35,12 @@ const revealed = (team: number, t: Buildable): boolean => priceOf(t).aether <= 0
 const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
+
+/** A structure that advances the age is built once: not after its age, and not while one stands or rises. */
+const spentAdvance = (team: number, t: BldType): boolean => {
+  const to = BUILDING[t].advances;
+  return to != null && (eraOf(team) >= to || countOf(team, t) > 0);
+};
 
 /** The team's current age (index into ERA). */
 export const eraOf = (team: number): number => G.era[team] ?? 0;
@@ -65,7 +71,7 @@ export function producerOf(team: number, line: ProductionLine): Ent | null {
 export function available(team: number, line: ProductionLine): Buildable[] {
   if (!producerOf(team, line)) return [];
   const era = eraOf(team);
-  if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].era <= era && BUILDING[t].requires.every((r) => hasBuilding(team, r)));
+  if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].era <= era && BUILDING[t].requires.every((r) => hasBuilding(team, r)) && !spentAdvance(team, t));
   if (line === 'tech') {
     return [nextTech(team), nextHeal(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }

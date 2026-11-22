@@ -967,6 +967,32 @@ function turret(team: number): Model {
   return { root, parts, height: 0.6 };
 }
 
+/** Engine Works: a sheet-roofed machine hall with two smokestacks, a fuel tank and a team banner. */
+function engineWorks(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  // hall with a pitched sheet roof and big doors facing +z
+  root.add(mesh(box(1.3, 0.55, 1.0), M.concrete(), -0.2, 0.33, -0.15));
+  root.add(rot(mesh(box(1.34, 0.04, 0.58), M.metalRoof(), -0.2, 0.7, -0.38), 0.45, 0, 0));
+  root.add(rot(mesh(box(1.34, 0.04, 0.58), M.metalRoof(), -0.2, 0.7, 0.08), -0.45, 0, 0));
+  root.add(mesh(box(0.5, 0.4, 0.02), M.darkSteel(), -0.2, 0.26, 0.36));
+  root.add(mesh(box(1.3, 0.08, 0.02), tm, -0.2, 0.52, 0.36));
+  windows(root, -0.75, 0.35, 4, 0.45, 0.36);
+  // smokestacks
+  for (const x of [-0.65, -0.35]) {
+    root.add(mesh(cyl(0.07, 0.09, 0.9, 12), M.lightConcrete(), x, 0.95, -0.5));
+    root.add(mesh(cyl(0.08, 0.08, 0.05, 12), M.dark(), x, 1.41, -0.5));
+  }
+  // fuel tank and pipe to the hall
+  root.add(mesh(cyl(0.22, 0.22, 0.5, 16), M.steel(), 0.68, 0.31, -0.45));
+  root.add(mesh(cyl(0.23, 0.23, 0.06, 16), tm, 0.68, 0.42, -0.45));
+  root.add(rod([0.5, 0.15, -0.4], [0.45, 0.15, -0.2], 0.03, M.darkSteel(), 8));
+  // crates of parts by the door
+  for (const [x, z] of [[0.6, 0.45], [0.75, 0.3]]) root.add(mesh(box(0.16, 0.14, 0.16), M.wood(), x, 0.13, z));
+  return { root, parts, height: 1.45 };
+}
+
 /** Oil Derrick: a pump jack whose walking beam nods (the `pump` part), with a storage tank. */
 function derrick(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
@@ -1022,6 +1048,7 @@ function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital'>, 
     case 'turret': return turret(team);
     case 'tower': case 'mill': return medievalBuilding(type, team, 'stone');
     case 'derrick': return derrick(team);
+    case 'works': return engineWorks(team);
   }
 }
 
@@ -1047,15 +1074,15 @@ function industrial(m: Model): Model {
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
  * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
- * Look 1, dressed stone, is what the Watchtower and Lumber Mill grow into after the Medieval age. The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
- * and the Oil Derrick and Flak Cannon starts at brick and iron.
+ * The Watchtower and Lumber Mill grow into dressed stone (look 1) and stop there; the Oil Derrick,
+ * Engine Works and Flak Cannon are brick and iron until the Modern age, even in a Medieval town.
  */
 const ERA_LOOK = [0, 2, 3] as const;
 
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
-  if (type === 'derrick' || type === 'flak') return e < 2 ? 2 : e;
+  if (type === 'derrick' || type === 'works' || type === 'flak') return e < 2 ? 2 : e;
   if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
   return e;
 }

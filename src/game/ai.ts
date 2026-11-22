@@ -23,7 +23,7 @@ export const ais: AiState[] = [
 const GUARDS = 2;
 const GUARD_ARMY = 5;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'hospital', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -38,6 +38,9 @@ function nextStructure(team: number): BldType | null {
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
     if (BUILDING[t].era > G.era[team]) continue;
+    // the Engine Works only matters until it has done its job
+    const to = BUILDING[t].advances;
+    if (to != null && G.era[team] >= to) continue;
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }

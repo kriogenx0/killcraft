@@ -301,9 +301,24 @@ function drawHospital(g: G2, T: TeamColors): void {
   g.fillRect(28, 6, 8, 20); g.fillRect(22, 12, 20, 8);
 }
 
+function drawWorks(g: G2, T: TeamColors): void {
+  pad(g, 64, 64);
+  // smokestacks behind the hall
+  for (const x of [10, 22]) { g.fillStyle = hgrad(g, x, x + 8, ['#6a6a70', '#b8b8c0', '#5a5a5e']); g.beginPath(); g.rect(x, -14, 8, 40); g.fill(); outline(g); }
+  // hall and roof
+  g.fillStyle = hgrad(g, 4, 46, ['#8a8478', '#c8c0b0', '#7a7468']);
+  g.beginPath(); g.rect(4, 22, 42, 30); g.fill(); outline(g);
+  g.fillStyle = '#5a5e64'; g.beginPath(); g.moveTo(2, 24); g.lineTo(25, 10); g.lineTo(48, 24); g.closePath(); g.fill(); outline(g);
+  g.fillStyle = T.m; g.fillRect(4, 30, 42, 4);
+  g.fillStyle = '#2a2a2e'; g.fillRect(17, 38, 16, 14);
+  // fuel tank
+  g.fillStyle = hgrad(g, 48, 62, ['#5a5a5e', '#a8a8b0', '#3a3a3e']);
+  g.beginPath(); g.rect(48, 30, 14, 22); g.fill(); outline(g);
+}
+
 const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
-  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital,
+  mill: drawMill, derrick: drawDerrick, works: drawWorks, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital,
 };
 
 /** Cached sprite for a building type and team. */

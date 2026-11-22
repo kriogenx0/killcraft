@@ -10,7 +10,7 @@ export const priceText = (p: Price): string => RES.filter((k) => p[k] > 0).map((
  * `producer` (the building that makes it) is selected.
  */
 export function buildCellHtml(type: string, name: string, price: Price, icon: string, desc = '', hotkey = '', producer = ''): string {
-  const cost = RES.filter((k) => k === 'ore' || price[k] > 0).map((k) => `<i class="build-cell-res build-cell-res--${k}" aria-hidden="true"></i>${price[k]}`).join(' ');
+  const cost = RES.filter((k) => price[k] > 0 || (k === 'ore' && RES.every((r) => price[r] <= 0))).map((k) => `<i class="build-cell-res build-cell-res--${k}" aria-hidden="true"></i>${price[k]}`).join(' ');
   const text = priceText(price);
   const keyTip = hotkey ? ` · Hotkey ${hotkey}${producer ? ` with the ${producer} selected` : ''}` : '';
   return (

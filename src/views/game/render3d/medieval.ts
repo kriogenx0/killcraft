@@ -751,7 +751,7 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
       case 'tower': return woodTower(team);
       case 'turret': break;
       case 'mill': return sawmill(look(team, false));
-      case 'derrick': break;
+      case 'derrick': case 'works': break;
     }
   }
   const L = look(team, true);
@@ -764,6 +764,6 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
     case 'turret': return bastion(L);
     case 'tower': return watchtower(L);
     case 'mill': return sawmill(L);
-    case 'derrick': throw new Error('The Oil Derrick has no medieval look');
+    case 'derrick': case 'works': throw new Error(`${type} has no medieval look`);
   }
 }
