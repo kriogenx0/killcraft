@@ -32,6 +32,8 @@ describe('lobby', () => {
     lobby.create('a');
     const [game] = lobby.games();
     expect(game.host).toBe('A');
+    expect(lobby.view('a')?.hosting).toBe(game.id); // for the invite link
+    expect(lobby.view('c')?.hosting).toBeNull();
     expect(lobby.join('a', game.id)).toBe(false);
     expect(lobby.join('c', game.id)).toBe(true);
     expect(pairs.map(([x, y]) => [x.id, y.id])).toEqual([['a', 'c']]);
@@ -59,5 +61,53 @@ describe('lobby', () => {
     lobby.quick('b');
     lobby.finished('a');
     expect(lobby.players.get('a')?.status).toBe('idle');
+  });
+
+  it('lists who is online, you first, then free players, then players in a match', () => {
+    const { lobby } = setup();
+    lobby.add('d', 'D');
+    lobby.quick('c');
+    lobby.quick('d');
+    const view = lobby.view('b');
+    expect(view?.you).toBe('b');
+    expect(view?.online).toBe(4);
+    expect(view?.players.map((p) => [p.id, p.status, p.opponent])).toEqual([
+      ['b', 'idle', undefined], ['a', 'idle', undefined], ['c', 'playing', 'D'], ['d', 'playing', 'C'],
+    ]);
+  });
+
+  it('lets a player challenge another, who can accept', () => {
+    const { lobby, pairs } = setup();
+    lobby.create('a');
+    expect(lobby.invite('a', 'b')).toBe(true);
+    expect(lobby.games()).toEqual([]); // challenging replaces the hosted game
+    expect(lobby.view('a')?.inviting).toBe('b');
+    expect(lobby.view('b')?.invites).toEqual([{ id: 'a', name: 'A' }]);
+    expect(lobby.accept('c', 'a')).toBe(false); // not challenged
+    expect(lobby.accept('b', 'a')).toBe(true);
+    expect(pairs.map(([x, y]) => [x.id, y.id])).toEqual([['a', 'b']]);
+    expect(lobby.view('a')?.inviting).toBeNull();
+  });
+
+  it('drops challenges that are declined, cancelled, or whose players leave or start playing', () => {
+    const { lobby } = setup();
+    lobby.invite('a', 'b');
+    expect(lobby.decline('b', 'a')?.id).toBe('a');
+    expect(lobby.view('b')?.invites).toEqual([]);
+
+    lobby.invite('a', 'b');
+    lobby.leave('a');
+    expect(lobby.accept('b', 'a')).toBe(false);
+
+    lobby.invite('a', 'b');
+    lobby.remove('b');
+    expect(lobby.view('a')?.inviting).toBeNull();
+
+    lobby.add('d', 'D');
+    lobby.invite('a', 'c');
+    lobby.quick('c');
+    lobby.quick('d'); // c is now in a match
+    expect(lobby.view('a')?.inviting).toBeNull();
+    expect(lobby.invite('a', 'c')).toBe(false);
   });
 });

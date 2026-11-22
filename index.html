@@ -5,9 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Killcraft: a real-time strategy game in the browser.">
   <title>Killcraft</title>
+  <style>
+    /* Until the stylesheets and the app are ready, show a blank page with a loader (main.ts reveals the game). */
+    html, body { height: 100%; margin: 0; background: #000; }
+    html:not(.app-ready) .view-game { visibility: hidden; }
+    .app-loader { position: fixed; inset: 0; display: grid; place-items: center; background: #000; z-index: 1000; transition: opacity 200ms; }
+    .app-loader::after { content: ''; width: 40px; height: 40px; border: 3px solid #b08a40; border-top-color: transparent; border-radius: 50%; animation: app-loader-turn 700ms linear infinite; }
+    html.app-ready .app-loader { opacity: 0; pointer-events: none; }
+    @keyframes app-loader-turn { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .app-loader::after { animation-duration: 2s; } }
+  </style>
   <script type="module" src="/src/main.ts"></script>
 </head>
 <body>
+  <div class="app-loader" role="progressbar" aria-label="Loading"></div>
   <main class="view-game">
     <canvas class="game-canvas" role="img" aria-label="Battlefield"></canvas>
     <canvas class="game-overlay" aria-hidden="true"></canvas>

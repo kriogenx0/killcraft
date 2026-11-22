@@ -18,26 +18,72 @@
     }
   }
 
-  .lobby-games {
+  .lobby-link {
+    display: flex;
+    gap: $space-2;
+    align-items: center;
     width: 100%;
     max-width: 420px;
-    text-align: left;
+
+    &[hidden] {
+      display: none;
+    }
+
+    .lobby-link-url {
+      flex: 1;
+      min-width: 0;
+      font-size: $font-sm;
+    }
   }
 
-  .lobby-list {
+  .lobby-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $space-4;
+    justify-content: center;
+    width: 100%;
+    max-width: 880px;
+  }
+
+  .lobby-section {
+    flex: 1 1 320px;
+    min-width: 0;
+    max-width: 420px;
+    text-align: left;
+
+    h3 {
+      margin: 0;
+    }
+  }
+
+  .lobby-list,
+  .lobby-invites {
     display: flex;
     flex-direction: column;
     gap: $space-1;
-    max-height: 30vh;
     padding: 0;
     margin: $space-2 0 0;
-    overflow-y: auto;
     list-style: none;
   }
 
-  .lobby-game {
+  .lobby-list {
+    max-height: 30vh;
+    overflow-y: auto;
+  }
+
+  .lobby-invites {
+    width: 100%;
+    max-width: 420px;
+    margin: 0;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .lobby-row {
     display: flex;
-    gap: $space-3;
+    gap: $space-2;
     align-items: center;
     justify-content: space-between;
     padding: $space-2 $space-3;
@@ -46,9 +92,49 @@
     border-radius: $radius;
   }
 
-  .lobby-empty,
-  .lobby-online {
+  .lobby-invite {
+    background: rgb(120 70 10 / 55%);
+    border: 1px solid var(--color-rim-hover);
+
+    .lobby-row-name {
+      flex: 1;
+      text-align: left;
+    }
+  }
+
+  .lobby-row-label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .lobby-row-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lobby-row-status {
     font-size: $font-sm;
     color: #c8b888;
+
+    &--quick,
+    &--host {
+      color: #f0c860;
+    }
+
+    &--playing {
+      color: #9a9078;
+    }
+  }
+
+  .lobby-player--you {
+    outline: 1px solid rgb(232 216 168 / 25%);
+  }
+
+  .lobby-empty {
+    font-size: $font-sm;
+    color: #c8b888;
+    background: none;
   }
 }

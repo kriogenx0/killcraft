@@ -71,4 +71,26 @@ describe('game server', () => {
     expect(end).toMatchObject({ k: 'end', winner: startA.team, reason: 'left' });
     a.ws.close();
   }, 20000);
+
+  it('shows who is online and starts a match from an accepted challenge', async () => {
+    const a = await connect('Ann'), b = await connect('Ben');
+    const aWelcome = await a.next('welcome'), bWelcome = await b.next('welcome');
+    if (aWelcome.k !== 'welcome' || bWelcome.k !== 'welcome') throw new Error('expected welcome');
+    const lobby = await a.next('lobby', (m) => m.k === 'lobby' && m.players.some((p) => p.name === 'Ben'));
+    if (lobby.k !== 'lobby') throw new Error('expected lobby');
+    expect(lobby.players[0]).toMatchObject({ id: aWelcome.id, name: 'Ann', status: 'idle' });
+
+    a.ws.send(JSON.stringify({ k: 'invite', to: bWelcome.id }));
+    await b.next('lobby', (m) => m.k === 'lobby' && m.invites.some((i) => i.id === aWelcome.id));
+    b.ws.send(JSON.stringify({ k: 'decline', from: aWelcome.id }));
+    expect(await a.next('notice')).toMatchObject({ msg: 'Ben declined your challenge.' });
+
+    a.ws.send(JSON.stringify({ k: 'invite', to: bWelcome.id }));
+    await b.next('lobby', (m) => m.k === 'lobby' && m.invites.length === 1);
+    b.ws.send(JSON.stringify({ k: 'accept', from: aWelcome.id }));
+    expect(await a.next('start')).toMatchObject({ team: 0, opponent: 'Ben' });
+    expect(await b.next('start')).toMatchObject({ team: 1, opponent: 'Ann' });
+    a.ws.close();
+    b.ws.close();
+  }, 20000);
 });

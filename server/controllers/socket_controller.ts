@@ -24,11 +24,13 @@ export class SocketController {
     if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
   }
 
-  /** Tell everyone in the lobby (not in a match) about open games. */
+  /** Tell everyone in the lobby (not in a match) who is online, open games and their challenges. */
   broadcastLobby(): void {
-    const games = this.lobby.games(), online = this.lobby.players.size;
-    for (const p of this.lobby.players.values())
-      if (p.status !== 'playing') this.send(p.id, { k: 'lobby', games, online, waiting: p.status === 'quick' ? 'quick' : p.status === 'host' ? 'host' : null });
+    for (const p of this.lobby.players.values()) {
+      if (p.status === 'playing') continue;
+      const view = this.lobby.view(p.id);
+      if (view) this.send(p.id, view);
+    }
   }
 
   connect(ws: WebSocket): void {
@@ -55,6 +57,13 @@ export class SocketController {
         case 'create': this.lobby.create(id); break;
         case 'join': if (!this.lobby.join(id, String(msg.game))) this.send(id, { k: 'error', msg: 'That game is no longer open.' }); break;
         case 'leave': this.lobby.leave(id); this.broadcastLobby(); break;
+        case 'invite': if (!this.lobby.invite(id, String(msg.to))) this.send(id, { k: 'error', msg: "That player isn't available right now." }); break;
+        case 'accept': if (!this.lobby.accept(id, String(msg.from))) this.send(id, { k: 'error', msg: 'That challenge is no longer open.' }); break;
+        case 'decline': {
+          const challenger = this.lobby.decline(id, String(msg.from)), me = this.lobby.players.get(id);
+          if (challenger && me) this.send(challenger.id, { k: 'notice', msg: `${me.name} declined your challenge.` });
+          break;
+        }
         case 'cmd': this.matches.command(id, msg.cmd); break;
         case 'resign': this.matches.quit(id, 'resigned'); break;
       }
