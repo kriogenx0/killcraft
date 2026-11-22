@@ -1,10 +1,11 @@
-// The top bar (gold, power, age, time) and the selection panel with its commands.
+// The top bar (ore, wood, oil, power, age, time) and the selection panel with its commands.
 import { G, bldDef, isOrganic, unitDef, type Ent } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
 import { ERA, HEAL_RATE } from '../../data/era.ts';
 import { eraOf } from '../../game/production.ts';
+import { millRate, oilRate, treesNear, woodRate } from '../../game/economy.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
@@ -17,6 +18,8 @@ import { V, ownSelected } from './view_state.ts';
 
 export interface HudEls {
   credits: HTMLElement;
+  wood: HTMLElement;
+  oil: HTMLElement;
   power: HTMLElement;
   era: HTMLElement;
   time: HTMLElement;
@@ -55,7 +58,7 @@ export function commandList(): Command[] {
       { id: 'amove', label: 'Attack', hotkey: COMMAND_KEYS.amove, icon: ICON.amove, tip: 'Attack-move: fight anything on the way' },
     ];
   if (first.kind === 'bld' && s.length === 1) {
-    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs gold while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: '', icon: ICON.sell, tip: 'Sell this building for half its value' }); // no hotkey: too easy to hit by accident
     return list;
   }
@@ -98,10 +101,15 @@ function unitDetails(e: Ent): string {
   return h;
 }
 
+const perMin = (perSec: number): number => Math.round(perSec * 60);
+const countDone = (type: string): number => G.ents.filter((b) => !b.dead && b.team === V.team && b.type === type && b.done).length;
+
 function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
-  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
+  const own = e.team === V.team && e.done;
+  const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? `Oil +${perMin(oilRate(V.team) / Math.max(1, countDone(e.type)))}/min` : '';
+  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
     (e.team === V.team && d.produces && d.produces !== 'structure' ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }
 
@@ -109,15 +117,24 @@ function detailsMarkup(s: Ent[]): string {
   if (s.length > 1)
     return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
   const e = s[0];
-  if (!e) return '<p class="hud-stats">Build power, then a refinery. Harvesters turn ore into gold.</p>';
+  if (!e) return '<p class="hud-stats">Build power, a lumber mill by the woods, then a refinery. Harvesters bring in ore.</p>';
   if (e.kind === 'unit') return unitDetails(e);
   if (e.kind === 'bld') return buildingDetails(e);
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
 }
 
+function setTitle(value: HTMLElement, title: string): void {
+  const box = value.parentElement;
+  if (box && box.title !== title) box.title = title;
+}
+
 export function refreshHud(): void {
   const p = power(V.team);
   els.credits.textContent = String(Math.floor(G.credits[V.team]));
+  els.wood.textContent = String(Math.floor(G.wood[V.team] ?? 0));
+  els.oil.textContent = String(Math.floor(G.oil[V.team] ?? 0));
+  setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees.`);
+  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the Industrial age on.`);
   els.power.textContent = `${p.used} / ${p.made}`;
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
   const era = ERA[eraOf(V.team)]?.name ?? '';

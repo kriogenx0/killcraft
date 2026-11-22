@@ -10,7 +10,7 @@ import { fire } from '../game/combat.ts';
 import { rebuildBlk } from '../game/map.ts';
 import { lerp } from '../util/math.ts';
 
-const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'source'];
+const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'source'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY] */

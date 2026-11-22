@@ -896,6 +896,40 @@ function turret(team: number): Model {
   return { root, parts, height: 0.6 };
 }
 
+/** Oil Derrick: a pump jack whose walking beam nods (the `pump` part), with a storage tank. */
+function derrick(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  // storage tank with a team band and a ladder
+  root.add(mesh(cyl(0.3, 0.3, 0.7, 18), M.steel(), 0.5, 0.41, -0.45));
+  root.add(mesh(cyl(0.31, 0.31, 0.08, 18), tm, 0.5, 0.55, -0.45));
+  root.add(mesh(cyl(0.31, 0.29, 0.06, 18), M.darkSteel(), 0.5, 0.79, -0.45));
+  root.add(mesh(box(0.06, 0.7, 0.02), M.darkSteel(), 0.5, 0.41, -0.14));
+  // samson post (A-frame)
+  for (const z of [-0.14, 0.14]) {
+    root.add(rod([-0.42, 0.06, z], [-0.25, 0.72, 0], 0.025, M.darkSteel(), 6));
+    root.add(rod([-0.08, 0.06, z], [-0.25, 0.72, 0], 0.025, M.darkSteel(), 6));
+  }
+  // walking beam, horse head and counterweight, pivoting on the post
+  const pump = group(-0.25, 0.75, 0,
+    mesh(box(1.1, 0.08, 0.08), M.hazard(), 0.05, 0, 0),
+    mesh(box(0.1, 0.28, 0.1), M.hazard(), -0.52, -0.08, 0),
+    mesh(cyl(0.13, 0.13, 0.06, 14), M.darkSteel(), 0.5, -0.12, 0).rotateX(Math.PI / 2),
+    mesh(box(0.06, 0.06, 0.12), M.dark(), 0, 0, 0));
+  parts.pump = pump;
+  root.add(pump);
+  // gearbox and motor under the counterweight
+  root.add(mesh(box(0.24, 0.24, 0.22), M.darkSteel(), 0.25, 0.18, 0));
+  root.add(mesh(box(0.16, 0.14, 0.16), tm, 0.25, 0.37, 0));
+  // wellhead, polished rod and the pipe to the tank
+  root.add(mesh(cyl(0.06, 0.08, 0.14, 10), M.darkSteel(), -0.77, 0.13, 0));
+  root.add(mesh(cyl(0.012, 0.012, 0.5, 6), M.steel(), -0.77, 0.4, 0));
+  root.add(rod([-0.77, 0.1, 0], [0.5, 0.1, -0.15], 0.03, M.darkSteel(), 8));
+  root.add(mesh(box(0.3, 0.12, 0.2), M.darkSteel(), 0.55, 0.12, 0.5));
+  return { root, parts, height: 1.0 };
+}
+
 function makeBuilding(type: BldType, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
@@ -904,7 +938,8 @@ function makeBuilding(type: BldType, team: number): Model {
     case 'barracks': return barracks(team);
     case 'factory': return factory(team);
     case 'turret': return turret(team);
-    case 'tower': return medievalBuilding(type, team, 'stone');
+    case 'tower': case 'mill': return medievalBuilding(type, team, 'stone');
+    case 'derrick': return derrick(team);
   }
 }
 
@@ -930,11 +965,13 @@ function industrial(m: Model): Model {
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
  * 0 wood and thatch (Medieval), 1 stone (Gunpowder), 2 brick and iron (Industrial), 3 concrete
- * and steel (Modern). The Watchtower stops at stone; the Gun Turret starts at stone.
+ * and steel (Modern). The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
+ * and the Oil Derrick (Industrial) starts at brick and iron.
  */
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = Math.max(0, Math.min(3, era)) as 0 | 1 | 2 | 3;
-  if (type === 'tower') return e >= 1 ? 1 : 0;
+  if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
+  if (type === 'derrick') return e < 2 ? 2 : e;
   if (type === 'turret') return e < 1 ? 1 : e;
   return e;
 }

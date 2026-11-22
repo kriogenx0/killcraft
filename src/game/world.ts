@@ -1,7 +1,7 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import { G, hooks, unitDef } from './state.ts';
 import { TS } from './const.ts';
-import { START_YARDS, ORE_SOURCES, START_CREDITS, START_UNITS } from '../data/map.ts';
+import { START_YARDS, ORE_SOURCES, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
 import { START_ERA } from '../data/era.ts';
 import { generateMap, rebuildBlk } from './map.ts';
 import { addBuilding, addSource, addUnit } from './entity.ts';
@@ -12,6 +12,7 @@ import { separate } from './move.ts';
 import { updFx } from './fx.ts';
 import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
+import { collect } from './economy.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
 
@@ -23,7 +24,7 @@ export function initWorld(seed: number): void {
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1,
     alertT: [-99, -99], lastAlert: null, fogT: 0, aiT: 0, endT: 0, oreT: 0,
-    credits: [START_CREDITS, START_CREDITS], era: [START_ERA, START_ERA], heal: [0, 0], prod: [emptyProduction(), emptyProduction()],
+    credits: [START_CREDITS, START_CREDITS], wood: [START_WOOD, START_WOOD], oil: [START_OIL, START_OIL], era: [START_ERA, START_ERA], heal: [0, 0], prod: [emptyProduction(), emptyProduction()],
   });
   G.byId.clear();
   for (const s of G.sight) s.fill(0);
@@ -68,7 +69,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); collect(ORE_INTERVAL); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   G.aiT -= dt;

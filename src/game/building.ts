@@ -104,7 +104,10 @@ export function placeBuilding(team: number, type: BldType, tx: number, ty: numbe
 
 export function sell(b: Ent): void {
   if (b.dead || b.kind !== 'bld' || b.type === 'yard') return;
-  G.credits[b.team] += Math.round(bldDef(b).cost * SELL_REFUND * (b.hp / b.maxhp));
+  const d = bldDef(b), f = SELL_REFUND * (b.hp / b.maxhp);
+  G.credits[b.team] += Math.round(d.cost * f);
+  G.wood[b.team] += Math.round((d.wood ?? 0) * f);
+  G.oil[b.team] += Math.round((d.oil ?? 0) * f);
   burst('dust', b.x, b.y, 20, 40, 120);
   kill(b);
 }

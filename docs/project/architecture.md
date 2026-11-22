@@ -46,7 +46,7 @@ deploy/                   Dockerfile, docker-compose.yml
                                           │        ore regrowth, fog, AI
                                           ▼
                       render3d/ syncs a 3D model per entity and draws the scene with three.js
-                      hud.ts / sidebar.ts reflect gold, power, selection and production in the DOM
+                      hud.ts / sidebar.ts reflect ore, power, selection and production in the DOM
 ```
 
 - **Engine state** lives in `G` (`src/game/state.ts`). The engine reports events (fog changed, ore changed, alerts, errors) through `hooks`, which the view sets. Because the engine has no DOM dependency, `src/game/world.test.ts` plays whole computer-vs-computer matches in Node.

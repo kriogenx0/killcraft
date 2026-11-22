@@ -706,6 +706,40 @@ function woodTower(team: number): Model {
 }
 
 /** A structure's look before industry: 'wood' in the Medieval age, 'stone' in the Gunpowder age. */
+/** Lumber Mill: a timber sawmill with a turning saw wheel (the `sails` part), logs and planks. */
+function sawmill(L: Look): Model {
+  const root = new THREE.Group(), parts: Parts = {}, team = L.team;
+  ground(root, 2, 41);
+  // the shed
+  const z0 = -0.25;
+  if (L.gun) root.add(mesh(box(1.0, 0.45, 0.7), L.wall, -0.2, 0.05 + 0.225, z0));
+  else timberFrame(root, -0.2, 0.05, z0, 1.0, 0.45, 0.7);
+  gable(root, -0.2, 0.5, z0, 1.0, 0.7, 0.32, L.thatch);
+  door(root, -0.35, 0.05, z0 + 0.36, 0.22, 0.32);
+  banner(root, team, 0.08, 0.32, z0 + 0.36, 0.16, 0.24);
+  // the saw wheel on an axle beside the shed
+  root.add(mesh(box(0.06, 0.5, 0.06), M.darkWood(), 0.55, 0.3, z0 - 0.08));
+  root.add(mesh(box(0.06, 0.5, 0.06), M.darkWood(), 0.55, 0.3, z0 + 0.2));
+  const wheel = group(0.55, 0.5, z0 + 0.06, across(mesh(cyl(0.05, 0.05, 0.3, 8), M.iron())));
+  wheel.add(mesh(torus(0.36, 0.03, Math.PI * 2, 4, 18), M.darkWood()));
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2, spoke = new THREE.Group();
+    spoke.rotation.z = a;
+    spoke.add(mesh(box(0.03, 0.36, 0.03), M.wood(), 0, 0.18, 0));
+    spoke.add(mesh(box(0.1, 0.06, 0.12), M.timber(), 0, 0.36, 0));
+    wheel.add(spoke);
+  }
+  wheel.add(mesh(cyl(0.12, 0.12, 0.01, 18), M.iron(), 0, 0, 0.08).rotateX(Math.PI / 2));
+  parts.sails = wheel;
+  root.add(wheel);
+  // log pile and stacked planks out front
+  for (const [x, y, z] of [[-0.55, 0.1, 0.5], [-0.35, 0.1, 0.5], [-0.15, 0.1, 0.5], [-0.45, 0.25, 0.5], [-0.25, 0.25, 0.5]]) {
+    root.add(across(mesh(cyl(0.09, 0.09, 0.5, 8), M.wood(), x, y, z)));
+  }
+  for (let i = 0; i < 4; i++) root.add(mesh(box(0.5, 0.04, 0.16), i % 2 ? M.wood() : M.timber(), 0.45, 0.08 + i * 0.045, 0.55));
+  return { root, parts, height: 1.0 };
+}
+
 export function medievalBuilding(type: BldType, team: number, stage: 'wood' | 'stone'): Model {
   if (stage === 'wood') {
     switch (type) {
@@ -716,6 +750,8 @@ export function medievalBuilding(type: BldType, team: number, stage: 'wood' | 's
       case 'factory': return shelter(team);
       case 'tower': return woodTower(team);
       case 'turret': break;
+      case 'mill': return sawmill(look(team, false));
+      case 'derrick': break;
     }
   }
   const L = look(team, true);
@@ -727,5 +763,7 @@ export function medievalBuilding(type: BldType, team: number, stage: 'wood' | 's
     case 'factory': return workshop(L);
     case 'turret': return bastion(L);
     case 'tower': return watchtower(L);
+    case 'mill': return sawmill(L);
+    case 'derrick': throw new Error('The Oil Derrick has no medieval look');
   }
 }
