@@ -87,6 +87,9 @@ export interface Ent extends Target {
   stance: Stance;
   /** the enemy a skirmishing unit is shooting at without stopping */
   shot: number | null;
+  /** the enemy that started attacking this unit, and when it last hit */
+  foe: number | null;
+  foeT: number;
   // buildings
   done: boolean;
   /** 0..1 rise-up animation after placement */

@@ -219,10 +219,11 @@ $sidebar-width: 248px;
       top: auto;
       left: 0;
       display: grid;
-      grid-template-rows: auto auto;
+      // a fixed height, so selecting something doesn't resize (and blank) the map canvas
+      grid-template-rows: minmax(0, 1fr) auto;
       grid-template-columns: 96px minmax(0, 1fr);
       width: auto;
-      max-height: 45vh;
+      height: min(40vh, 320px);
       padding: $space-2 $gutter;
       border-top-width: 3px;
       border-left-width: 0;
@@ -236,6 +237,7 @@ $sidebar-width: 248px;
     .sidebar-selection {
       min-height: 0;
       padding: $space-1 $space-2;
+      overflow-y: auto;
     }
 
     .selection-commands {
