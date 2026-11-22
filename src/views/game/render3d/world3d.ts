@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { G } from '../../../game/state.ts';
 import { MW, MH } from '../../../game/const.ts';
-import { buildHeights, heightAt, heights, VH, VW, WATER_LEVEL } from './heights.ts';
+import { buildHeights, heightAt, heights, level, VH, VW, WATER_LEVEL } from './heights.ts';
 import { ORE_TILE_MAX } from '../../../data/ore.ts';
 import { OIL_TILE_MAX } from '../../../data/economy.ts';
 import { layoutFor } from '../../../data/map.ts';
@@ -22,6 +22,24 @@ let oil: THREE.InstancedMesh | null = null;
 let fogTex: THREE.CanvasTexture | null = null;
 
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+
+let groundMesh: THREE.Mesh | null = null, fogMesh: THREE.Mesh | null = null;
+const leveled = new Set<string>();
+
+/** Flatten the ground under a structure (once per footprint), and reshape the ground and fog sheets. */
+export function levelUnder(tx: number, ty: number, w: number, h: number): void {
+  const key = `${tx},${ty},${w},${h}`;
+  if (leveled.has(key)) return;
+  leveled.add(key);
+  if (!level(tx, ty, w, h)) return;
+  for (const [m, lift, overWater] of [[groundMesh, 0, false], [fogMesh, 0.05, true]] as const) {
+    if (!m) continue;
+    const pos = m.geometry.attributes.position as THREE.BufferAttribute;
+    for (let k = 0; k < pos.count; k++) pos.setY(k, (overWater ? Math.max(heights[k], WATER_LEVEL) : heights[k]) + lift);
+    pos.needsUpdate = true;
+    m.geometry.computeVertexNormals();
+  }
+}
 
 /** A map-sized sheet following the ground (or the water, where it's higher), raised by `lift`. */
 function shapedPlane(lift: number, overWater = false): THREE.BufferGeometry {
@@ -136,6 +154,8 @@ export function initWorld3d(): void {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = S.renderer.capabilities.getMaxAnisotropy();
   const ground = new THREE.Mesh(shapedPlane(0), groundMaterial(tex));
+  groundMesh = ground;
+  leveled.clear();
   ground.receiveShadow = true;
   ground.castShadow = true;
   layer.add(ground);
@@ -160,6 +180,7 @@ export function initWorld3d(): void {
   fogTex.magFilter = THREE.LinearFilter;
   const fog = new THREE.Mesh(shapedPlane(0.05, true), new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, depthWrite: false, fog: false }));
   fog.renderOrder = 2;
+  fogMesh = fog;
   layer.add(fog);
   // a black frame past the map's edges, so no sliver of ground shows at the border
   const B = 40, black = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });

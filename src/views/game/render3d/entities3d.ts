@@ -16,6 +16,7 @@ import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
+import { levelUnder } from './world3d.ts';
 import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 interface Obj { model: Model; key: string }
@@ -279,6 +280,7 @@ export function syncEntities(dt: number): void {
       r.position.y += air ? surfaceY(x, z) : heightAt(x, z);
       if (!air && UNIT[e.type as UnitType]?.cls === 'vehicle') tilt(r, x, z, e.face);
     } else if (e.kind === 'bld') {
+      levelUnder(e.tx, e.ty, e.w, e.h);
       r.position.set(x, footprintY(e.tx, e.ty, e.w, e.h), z);
       animateBuilding(o.model, e, dt);
     } else r.position.set(x, heightAt(x, z), z);

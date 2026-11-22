@@ -56,9 +56,28 @@ export function slopeAt(x: number, z: number): [number, number] {
   return [(heightAt(x + e, z) - heightAt(x - e, z)) / (2 * e), (heightAt(x, z + e) - heightAt(x, z - e)) / (2 * e)];
 }
 
-/** Lowest ground under a footprint (tiles), so a building never floats on a slope. */
+/** Ground height under a footprint (tiles): its average, which is where `level` flattens it to. */
 export function footprintY(tx: number, ty: number, w: number, h: number): number {
-  let lo = 99;
-  for (let y = 0; y <= h; y += 0.5) for (let x = 0; x <= w; x += 0.5) lo = Math.min(lo, heightAt(tx + x, ty + y));
-  return Math.max(lo, WATER_LEVEL);
+  let sum = 0, n = 0;
+  for (let y = ty * RES; y <= (ty + h) * RES; y++) for (let x = tx * RES; x <= (tx + w) * RES; x++) { sum += heights[clamp(y, 0, VH - 1) * VW + clamp(x, 0, VW - 1)]; n++; }
+  return Math.max(sum / n, WATER_LEVEL + 0.06);
+}
+
+/**
+ * Level the ground under a structure's footprint to its average height (feathering the edge), so
+ * it sits flat on a hillside. Returns the range of grid rows touched, or null if nothing changed.
+ */
+export function level(tx: number, ty: number, w: number, h: number): [number, number] | null {
+  const x0 = tx * RES, y0 = ty * RES, x1 = (tx + w) * RES, y1 = (ty + h) * RES;
+  let sum = 0, n = 0;
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { sum += heights[y * VW + x]; n++; }
+  const target = Math.max(sum / n, WATER_LEVEL + 0.06);
+  let changed = false;
+  for (let y = y0 - 1; y <= y1 + 1; y++)
+    for (let x = x0 - 1; x <= x1 + 1; x++) {
+      if (x < 0 || y < 0 || x >= VW || y >= VH) continue;
+      const edge = x < x0 || x > x1 || y < y0 || y > y1, i = y * VW + x, to = edge ? (heights[i] + target) / 2 : target;
+      if (Math.abs(heights[i] - to) > 1e-4) { heights[i] = to; changed = true; }
+    }
+  return changed ? [Math.max(0, y0 - 1), Math.min(VH - 1, y1 + 1)] : null;
 }
