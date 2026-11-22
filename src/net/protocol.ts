@@ -21,6 +21,8 @@ export interface SnapMsg {
   /** game time */
   t: number;
   credits: number;
+  /** the team's age of technology */
+  era: number;
   prod: Production;
   ents: EntRow[];
   ev: FxEvent[];

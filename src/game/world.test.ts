@@ -7,7 +7,8 @@ import { addBuilding, addUnit, power } from './entity.ts';
 import { orderHarvest } from './order.ts';
 import { available, enqueue, placeReady, readyStructure } from './production.ts';
 import { canPlace } from './building.ts';
-import { START_CREDITS } from '../data/map.ts';
+import { START_CREDITS, START_UNITS } from '../data/map.ts';
+import { UNIT } from '../data/unit.ts';
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
@@ -65,6 +66,34 @@ describe('production', () => {
     expect(available(0, 'structure')).toContain('refinery');
   });
 
+  it('starts in the Medieval age with medieval troops only', () => {
+    expect(G.era).toEqual([0, 0]);
+    for (const t of START_UNITS) expect(UNIT[t].era).toBe(0);
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    expect(available(0, 'infantry')).toEqual(['swordsman', 'crossbowman', 'knight']);
+    expect(available(0, 'structure')).not.toContain('turret');
+    expect(enqueue(0, 'rifleman')).toBe(false);
+  });
+
+  it('researches the next age at the Construction Yard and unlocks its units and structures', () => {
+    expect(available(0, 'tech')).toEqual([]); // needs a barracks first
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    expect(available(0, 'tech')).toEqual(['age1']);
+    G.credits[0] = 5000;
+    expect(enqueue(0, 'age1')).toBe(true);
+    expect(enqueue(0, 'age1')).toBe(false);
+    run(40);
+    expect(G.era[0]).toBe(1);
+    expect(G.prod[0].tech).toEqual([]);
+    expect(available(0, 'infantry')).toContain('rifleman');
+    expect(available(0, 'infantry')).not.toContain('rocket');
+    expect(available(0, 'structure')).toContain('turret');
+    // the Industrial age needs a War Factory
+    expect(available(0, 'tech')).toEqual([]);
+  });
+
   it('stalls without credits instead of going into debt', () => {
     G.credits[0] = 50;
     enqueue(0, 'power');
@@ -117,6 +146,8 @@ describe('a computer-vs-computer match', () => {
     initWorld(99);
     run(300);
     expect(errors).toEqual([]);
+    // both sides research past the Medieval age
+    expect(Math.max(...G.era)).toBeGreaterThan(0);
     for (const team of [0, 1]) {
       if (G.over && G.winner !== team) continue;
       const types = G.ents.filter((e) => e.team === team).map((e) => e.type);

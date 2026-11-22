@@ -6,7 +6,7 @@ import { BUILDING, type BldType } from '../data/building.ts';
 import type { UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace } from './building.ts';
-import { available, cancel, enqueue, placeReady, readyStructure } from './production.ts';
+import { available, cancel, costOf, enqueue, placeReady, readyStructure } from './production.ts';
 import { orderAMove, orderMove } from './order.ts';
 
 interface AiState { on: boolean; attackAt: number; attacking: boolean }
@@ -28,11 +28,13 @@ function nextStructure(team: number): BldType | null {
   if (p.used + 20 > p.made && can.includes('power')) return 'power';
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
+    // structures from a later age wait until the research is done
+    if (BUILDING[t].era > G.era[team]) continue;
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
-  if (G.credits[team] > 2500 && countOf(team, 'turret') < 6) return 'turret';
+  if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
   return null;
 }
 
@@ -64,6 +66,22 @@ function construction(team: number): void {
   if (t) enqueue(team, t);
 }
 
+/** Advance an age once the base is running and the bank can spare it. */
+function research(team: number): void {
+  if (G.prod[team].tech.length) return;
+  const t = available(team, 'tech')[0];
+  if (!t || countOf(team, 'refinery') < 1 || countOf(team, 'harvester') < 1) return;
+  if (G.credits[team] > costOf(t) * 0.6 + 400) enqueue(team, t);
+}
+
+/** Pick from weighted options, skipping anything the team can't build yet. */
+function pick(team: number, line: 'infantry' | 'vehicle', options: [UnitType, number][]): UnitType | null {
+  const can = available(team, line), ok = options.filter(([t]) => can.includes(t));
+  let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
+  for (const [t, w] of ok) if ((r -= w) < 0) return t;
+  return ok[0]?.[0] ?? null;
+}
+
 function training(team: number): void {
   const prod = G.prod[team], credits = G.credits[team];
   // leave money for the next structure while it's being built
@@ -72,25 +90,16 @@ function training(team: number): void {
     const harvesters = countOf(team, 'harvester'), refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
     if (harvesters < Math.min(6, refineries * 2) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
-    else if (!saving && credits > 500) {
-      const p = Math.random();
-      t = p < 0.2 && credits > 1600 ? 'heavy' : p < 0.35 && credits > 1200 ? 'catapult' : p < 0.5 ? 'jeep' : 'tank';
-    }
+    else if (!saving && credits > 500)
+      t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5]]);
     if (t) enqueue(team, t);
   }
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
-  if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) enqueue(team, pickInfantry(credits));
-}
-
-/** A mix of gunpowder and steel. */
-function pickInfantry(credits: number): UnitType {
-  const p = Math.random();
-  if (p < 0.12 && credits > 700) return 'knight';
-  if (p < 0.35) return 'swordsman';
-  if (p < 0.5) return 'crossbowman';
-  if (p < 0.7) return 'rocket';
-  return 'rifleman';
+  if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
+    const t = pick(team, 'infantry', [['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3]]);
+    if (t) enqueue(team, t);
+  }
 }
 
 function upkeep(team: number): void {
@@ -134,6 +143,7 @@ function military(team: number): void {
 
 export function aiThink(team: number): void {
   construction(team);
+  research(team);
   training(team);
   upkeep(team);
   military(team);

@@ -2,6 +2,7 @@
 import { G, hooks, unitDef } from './state.ts';
 import { TS } from './const.ts';
 import { START_YARDS, ORE_SOURCES, START_CREDITS, START_UNITS } from '../data/map.ts';
+import { START_ERA } from '../data/era.ts';
 import { generateMap, rebuildBlk } from './map.ts';
 import { addBuilding, addSource, addUnit } from './entity.ts';
 import { updUnit } from './unit.ts';
@@ -22,7 +23,7 @@ export function initWorld(seed: number): void {
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1,
     alertT: [-99, -99], lastAlert: null, fogT: 0, aiT: 0, endT: 0, oreT: 0,
-    credits: [START_CREDITS, START_CREDITS], prod: [emptyProduction(), emptyProduction()],
+    credits: [START_CREDITS, START_CREDITS], era: [START_ERA, START_ERA], prod: [emptyProduction(), emptyProduction()],
   });
   G.byId.clear();
   for (const s of G.sight) s.fill(0);

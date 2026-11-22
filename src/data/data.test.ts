@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UNIT, UNIT_TYPES } from './unit.ts';
 import { BUILDING, BLD_TYPES } from './building.ts';
 import { WEAPON } from './weapon.ts';
+import { ERA, TECH, TECH_TYPES } from './era.ts';
 import { ORE_SOURCES, START_YARDS } from './map.ts';
 import { MW, MH } from '../game/const.ts';
 
@@ -21,6 +22,18 @@ describe('static data', () => {
 
   it('makes more power than a starting base uses', () => {
     expect(BUILDING.power.power).toBeGreaterThan(-(BUILDING.refinery.power + BUILDING.barracks.power));
+  });
+
+  it('reaches every age by research, one step at a time, and unlocks something in each', () => {
+    expect(TECH_TYPES.map((t) => TECH[t].era).sort()).toEqual(ERA.map((_, i) => i).slice(1));
+    for (const t of TECH_TYPES) for (const r of TECH[t].requires) expect(BUILDING[r]).toBeDefined();
+    for (let era = 0; era < ERA.length; era++)
+      expect(UNIT_TYPES.some((u) => UNIT[u].era === era) || BLD_TYPES.some((b) => BUILDING[b].era === era)).toBe(true);
+  });
+
+  it('starts with a working medieval economy', () => {
+    for (const b of ['power', 'refinery', 'barracks', 'factory'] as const) expect(BUILDING[b].era).toBe(0);
+    expect(UNIT.harvester.era).toBe(0);
   });
 
   it('places bases and ore inside the map', () => {

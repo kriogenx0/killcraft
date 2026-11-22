@@ -3,6 +3,7 @@
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
+import type { TechType } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 
@@ -16,9 +17,9 @@ export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: numb
 export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
 export type Order = MoveOrder | AMoveOrder | AttackOrder | HarvestOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'tech';
 export interface ProductionItem {
-  type: UnitType | BldType;
+  type: UnitType | BldType | TechType;
   /** 0..1 */
   prog: number;
   /** credits paid so far */
@@ -115,6 +116,8 @@ export const G = {
   fx: [] as Particle[],
   decals: [] as Decal[],
   credits: [] as number[],
+  /** each team's age of technology (index into ERA) */
+  era: [] as number[],
   prod: [] as Production[],
   nextId: 1,
   seed: 0,

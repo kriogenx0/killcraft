@@ -4,6 +4,7 @@ import { unitDef, valid, type Ent } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES } from '../data/building.ts';
+import { TECH_TYPES } from '../data/era.ts';
 import { groupMove, orderAttack, orderHarvest, orderReturn, orderStop } from './order.ts';
 import { cancel, enqueue, placeReady, toggleHold, type Buildable } from './production.ts';
 import { sell, toggleRepair } from './building.ts';
@@ -23,7 +24,7 @@ export type Command =
   | { c: 'sell'; id: number };
 
 const MAX_IDS = 200;
-const BUILDABLE = new Set<string>([...UNIT_TYPES, ...BLD_TYPES]);
+const BUILDABLE = new Set<string>([...UNIT_TYPES, ...BLD_TYPES, ...TECH_TYPES]);
 
 const isInt = (v: unknown): v is number => Number.isInteger(v);
 const inMap = (x: unknown, y: unknown): boolean => isInt(x) && isInt(y) && x >= 0 && y >= 0 && x < MW && y < MH;

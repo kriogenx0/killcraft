@@ -3,6 +3,8 @@ import { G, bldDef, unitDef, type Ent } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
+import { ERA } from '../../data/era.ts';
+import { eraOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
@@ -16,6 +18,7 @@ import { V, ownSelected } from './view_state.ts';
 export interface HudEls {
   credits: HTMLElement;
   power: HTMLElement;
+  era: HTMLElement;
   time: HTMLElement;
   speed: HTMLButtonElement;
   pause: HTMLButtonElement;
@@ -115,6 +118,8 @@ export function refreshHud(): void {
   els.credits.textContent = String(Math.floor(G.credits[V.team]));
   els.power.textContent = `${p.used} / ${p.made}`;
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
+  const era = ERA[eraOf(V.team)]?.name ?? '';
+  if (els.era.textContent !== era) els.era.textContent = era;
   els.time.textContent = formatTime(G.gameT);
   const speed = `${V.speed}x`;
   if (els.speed.textContent !== speed) els.speed.textContent = speed;

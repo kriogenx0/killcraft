@@ -1,9 +1,9 @@
 // The production sidebar: one column of structures, one of units. Cells are created when the
 // available list changes and updated in place every frame, so clicks are never lost.
 import { G } from '../../game/state.ts';
-import { UNIT, isUnitType } from '../../data/unit.ts';
-import { BUILDING, type BldType } from '../../data/building.ts';
-import { available, costOf, itemsOf, lineOf, type Buildable } from '../../game/production.ts';
+import { isUnitType } from '../../data/unit.ts';
+import type { BldType } from '../../data/building.ts';
+import { available, costOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -20,10 +20,8 @@ let structureList: HTMLElement, unitList: HTMLElement;
 const cells = new Map<Buildable, Cell>();
 let listKey = '';
 
-const nameOf = (t: Buildable) => (isUnitType(t) ? UNIT[t].name : BUILDING[t].name);
-
 function rebuild(structures: Buildable[], units: Buildable[]): void {
-  const html = (list: Buildable[]) => list.map((t) => buildCellHtml(t, nameOf(t), costOf(t), ICON[t])).join('');
+  const html = (list: Buildable[]) => list.map((t) => buildCellHtml(t, nameOf(t), costOf(t), ICON[t], descOf(t))).join('');
   structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Construction Yard</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';
   cells.clear();
@@ -49,7 +47,7 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = available(V.team, 'structure'), units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle')];
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle')];
   const key = `${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   for (const [type, c] of cells) {
@@ -64,6 +62,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--active', items.length > 0);
     c.root.classList.toggle('build-cell--ready', !!first?.ready);
     c.root.classList.toggle('build-cell--busy', line === 'structure' && !!head && head.type !== type);
+    c.root.classList.toggle('build-cell--tech', line === 'tech');
   }
 }
 

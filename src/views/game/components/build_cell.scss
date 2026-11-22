@@ -5,6 +5,11 @@
 .build-cell {
   position: relative;
 
+  // researching the next age
+  &--tech .build-cell-main {
+    border-color: #a07a20;
+  }
+
   .build-cell-main {
     position: relative;
     display: block;

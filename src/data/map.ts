@@ -25,4 +25,4 @@ export const FORESTS: [number, number, number][] = [
 ];
 
 export const START_CREDITS = 3000;
-export const START_UNITS = ['rifleman', 'rifleman', 'rifleman', 'jeep'] as const;
+export const START_UNITS = ['swordsman', 'swordsman', 'crossbowman', 'knight'] as const;

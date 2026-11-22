@@ -1,6 +1,7 @@
 // Sidebar and command icons, drawn once to data URLs for use in the HUD.
 import { UNIT, UNIT_TYPES } from '../../../data/unit.ts';
 import { BLD_TYPES } from '../../../data/building.ts';
+import { TECH, TECH_TYPES } from '../../../data/era.ts';
 import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { drawTurretHead, drawUnitArt } from './unit_art.ts';
 import { sprite } from './building_art.ts';
@@ -31,6 +32,21 @@ export function makeIcons(team = 0): void {
       g.drawImage(c, W / 2 - (c.width * s) / 2, H / 2 - (c.height * s) / 2, c.width * s, c.height * s);
       if (t === 'turret') drawTurretHead(g, team, W / 2 - c.width * s / 2 + 24 * s, H / 2 - c.height * s / 2 + 31 * s, ANGLE, 0);
     });
+  // research: a gold medallion with the age's numeral
+  const NUMERAL = ['I', 'II', 'III', 'IV'];
+  for (const t of TECH_TYPES) {
+    const era = TECH[t].era;
+    ICON[t] = make((g) => {
+      const grad = g.createRadialGradient(W / 2 - 6, 14, 2, W / 2, 20, 22);
+      grad.addColorStop(0, '#fff2c0');
+      grad.addColorStop(0.55, '#d0a030');
+      grad.addColorStop(1, '#6a4808');
+      g.fillStyle = grad; g.strokeStyle = '#000'; g.lineWidth = 2;
+      g.beginPath(); g.arc(W / 2, 20, 16, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#3a2404'; g.font = 'bold 15px Georgia'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(NUMERAL[era] ?? String(era + 1), W / 2, 21);
+    });
+  }
   const cmd = (draw: (g: CanvasRenderingContext2D) => void) => make((g) => { g.clearRect(0, 0, 48, 48); g.translate(24, 24); draw(g); }, 48, 48);
   ICON.move = cmd((g) => {
     g.fillStyle = '#5ad04a'; g.strokeStyle = '#000'; g.lineWidth = 2;

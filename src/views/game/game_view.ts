@@ -3,6 +3,7 @@
 import { G, hooks } from '../../game/state.ts';
 import { STEP, TS } from '../../game/const.ts';
 import { START_YARDS } from '../../data/map.ts';
+import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, update } from '../../game/world.ts';
 import { ais } from '../../game/ai.ts';
 import { rebuildBlk } from '../../game/map.ts';
@@ -78,7 +79,7 @@ export function mountGameView(root: HTMLElement): void {
   setupWorldView();
   makeIcons(V.team);
   initHud({
-    credits: must(root, '.topbar-credits'), power: must(root, '.topbar-power'), time: must(root, '.topbar-time'),
+    credits: must(root, '.topbar-credits'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
     speed: speedBtn, pause: pauseBtn,
     details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'),
   });
@@ -119,6 +120,7 @@ export function mountGameView(root: HTMLElement): void {
   const onSnapshot = (s: SnapMsg) => {
     G.gameT = s.t;
     G.credits[V.team] = s.credits;
+    G.era[V.team] = s.era ?? 0;
     G.prod[V.team] = s.prod;
     if (s.ore) decodeOre(s.ore);
     applySnapshot(s.ents, s.ev, (ev) => {
@@ -238,12 +240,13 @@ export function mountGameView(root: HTMLElement): void {
  * URL options for testing: ?seed=N map seed, ?auto start a solo game, ?demo AI vs AI, ?online open
  * the lobby (?online=quick also joins quick match), ?sim=S simulate S seconds before the first frame, ?reveal no fog, ?cam=x,y center on a
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
- * of your units of that type, ?queue=a,b start building these.
+ * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N.
  */
 function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void, openLobby: (quick: boolean) => void): void {
   if (q.has('online')) { openLobby(q.get('online') === 'quick'); return; }
   if (q.has('demo')) startSolo(true);
   else if (q.has('auto')) startSolo(false);
+  if (q.has('era')) G.era[V.team] = Math.max(0, Math.min(LAST_ERA, Number(q.get('era')) || 0));
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
   const sim = Number(q.get('sim') ?? 0) / STEP;
   for (let i = 0; i < sim && !G.over; i++) update(STEP);

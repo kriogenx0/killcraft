@@ -16,7 +16,7 @@ Killcraft is a single-page real-time strategy game modelled on Command & Conquer
 ```
 src/
   main.ts                 entry: loads styles, mounts the game view
-  data/                   static data, one file per entity (unit, building, weapon, ore, team, map)
+  data/                   static data, one file per entity (unit, building, weapon, era, ore, team, map)
   util/                   pure helpers (math, noise, canvas)
   game/                   the simulation; never touches the DOM (also runs on the server)
   net/                    protocol types, snapshot encoding/decoding, browser WebSocket client
@@ -68,4 +68,4 @@ deploy/                   Dockerfile, docker-compose.yml
 ## Testing the page
 
 The game view reads URL options so a headless browser can check it:
-`?view=yaw,pitch,dist` camera angle (degrees) and distance (tiles), `?seed=N` map seed, `?auto` skip the title screen, `?demo` AI vs AI, `?online` open the lobby (`?online=quick` also joins quick match), `?sim=S` simulate S seconds before the first frame, `?reveal` no fog, `?cam=x,y` centre on a tile, `?sel=type` select your units of that type, `?queue=a,b` start producing these. The root element gets `data-errors="n"` if anything throws.
+`?view=yaw,pitch,dist` camera angle (degrees) and distance (tiles), `?seed=N` map seed, `?auto` skip the title screen, `?demo` AI vs AI, `?online` open the lobby (`?online=quick` also joins quick match), `?sim=S` simulate S seconds before the first frame, `?reveal` no fog, `?cam=x,y` centre on a tile, `?sel=type` select your units of that type, `?queue=a,b` start producing these, `?era=N` start your side in age N. The root element gets `data-errors="n"` if anything throws.
