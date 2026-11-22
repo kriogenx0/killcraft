@@ -28,6 +28,8 @@ export interface BldDef {
   weapon?: WeaponType;
   /** false for buildings that can't be built from the sidebar */
   buildable: boolean;
+  /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
+  key?: string;
   desc: string;
 }
 

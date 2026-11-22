@@ -1,3 +1,5 @@
+import { keyLabel } from '../keyboard.ts';
+
 export interface Command {
   id: string;
   label: string;
@@ -21,6 +23,6 @@ export function commandButtonHtml(c: Command, index: number): string {
     `<button type="button" class="command-button${c.active ? ' command-button--active' : ''}" data-index="${index}" ${c.disabled ? 'disabled' : ''} ` +
     `${c.active != null ? `aria-pressed="${c.active}" ` : ''}` +
     `aria-label="${c.label}"${c.hotkey ? ` aria-keyshortcuts="${c.hotkey}"` : ''} style="background-image:url(${c.icon})">` +
-    `<span class="command-button-key" aria-hidden="true">${c.hotkey}</span><span class="command-button-label">${c.label}</span>${cost}</button>`
+    `<span class="command-button-key" aria-hidden="true">${keyLabel(c.hotkey)}</span><span class="command-button-label">${c.label}</span>${cost}</button>`
   );
 }
