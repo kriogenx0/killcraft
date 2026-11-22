@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Killcraft: a real-time strategy game in the browser.">
+  <title>Killcraft</title>
+  <script type="module" src="/src/main.ts"></script>
+</head>
+<body>
+  <main class="view-game">
+    <canvas class="game-canvas" role="img" aria-label="Battlefield"></canvas>
+
+    <header class="topbar ui-panel">
+      <span class="ui-resource"><i class="ui-resource-icon ui-resource-icon--credits" aria-hidden="true"></i><span class="ui-resource-label">Credits</span> <b class="ui-resource-value topbar-credits">0</b></span>
+      <span class="ui-resource" title="Power used / produced. Low power halves production speed."><i class="ui-resource-icon ui-resource-icon--power" aria-hidden="true"></i><span class="ui-resource-label">Power</span> <b class="ui-resource-value topbar-power">0</b></span>
+      <span class="topbar-spacer"></span>
+      <span class="topbar-time" aria-label="Game time">0:00</span>
+      <button type="button" class="ui-button ui-button--small topbar-speed" title="Game speed (+ / -)" aria-label="Game speed">1x</button>
+      <button type="button" class="ui-button ui-button--small topbar-pause" title="Pause (P)" aria-label="Pause"></button>
+      <button type="button" class="ui-button ui-button--small topbar-resign" hidden>Surrender</button>
+    </header>
+
+    <p class="game-message" role="status" aria-live="polite"></p>
+
+    <aside class="sidebar ui-panel" aria-label="Command sidebar">
+      <canvas class="sidebar-minimap" width="160" height="160" aria-label="Radar: click or tap to move the view"></canvas>
+      <section class="sidebar-selection" aria-label="Selection">
+        <div class="selection-details"></div>
+        <nav class="selection-commands" aria-label="Commands"></nav>
+      </section>
+      <section class="sidebar-build" aria-label="Production">
+        <div class="build-list build-list--structure" aria-label="Structures"></div>
+        <div class="build-list build-list--unit" aria-label="Units"></div>
+      </section>
+    </aside>
+
+    <div class="ui-tooltip game-tooltip" role="tooltip"></div>
+
+    <section class="ui-modal ui-modal--open game-start" aria-label="Start">
+      <h1 class="game-title">KILLCRAFT</h1>
+      <p class="game-intro">Mine ore, build your base from the sidebar, and destroy everything the enemy owns.</p>
+      <p class="game-intro">
+        <b>Build:</b> click a structure in the sidebar. When it says READY, click it again and place it near your base. Right-click to hold or cancel.<br>
+        <b>Mouse:</b> left-click or drag to select. Right-click to move, attack, harvest ore or set a rally point.<br>
+        <b>Touch:</b> tap to select or give an order. Drag to scroll.<br>
+        <kbd class="ui-key">W</kbd><kbd class="ui-key">A</kbd><kbd class="ui-key">S</kbd><kbd class="ui-key">D</kbd> scroll · <kbd class="ui-key">F</kbd> attack-move · <kbd class="ui-key">X</kbd> stop · <kbd class="ui-key">Ctrl</kbd>+<kbd class="ui-key">1-9</kbd> group ·
+        <kbd class="ui-key">H</kbd> base · <kbd class="ui-key">Space</kbd> last alert · <kbd class="ui-key">P</kbd> pause
+      </p>
+      <div class="ui-modal-actions">
+        <button type="button" class="ui-button game-start-online">Play Online</button>
+        <button type="button" class="ui-button game-start-play">Play vs Computer</button>
+        <button type="button" class="ui-button ui-button--secondary game-start-watch">Watch AI vs AI</button>
+      </div>
+    </section>
+
+    <section class="ui-modal game-end" aria-label="Game over" aria-hidden="true">
+      <h2 class="game-result"></h2>
+      <p class="game-intro game-end-time"></p>
+      <div class="ui-modal-actions">
+        <button type="button" class="ui-button game-end-again">Play again</button>
+      </div>
+    </section>
+
+    <section class="ui-modal view-lobby" aria-label="Play online" aria-hidden="true"></section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,18 @@
+@use '../../styles/tokens' as *;
+
+// Small inline loading indicator.
+.ui-spinner {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+  border: 2px solid var(--color-rim);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ui-spinner-turn 300ms linear infinite;
+}
+
+@keyframes ui-spinner-turn {
+  to { transform: rotate(360deg); }
+}

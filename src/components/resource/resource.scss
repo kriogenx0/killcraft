@@ -1,0 +1,28 @@
+@use '../../styles/spacing' as *;
+
+// A resource readout: icon, label and value.
+.ui-resource {
+  display: inline-flex;
+  gap: $space-1;
+  align-items: center;
+  white-space: nowrap;
+
+  .ui-resource-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px #000;
+
+    &--credits { background: radial-gradient(circle at 35% 35%, #fff6b0, #e8b020 50%, #8a5a00); }
+    &--power { background: radial-gradient(circle at 35% 35%, #e8fff0, #40d070 50%, #106030); }
+  }
+
+  .ui-resource-value {
+    min-width: 3ch;
+    color: var(--color-gold);
+  }
+
+  &--warning .ui-resource-value {
+    color: var(--color-danger);
+  }
+}

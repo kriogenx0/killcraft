@@ -1,0 +1,49 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+
+// A labelled single-line text input. The whole box responds to the pointer.
+.ui-text-field {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+  width: 100%;
+  max-width: 320px;
+  text-align: left;
+  cursor: text;
+
+  .ui-text-field-label {
+    font-size: $font-sm;
+    color: var(--color-text-muted);
+  }
+
+  .ui-text-field-input {
+    width: 100%;
+    min-height: 44px;
+    padding: $space-2 $space-3;
+    font: inherit;
+    font-size: $font-md;
+    color: var(--color-button-text);
+    user-select: text;
+    background: var(--color-button-bottom);
+    border: 2px solid var(--color-rim);
+    border-radius: $radius;
+    outline: none;
+    transition: border-color $duration;
+    appearance: none;
+
+    &:hover {
+      border-color: var(--color-rim-hover);
+    }
+
+    &:focus {
+      border-color: var(--color-rim-hover);
+      box-shadow: inset 0 0 0 1px var(--color-focus);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
+}

@@ -1,0 +1,154 @@
+// The top bar (credits, power, time) and the selection panel with its commands.
+import { G, bldDef, unitDef, type Ent } from '../../game/state.ts';
+import { UNIT, type UnitType } from '../../data/unit.ts';
+import { WEAPON } from '../../data/weapon.ts';
+import { power } from '../../game/entity.ts';
+import { dispatch, ids } from './dispatch.ts';
+import { barHtml } from '../../components/bar/bar.ts';
+import { chipHtml } from '../../components/chip/chip.ts';
+import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
+import { loadOf } from './render/unit_art.ts';
+import { ICON } from './render/icon.ts';
+import { commandButtonHtml, type Command } from './components/command_button.ts';
+import { COMMAND_KEYS } from './keyboard.ts';
+import { V, ownSelected } from './view_state.ts';
+
+export interface HudEls {
+  credits: HTMLElement;
+  power: HTMLElement;
+  time: HTMLElement;
+  speed: HTMLButtonElement;
+  pause: HTMLButtonElement;
+  details: HTMLElement;
+  commands: HTMLElement;
+  tooltip: HTMLElement;
+}
+
+let els: HudEls;
+let commands: Command[] = [];
+let commandMarkup = '';
+let detailMarkup = '';
+
+const PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
+const PLAY_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
+
+export const formatTime = (t: number): string => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+export function setSelection(list: Ent[]): void {
+  V.sel = list;
+  if (V.mode?.t !== 'place') V.mode = null;
+  refreshCommands(true);
+}
+
+export function commandList(): Command[] {
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: 'Cancel the current command' }];
+  const s = ownSelected();
+  const first = s[0];
+  if (!first) return [];
+  if (first.kind === 'unit')
+    return [
+      { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
+      { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
+      { id: 'amove', label: 'Attack', hotkey: COMMAND_KEYS.amove, icon: ICON.amove, tip: 'Attack-move: fight anything on the way' },
+    ];
+  if (first.kind === 'bld' && s.length === 1) {
+    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs credits while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: '', icon: ICON.sell, tip: 'Sell this building for half its value' }); // no hotkey: too easy to hit by accident
+    return list;
+  }
+  return [];
+}
+
+export function runCommand(id: string): void {
+  const s = ownSelected();
+  if (id === 'cancel') V.mode = null;
+  else if (id === 'move' || id === 'amove') V.mode = { t: id };
+  else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
+  else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
+  else if (id === 'sell' && s[0]) { dispatch({ c: 'sell', id: s[0].id }); V.sel = []; }
+  refreshCommands(true);
+}
+
+/** Run the command bound to a key, if the current card has one. */
+export function runHotkey(key: string): boolean {
+  const c = commandList().find((x) => x.hotkey && x.hotkey.toLowerCase() === key && !x.disabled);
+  if (c) runCommand(c.id);
+  return !!c;
+}
+
+export function refreshCommands(force = false): void {
+  commands = commandList();
+  const markup = commands.map(commandButtonHtml).join('');
+  if (markup !== commandMarkup || force) {
+    commandMarkup = markup;
+    els.commands.innerHTML = markup;
+  }
+}
+
+function unitDetails(e: Ent): string {
+  const d = unitDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
+  const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
+  let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}</p>`;
+  if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
+  return h;
+}
+
+function buildingDetails(e: Ent): string {
+  const d = bldDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
+  const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
+  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
+    (e.team === V.team && d.produces && d.produces !== 'structure' ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
+}
+
+function detailsMarkup(s: Ent[]): string {
+  if (s.length > 1)
+    return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
+  const e = s[0];
+  if (!e) return '<p class="hud-stats">Build power, then a refinery. Harvesters turn ore into credits.</p>';
+  if (e.kind === 'unit') return unitDetails(e);
+  if (e.kind === 'bld') return buildingDetails(e);
+  return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
+}
+
+export function refreshHud(): void {
+  const p = power(V.team);
+  els.credits.textContent = String(Math.floor(G.credits[V.team]));
+  els.power.textContent = `${p.used} / ${p.made}`;
+  els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
+  els.time.textContent = formatTime(G.gameT);
+  const speed = `${V.speed}x`;
+  if (els.speed.textContent !== speed) els.speed.textContent = speed;
+  const pause = V.paused ? PLAY_ICON : PAUSE_ICON;
+  if (els.pause.innerHTML !== pause) {
+    els.pause.innerHTML = pause;
+    els.pause.setAttribute('aria-label', V.paused ? 'Resume' : 'Pause');
+  }
+  const markup = detailsMarkup(V.sel.filter((e) => !e.dead));
+  if (markup !== detailMarkup) {
+    detailMarkup = markup;
+    els.details.innerHTML = markup;
+  }
+  refreshCommands();
+}
+
+export function initHud(e: HudEls): void {
+  els = e;
+  els.commands.addEventListener('click', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
+    const c = b && commands[Number(b.dataset.index)];
+    if (c && !b.disabled) runCommand(c.id);
+  });
+  els.commands.addEventListener('mouseover', (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
+    const c = b && commands[Number(b.dataset.index)];
+    if (!c) { hideTooltip(els.tooltip); return; }
+    showTooltip(els.tooltip, `<b>${c.label}</b>${c.hotkey ? ` [${c.hotkey}]` : ''}<br>${c.tip}`);
+  });
+  els.commands.addEventListener('mouseleave', () => hideTooltip(els.tooltip));
+  // pointerdown, not click: this panel re-renders as health changes
+  els.details.addEventListener('pointerdown', (ev) => {
+    const p = (ev.target as HTMLElement).closest<HTMLElement>('[data-pick]');
+    const u = p && V.sel.filter((x) => !x.dead)[Number(p.dataset.pick)];
+    if (u) setSelection([u]);
+  });
+}

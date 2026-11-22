@@ -1,0 +1,122 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/spacing' as *;
+@use '../../../styles/typography' as *;
+
+.build-cell {
+  position: relative;
+
+  .build-cell-main {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    padding: 0;
+    overflow: hidden;
+    font: inherit;
+    color: #fff;
+    cursor: pointer;
+    background: #1a1e18 center / cover no-repeat;
+    border: 2px solid var(--color-rim);
+    border-radius: $radius;
+    transition: filter $duration, border-color $duration;
+
+    &:hover {
+      border-color: var(--color-rim-hover);
+      filter: brightness(1.2);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--color-focus);
+    }
+  }
+
+  .build-cell-progress {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .build-cell-name,
+  .build-cell-cost {
+    position: absolute;
+    left: 0;
+    padding: 0 $space-1;
+    font-size: $font-xs;
+    line-height: 1.3;
+    text-shadow: 0 0 2px #000, 0 0 2px #000;
+    pointer-events: none;
+  }
+
+  .build-cell-name {
+    bottom: 0;
+  }
+
+  .build-cell-cost {
+    top: 0;
+    color: #ffd45a;
+  }
+
+  .build-cell-status {
+    position: absolute;
+    top: 40%;
+    right: 0;
+    left: 0;
+    font-size: $font-sm;
+    color: #fff3c0;
+    text-align: center;
+    text-shadow: 0 0 3px #000, 0 0 2px #000;
+    letter-spacing: 1px;
+    pointer-events: none;
+  }
+
+  .build-cell-count {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0 $space-1;
+    font-size: $font-sm;
+    color: #9fe;
+    text-shadow: 0 0 2px #000;
+    pointer-events: none;
+  }
+
+  .build-cell-cancel {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    display: none;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    font-size: $font-md;
+    line-height: 1;
+    color: #fff;
+    cursor: pointer;
+    background: rgb(120 20 10 / 85%);
+    border: 1px solid #000;
+    border-radius: $radius;
+    transition: background-color $duration;
+
+    &:hover {
+      background: rgb(170 30 15 / 95%);
+    }
+
+    @media (pointer: coarse) {
+      width: 32px;
+      height: 32px;
+    }
+  }
+
+  &--active .build-cell-cancel {
+    display: block;
+  }
+
+  &--ready .build-cell-main {
+    border-color: #6f6;
+  }
+
+  &--busy .build-cell-main {
+    filter: grayscale(0.7) brightness(0.65);
+  }
+}

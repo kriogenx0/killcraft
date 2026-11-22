@@ -1,0 +1,255 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+@use 'components/command_button';
+@use 'components/build_cell';
+
+$sidebar-width: 248px;
+
+.view-game {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+
+  .game-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+
+    &--targeting {
+      cursor: crosshair;
+    }
+  }
+
+  // top bar: credits, power, time
+  .topbar {
+    position: absolute;
+    top: 0;
+    right: $sidebar-width;
+    left: 0;
+    z-index: 5;
+    display: flex;
+    gap: $space-5;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 $gutter;
+    border-bottom-width: 3px;
+  }
+
+  .topbar-spacer {
+    flex: 1;
+  }
+
+  .topbar-time {
+    color: var(--color-text-muted);
+  }
+
+  .game-message {
+    position: absolute;
+    top: 48px;
+    right: $sidebar-width + $gutter;
+    left: $gutter;
+    z-index: 5;
+    font-size: $font-xl;
+    color: #fff3c0;
+    text-align: center;
+    text-shadow: 0 0 6px #000, 0 0 3px #000;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  // command sidebar, docked right
+  .sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: $space-2;
+    width: $sidebar-width;
+    padding: $space-3;
+    border-left-width: 3px;
+  }
+
+  .sidebar-minimap {
+    flex: none;
+    width: 100%;
+    aspect-ratio: 1;
+    cursor: pointer;
+    background: #000;
+    border: 3px solid var(--color-rim);
+    touch-action: none;
+  }
+
+  .sidebar-selection {
+    flex: none;
+    min-height: 96px;
+    padding: $space-2;
+    background: var(--color-inset);
+    border-radius: $radius;
+  }
+
+  .selection-details {
+    min-height: 40px;
+
+    .ui-bar {
+      width: 100%;
+    }
+  }
+
+  .selection-commands {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 50px;
+    gap: $space-1;
+    margin-top: $space-2;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .sidebar-build {
+    display: grid;
+    flex: 1;
+    grid-template-columns: 1fr 1fr;
+    gap: $space-2;
+    align-content: start;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .build-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
+  }
+
+  .build-empty {
+    font-size: $font-xs;
+    color: var(--color-text-muted);
+  }
+
+  .hud-stats {
+    font-size: $font-sm;
+    color: var(--color-text-muted);
+  }
+
+  .hud-enemy {
+    font-size: $font-sm;
+    color: var(--color-danger);
+  }
+
+  .hud-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $space-1;
+    margin-top: $space-1;
+  }
+
+  .game-tooltip {
+    top: 40px;
+    right: $sidebar-width + $gutter;
+  }
+
+  // title and result screens
+  .game-title {
+    font-size: $font-title;
+    color: var(--color-title);
+    letter-spacing: 8px;
+    text-shadow: 0 5px 0 #6a3a10, 0 0 40px #000;
+  }
+
+  .game-result {
+    font-size: $font-display;
+    color: var(--color-title);
+    letter-spacing: 6px;
+    text-shadow: 0 4px 0 #6a3a10, 0 0 20px #000;
+  }
+
+  .game-intro {
+    max-width: 700px;
+    line-height: 1.6;
+    color: #e8d8a8;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .game-start {
+    background: radial-gradient(ellipse at center, rgb(30 34 20 / 55%), rgb(0 0 0 / 95%));
+  }
+
+  // narrow screens: the sidebar becomes a bottom panel
+  @media (max-width: 760px) {
+    .topbar {
+      right: 0;
+      gap: $space-2;
+      font-size: $font-sm;
+    }
+
+    .topbar-time {
+      display: none;
+    }
+
+    .game-message {
+      right: $gutter;
+    }
+
+    .ui-resource-label {
+      display: none;
+    }
+
+    .sidebar {
+      top: auto;
+      left: 0;
+      display: grid;
+      grid-template-rows: auto auto;
+      grid-template-columns: 96px minmax(0, 1fr);
+      width: auto;
+      max-height: 45vh;
+      padding: $space-2 $gutter;
+      border-top-width: 3px;
+      border-left-width: 0;
+    }
+
+    .sidebar-minimap {
+      grid-row: span 2;
+      width: 96px;
+    }
+
+    .sidebar-selection {
+      min-height: 0;
+      padding: $space-1 $space-2;
+    }
+
+    .selection-commands {
+      grid-template-columns: repeat(auto-fill, 48px);
+      grid-auto-rows: 48px;
+    }
+
+    .sidebar-build {
+      display: flex;
+      gap: $space-1;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .build-list {
+      flex-direction: row;
+
+      .build-cell {
+        flex: none;
+        width: 72px;
+      }
+    }
+
+    .game-tooltip {
+      display: none;
+    }
+  }
+}

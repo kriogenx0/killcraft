@@ -1,0 +1,48 @@
+// Theme tokens. Colors are CSS custom properties so light and dark schemes can swap them.
+
+$duration: 200ms;
+$radius: 3px;
+
+:root {
+  color-scheme: dark;
+
+  --color-text: #ecdcae;
+  --color-text-muted: #d0c090;
+  --color-gold: #ffd45a;
+  --color-title: #ffd45a;
+  --color-danger: #ff8a7a;
+  --color-hotkey: #9fe;
+  --color-focus: #fff3c0;
+  --color-rim: #b08a40;
+  --color-rim-hover: #e0b860;
+  --color-panel-top: #4d3720;
+  --color-panel-bottom: #21170b;
+  --color-inset: rgb(0 0 0 / 35%);
+  --color-tooltip: rgb(20 14 6 / 94%);
+  --color-button-top: #7a5a34;
+  --color-button-bottom: #3a2814;
+  --color-button-text: #fff0c0;
+  --color-overlay: rgb(0 0 0 / 72%);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --color-text: #2e2010;
+    --color-text-muted: #5a4426;
+    --color-gold: #7a4c00;
+    --color-danger: #a02010;
+    --color-hotkey: #0d5a4a;
+    --color-focus: #2e2010;
+    --color-rim: #9a7434;
+    --color-rim-hover: #6a4a14;
+    --color-panel-top: #efe0b8;
+    --color-panel-bottom: #cdb487;
+    --color-inset: rgb(255 255 255 / 40%);
+    --color-tooltip: rgb(250 240 214 / 97%);
+    --color-button-top: #fbf0d0;
+    --color-button-bottom: #dcc595;
+    --color-button-text: #2e2010;
+  }
+}

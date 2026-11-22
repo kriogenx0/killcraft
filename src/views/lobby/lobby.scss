@@ -1,0 +1,54 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+
+.view-lobby {
+  .lobby-title {
+    font-size: $font-display;
+    color: var(--color-title);
+    text-shadow: 0 4px 0 #6a3a10, 0 0 20px #000;
+  }
+
+  .lobby-status {
+    min-height: 1.4em;
+    color: #e8d8a8;
+
+    &--error {
+      color: var(--color-danger);
+    }
+  }
+
+  .lobby-games {
+    width: 100%;
+    max-width: 420px;
+    text-align: left;
+  }
+
+  .lobby-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
+    max-height: 30vh;
+    padding: 0;
+    margin: $space-2 0 0;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .lobby-game {
+    display: flex;
+    gap: $space-3;
+    align-items: center;
+    justify-content: space-between;
+    padding: $space-2 $space-3;
+    color: #e8d8a8;
+    background: rgb(0 0 0 / 40%);
+    border-radius: $radius;
+  }
+
+  .lobby-empty,
+  .lobby-online {
+    font-size: $font-sm;
+    color: #c8b888;
+  }
+}

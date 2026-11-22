@@ -1,0 +1,11 @@
+@use '../../styles/tokens' as *;
+
+// A carved-wood frame for docked interface areas.
+.ui-panel {
+  color: var(--color-text);
+  background:
+    repeating-linear-gradient(90deg, rgb(0 0 0 / 8%) 0 3px, transparent 3px 11px),
+    linear-gradient(var(--color-panel-top), var(--color-panel-bottom));
+  border: 0 solid var(--color-rim);
+  box-shadow: 0 0 10px rgb(0 0 0 / 60%);
+}

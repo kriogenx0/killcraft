@@ -1,0 +1,34 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+
+.ui-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  gap: $space-3;
+  align-items: center;
+  justify-content: center;
+  padding: $space-3;
+  text-align: center;
+  background: var(--color-overlay);
+
+  &--open {
+    display: flex;
+    animation: ui-modal-in $duration ease-out;
+  }
+
+  .ui-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $space-3;
+    justify-content: center;
+    margin-top: $space-4;
+  }
+}
+
+@keyframes ui-modal-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
