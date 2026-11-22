@@ -1,7 +1,7 @@
 // Keeps a 3D model for every entity the player can see, animates them, and draws the selection
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import * as THREE from 'three';
-import { G, valid, type Ent } from '../../../game/state.ts';
+import { G, haulOf, valid, type Ent } from '../../../game/state.ts';
 import { TS } from '../../../game/const.ts';
 import { BUILDING, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
@@ -80,6 +80,14 @@ function animateUnit(m: Model, e: Ent): void {
     case 'crossbowman':
       recoil(P.gun, atk > 0 ? (1 - atk) * 0.04 : 0);
       break;
+    case 'worker': {
+      const load = Math.min(1, e.carry / haulOf(e));
+      P.heap.visible = load > 0.02;
+      P.heap.scale.y = 0.2 + load * 0.8;
+      // swing the pick while digging
+      if (P.armR) P.armR.rotation.z = !e.moving && e.atkT > 0 ? 1.0 + Math.sin(G.gameT * 8) * 0.8 : 1.0 + swing * 0.2;
+      break;
+    }
     case 'harvester': {
       const load = Math.min(1, e.carry / HARVESTER_CAPACITY);
       P.heap.visible = load > 0.02;

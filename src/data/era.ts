@@ -13,7 +13,7 @@ export interface EraDef {
 export const ERA: EraDef[] = [
   { name: 'Medieval', desc: 'Swords, crossbows, knights and catapults.' },
   { name: 'World War', desc: 'Riflemen, Machine Gunners, Scout Jeeps, Battle Tanks, the Gun Turret and Flak Cannon, and War Balloons and Biplanes from the Airfield.' },
-  { name: 'Modern', desc: 'Rocket Soldiers, Heavy Tanks, Attack Helicopters and Combat Drones.' },
+  { name: 'Modern', desc: 'Harvesters replace Workers. Rocket Soldiers, Heavy Tanks, Attack Helicopters and Combat Drones.' },
 ];
 
 export const START_ERA = 0;
