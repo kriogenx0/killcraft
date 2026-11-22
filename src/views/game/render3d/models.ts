@@ -8,7 +8,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
-import type { BldType } from '../../../data/building.ts';
+import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
+import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
 import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
@@ -986,7 +987,7 @@ function derrick(team: number): Model {
   return { root, parts, height: 1.0 };
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak'>, team: number): Model {
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | AetherBld>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -1037,6 +1038,7 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 /** A structure as its team builds it in their current age (see data/era.ts). */
 export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1): Model {
   const lk = bldLook(type, era);
+  if (isAetherBld(type)) return cached(`b:${type}:${team}`, () => aetherBuilding(type, team)); // timeless: the same in every age
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>

@@ -6,7 +6,7 @@ import { mulberry32 } from '../util/math.ts';
 import { START_YARDS } from '../data/map.ts';
 import {
   AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REACH, AETHER_SITES,
-  CLOAK_DETECT, CLOAK_REVEAL, SLOW_FACTOR, WARD_FACTOR,
+  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { eachInDisk, nearPortal, setBlk } from './map.ts';
 
@@ -57,6 +57,8 @@ export function placeAether(seed: number): void {
   G.aether = [0, 0];
   G.aetherFound = [false, false];
   G.ward = [false, false];
+  G.waygates = [];
+  G.warpTeam.fill(-1);
   for (const [sx, sy] of aetherSites(seed)) {
     eachInDisk(sx, sy, 2, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; });
     const ok = reachable();
@@ -124,6 +126,7 @@ export function cloakedFrom(e: Ent, team: number): boolean {
   const r = CLOAK_DETECT * TS;
   for (const o of G.ents) {
     if (o.dead || o.team !== team || o.kind === 'source') continue;
+    if (o.type === 'wardstone' && o.done && Math.hypot(o.x - e.x, o.y - e.y) <= WARD_STONE_SIGHT * TS) return false;
     if (Math.hypot(o.x - e.x, o.y - e.y) - (o.w ? (o.w * TS) / 2 : 0) <= r) return false;
   }
   return true;
@@ -131,3 +134,56 @@ export function cloakedFrom(e: Ent, team: number): boolean {
 
 /** Damage a building takes after its side's Aether Ward. */
 export const wardDamage = (t: Ent, dmg: number): number => (t.kind === 'bld' && G.ward[t.team] ? dmg * WARD_FACTOR : dmg);
+
+// ---- Aether structures ----
+
+/** Star Shrines heal their side's units nearby, vehicles and aircraft too. Call once per `dt` seconds. */
+export function shrineHeal(dt: number): void {
+  const shrines = G.ents.filter((e) => !e.dead && e.type === 'shrine' && e.done);
+  if (!shrines.length) return;
+  const r = (SHRINE_RANGE + 1) * TS; // from the shrine's centre: its 2×2 footprint plus the range
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || u.hp >= u.maxhp) continue;
+    if (shrines.some((s) => s.team === u.team && Math.hypot(s.x - u.x, s.y - u.y) <= r)) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * SHRINE_HEAL * dt);
+  }
+}
+
+/** The walkable tile in front of a Waygate where units step in, or null if it's hemmed in. */
+function gateTile(b: Ent): Tile | null {
+  const cand: Tile[] = [];
+  for (let x = b.tx; x < b.tx + b.w; x++) cand.push([x, b.ty + b.h]); // in front (the arch faces +y)
+  for (let y = b.ty; y < b.ty + b.h; y++) cand.push([b.tx + b.w, y], [b.tx - 1, y]);
+  for (let x = b.tx; x < b.tx + b.w; x++) cand.push([x, b.ty - 1]);
+  for (const [x, y] of cand) {
+    if (x < 0 || y < 0 || x >= MW || y >= MH) continue;
+    const i = y * MW + x;
+    if (!G.blk[i] && G.terr[i] === GRASS && G.warp[i] < 0) return [x, y];
+  }
+  return null;
+}
+
+/** Link each side's first two finished Waygates. Call whenever Waygates may have changed (cheap). */
+export function syncWaygates(): void {
+  for (const w of G.waygates) for (const [x, y] of [w.a, w.b]) { G.warp[y * MW + x] = -1; G.warpTeam[y * MW + x] = -1; }
+  G.waygates = [];
+  for (const team of TEAMS) {
+    const gates = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'waygate' && e.done).sort((a, b) => a.id - b.id).slice(0, MAX_WAYGATES);
+    if (gates.length < 2) continue;
+    const a = gateTile(gates[0]);
+    if (!a) continue;
+    G.warp[a[1] * MW + a[0]] = 0; // reserve it while choosing the other end
+    const b = gateTile(gates[1]);
+    G.warp[a[1] * MW + a[0]] = -1;
+    if (!b) continue;
+    G.waygates.push({ a, b, team });
+    G.warp[a[1] * MW + a[0]] = b[1] * MW + b[0];
+    G.warp[b[1] * MW + b[0]] = a[1] * MW + a[0];
+    G.warpTeam[a[1] * MW + a[0]] = G.warpTeam[b[1] * MW + b[0]] = team;
+  }
+}
+
+/** Is this Waygate one of a linked pair? */
+export function waygateLinked(b: Ent): boolean {
+  if (!G.waygates.some((w) => w.team === b.team)) return false;
+  return G.ents.filter((e) => !e.dead && e.team === b.team && e.type === 'waygate' && e.done).sort((x, y) => x.id - y.id).slice(0, MAX_WAYGATES).includes(b);
+}

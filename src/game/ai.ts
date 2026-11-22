@@ -44,6 +44,10 @@ function nextStructure(team: number): BldType | null {
   // answer enemy aircraft with flak
   const foeAir = G.ents.filter((e) => !e.dead && e.team === 1 - team && isAir(e)).length;
   if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
+  // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine when there's Aether to spare
+  const aether = G.aether[team] ?? 0;
+  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team === 1 - team && e.type === 'phantom')) return 'wardstone';
+  if (can.includes('shrine') && countOf(team, 'shrine') < 1 && aether >= (BUILDING.shrine.aether ?? 0) + 40 && G.credits[team] > 1200) return 'shrine';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
   return null;

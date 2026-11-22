@@ -7,8 +7,8 @@ import { ERA, HEAL_RATE } from '../../data/era.ts';
 import { eraOf } from '../../game/production.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
-import { holderOf } from '../../game/aether.ts';
-import { AETHER_RATE } from '../../data/aether.ts';
+import { holderOf, waygateLinked } from '../../game/aether.ts';
+import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
@@ -120,7 +120,9 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
   const own = e.team === V.team && e.done;
-  const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '';
+  const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
+    : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
+  const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
     (e.team === V.team && d.produces && d.produces !== 'structure' ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }

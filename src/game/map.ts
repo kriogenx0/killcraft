@@ -109,7 +109,7 @@ function placePortals(seed: number): void {
 
 /** Is a tile within `r` tiles (square) of a portal gate? */
 export function nearPortal(tx: number, ty: number, r = 1): boolean {
-  return G.portals.some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r));
+  return [...G.portals, ...G.waygates].some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r));
 }
 
 /** Generate a playable map, trying following seeds until the bases connect. Returns the seed used. */

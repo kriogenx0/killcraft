@@ -1,7 +1,12 @@
 import type { WeaponType } from './weapon.ts';
 import type { Producer } from './unit.ts';
 
-export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'airfield' | 'flak';
+export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'airfield' | 'flak'
+  | 'shrine' | 'wardstone' | 'waygate';
+
+/** Structures bought with Aether. */
+export type AetherBld = 'shrine' | 'wardstone' | 'waygate';
+export const isAetherBld = (t: string): t is AetherBld => t === 'shrine' || t === 'wardstone' || t === 'waygate';
 
 export interface BldDef {
   name: string;
@@ -14,6 +19,8 @@ export interface BldDef {
   cost: number;
   wood?: number;
   oil?: number;
+  /** Aether (data/aether.ts); structures that need it are hidden until the side first finds some */
+  aether?: number;
   /** build time in seconds at full power */
   t: number;
   /** the age (see data/era.ts) that unlocks this structure */
@@ -43,10 +50,14 @@ export const BUILDING: Record<BldType, BldDef> = {
   derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 1200, t: 16, era: 1, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
   airfield: { name: 'Airfield', size: 3, top: 30, hp: 900, cost: 1200, wood: 300, t: 20, era: 1, power: -30, sight: 6, requires: ['refinery'], produces: 'air', buildable: true, desc: 'Builds aircraft: balloons, then biplanes and helicopters in later ages.' },
   flak: { name: 'Flak Cannon', size: 1, top: 14, hp: 420, cost: 700, t: 10, era: 1, power: -20, sight: 8, requires: ['barracks'], weapon: 'flak', buildable: true, desc: 'Anti-aircraft gun with a long reach. Only fires at aircraft.' },
+  // Aether structures, revealed once a side finds Aether (see data/aether.ts)
+  shrine: { name: 'Star Shrine', size: 2, top: 40, hp: 500, cost: 300, aether: 80, t: 20, era: 0, power: 0, sight: 5, requires: [], buildable: true, desc: 'A ring of standing stones around a fallen-star shard. Slowly heals your units nearby, machines included.' },
+  wardstone: { name: 'Ward Stone', size: 1, top: 36, hp: 300, cost: 150, aether: 40, t: 10, era: 0, power: 0, sight: 6, requires: [], buildable: true, desc: 'An obelisk with an Aether eye. Sees far and reveals cloaked enemies near it.' },
+  waygate: { name: 'Waygate', size: 2, top: 44, hp: 600, cost: 400, aether: 75, t: 18, era: 1, power: -10, sight: 4, requires: [], buildable: true, desc: 'Build two and they link: your units step through one and out of the other. Enemies can\'t use them.' },
 };
 
 /** Order the structures appear in the sidebar. */
-export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'factory', 'tower', 'turret', 'derrick', 'airfield', 'flak'];
+export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'factory', 'tower', 'turret', 'derrick', 'airfield', 'flak', 'shrine', 'wardstone', 'waygate'];
 
 /** New structures must be placed within this many tiles of an existing one. */
 export const BUILD_RADIUS = 3;

@@ -13,7 +13,7 @@ import { updFx } from './fx.ts';
 import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
-import { drawAether, placeAether } from './aether.ts';
+import { drawAether, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
 
@@ -72,7 +72,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); shrineHeal(ORE_INTERVAL); syncWaygates(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   G.aiT -= dt;

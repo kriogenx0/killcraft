@@ -108,6 +108,8 @@ export interface Particle {
 
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
+/** A linked pair of Waygates: like a portal, but only its team may use it. */
+export interface Waygate extends Portal { team: number }
 
 export interface Decal {
   kind: 'splat' | 'corpse' | 'rubble' | 'wreck' | 'scorch';
@@ -127,6 +129,10 @@ export const G = {
   portals: [] as Portal[],
   /** for each tile, the tile index its portal leads to, or -1 */
   warp: new Int32Array(MW * MH).fill(-1),
+  /** linked Waygate pairs (see game/aether.ts) */
+  waygates: [] as Waygate[],
+  /** for each warp tile, the only team that may use it, or -1 for anyone (map portals) */
+  warpTeam: new Int8Array(MW * MH).fill(-1),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
   /** fog of the team being viewed on this screen (an alias of sight[viewer]) */

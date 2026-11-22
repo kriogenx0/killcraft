@@ -7,7 +7,8 @@ import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, isTechType, type TechType } from '../data/era.ts';
-import { addUnit, hasBuilding, lowPower } from './entity.ts';
+import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
+import { MAX_WAYGATES } from '../data/aether.ts';
 import { exitTile, placeBuilding } from './building.ts';
 import { orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
@@ -65,7 +66,10 @@ export function producerOf(team: number, line: ProductionLine): Ent | null {
 export function available(team: number, line: ProductionLine): Buildable[] {
   if (!producerOf(team, line)) return [];
   const era = eraOf(team);
-  if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].era <= era && BUILDING[t].requires.every((r) => hasBuilding(team, r)));
+  if (line === 'structure') {
+    return BLD_TYPES.filter((t) => BUILDING[t].era <= era && revealed(team, t) && BUILDING[t].requires.every((r) => hasBuilding(team, r)) &&
+      (t !== 'waygate' || countOf(team, 'waygate') < MAX_WAYGATES));
+  }
   if (line === 'tech') {
     return [nextTech(team), nextHeal(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
