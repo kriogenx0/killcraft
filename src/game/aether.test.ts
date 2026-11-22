@@ -5,7 +5,8 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { available, enqueue } from './production.ts';
-import { cloakedFrom, deposits, holderOf, syncWaygates, waygateLinked } from './aether.ts';
+import { cloakedFrom, deposits, drawingFrom, holderOf, isDrawing, syncWaygates, waygateLinked } from './aether.ts';
+import { applySnapshot, encodeEnt } from '../net/snapshot.ts';
 import { findPath, isJump } from './path.ts';
 import { acquire, dealDamage, fire } from './combat.ts';
 import type { WeaponType } from '../data/weapon.ts';
@@ -122,6 +123,24 @@ describe('Aether', () => {
     expect(deposits()).not.toContain(d);
     expect(G.aether[0] + G.aether[1]).toBeCloseTo(AETHER_PER_DEPOSIT, 0);
     expect(errors).toEqual([]);
+  });
+
+  it('shows a unit drawing Aether like an attack, offline and in snapshots', () => {
+    const d = deposits()[0], u = beside(d, 'swordsman', 0), idle = addUnit('swordsman', 0, 5 * TS, 5 * TS);
+    expect(isDrawing(u)).toBe(false);
+    run(1.5);
+    expect(isDrawing(u)).toBe(true);
+    expect(drawingFrom(u)).toBe(d);
+    expect(isDrawing(idle)).toBe(false);
+    // the online client learns it from the snapshot flags
+    const row = encodeEnt(u, true);
+    u.drawT = 0;
+    applySnapshot([row], [], () => {});
+    expect(isDrawing(u)).toBe(true);
+    // walking away stops the beam once the last draw fades
+    u.x = 5 * TS; u.y = 8 * TS;
+    run(2);
+    expect(isDrawing(u)).toBe(false);
   });
 
   it('spends Aether on hidden units, and can\'t start one without it', () => {

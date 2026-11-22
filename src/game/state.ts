@@ -74,6 +74,8 @@ export interface Ent extends Target {
   cargo?: Cargo;
   /** Aether carried home from a deposit */
   ae?: number;
+  /** game time until which this unit shows as drawing Aether from a deposit (a beam, like an attack) */
+  drawT?: number;
   /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
   loot?: number;
   scan: number;
