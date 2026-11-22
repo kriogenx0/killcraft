@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
+import { G, blkAt, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder } from './state.ts';
 import { MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
 import { nearestFree, pathFor } from './path.ts';
@@ -15,6 +15,8 @@ import { hasBuilding } from './entity.ts';
 
 const AUTO_CHASE = 9 * TS;
 const ORE_SEARCH = 24;
+/** How far (px) a stuck unit edges aside to get past a unit in its way. */
+const SIDESTEP = 8;
 
 /**
  * Is this ore tile someone else's? Always: another harvester is scooping it, or one that claimed it
@@ -107,7 +109,12 @@ function unstick(u: Ent, dt: number): void {
     // close enough to the goal in a crowd counts as arrived; otherwise look for another way
     const last = u.path[u.path.length - 1], rem = Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y);
     if (rem < 2.5 * TS) u.path.length = 0;
-    else if (u.goal) u.path = pathFor(u, u.goal[0], u.goal[1]);
+    else {
+      // jammed nose to nose with someone: edge over to the right, like traffic, so both can pass
+      const sx = u.x - Math.sin(u.face) * SIDESTEP, sy = u.y + Math.cos(u.face) * SIDESTEP;
+      if (!blkAt(sx, sy)) { u.x = sx; u.y = sy; }
+      if (u.goal) u.path = pathFor(u, u.goal[0], u.goal[1]);
+    }
   }
   u.px = u.x; u.py = u.y;
 }
@@ -146,7 +153,7 @@ function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const r = approach(u, t, MEDIC_RANGE, dt);
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
-  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), 8 * dt);
+  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // kneels and works: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
 }

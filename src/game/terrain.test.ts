@@ -15,6 +15,7 @@ describe('terrain', () => {
     for (let y = 0; y < MH; y++) G.terr[y * MW + 20] = SHALLOW;
     rebuildBlk();
     const u = addUnit('swordsman', 0, 18.5 * TS, 10.5 * TS);
+    u.face = 0; // already facing the way it walks, so turning doesn't slow it
     expect(terrainSpeed(u)).toBe(1);
     u.x = 20.5 * TS;
     expect(terrainSpeed(u)).toBe(SHALLOW_SPEED);
