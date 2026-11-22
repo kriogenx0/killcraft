@@ -23,7 +23,7 @@ export const ais: AiState[] = [
 const GUARDS = 2;
 const GUARD_ARMY = 5;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'hospital', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'hospital', 'armory', 'mill', 'tower', 'turret', 'derrick', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -97,17 +97,20 @@ function construction(team: number): void {
 }
 
 /**
- * Advance an age once the base is running and the bank can spare it. Faster healing is cheaper and
+ * Advance an age once the base is running and the bank can spare it. Faster healing (at the Hospital)
  * comes once there's an infantry force worth healing.
  */
 function research(team: number): void {
-  if (G.prod[team].tech.length) return;
   if (countOf(team, 'refinery') < 1 || countOf(team, 'harvester') < 1) return;
-  const can = available(team, 'tech').filter(isTechType), credits = G.credits[team];
-  const age = can.find((t) => TECH[t].age != null), heal = can.find((t) => TECH[t].heal != null);
-  if (age && credits > costOf(age) * 0.6 + 200 && hasHalf(team, age)) { enqueue(team, age); return; }
+  const credits = G.credits[team];
+  // healing is researched at the Hospital, alongside the yard
+  const heal = available(team, 'hospital').filter(isTechType)[0];
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
-  if (heal && infantry >= 4 && credits > costOf(heal) * 0.6 + 300 && hasHalf(team, heal)) { enqueue(team, heal); return; }
+  if (heal && !G.prod[team].hospital.length && infantry >= 4 && credits > costOf(heal) * 0.6 + 300 && hasHalf(team, heal)) enqueue(team, heal);
+  if (G.prod[team].tech.length) return;
+  const can = available(team, 'tech').filter(isTechType);
+  const age = can.find((t) => TECH[t].age != null);
+  if (age && G.credits[team] > costOf(age) * 0.6 + 200 && hasHalf(team, age)) { enqueue(team, age); return; }
   const ward = can.find((t) => TECH[t].ward);
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
@@ -115,6 +118,24 @@ function research(team: number): void {
 
 /** At least half the wood and oil a research needs is in the bank. */
 const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
+
+/**
+ * Armory upgrades once there's an army to improve, favoring whichever side (troops or machines) the
+ * army has more of, and alternating weapons and armor by taking the cheaper level first.
+ */
+function armory(team: number): void {
+  if (G.prod[team].armory.length) return;
+  const can = available(team, 'armory').filter(isTechType);
+  if (!can.length) return;
+  const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
+  if (army.length < 5) return;
+  const foot = army.filter(isOrganic).length, side = foot * 2 >= army.length ? 'inf' : 'veh';
+  const mine = can.filter((t) => TECH[t].upg?.track.startsWith(side));
+  const t = (mine.length ? mine : can).reduce((a, b) => (costOf(b) < costOf(a) ? b : a));
+  // don't starve the next age: keep its price in the bank too
+  const age = available(team, 'tech').filter(isTechType).find((x) => TECH[x].age != null);
+  if (G.credits[team] > costOf(t) * 0.6 + 600 + (age ? costOf(age) * 0.3 : 0)) enqueue(team, t);
+}
 
 /** Pick from weighted options, skipping anything the team can't build yet or lacks the wood or oil for. */
 function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [UnitType, number][]): UnitType | null {
@@ -223,6 +244,7 @@ function military(team: number): void {
 export function aiThink(team: number): void {
   construction(team);
   research(team);
+  armory(team);
   training(team);
   upkeep(team);
   military(team);

@@ -2,9 +2,11 @@
 import { G, STANCES, bldDef, isOrganic, unitDef, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
+import { isUnitProducer } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
+import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
 import { eraOf } from '../../game/production.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
@@ -108,10 +110,12 @@ export function refreshCommands(force = false): void {
 
 function unitDetails(e: Ent): string {
   const d = unitDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
-  const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
+  // Armory upgrades show as percentages next to the base numbers
+  const wb = Math.round((weaponFactor(e) - 1) * 100), ab = Math.round((1 - armorFactor(e)) * 100);
+  const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg}${wb ? ` (+${wb}%)` : ''} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
   // organic units heal slowly on their own: show how fast for our own troops
   const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * healRate(V.team) * 60)}/min` : '';
-  let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${heal}</p>`;
+  let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${ab ? ` (-${ab}% damage)` : ''}${heal}</p>`;
   if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
   return h;
 }
@@ -124,7 +128,7 @@ function buildingDetails(e: Ent): string {
   const own = e.team === V.team && e.done;
   const yieldText = !own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '';
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
-    (e.team === V.team && d.produces && d.produces !== 'structure' ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
+    (e.team === V.team && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }
 
 function detailsMarkup(s: Ent[]): string {

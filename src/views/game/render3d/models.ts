@@ -1012,7 +1012,22 @@ function hospital(m: Model): Model {
   return m;
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital'>, team: number): Model {
+/** An Armory is a barracks-sized forge: an anvil on a stump out front and a shield with crossed swords. */
+function armory(m: Model, team: number): Model {
+  const iron = M.iron(), h = Math.max(0.7, m.height * 0.8);
+  m.root.add(mesh(cyl(0.1, 0.11, 0.16, 10), M.darkWood(), 0.62, 0.08, 0.8)); // stump
+  m.root.add(mesh(box(0.2, 0.07, 0.1), iron, 0.62, 0.19, 0.8)); // anvil
+  m.root.add(mesh(box(0.08, 0.04, 0.06), iron, 0.62, 0.135, 0.8));
+  m.root.add(mesh(cyl(0.025, 0.03, h, 6), M.darkWood(), 0.82, h / 2, 0.82));
+  m.root.add(group(0.82, h + 0.1, 0.82,
+    mesh(box(0.28, 0.24, 0.03), teamMat(team), 0, 0.02, 0),
+    rot(mesh(cone(0.14, 0.12, 4), teamMat(team), 0, -0.14, 0), Math.PI, Math.PI / 4, 0),
+    rot(mesh(box(0.035, 0.36, 0.04), M.steel(), 0, 0, 0), 0, 0, 0.7),
+    rot(mesh(box(0.035, 0.36, 0.04), M.steel(), 0, 0, 0), 0, 0, -0.7)));
+  return m;
+}
+
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory'>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -1064,11 +1079,14 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1): Model {
   const lk = bldLook(type, era);
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
-  if (type === 'hospital') return cached(`b:${type}:${team}:${lk}`, () => hospital(
-    lk === 0 ? medievalBuilding('barracks', team, 'wood')
+  if (type === 'hospital' || type === 'armory') {
+    // both are barracks-sized buildings told apart by what stands out front
+    const base = () => (lk === 0 ? medievalBuilding('barracks', team, 'wood')
       : lk === 1 ? medievalBuilding('barracks', team, 'stone')
         : lk === 2 ? industrial(makeBuilding('barracks', team))
-          : makeBuilding('barracks', team)));
+          : makeBuilding('barracks', team));
+    return cached(`b:${type}:${team}:${lk}`, () => (type === 'hospital' ? hospital(base()) : armory(base(), team)));
+  }
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>
     lk === 0 ? medievalBuilding(type, team, 'wood')

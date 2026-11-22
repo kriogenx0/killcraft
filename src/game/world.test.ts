@@ -85,7 +85,7 @@ describe('production', () => {
     expect(available(0, 'tech')).toEqual([]); // needs a barracks first
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
-    expect(available(0, 'tech')).toEqual(['age1', 'heal1']);
+    expect(available(0, 'tech')).toEqual(['age1']);
     G.credits[0] = 5000;
     G.wood[0] = 5000;
     expect(enqueue(0, 'age1')).toBe(true);
@@ -97,7 +97,7 @@ describe('production', () => {
     expect(available(0, 'infantry')).not.toContain('rocket');
     expect(available(0, 'structure')).toContain('turret');
     // the Modern age needs a War Factory
-    expect(available(0, 'tech')).toEqual(['heal1']);
+    expect(available(0, 'tech')).toEqual([]);
   });
 
   it('slowly heals infantry and knights but not vehicles', () => {
@@ -112,22 +112,25 @@ describe('production', () => {
     expect(k.hp).toBe(k.maxhp);
   });
 
-  it('researches faster healing at the Construction Yard, one level at a time', () => {
+  it('researches faster healing at the Hospital, one level at a time', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     G.credits[0] = 5000;
+    expect(enqueue(0, 'heal1')).toBe(false); // needs a Hospital
+    addBuilding('hospital', 0, 16, 50, false);
     expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and World War
     expect(enqueue(0, 'heal1')).toBe(true);
-    expect(enqueue(0, 'age1')).toBe(false); // one research at a time
+    expect(enqueue(0, 'heal1')).toBe(false); // one research at a time
+    expect(enqueue(0, 'age1')).toBe(true); // the yard researches alongside
     run(30);
     expect(G.heal[0]).toBe(1);
-    expect(available(0, 'tech')).toEqual(['age1']);
+    expect(available(0, 'hospital')).toEqual([]);
     G.era[0] = 1;
-    expect(available(0, 'tech')).toContain('heal2');
+    expect(available(0, 'hospital')).toEqual(['heal2']);
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);
     s.hp = foe.hp = 10;
     run(10);
-    expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * 10, 0);
+    expect(s.hp - 10).toBeCloseTo(s.maxhp * HEAL_RATE[1] * HOSPITAL_HEAL * 10, 0);
     expect(foe.hp - 10).toBeCloseTo(foe.maxhp * HEAL_RATE[0] * 10, 0);
   });
 

@@ -10,6 +10,7 @@ import { dropSalvage } from './economy.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
+import { armorFactor, weaponFactor } from './upgrade.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -25,7 +26,7 @@ export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
   if (t.dead || t.kind === 'source') return;
-  t.hp -= Math.max(1, wardDamage(t, dmg));
+  t.hp -= Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));

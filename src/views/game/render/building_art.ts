@@ -301,9 +301,22 @@ function drawHospital(g: G2, T: TeamColors): void {
   g.fillRect(28, 6, 8, 20); g.fillRect(22, 12, 20, 8);
 }
 
+function drawArmory(g: G2, T: TeamColors): void {
+  pad(g, 64, 64);
+  box(g, 6, 4, 52, 22, 22, '#6a5a4a', ['#8a7a68', '#4e4236']);
+  stripe(g, 6, 26, 52, 3, T);
+  g.fillStyle = '#1e1a16'; g.fillRect(26, 34, 12, 14); // forge door
+  g.fillStyle = '#ff8a30'; g.fillRect(28, 42, 8, 4); // glow
+  // crossed swords on the roof
+  oline(g, 20, 8, 44, 24, 2.5, '#d8dce4');
+  oline(g, 44, 8, 20, 24, 2.5, '#d8dce4');
+  // anvil out front
+  g.fillStyle = '#3a3a3e'; g.fillRect(46, 50, 12, 4); g.fillRect(49, 54, 6, 4);
+}
+
 const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
-  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital,
+  mill: drawMill, derrick: drawDerrick, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital, armory: drawArmory,
 };
 
 /** Cached sprite for a building type and team. */
