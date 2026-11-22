@@ -19,7 +19,7 @@ export type Command =
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
   | { c: 'cancel'; type: Buildable }
-  | { c: 'place'; tx: number; ty: number }
+  | { c: 'place'; tx: number; ty: number; ex?: number; ey?: number }
   | { c: 'repair'; id: number }
   | { c: 'sell'; id: number };
 
@@ -52,7 +52,10 @@ export function parseCommand(raw: unknown): Command | null {
     case 'cancel':
       return typeof o.type === 'string' && BUILDABLE.has(o.type) ? { c: o.c, type: o.type as Buildable } : null;
     case 'place':
-      return inMap(o.tx, o.ty) ? { c: 'place', tx: o.tx as number, ty: o.ty as number } : null;
+      if (!inMap(o.tx, o.ty)) return null;
+      // walls: the far end of a dragged line
+      if (o.ex !== undefined || o.ey !== undefined) return inMap(o.ex, o.ey) ? { c: 'place', tx: o.tx as number, ty: o.ty as number, ex: o.ex as number, ey: o.ey as number } : null;
+      return { c: 'place', tx: o.tx as number, ty: o.ty as number };
     case 'repair':
     case 'sell':
       return isInt(o.id) ? { c: o.c, id: o.id } : null;
@@ -104,7 +107,7 @@ export function applyCommand(team: number, cmd: Command): void {
       cancel(team, cmd.type);
       break;
     case 'place':
-      placeReady(team, cmd.tx, cmd.ty);
+      placeReady(team, cmd.tx, cmd.ty, cmd.ex, cmd.ey);
       break;
     case 'repair': {
       const b = ownBuilding(team, cmd.id);
