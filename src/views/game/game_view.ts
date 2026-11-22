@@ -286,7 +286,8 @@ function showcase(what: string): void {
  * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?reveal no fog, ?cam=x,y center on a
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
- * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light.
+ * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
+ * your Armory armour upgrades at level N.
  */
 function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void, openLobby: (quick: boolean, join?: string) => void): void {
   if (q.has('online') || q.has('join')) { openLobby(q.get('online') === 'quick', q.get('join') ?? undefined); return; }
@@ -294,6 +295,8 @@ function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void
   else if (q.has('auto')) startSolo(false);
   if (q.has('era')) G.era[V.team] = Math.max(0, Math.min(LAST_ERA, Number(q.get('era')) || 0));
   if (q.has('showcase')) showcase(q.get('showcase') ?? '');
+  const armor = Number(q.get('armor'));
+  if (armor > 0 && G.upg[V.team]) G.upg[V.team].infArmor = G.upg[V.team].vehArmor = Math.min(3, armor);
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
   const sim = Number(q.get('sim') ?? 0) / STEP;
   for (let i = 0; i < sim && !G.over; i++) update(STEP);

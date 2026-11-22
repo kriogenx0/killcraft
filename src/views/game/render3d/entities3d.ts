@@ -16,6 +16,7 @@ import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
+import { armorKit, armorLevel } from './armor3d.ts';
 import { levelUnder } from './world3d.ts';
 import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
@@ -42,6 +43,10 @@ export function resetEntities3d(): void {
 function create(e: Ent): Model {
   const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
   m.root.userData.id = e.id;
+  if (e.kind === 'unit') {
+    const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));
+    if (kit) { m.root.add(kit.root); if (kit.turret) (m.parts.turret ?? m.root).add(kit.turret); }
+  }
   if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
   holder.add(m.root);
@@ -264,7 +269,7 @@ export function syncEntities(dt: number): void {
     seen.add(e.id);
     let o = objs.get(e.id);
     // structures change their look as their side advances through the ages
-    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}` : `${e.type}|${e.team}`;
+    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
     if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
     if (!o) { o = { model: create(e), key }; objs.set(e.id, o); }
     const r = o.model.root;
