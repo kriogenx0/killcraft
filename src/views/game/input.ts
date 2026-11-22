@@ -213,10 +213,18 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
   canvas.addEventListener('pointercancel', (ev) => { touches.delete(ev.pointerId); pinch = null; orbiting = null; V.mouse.down = false; V.mouse.drag = false; });
   canvas.addEventListener('wheel', (ev) => {
     ev.preventDefault();
-    // wheel zooms; with Shift it tilts
-    if (ev.shiftKey) V.cam.pitch += Math.sign(ev.deltaY || ev.deltaX) * 0.06;
-    else V.cam.dist *= ev.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-    clampCam();
+    // Ctrl/Cmd+wheel (and trackpad pinch, which arrives as Ctrl+wheel) zooms; Alt+wheel tilts
+    if (ev.ctrlKey || ev.metaKey) {
+      V.cam.dist *= Math.exp(Math.max(-1, Math.min(1, ev.deltaY * (ev.deltaMode ? 0.33 : 0.01))) * Math.log(ZOOM_STEP));
+      clampCam();
+      return;
+    }
+    if (ev.altKey) { V.cam.pitch += Math.sign(ev.deltaY || ev.deltaX) * 0.06; clampCam(); return; }
+    // plain scrolling pans the map; Shift turns a mouse wheel's vertical scroll into sideways
+    const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? V.vh : 1;
+    let dx = ev.deltaX * unit, dy = ev.deltaY * unit;
+    if (ev.shiftKey && !dx) { dx = dy; dy = 0; }
+    panScreen(dx, dy);
   }, { passive: false });
   document.addEventListener('pointerleave', () => { V.mouse.inside = false; });
   canvas.addEventListener('dblclick', (ev) => {
@@ -287,6 +295,18 @@ function onKey(ev: KeyboardEvent): void {
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (runHotkey(k)) ev.preventDefault();
+}
+
+/** Move the view by a screen offset (px), as if dragging the ground the other way. */
+function panScreen(dx: number, dy: number): void {
+  const cx = V.vw / 2, cy = V.vh / 2;
+  const w0 = screenToWorld(cx, cy), w1 = screenToWorld(cx + dx, cy + dy);
+  if (w0 && w1) { V.cam.x += w1.x - w0.x; V.cam.y += w1.y - w0.y; }
+  else {
+    const [px, py] = panDelta(V.cam.yaw, dx * V.cam.dist * 0.05, dy * V.cam.dist * 0.05);
+    V.cam.x += px; V.cam.y += py;
+  }
+  clampCam();
 }
 
 /** Pan with W A S D, the arrow keys or the screen edge; turn with Q and E. */
