@@ -18,6 +18,9 @@ export const dome = (r: number) => geo(`d${r}`, () => new THREE.SphereGeometry(r
 export const cone = (r: number, h: number, seg = 8) => geo(`k${r},${h},${seg}`, () => new THREE.ConeGeometry(r, h, seg));
 export const octa = (r: number) => geo(`o${r}`, () => new THREE.OctahedronGeometry(r));
 export const dodeca = (r: number) => geo(`x${r}`, () => new THREE.DodecahedronGeometry(r));
+export const torus = (r: number, tube: number, arc = Math.PI * 2, rs = 6, ts = 16) => geo(`t${r},${tube},${arc},${rs},${ts}`, () => new THREE.TorusGeometry(r, tube, rs, ts, arc));
+/** A surface of revolution through [radius, height] points, around y. */
+export const lathe = (pts: [number, number][], seg = 16) => geo(`l${pts.join(';')},${seg}`, () => new THREE.LatheGeometry(pts.map(([r, h]) => new THREE.Vector2(r, h)), seg));
 
 interface MatOpts { rough?: number; metal?: number; emissive?: string; emissiveIntensity?: number; flat?: boolean }
 
@@ -56,6 +59,19 @@ export const M = {
   rock: () => mat('#5a534a', { rough: 0.95, flat: true }),
   sandbag: () => mat('#b8a070', { rough: 1 }),
   white: () => mat('#f2ece0', { rough: 0.8 }),
+  iron: () => mat('#3a3c40', { rough: 0.6, metal: 0.7 }),
+  brass: () => mat('#b08a3a', { rough: 0.4, metal: 0.8 }),
+  rope: () => mat('#a8885a', { rough: 1 }),
+  cloth: () => mat('#d8ccb0', { rough: 0.95 }),
+  mail: () => mat('#8a9098', { rough: 0.55, metal: 0.6 }),
+  hair: () => mat('#2a1a0e', { rough: 0.9 }),
+  dark: () => mat('#141618', { rough: 0.7 }),
+  plume: () => mat('#f4f0e6', { rough: 0.95 }),
+  lamp: () => mat('#fff2c0', { rough: 0.4, emissive: '#ffd070', emissiveIntensity: 1.2 }),
+  beacon: () => mat('#ff8a20', { rough: 0.4, emissive: '#ff6a00', emissiveIntensity: 1.1 }),
+  redLamp: () => mat('#ff4030', { rough: 0.4, emissive: '#ff2010', emissiveIntensity: 1.2 }),
+  brick: () => mat('#8c5a44', { rough: 0.95 }),
+  tarp: () => mat('#5c6240', { rough: 0.95 }),
 };
 
 /** A team's colors: main, dark and light. */
