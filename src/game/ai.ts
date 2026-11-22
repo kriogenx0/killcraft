@@ -1,6 +1,7 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves.
-import { G, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { G, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { TECH, isTechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import type { UnitType } from '../data/unit.ts';
@@ -66,12 +67,18 @@ function construction(team: number): void {
   if (t) enqueue(team, t);
 }
 
-/** Advance an age once the base is running and the bank can spare it. */
+/**
+ * Advance an age once the base is running and the bank can spare it. Faster healing is cheaper and
+ * comes once there's an infantry force worth healing.
+ */
 function research(team: number): void {
   if (G.prod[team].tech.length) return;
-  const t = available(team, 'tech')[0];
-  if (!t || countOf(team, 'refinery') < 1 || countOf(team, 'harvester') < 1) return;
-  if (G.credits[team] > costOf(t) * 0.6 + 400) enqueue(team, t);
+  if (countOf(team, 'refinery') < 1 || countOf(team, 'harvester') < 1) return;
+  const can = available(team, 'tech').filter(isTechType), credits = G.credits[team];
+  const age = can.find((t) => TECH[t].age != null), heal = can.find((t) => TECH[t].heal != null);
+  if (age && credits > costOf(age) * 0.6 + 400) { enqueue(team, age); return; }
+  const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
+  if (heal && infantry >= 4 && credits > costOf(heal) * 0.6 + 300) enqueue(team, heal);
 }
 
 /** Pick from weighted options, skipping anything the team can't build yet. */

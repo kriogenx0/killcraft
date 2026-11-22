@@ -1,4 +1,4 @@
-// Sidebar production: one structure and one age of research at a time from the Construction Yard,
+// Sidebar production: one structure and one research (an age, or faster healing) at a time from the Construction Yard,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
 // Credits are spent as work progresses; production stalls when money runs out and
 // runs at half speed on low power.
@@ -6,7 +6,7 @@ import { G, say, type Ent, type Production, type ProductionItem, type Production
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from '../data/building.ts';
-import { ERA, LAST_ERA, TECH, TECH_TYPES, isTechType, type TechType } from '../data/era.ts';
+import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, isTechType, type TechType } from '../data/era.ts';
 import { addUnit, hasBuilding, lowPower } from './entity.ts';
 import { exitTile, placeBuilding } from './building.ts';
 import { orderHarvest, orderMove } from './order.ts';
@@ -31,9 +31,17 @@ export const descOf = (t: Buildable): string => defOf(t).desc;
 /** The team's current age (index into ERA). */
 export const eraOf = (team: number): number => G.era[team] ?? 0;
 
+/** The team's healing level (index into HEAL_RATE). */
+export const healOf = (team: number): number => G.heal[team] ?? 0;
+
 /** The research that would take a team into its next age, if there is one. */
 export function nextTech(team: number): TechType | null {
-  return TECH_TYPES.find((t) => TECH[t].era === eraOf(team) + 1) ?? null;
+  return TECH_TYPES.find((t) => TECH[t].age === eraOf(team) + 1) ?? null;
+}
+
+/** The next healing research, once the team's age allows it. */
+export function nextHeal(team: number): TechType | null {
+  return TECH_TYPES.find((t) => TECH[t].heal === healOf(team) + 1 && TECH[t].era <= eraOf(team)) ?? null;
 }
 
 export function producerOf(team: number, line: ProductionLine): Ent | null {
@@ -46,8 +54,7 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   const era = eraOf(team);
   if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].era <= era && BUILDING[t].requires.every((r) => hasBuilding(team, r)));
   if (line === 'tech') {
-    const t = nextTech(team);
-    return t && TECH[t].requires.every((r) => hasBuilding(team, r)) ? [t] : [];
+    return [nextTech(team), nextHeal(team)].filter((t): t is TechType => !!t && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era);
 }
@@ -93,7 +100,13 @@ function deliver(team: number, type: UnitType): void {
 }
 
 function advance(team: number, type: TechType): void {
-  G.era[team] = Math.min(LAST_ERA, Math.max(eraOf(team), TECH[type].era));
+  const { age, heal, name } = TECH[type];
+  if (heal != null) {
+    G.heal[team] = Math.min(MAX_HEAL, Math.max(healOf(team), heal));
+    say(team, `${name} researched`);
+    return;
+  }
+  G.era[team] = Math.min(LAST_ERA, Math.max(eraOf(team), age ?? 0));
   say(team, `${ERA[G.era[team]].name} age reached`);
 }
 

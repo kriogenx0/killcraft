@@ -1,9 +1,9 @@
 // The top bar (credits, power, time) and the selection panel with its commands.
-import { G, bldDef, unitDef, type Ent } from '../../game/state.ts';
+import { G, bldDef, isOrganic, unitDef, type Ent } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
-import { ERA } from '../../data/era.ts';
+import { ERA, HEAL_RATE } from '../../data/era.ts';
 import { eraOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
@@ -91,7 +91,9 @@ export function refreshCommands(force = false): void {
 function unitDetails(e: Ent): string {
   const d = unitDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
-  let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}</p>`;
+  // organic units heal slowly on their own: show how fast for our own troops
+  const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * (HEAL_RATE[G.heal[V.team] ?? 0] ?? 0) * 60)}/min` : '';
+  let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${heal}</p>`;
   if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
   return h;
 }

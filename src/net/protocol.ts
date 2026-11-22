@@ -23,6 +23,8 @@ export interface SnapMsg {
   credits: number;
   /** the team's age of technology */
   era: number;
+  /** the team's healing level */
+  heal: number;
   prod: Production;
   ents: EntRow[];
   ev: FxEvent[];

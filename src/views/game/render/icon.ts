@@ -35,7 +35,20 @@ export function makeIcons(team = 0): void {
   // research: a gold medallion with the age's numeral
   const NUMERAL = ['I', 'II', 'III', 'IV'];
   for (const t of TECH_TYPES) {
-    const era = TECH[t].era;
+    const { age, heal } = TECH[t];
+    if (heal != null) {
+      // healing research: a white medallion with a red cross, one pip per level
+      ICON[t] = make((g) => {
+        g.fillStyle = '#f4f0e6'; g.strokeStyle = '#000'; g.lineWidth = 2;
+        g.beginPath(); g.arc(W / 2, 20, 16, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.fillStyle = '#c42a22';
+        g.fillRect(W / 2 - 3.5, 9, 7, 22);
+        g.fillRect(W / 2 - 11, 16.5, 22, 7);
+        for (let i = 0; i < heal; i++) { g.beginPath(); g.arc(W / 2 + (i - (heal - 1) / 2) * 8, 42, 2.5, 0, Math.PI * 2); g.fill(); }
+      });
+      continue;
+    }
+    const era = age ?? 0;
     ICON[t] = make((g) => {
       const grad = g.createRadialGradient(W / 2 - 6, 14, 2, W / 2, 20, 22);
       grad.addColorStop(0, '#fff2c0');
