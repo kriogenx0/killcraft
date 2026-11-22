@@ -1,7 +1,7 @@
 import type { WeaponType } from './weapon.ts';
 import type { Producer } from './unit.ts';
 
-export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'works' | 'airfield' | 'flak' | 'hospital'
+export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'works' | 'airfield' | 'flak' | 'hospital' | 'armory'
   | 'shrine' | 'wardstone' | 'waygate';
 
 /** Structures bought with Aether. */
@@ -33,7 +33,7 @@ export interface BldDef {
   /** buildings that must exist before this one can be built */
   requires: BldType[];
   /** what this building produces, if anything */
-  produces?: Producer | 'structure';
+  produces?: Producer | 'structure' | 'hospital' | 'armory';
   weapon?: WeaponType;
   /** false for buildings that can't be built from the sidebar */
   buildable: boolean;
@@ -49,7 +49,8 @@ export const BUILDING: Record<BldType, BldDef> = {
   refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, wood: 200, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Harvesters unload ore here. Comes with a free harvester.' },
   barracks: { name: 'Barracks', size: 2, top: 22, hp: 500, cost: 300, wood: 100, t: 8, era: 0, power: -20, sight: 5, requires: ['power'], produces: 'infantry', buildable: true, desc: 'Trains infantry.' },
   factory: { name: 'War Factory', size: 3, top: 34, hp: 1000, cost: 2000, wood: 300, t: 18, era: 0, power: -30, sight: 5, requires: ['refinery'], produces: 'vehicle', buildable: true, desc: 'Builds vehicles.' },
-  hospital: { name: 'Hospital', size: 2, top: 30, hp: 500, cost: 500, wood: 150, t: 12, era: 0, power: -20, sight: 5, requires: ['barracks'], buildable: true, desc: 'Tends the wounded: your infantry and knights heal a little faster while you have one. The Barracks can train Medics.' },
+  hospital: { name: 'Hospital', size: 2, top: 30, hp: 500, cost: 500, wood: 150, t: 12, era: 0, power: -20, sight: 5, requires: ['barracks'], produces: 'hospital', buildable: true, desc: 'Tends the wounded: your infantry and knights heal a little faster while you have one. Researches faster healing, and the Barracks can train Medics.' },
+  armory: { name: 'Armory', size: 2, top: 30, hp: 600, cost: 600, wood: 200, t: 14, era: 0, power: -20, sight: 5, requires: ['barracks'], produces: 'armory', buildable: true, desc: 'Forges better weapons and armor: researches damage and armor upgrades for troops and for vehicles and aircraft, one level per age.' },
   tower: { name: 'Watchtower', size: 1, top: 44, hp: 420, cost: 400, wood: 150, t: 9, era: 0, power: -10, sight: 7, requires: ['barracks'], weapon: 'ballista', buildable: true, desc: 'Stone tower with a ballista on top. Strong against infantry and cavalry.' },
   turret: { name: 'Gun Turret', size: 1, top: 12, hp: 450, cost: 600, t: 10, era: 1, power: -20, sight: 7, requires: ['barracks'], weapon: 'turretcannon', buildable: true, desc: 'Defensive cannon. Strong against vehicles.' },
   derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 800, t: 16, era: 0, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
@@ -62,8 +63,11 @@ export const BUILDING: Record<BldType, BldDef> = {
   waygate: { name: 'Waygate', size: 2, top: 44, hp: 600, cost: 400, aether: 75, t: 18, era: 1, power: -10, sight: 4, requires: [], buildable: true, desc: 'Build two and they link: your units step through one and out of the other. Enemies can\'t use them.' },
 };
 
+/** Does a building train units (and so take a rally point)? */
+export const isUnitProducer = (p: BldDef['produces']): p is Producer => p === 'infantry' || p === 'vehicle' || p === 'air';
+
 /** Order the structures appear in the sidebar. */
-export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'hospital', 'factory', 'tower', 'turret', 'derrick', 'works', 'airfield', 'flak', 'shrine', 'wardstone', 'waygate'];
+export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'hospital', 'armory', 'factory', 'tower', 'turret', 'derrick', 'works', 'airfield', 'flak', 'shrine', 'wardstone', 'waygate'];
 
 /** New structures must be placed within this many tiles of an existing one. */
 export const BUILD_RADIUS = 3;

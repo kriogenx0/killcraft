@@ -3,7 +3,7 @@
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
-import type { TechType } from '../data/era.ts';
+import type { TechType, UpgradeTrack } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 
@@ -28,7 +28,7 @@ export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unl
 export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
 export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech' | 'hospital' | 'armory';
 export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
@@ -170,6 +170,8 @@ export const G = {
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */
   heal: [] as number[],
+  /** each team's Armory upgrade levels */
+  upg: [] as Record<UpgradeTrack, number>[],
   prod: [] as Production[],
   nextId: 1,
   seed: 0,

@@ -20,7 +20,7 @@ export const isRare = (t: string): boolean => ((t in UNIT ? UNIT[t as keyof type
 
 function itemsOn(line: ProductionLine): Keyed[] {
   if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].buildable).map((t) => ({ id: t, name: BUILDING[t].name, key: BUILDING[t].key }));
-  if (line === 'tech') return TECH_TYPES.map((t) => ({ id: t, name: TECH[t].name, key: TECH[t].key }));
+  if (line === 'tech' || line === 'hospital' || line === 'armory') return TECH_TYPES.filter((t) => (TECH[t].at ?? 'tech') === line).map((t) => ({ id: t, name: TECH[t].name, key: TECH[t].key }));
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line).map((t) => ({ id: t, name: UNIT[t].name, key: UNIT[t].key }));
 }
 

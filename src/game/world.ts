@@ -14,6 +14,7 @@ import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
 import { drawAether, placeAether, shrineHeal, syncWaygates } from './aether.ts';
+import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
 
@@ -27,7 +28,7 @@ export function initWorld(seed: number, teams = 2): void {
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1,
     alertT: each(() => -99), lastAlert: null, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
-    credits: each(() => START_CREDITS), wood: each(() => START_WOOD), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), prod: each(emptyProduction),
+    credits: each(() => START_CREDITS), wood: each(() => START_WOOD), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), upg: each(noUpgrades), prod: each(emptyProduction),
   });
   while (G.sight.length < n) G.sight.push(new Uint8Array(MW * MH));
   G.sight.length = n;

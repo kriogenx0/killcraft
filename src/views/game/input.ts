@@ -1,5 +1,6 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
 import { G, bldDef, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TS } from '../../game/const.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -47,7 +48,7 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   const tx = tileOf(wx), ty = tileOf(wy);
   if (!units.length) {
     const b = own[0];
-    if (b.kind === 'bld' && b.done && bldDef(b).produces && bldDef(b).produces !== 'structure') { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
+    if (b.kind === 'bld' && b.done && isUnitProducer(bldDef(b).produces)) { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
     return;
   }
   const harvesters = units.filter((u) => u.type === 'harvester'), rest = units.filter((u) => u.type !== 'harvester');
