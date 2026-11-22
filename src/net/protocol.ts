@@ -58,6 +58,11 @@ export interface SnapMsg {
   credits: number;
   wood: number;
   oil: number;
+  aether: number;
+  /** the team has found Aether (hidden units show) */
+  aetherFound: boolean;
+  /** the team has researched the Aether Ward */
+  ward: boolean;
   /** the team's age of technology */
   era: number;
   /** the team's healing level */

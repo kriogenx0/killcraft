@@ -35,7 +35,19 @@ export function makeIcons(team = 0): void {
   // research: a gold medallion with the age's numeral
   const NUMERAL = ['I', 'II', 'III', 'IV'];
   for (const t of TECH_TYPES) {
-    const { age, heal } = TECH[t];
+    const { age, heal, ward } = TECH[t];
+    if (ward) {
+      // the Aether Ward: a violet shard over a stone shield
+      ICON[t] = make((g) => {
+        g.fillStyle = '#7a7468'; g.strokeStyle = '#000'; g.lineWidth = 2;
+        g.beginPath(); g.moveTo(W / 2 - 15, 6); g.lineTo(W / 2 + 15, 6); g.lineTo(W / 2 + 13, 26); g.lineTo(W / 2, 42); g.lineTo(W / 2 - 13, 26); g.closePath(); g.fill(); g.stroke();
+        const grad = g.createLinearGradient(W / 2 - 6, 10, W / 2 + 6, 36);
+        grad.addColorStop(0, '#fbeaff'); grad.addColorStop(0.5, '#c060ff'); grad.addColorStop(1, '#4a1080');
+        g.fillStyle = grad; g.lineWidth = 1.5;
+        g.beginPath(); g.moveTo(W / 2, 9); g.lineTo(W / 2 + 7, 22); g.lineTo(W / 2, 37); g.lineTo(W / 2 - 7, 22); g.closePath(); g.fill(); g.stroke();
+      });
+      continue;
+    }
     if (heal != null) {
       // healing research: a white medallion with a red cross, one pip per level
       ICON[t] = make((g) => {

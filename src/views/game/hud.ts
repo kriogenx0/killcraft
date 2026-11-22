@@ -1,12 +1,15 @@
-// The top bar (ore, wood, oil, power, age, time) and the selection panel with its commands.
+// The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
 import { G, STANCES, bldDef, isOrganic, unitDef, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { power } from '../../game/entity.ts';
-import { ERA, HEAL_RATE } from '../../data/era.ts';
+import { ERA } from '../../data/era.ts';
+import { healRate } from '../../game/unit.ts';
 import { eraOf } from '../../game/production.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
+import { holderOf } from '../../game/aether.ts';
+import { AETHER_RATE } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
@@ -14,13 +17,14 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { loadOf } from './render/unit_art.ts';
 import { ICON } from './render/icon.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
-import { COMMAND_KEYS } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, keyLabel } from './keyboard.ts';
 import { V, ownSelected } from './view_state.ts';
 
 export interface HudEls {
   credits: HTMLElement;
   wood: HTMLElement;
   oil: HTMLElement;
+  aether: HTMLElement;
   power: HTMLElement;
   era: HTMLElement;
   time: HTMLElement;
@@ -67,8 +71,9 @@ export function commandList(): Command[] {
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
     ];
   if (first.kind === 'bld' && s.length === 1) {
-    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: COMMAND_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
-    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: '', icon: ICON.sell, tip: 'Sell this building for half its value' }); // no hotkey: too easy to hit by accident
+    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    // Delete, away from the letters, so selling is hard to hit by accident
+    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Sell this building for half its value' });
     return list;
   }
   return [];
@@ -85,7 +90,7 @@ export function runCommand(id: string): void {
   refreshCommands(true);
 }
 
-/** Run the command bound to a key, if the current card has one. */
+/** Run the command bound to a key (lower case, see normalizeKey), if the current card has one. */
 export function runHotkey(key: string): boolean {
   const c = commandList().find((x) => x.hotkey && x.hotkey.toLowerCase() === key && !x.disabled);
   if (c) runCommand(c.id);
@@ -105,7 +110,7 @@ function unitDetails(e: Ent): string {
   const d = unitDef(e), enemy = e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
   const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
   // organic units heal slowly on their own: show how fast for our own troops
-  const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * (HEAL_RATE[G.heal[V.team] ?? 0] ?? 0) * 60)}/min` : '';
+  const heal = isOrganic(e) && e.team === V.team ? ` · Heals ${Math.round(e.maxhp * healRate(V.team) * 60)}/min` : '';
   let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${heal}</p>`;
   if (e.type === 'harvester') h += `<p class="hud-stats">Ore ${Math.round(e.carry)}</p>${barHtml(loadOf(e.carry), 'progress', 'Ore load')}`;
   return h;
@@ -129,6 +134,11 @@ function detailsMarkup(s: Ent[]): string {
   if (!e) return '<p class="hud-stats">Build power, a lumber mill by the woods, then a refinery. Harvesters bring in ore.</p>';
   if (e.kind === 'unit') return unitDetails(e);
   if (e.kind === 'bld') return buildingDetails(e);
+  if (e.type === 'aether') {
+    const h = holderOf(e), held = h < 0 ? '' : h === V.team ? ` · <b>Yours</b>: +${perMin(AETHER_RATE)}/min` : ' · <b>Held by the enemy</b>';
+    return `<h3>Aether Deposit</h3>${barHtml(e.hp / e.maxhp, 'progress', 'Aether left')}<p class="hud-stats">${Math.ceil(e.hp)} Aether left${held}</p>` +
+      '<p class="hud-stats">Shards of a fallen star. Keep a unit beside it, with no enemy there, to draw Aether. It never regrows.</p>';
+  }
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
 }
 
@@ -142,8 +152,11 @@ export function refreshHud(): void {
   els.credits.textContent = String(Math.floor(G.credits[V.team]));
   els.wood.textContent = String(Math.floor(G.wood[V.team] ?? 0));
   els.oil.textContent = String(Math.floor(G.oil[V.team] ?? 0));
+  const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
+  if (box && box.hidden === found) box.hidden = !found;
+  if (found) els.aether.textContent = String(Math.floor(G.aether[V.team] ?? 0));
   setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees.`);
-  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the Industrial age on.`);
+  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from the World War age on.`);
   els.power.textContent = `${p.used} / ${p.made}`;
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
   const era = ERA[eraOf(V.team)]?.name ?? '';
@@ -175,7 +188,7 @@ export function initHud(e: HudEls): void {
     const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
     const c = b && commands[Number(b.dataset.index)];
     if (!c) { hideTooltip(els.tooltip); return; }
-    showTooltip(els.tooltip, `<b>${c.label}</b>${c.hotkey ? ` [${c.hotkey}]` : ''}<br>${c.tip}`);
+    showTooltip(els.tooltip, `<b>${c.label}</b>${c.hotkey ? ` <kbd class="ui-key">${keyLabel(c.hotkey)}</kbd>` : ''}<br>${c.tip}`);
   });
   els.commands.addEventListener('mouseleave', () => hideTooltip(els.tooltip));
   // pointerdown, not click: this panel re-renders as health changes

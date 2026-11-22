@@ -5,7 +5,7 @@ import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '..
 import { START_ERA } from '../data/era.ts';
 import { generateMap, rebuildBlk } from './map.ts';
 import { addBuilding, addSource, addUnit } from './entity.ts';
-import { updUnit } from './unit.ts';
+import { refreshHealRates, updUnit } from './unit.ts';
 import { updBld } from './building.ts';
 import { updProjs } from './combat.ts';
 import { separate } from './move.ts';
@@ -13,6 +13,7 @@ import { updFx } from './fx.ts';
 import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
+import { drawAether, placeAether } from './aether.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
 
@@ -46,6 +47,8 @@ export function initWorld(seed: number, teams = 2): void {
     });
   });
   rebuildBlk();
+  placeAether(G.seed);
+  rebuildBlk();
   updFog();
 }
 
@@ -54,6 +57,7 @@ export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === 
 
 export function update(dt: number): void {
   G.gameT += dt;
+  refreshHealRates();
   for (const e of G.ents) {
     if (e.dead) continue;
     try {
@@ -76,7 +80,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); collect(ORE_INTERVAL); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   G.aiT -= dt;

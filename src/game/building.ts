@@ -2,6 +2,7 @@
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
+import { ERA, LAST_ERA } from '../data/era.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
@@ -29,6 +30,11 @@ export function exitTile(b: Ent, toward?: Point): Tile {
 
 function completed(b: Ent): void {
   burst('dust', b.x, b.y + (b.h * TS) / 2, 14, 40, 100);
+  const to = bldDef(b).advances;
+  if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
+    G.era[b.team] = Math.min(LAST_ERA, to);
+    say(b.team, `${ERA[G.era[b.team]].name} age reached`);
+  }
   if (b.type !== 'refinery') return;
   // every refinery comes with a harvester
   const [x, y] = exitTile(b), u = addUnit('harvester', b.team, (x + 0.5) * TS, (y + 0.5) * TS);
