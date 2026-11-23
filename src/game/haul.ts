@@ -1,5 +1,5 @@
 // Carrying resources home. Nothing is banked until a unit brings it back: harvesters and Workers
-// unload ore at a Refinery, and wood and oil at a Refinery or the Construction Yard; units bank the
+// unload ore at a Refinery, and wood and oil at a Refinery or the Town Hall; units bank the
 // Aether they carry by coming near one of those.
 import { G, type Ent } from './state.ts';
 import type { BldType } from '../data/building.ts';

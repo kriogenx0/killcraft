@@ -49,9 +49,9 @@ export interface BldDef {
 }
 
 export const BUILDING: Record<BldType, BldDef> = {
-  yard: { name: 'Construction Yard', size: 3, top: 40, hp: 1400, cost: 3000, t: 60, era: 0, power: 15, sight: 6, requires: [], produces: 'structure', buildable: false, desc: 'Builds every other structure.' },
+  yard: { name: 'Town Hall', size: 3, top: 40, hp: 1400, cost: 3000, t: 60, era: 0, power: 15, sight: 6, requires: [], produces: 'structure', buildable: false, desc: 'The heart of your town: plans every structure and researches the ages. Upgrade it to rebuild it in each new age.' },
   power: { name: 'Power Plant', size: 2, top: 38, hp: 400, cost: 300, wood: 50, t: 8, era: 0, power: 100, sight: 4, requires: [], buildable: true, desc: 'Powers your base (+100). Short on power, everything builds at half speed and defenses fire slower.' },
-  mill: { name: 'Lumber Mill', size: 2, top: 30, hp: 450, cost: 400, t: 10, era: 0, power: -10, sight: 5, requires: [], buildable: true, desc: 'Cuts wood from the trees around it. Place it next to woods: more trees, more wood. Cut trees slowly grow back.' },
+  mill: { name: 'Lumber Mill', size: 2, top: 30, hp: 450, cost: 400, t: 10, era: 0, power: -10, sight: 5, requires: [], buildable: true, desc: 'Where Workers drop off the wood they chop. Place it by the woods to shorten their trips. Right-click it with Workers to set them chopping nearby.' },
   refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, wood: 200, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Ore is unloaded here. Comes with two free Workers, or a Harvester in the Modern age.' },
   barracks: { name: 'Barracks', size: 2, top: 22, hp: 500, cost: 300, wood: 100, t: 8, era: 0, power: -20, sight: 5, requires: ['power'], produces: 'infantry', buildable: true, desc: 'Trains foot soldiers and Workers. New troops unlock with each age.' },
   factory: { name: 'War Factory', size: 3, top: 34, hp: 1000, cost: 2000, wood: 300, t: 18, era: 0, power: -30, sight: 5, requires: ['refinery'], produces: 'vehicle', buildable: true, desc: 'Builds vehicles: Catapults, then jeeps and tanks in later ages.' },

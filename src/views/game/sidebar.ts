@@ -43,7 +43,7 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
     const p = producerOfType(t);
     return buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], withDps(t), hotkeyOf(t), p ? BUILDING[p].name : '');
   }).join('');
-  structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Construction Yard</p>';
+  structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Town Hall</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';
   cells.clear();
   for (const root of document.querySelectorAll<HTMLElement>('.build-cell')) {

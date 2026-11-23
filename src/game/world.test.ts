@@ -7,10 +7,12 @@ import { addBuilding, addUnit, kill, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
 import { available, cancel, enqueue, sendBuilder, sitesOf, startSite } from './production.ts';
 import { advanceSite, canPlace, scrap } from './building.ts';
-import { oilLeft, oilRate, salvageOf, treesNear, woodRate } from './economy.ts';
+import { oilLeft, oilRate, salvageOf, treesNear, woodNear } from './economy.ts';
+import { nearestTree } from './chop.ts';
+import { applyCommand } from './command.ts';
 import { dealDamage } from './combat.ts';
 import { OIL_WELLS } from '../data/map.ts';
-import { TREE_WOOD } from '../data/economy.ts';
+import { TREE_WOOD, WOOD_LOAD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS, START_WOOD } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { BUILDING, SCRAP_SHARE } from '../data/building.ts';
@@ -212,36 +214,51 @@ describe('production', () => {
     expect(sitesOf(0)).toHaveLength(0);
   });
 
-  it('cuts wood with a lumber mill next to trees, and none without', () => {
-    // find a free 2x2 spot by the woods and one in the open
-    let woods: [number, number] | null = null, open: [number, number] | null = null;
-    for (let y = 2; y < 60 && (!woods || !open); y++)
-      for (let x = 2; x < 60; x++) {
+  it('Workers chop trees by the mill, and wood only counts once they drop it off', () => {
+    // a free 2x2 spot by the woods
+    let woods: [number, number] | null = null;
+    for (let y = 2; y < 60 && !woods; y++)
+      for (let x = 2; x < 60 && !woods; x++) {
         let free = true;
         for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) if (G.blk[(y + dy) * MW + x + dx]) free = false;
-        if (!free) continue;
-        const n = treesNear(x, y, 2);
-        if (!woods && n >= 10) woods = [x, y];
-        if (!open && n === 0) open = [x, y];
+        if (free && treesNear(x, y, 2) >= 10) woods = [x, y];
       }
-    if (!woods || !open) throw new Error('no test spots');
-    addBuilding('mill', 0, open[0], open[1], false);
-    expect(woodRate(0)).toBe(0);
-    addBuilding('mill', 0, woods[0], woods[1], false);
-    expect(woodRate(0)).toBeGreaterThan(0);
+    if (!woods) throw new Error('no test spot');
+    const mill = addBuilding('mill', 0, woods[0], woods[1], false);
     G.wood[0] = 0;
     run(10);
-    // the mill fills its own store; nothing is banked until a Worker carries it home
-    const mill = G.ents.find((e) => e.type === 'mill' && e.tx === woods[0] && e.ty === woods[1]);
-    if (!mill) throw new Error('no mill');
-    expect(mill.carry).toBeGreaterThan(woodRate(0) * 8);
-    expect(G.wood[0]).toBe(0);
+    expect(G.wood[0]).toBe(0); // a mill cuts nothing by itself
     const w = addUnit('worker', 0, mill.x, mill.y + 2 * TS);
-    const before = mill.carry;
+    const standing = woodNear(mill);
     orderHaul(w, mill);
-    run(120);
-    expect(G.wood[0]).toBeGreaterThan(before * 0.9);
-    expect(w.cargo).toBe('wood');
+    let carried = 0, chopped = false;
+    for (let t = 0; t < 60; t++) {
+      run(1);
+      carried = Math.max(carried, w.cargo === 'wood' ? w.carry : 0);
+      if (w.order?.t === 'harvest' && w.order.st === 'gather') {
+        chopped = true;
+        // it stands right by the tree it's chopping
+        expect(G.terr[w.order.ty * MW + w.order.tx]).toBe(TREE);
+        expect(Math.hypot(w.x - (w.order.tx + 0.5) * TS, w.y - (w.order.ty + 0.5) * TS)).toBeLessThan(TS * 1.6);
+      }
+    }
+    expect(chopped).toBe(true);
+    expect(carried).toBeGreaterThan(0);
+    expect(G.wood[0]).toBeGreaterThan(WOOD_LOAD); // several loads dropped off at the mill
+    expect(woodNear(mill)).toBeLessThan(standing);
+  });
+
+  it('chops a tree a Worker is sent to, and carries the wood to the Construction Yard without a mill', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
+    if (!yard) throw new Error('no yard');
+    const w = addUnit('worker', 0, yard.x, yard.y + 2 * TS);
+    const tree = nearestTree(w, yard.tx, yard.ty, 20);
+    if (tree === null) throw new Error('no tree');
+    G.wood[0] = 0;
+    applyCommand(0, { c: 'harvest', ids: [w.id], tx: tree % MW, ty: (tree / MW) | 0 });
+    expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
+    run(90);
+    expect(G.wood[0]).toBeGreaterThan(0);
   });
 
   it('pumps oil from a well until it runs dry, and nothing away from a well', () => {
@@ -265,7 +282,7 @@ describe('production', () => {
     run(5);
     expect(d.carry).toBe(before);
     expect(oilRate(0)).toBe(0);
-    // a Worker carries the store to the Construction Yard
+    // a Worker carries the store to the Town Hall
     const w = addUnit('worker', 0, d.x, d.y + 2 * TS);
     orderHaul(w, d);
     run(150);

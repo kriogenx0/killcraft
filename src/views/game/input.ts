@@ -1,7 +1,7 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
 import { G, bldDef, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
-import { MW, MH, TS } from '../../game/const.ts';
+import { MW, MH, TREE, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { priceOf } from '../../game/production.ts';
@@ -66,6 +66,14 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   }
   if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
+  // Workers right-clicked on a tree chop wood there and carry it to the nearest Lumber Mill, Refinery or Yard
+  if (workers.length && G.terr[ty * MW + tx] === TREE && G.vis[ty * MW + tx]) {
+    dispatch({ c: 'harvest', ids: ids(workers), tx, ty });
+    const others = units.filter((u) => !workers.includes(u));
+    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty });
+    mark(wx, wy, '#ff5');
+    return;
+  }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
   dispatch({ c: 'move', ids: ids(units), tx, ty });
   mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
@@ -311,7 +319,7 @@ function onKey(ev: KeyboardEvent): void {
   if (k === '-' || k === '_') { V.speed = Math.max(0.5, V.speed / 2); return; }
   if (k === ' ') { ev.preventDefault(); if (G.lastAlert) centerCam(G.lastAlert.x, G.lastAlert.y); return; }
   if (k === 'home' || k === 'h') {
-    // select the Construction Yard (its keys build structures and research) and look at it
+    // select the Town Hall (its keys build structures and research) and look at it
     const own = G.ents.filter((x) => !x.dead && x.team === V.team && x.kind === 'bld');
     const y = own.find((x) => x.type === 'yard' && x.done) ?? own[0];
     if (y) { centerCam(y.x, y.y); if (y.type === 'yard') setSelection([y]); }

@@ -13,7 +13,7 @@ import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
 import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
-import { millRate, oilLeft, oilRate, treesNear, woodRate, storeMax } from '../../game/economy.ts';
+import { oilLeft, oilRate, treesNear, storeMax } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
@@ -159,6 +159,10 @@ const entName = (id: number | null): string => {
   return t.kind === 'unit' ? unitDef(t).name : t.kind === 'bld' ? bldDef(t).name : 'ore';
 };
 
+/** Workers on a wood run (for one mill, if given). */
+const choppers = (team: number, mill?: number): number =>
+  G.ents.filter((e) => !e.dead && e.team === team && e.order?.t === 'harvest' && e.order.res === 'wood' && (mill === undefined || e.order.src === mill)).length;
+
 const HARVEST_STEP = { go: 'Heading for', gather: 'Gathering', ret: 'Bringing home', unload: 'Unloading' } as const;
 
 /** What a unit is doing right now. */
@@ -169,6 +173,7 @@ export function unitAction(e: Ent): string {
   if (o.t === 'move') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : 'Moving';
   if (o.t === 'attack') return `Attacking ${entName(o.tgt)}`;
   if (o.t === 'heal') return `Healing ${entName(o.tgt)}`;
+  if (o.res === 'wood' && o.st === 'gather') return 'Chopping wood';
   return `${HARVEST_STEP[o.st]} ${o.res ?? 'ore'}`;
 }
 
@@ -212,8 +217,8 @@ function unitDetails(e: Ent): string {
   if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
   if (insight(e)) rows.push(['Doing', `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
   if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
-  if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Construction Yard or a Refinery`, true]);
-  if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Construction Yard or a Refinery`, true]);
+  if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
+  if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Town Hall or a Refinery`, true]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
 }
 
@@ -230,7 +235,7 @@ function buildingDetails(e: Ent): string {
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
-  const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
+  const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
   // defenses reload 2.5× slower while their side is short of power
   const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
   const rows: Row[] = [
@@ -302,7 +307,7 @@ export function refreshHud(): void {
   const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
   if (box && box.hidden === found) box.hidden = !found;
   if (found) setText(els.aether, shortCount(G.aether[V.team] ?? 0));
-  setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees; Workers carry it home.`);
+  setTitle(els.wood, `Wood. ${choppers(V.team)} Workers chopping. Right-click a tree with Workers: they chop it and carry the wood to a Lumber Mill, Refinery or the Town Hall.`);
   setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
   setText(els.power, `${p.used}/${p.made}`);
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
