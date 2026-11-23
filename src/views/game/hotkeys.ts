@@ -3,7 +3,7 @@
 // select the Construction Yard (H) and press a structure's or research's key, select a Barracks and
 // press an infantry key, and so on. A def can ask for a letter with `key`.
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
-import { BUILDING, BLD_TYPES, type BldType } from '../../data/building.ts';
+import { BUILDING, BLD_TYPES, isWall, type BldType } from '../../data/building.ts';
 import { TECH, TECH_TYPES } from '../../data/era.ts';
 import type { Buildable } from '../../game/production.ts';
 import type { ProductionLine } from '../../game/state.ts';
@@ -18,6 +18,9 @@ export function linesOf(b: BldType): ProductionLine[] {
 /** Things bought with Aether are rare: they get keys after everything else, and may go mouse-only. */
 export const isRare = (t: string): boolean => ((t in UNIT ? UNIT[t as keyof typeof UNIT] : t in TECH ? TECH[t as keyof typeof TECH] : BUILDING[t as BldType])?.aether ?? 0) > 0;
 
+/** Rare items and wall segments get keys last: the yard has more structures than free letters. */
+export const keyedLast = (t: string): boolean => isRare(t) || isWall(t);
+
 function itemsOn(line: ProductionLine): Keyed[] {
   if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].buildable).map((t) => ({ id: t, name: BUILDING[t].name, key: BUILDING[t].key }));
   if (line === 'tech' || line === 'hospital' || line === 'armory') return TECH_TYPES.filter((t) => (TECH[t].at ?? 'tech') === line).map((t) => ({ id: t, name: TECH[t].name, key: TECH[t].key }));
@@ -28,7 +31,7 @@ function itemsOn(line: ProductionLine): Keyed[] {
 export const PRODUCTION_KEYS: ReadonlyMap<BldType, ReadonlyMap<Buildable, string>> = new Map(
   (Object.keys(BUILDING) as BldType[]).filter((b) => linesOf(b).length).map((b) => [
     b,
-    assignKeys([...linesOf(b).flatMap(itemsOn)].sort((x, y) => Number(isRare(x.id)) - Number(isRare(y.id))), Object.values(BUILDING_KEYS)) as Map<Buildable, string>,
+    assignKeys([...linesOf(b).flatMap(itemsOn)].sort((x, y) => Number(keyedLast(x.id)) - Number(keyedLast(y.id))), Object.values(BUILDING_KEYS)) as Map<Buildable, string>,
   ]),
 );
 

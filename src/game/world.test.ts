@@ -6,14 +6,14 @@ import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
 import { available, cancel, enqueue, sitesOf, startSite } from './production.ts';
-import { canPlace } from './building.ts';
+import { canPlace, scrap } from './building.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodRate } from './economy.ts';
 import { dealDamage } from './combat.ts';
 import { OIL_WELLS } from '../data/map.ts';
 import { TREE_WOOD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS, START_WOOD } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
-import { BUILDING } from '../data/building.ts';
+import { BUILDING, SCRAP_SHARE } from '../data/building.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { mulberry32 } from '../util/math.ts';
 
@@ -56,7 +56,7 @@ describe('production', () => {
   });
 
   it('places a structure first, pays for it then, and builds it on site', () => {
-    expect(available(0, 'structure')).toEqual(['power', 'mill']);
+    expect(available(0, 'structure')).toEqual(['power', 'mill', 'palisade', 'stonewall']);
     expect(enqueue(0, 'power')).toBe(false); // structures don't queue: they start when placed
     expect(G.credits[0]).toBe(START_CREDITS);
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
@@ -284,6 +284,16 @@ describe('production', () => {
     expect(tank.dead).toBe(true);
     expect(oreAround() - before).toBeCloseTo(salvageOf(tank), -1);
     expect(salvageOf(tank)).toBeGreaterThan(0);
+  });
+
+  it('scrapping a building refunds nothing but leaves ore on the ground to carry home', () => {
+    const b = addBuilding('barracks', 0, 20, 40, false);
+    const before = { ore: G.credits[0], wood: G.wood[0] }, groundBefore = G.ore.reduce((a, v) => a + v, 0);
+    scrap(b);
+    expect(b.dead).toBe(true);
+    expect(G.credits[0]).toBe(before.ore);
+    expect(G.wood[0]).toBe(before.wood);
+    expect(G.ore.reduce((a, v) => a + v, 0) - groundBefore).toBeCloseTo(BUILDING.barracks.cost * SCRAP_SHARE, -1);
   });
 
   it("won't start an order it can't pay for in full, and refunds all of it on cancel", () => {

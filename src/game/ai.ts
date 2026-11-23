@@ -1,16 +1,20 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
-// and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them.
+// and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
+// and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
-import { TS } from './const.ts';
-import { BUILDING, type BldType } from '../data/building.ts';
+import { MW, TS } from './const.ts';
+import { BUILDING, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
-import { canPlace, sell } from './building.ts';
+import { canPlace, wallLine } from './building.ts';
 import { available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
+import { wildBeasts } from './creatures.ts';
+import { canAttack } from './combat.ts';
+import { CAPTURE_REACH } from '../data/creatures.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY } from '../data/aether.ts';
 
 interface AiState {
@@ -23,16 +27,23 @@ interface AiState {
   guards: Set<number>;
   /** ore set aside for the next structure, which must be paid for in full before it starts */
   reserve: number;
+  /** units sent to capture a wild creature, and the creature */
+  hunters: Set<number>;
+  prey: number | null;
 }
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), reserve: 0 },
-  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0 },
+  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
+  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
 ];
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
 const GUARDS = 2;
 const GUARD_ARMY = 5;
+/** The hunting party sent after a wild creature, the fewest worth sending, and the army it takes first. */
+const HUNTERS = 5;
+const MIN_HUNTERS = 3;
+const HUNT_ARMY = 9;
 
 const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
@@ -40,8 +51,8 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
 export function resetAi(teams = 2): void {
-  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0 });
-  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.foe = teams === 2 ? 1 - team : -1; });
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -71,6 +82,8 @@ function foeOf(team: number): number {
 
 function nextStructure(team: number): BldType | null {
   const p = power(team), can = available(team, 'structure');
+  // count what the sites going up will make and use once they're done
+  for (const e of sitesOf(team)) { const w = BUILDING[e.type as BldType].power; if (w > 0) p.made += w; else p.used -= w; }
   if (p.used + 20 > p.made && can.includes('power')) return 'power';
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
@@ -92,8 +105,64 @@ function nextStructure(team: number): BldType | null {
   // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
-  if (G.credits[team] > 2500 && countOf(team, 'turret') < 4 && can.includes('turret')) return 'turret';
+  return defense(team, can);
+}
+
+/** Wall segments a computer player puts up, at most. */
+const AI_WALLS = 28;
+/** Segments in each stretch of wall; stretches are spread out, leaving gaps for the side's own units. */
+const AI_WALL_RUN = 4;
+
+/**
+ * Spare money goes into defenses that answer what the enemy fields: pillboxes against infantry,
+ * gun and missile turrets against vehicles, stretches of the best wall the age allows, and one
+ * Big Bertha once the bank is deep.
+ */
+function defense(team: number, can: readonly string[]): BldType | null {
+  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && e.team === 1 - team && e.kind === 'unit' && !isAir(e));
+  const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
+  const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
+  if (credits > 4500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
+  // a stretch of wall for every defensive structure, so the two go up together
+  const wall = (['concretewall', 'stonewall', 'palisade'] as BldType[]).find((t) => can.includes(t) && G.wood[team] >= (BUILDING[t].wood ?? 0) * AI_WALL_RUN);
+  const walls = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && isWall(e.type)).length;
+  if (wall && credits > 1200 && turrets >= 1 && walls < Math.min(AI_WALLS, turrets * AI_WALL_RUN)) return wall;
+  if (credits > 2500 && turrets < 5) {
+    const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
+    const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
+    const pick = infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
+    if (can.includes(pick)) return pick;
+  }
   return null;
+}
+
+const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+
+/**
+ * A short stretch of wall across the approach from the enemy, a few tiles out from the yard, kept
+ * off ore and clear of other structures so harvesters and new units can still get around it.
+ */
+function wallSite(team: number, yard: Ent, foe: Ent | undefined): [Tile, Tile] | null {
+  for (let k = 0; k < 300; k++) {
+    const a = (foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) : Math.random() * Math.PI * 2) + (Math.random() - 0.5) * 2.4;
+    const rad = 5 + Math.random() * (3 + k / 60), cx = yard.x / TS + Math.cos(a) * rad, cy = yard.y / TS + Math.sin(a) * rad;
+    const px = -Math.sin(a), py = Math.cos(a), half = (AI_WALL_RUN - 1) / 2;
+    const x0 = Math.round(cx - px * half), y0 = Math.round(cy - py * half), x1 = Math.round(cx + px * half), y1 = Math.round(cy + py * half);
+    const line = wallLine(x0, y0, x1, y1);
+    if (line.length < 2) continue;
+    const ok = line.every(([x, y]) => canPlace(x, y, 1, team, false, true) && G.ore[y * MW + x] <= 0 && clearAround(x, y));
+    if (ok) return [line[0], line[line.length - 1]];
+  }
+  return null;
+}
+
+/** A free tile between the wall and any structure, and two between stretches, so walls never seal a gap shut. */
+function clearAround(x: number, y: number): boolean {
+  return !G.ents.some((e) => {
+    if (e.dead || e.kind !== 'bld') return false;
+    const m = isWall(e.type) ? 2 : 1;
+    return x >= e.tx - m && x < e.tx + e.w + m && y >= e.ty - m && y < e.ty + e.h + m;
+  });
 }
 
 function findSite(team: number, type: BldType): Tile | null {
@@ -106,7 +175,7 @@ function findSite(team: number, type: BldType): Tile | null {
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
-    const def = type === 'turret' || type === 'tower' || type === 'flak';
+    const def = DEFENSES.includes(type) || type === 'flak';
     const a = def && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
     const rad = (def ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
@@ -134,11 +203,20 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
 const maxSites = (team: number): number => (G.credits[team] > 2500 ? 2 : 1);
 
 function construction(team: number): void {
-  if (sitesOf(team).length >= maxSites(team)) { ais[team].reserve = 0; return; }
+  // a wall line is many small sites: it doesn't hold up the rest of the base
+  const sites = sitesOf(team), walling = sites.some((e) => isWall(e.type));
+  if (sites.filter((e) => !isWall(e.type)).length >= maxSites(team)) { ais[team].reserve = 0; return; }
   const t = nextStructure(team);
-  if (!t) { ais[team].reserve = 0; return; }
+  if (!t || (walling && isWall(t))) { ais[team].reserve = 0; return; }
   // structures are paid for up front: save up for one rather than spend everything on troops
   if (!canAfford(team, t)) { ais[team].reserve = costOf(t); return; }
+  if (isWall(t)) {
+    const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
+    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+    const line = yard ? wallSite(team, yard, foe) : null;
+    ais[team].reserve = line && startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1]) ? 0 : costOf(t);
+    return;
+  }
   const site = findSite(team, t);
   ais[team].reserve = site && startSite(team, t, site[0], site[1]) ? 0 : costOf(t);
 }
@@ -221,7 +299,10 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  const prod = G.prod[team], credits = G.credits[team] - ais[team].reserve;
+  // down to its last gatherer: troops leave the price of a Worker in hand. Nothing else brings ore
+  // home (scrapped buildings leave ore on the ground), so a side with none left could never recover.
+  const keep = gatherers(team) < 2 ? costOf('worker') : 0;
+  const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep);
   // saving up for the next structure
   const saving = credits < 150;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
@@ -234,7 +315,7 @@ function training(team: number): void {
   }
   // a few aircraft once there's money to spare
   if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2]]);
     if (t) enqueue(team, t);
   }
   // Workers: about three per refinery for ore before the Modern age, plus one per mill and derrick to haul
@@ -245,22 +326,15 @@ function training(team: number): void {
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
-    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5],
+      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5]]);
     if (t) enqueue(team, t);
   }
 }
 
-/** What the computer sells first when it's broke and has nobody left to gather ore. */
-const SELL_FIRST: BldType[] = ['hospital', 'tower', 'turret', 'flak', 'airfield', 'mill', 'factory'];
-
 function upkeep(team: number): void {
   for (const b of G.ents)
     if (!b.dead && b.team === team && b.kind === 'bld' && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
-  // broke with no Workers or harvesters: sell something to pay for a Worker rather than stall for good
-  if (gatherers(team) === 0 && G.credits[team] < costOf('worker') && hasBuilding(team, 'refinery') && hasBuilding(team, 'barracks')) {
-    const b = SELL_FIRST.map((t) => G.ents.find((e) => !e.dead && e.team === team && e.type === t && e.done)).find((e) => !!e);
-    if (b) sell(b);
-  }
 }
 
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */
@@ -287,6 +361,36 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
 }
 
 /**
+ * Send a hunting party after the nearest wild creature it can fight: they beat it down, then stand
+ * beside it until it's captured. The party goes home to the army once the creature is gone.
+ */
+function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
+  const A = ais[team];
+  for (const id of A.hunters) { const h = G.byId.get(id); if (!h || h.dead || h.team !== team) A.hunters.delete(id); }
+  let prey = A.prey != null ? G.byId.get(A.prey) : undefined;
+  if (!prey || prey.dead || !prey.wild || !A.hunters.size) { prey = undefined; A.prey = null; A.hunters.clear(); }
+  if (!prey && home && army.length >= HUNT_ARMY) {
+    const near = (e: Ent) => Math.hypot(e.x - home.x, e.y - home.y);
+    for (const b of wildBeasts().sort((a, c) => near(a) - near(c))) {
+      const party = army.filter((u) => !u.order && canAttack(u, b)).sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y)).slice(0, HUNTERS);
+      if (party.length < MIN_HUNTERS) continue;
+      prey = b;
+      A.prey = b.id;
+      for (const u of party) A.hunters.add(u.id);
+      break;
+    }
+  }
+  if (!prey?.wild) return;
+  for (const id of A.hunters) {
+    const h = G.byId.get(id);
+    if (!h || h.order?.t === 'attack') continue;
+    const d = Math.hypot(h.x - prey.x, h.y - prey.y);
+    if (prey.wild.down) { if (!h.order && d > CAPTURE_REACH * TS * 0.6) orderMove(h, tileOf(prey.x), tileOf(prey.y) + 1); }
+    else if (!h.order) orderMove(h, tileOf(prey.x), tileOf(prey.y));
+  }
+}
+
+/**
  * Send a unit toward a tile, unless it is already fighting someone on the way there, or already
  * heading close enough to it. Re-giving the same order every think would make it drop the fight
  * (or its path) and pick it up again: attack, stop, attack, stop.
@@ -302,7 +406,8 @@ function military(team: number): void {
   if (foe < 0) return;
   const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
   holdAether(team, all, homeOf(team));
-  const army = all.filter((e) => !A.guards.has(e.id));
+  huntBeasts(team, all.filter((e) => !A.guards.has(e.id)), homeOf(team));
+  const army = all.filter((e) => !A.guards.has(e.id) && !A.hunters.has(e.id));
   // fast raiders shoot on the move; everyone else stops to fight (the default stance)
   for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = homeOf(team);

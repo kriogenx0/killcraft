@@ -2,6 +2,7 @@
 import { G, bldDef, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TS } from '../../game/const.ts';
+import { isWall } from '../../data/building.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -171,6 +172,8 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       return;
     }
     if (ev.button !== 0) return;
+    // walls: press to start a line, drag, release to lay it
+    if (V.mode?.t === 'place' && isWall(V.mode.type)) { V.mode.ax = V.mode.tx; V.mode.ay = V.mode.ty; canvas.setPointerCapture(ev.pointerId); return; }
     if (V.mode) { if (w) useMode(w.x, w.y, pickEntity(ev.clientX, ev.clientY), ev.shiftKey); return; }
     Object.assign(V.mouse, { down: true, drag: false, sx: ev.clientX, sy: ev.clientY });
     canvas.setPointerCapture(ev.pointerId);
@@ -217,6 +220,13 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       touches.delete(ev.pointerId);
       if (!touches.size && !panned) tap(ev.clientX, ev.clientY);
       if (touches.size < 2) pinch = null;
+      return;
+    }
+    const m = V.mode;
+    if (ev.button === 0 && m?.t === 'place' && m.ax != null && m.ay != null) {
+      dispatch({ c: 'place', type: m.type, tx: m.ax, ty: m.ay, ex: m.tx, ey: m.ty });
+      if (ev.shiftKey) { m.ax = undefined; m.ay = undefined; } else V.mode = null;
+      refreshCommands(true);
       return;
     }
     if (ev.button !== 0 || !V.mouse.down) return;

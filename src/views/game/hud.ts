@@ -1,15 +1,18 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
 import { G, STANCES, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
-import { WEAPON } from '../../data/weapon.ts';
-import { isUnitProducer, type BldType } from '../../data/building.ts';
-import { lowPower, power } from '../../game/entity.ts';
+import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
+import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
+import { power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { eraOf, nameOf, sitesOf } from '../../game/production.ts';
+import { eraOf, nameOf, priceOf, sitesOf, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { linesOf } from './hotkeys.ts';
+import { dpsOf } from '../../game/dps.ts';
+import { priceText } from './components/build_cell.ts';
+import { lowPower } from '../../game/entity.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate, storeMax } from '../../game/economy.ts';
 import { OIL_PER_DERRICK } from '../../data/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
@@ -76,11 +79,11 @@ export function commandList(): Command[] {
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
-    return [{ id: 'sell', label: 'Cancel', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Stop building this and get its whole price back' }];
+    return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
-    // Delete, away from the letters, so selling is hard to hit by accident
-    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Sell this building for half its value' });
+    // Delete, away from the letters, so scrapping is hard to hit by accident
+    if (first.type !== 'yard') list.push({ id: 'scrap', label: 'Scrap', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Tear this building down. Its scrap is left on the ground as ore for your Workers to carry home' });
     return list;
   }
   return [];
@@ -93,7 +96,7 @@ export function runCommand(id: string): void {
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
-  else if (id === 'sell' && s[0]) { dispatch({ c: 'sell', id: s[0].id }); V.sel = []; }
+  else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }
   refreshCommands(true);
 }
 
@@ -141,26 +144,55 @@ export function unitAction(e: Ent): string {
   return `${HARVEST_STEP[o.st]} ${o.res ?? 'ore'}`;
 }
 
+/** One row of the stats table: a label, a value, and whether the value needs the full width. */
+type Row = [label: string, value: string, wide?: boolean];
+
+/** Label and value pairs, two to a line where they fit, so the panel stays short on phones. */
+function tableHtml(rows: Row[]): string {
+  return `<dl class="hud-table">${rows.filter((r) => r[1] !== '').map(([l, v, wide]) => `<div class="hud-row${wide ? ' hud-row--wide' : ''}"><dt>${l}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+}
+
+const num = (x: number): string => (Math.abs(x) < 10 ? x.toFixed(1).replace(/\.0$/, '') : String(Math.round(x)));
+const hpText = (e: Ent): string => `${Math.ceil(e.hp)} / ${e.maxhp}`;
+const costText = (t: string): string => (t in UNIT || t in BUILDING ? priceText(priceOf(t as Buildable)) : '');
+const ARMOR_NAME: Record<ArmorClass, string> = { none: 'None', light: 'Light', heavy: 'Heavy', building: 'Building', air: 'Air' };
+const DPS_SHORT: Record<ArmorClass, string> = { none: 'Inf', light: 'Light', heavy: 'Heavy', building: 'Bldg', air: 'Air' };
+
+/** Damage per second against each kind of target it can hit, e.g. "Inf 10 · Light 5 · Bldg 2.5". */
+function dpsRow(wt: WeaponType, bonus: number, slow = 1): string {
+  return dpsOf(wt, bonus, slow).map((d) => `${DPS_SHORT[d.armor]} <b>${num(d.dps)}</b>`).join(' · ') + (WEAPON[wt].splash > 0 ? ' · splash' : '');
+}
+
 function unitDetails(e: Ent): string {
-  const d = unitDef(e), enemy = sideTag(e);
+  const d = unitDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   // Armory upgrades show as percentages next to the base numbers
   const wb = Math.round((weaponFactor(e) - 1) * 100), ab = Math.round((1 - armorFactor(e)) * 100);
-  const weapon = d.weapon ? `Damage ${WEAPON[d.weapon].dmg}${wb ? ` (+${wb}%)` : ''} · Range ${WEAPON[d.weapon].range}` : 'Unarmed';
-  // organic units heal slowly on their own: show how fast for our own troops
-  const heal = isOrganic(e) && insight(e) ? ` · Heals ${Math.round(e.maxhp * healRate(e.team) * 60)}/min` : '';
-  let h = `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${weapon} · Armor ${d.armor}${ab ? ` (-${ab}% damage)` : ''}${heal}</p>`;
-  if (insight(e)) h += `<p class="hud-stats">${unitAction(e)} · ${STANCE_INFO[e.stance].label}</p>`;
-  if (isHarvester(e)) h += `<p class="hud-stats">${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}</p>${barHtml(Math.min(1, e.carry / haulOf(e)), 'progress', 'Load')}`;
-  if (e.loot) h += `<p class="hud-stats">Bounty ${Math.round(e.loot)} ore: bring it near your Construction Yard or a Refinery</p>`;
-  if (e.ae) h += `<p class="hud-stats">Aether ${Math.round(e.ae)}: bring it near your Construction Yard or a Refinery</p>`;
-  return h;
+  // organic units heal slowly on their own: show how fast for troops we can see into
+  const heal = isOrganic(e) && insight(e) ? `${Math.round(e.maxhp * healRate(e.team) * 60)}/min` : '';
+  const rows: Row[] = [
+    ['HP', hpText(e)],
+    ['Armor', `${ARMOR_NAME[d.armor]}${ab ? ` −${ab}%` : ''}`],
+    ['Damage', w ? `${w.dmg}${wb ? ` +${wb}%` : ''}` : 'Unarmed'],
+    ['Range', w ? String(w.range) : ''],
+    ['Reload', w ? `${w.cd}s` : ''],
+    ['Speed', num(d.spd)],
+    ['Turn', `${Math.round((d.turn * 180) / Math.PI)}°/s`],
+    ['Sight', String(d.sight)],
+    ['Heals', heal],
+    ['Cost', costText(e.type)],
+  ];
+  if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
+  if (insight(e)) rows.push(['Doing', `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
+  if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
+  if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Construction Yard or a Refinery`, true]);
+  if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Construction Yard or a Refinery`, true]);
+  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
 }
 
 const perMin = (perSec: number): number => Math.round(perSec * 60);
 
 function buildingDetails(e: Ent): string {
-  const d = bldDef(e), enemy = sideTag(e);
-  const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
+  const d = bldDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   const own = insight(e) && e.done;
   if (!e.done)
     return `<h3>${d.name}${enemy}</h3>${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">Under construction, ${Math.floor(e.prog * 100)}%${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
@@ -168,7 +200,21 @@ function buildingDetails(e: Ent): string {
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
   const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
-  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}<p class="hud-stats">${[pw, yieldText, e.repairing ? 'Repairing' : ''].filter(Boolean).join(' · ')}</p>` +
+  // defenses reload 2.5× slower while their side is short of power
+  const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
+  const rows: Row[] = [
+    ['HP', hpText(e)],
+    ['Power', d.power > 0 ? `+${d.power}` : d.power < 0 ? String(d.power) : ''],
+    ['Damage', w ? String(w.dmg) : ''],
+    ['Range', w ? String(w.range) : ''],
+    ['Reload', w ? `${num(w.cd * slow)}s` : ''],
+    ['Sight', String(d.sight)],
+    ['Cost', costText(e.type)],
+    ['Status', !e.done ? 'Building' : e.repairing ? 'Repairing' : ''],
+  ];
+  if (d.weapon && e.done) rows.push(['DPS', dpsRow(d.weapon, 1, slow) + (slow > 1 ? ' · low power' : ''), true]);
+  if (yieldText) rows.push(['Output', yieldText, true]);
+  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
     (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }

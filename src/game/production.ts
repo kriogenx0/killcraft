@@ -7,12 +7,12 @@
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
-import { BUILDING, BLD_TYPES, type BldType } from '../data/building.ts';
+import { BUILDING, BLD_TYPES, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, type TechType } from '../data/era.ts';
 import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
-import { cancelSite, canPlace, exitTile, placeBuilding } from './building.ts';
+import { cancelSite, canPlace, exitTile, placeBuilding, wallLine } from './building.ts';
 import { orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 
@@ -34,8 +34,12 @@ export interface Price { ore: number; wood: number; oil: number; aether: number 
 export const priceOf = (t: Buildable): Price => { const d = defOf(t); return { ore: d.cost, wood: d.wood ?? 0, oil: d.oil ?? 0, aether: 'aether' in d ? d.aether ?? 0 : 0 }; };
 /** Does the team have enough of every resource for the whole price? */
 export const canAfford = (team: number, t: Buildable): boolean => { const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
-/** Things that cost Aether stay hidden until the side first finds some. */
-const revealed = (team: number, t: Buildable): boolean => priceOf(t).aether <= 0 || !!G.aetherFound[team];
+/**
+ * Things that cost Aether stay hidden until the side first finds some. Creatures of myth only show
+ * once the side has captured one of their kind (data/creatures.ts).
+ */
+const revealed = (team: number, t: Buildable): boolean =>
+  isUnitType(t) && UNIT[t].beast ? !!G.tamed[team]?.includes(t) : priceOf(t).aether <= 0 || !!G.aetherFound[team];
 const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
@@ -135,14 +139,27 @@ export function canStartSite(team: number, type: BldType, tx: number, ty: number
   return available(team, 'structure').includes(type) && canAfford(team, type) && canPlace(tx, ty, BUILDING[type].size, team);
 }
 
-/** Place a structure: pay its whole price and lay out a site that builds itself. */
-export function startSite(team: number, type: BldType, tx: number, ty: number): Ent | null {
+/**
+ * Place a structure: pay its whole price and lay out a site that builds itself. A wall can be laid
+ * as a line to (ex, ey): every segment is its own site, paid in full as it goes down, until the line
+ * ends or the money runs out (segments where something is in the way are skipped).
+ */
+export function startSite(team: number, type: BldType, tx: number, ty: number, ex = tx, ey = ty): Ent | null {
   if (!available(team, 'structure').includes(type)) return null;
-  const short = shortOf(team, type);
-  if (short) { fundsNotice(team, short); return null; }
-  const b = placeBuilding(team, type, tx, ty);
-  if (b) pay(team, type);
-  return b;
+  const line = isWall(type) ? wallLine(tx, ty, ex, ey) : [[tx, ty] as const];
+  let first: Ent | null = null, n = 0;
+  for (const [x, y] of line) {
+    const short = shortOf(team, type);
+    if (short) { fundsNotice(team, short); break; }
+    const b = placeBuilding(team, type, x, y, line.length > 1);
+    if (!b) continue;
+    pay(team, type);
+    first ??= b;
+    n++;
+  }
+  if (!first && line.length > 1) say(team, 'Cannot place there');
+  if (n > 1) say(team, `${n} wall segments placed`);
+  return first;
 }
 
 /** A team's structures still going up, oldest first (optionally of one type). */

@@ -2,7 +2,8 @@
 // (a thatched roundhouse in the Medieval age, a concrete barracks in the Modern age).
 import * as THREE from 'three';
 import type { BldType } from '../../../data/building.ts';
-import { bldLook, buildingModel } from './models.ts';
+import type { UnitType } from '../../../data/unit.ts';
+import { bldLook, buildingModel, unitModel, type Model } from './models.ts';
 
 const W = 128, H = 96;
 const cache = new Map<string, string>();
@@ -36,7 +37,26 @@ export function buildingIcon(type: BldType, team: number, era: number): string |
   if (hit) return hit;
   const gl = renderer();
   if (!gl) return null;
-  const m = buildingModel(type, team, era);
+  const url = snap(gl, buildingModel(type, team, era));
+  cache.set(key, url);
+  return url;
+}
+
+/** A data URL picture of a unit (the creatures of myth use this), or null without WebGL. */
+export function unitIcon(type: UnitType, team: number): string | null {
+  const key = `u|${type}|${team}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const gl = renderer();
+  if (!gl) return null;
+  const m = unitModel(type, team);
+  m.root.rotation.y = 0.6; // three-quarter view
+  const url = snap(gl, m);
+  cache.set(key, url);
+  return url;
+}
+
+function snap(gl: THREE.WebGLRenderer, m: Model): string {
   scene.add(m.root);
   const sphere = new THREE.Box3().setFromObject(m.root).getBoundingSphere(new THREE.Sphere());
   const dist = sphere.radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 0.72;
@@ -44,7 +64,5 @@ export function buildingIcon(type: BldType, team: number, era: number): string |
   camera.lookAt(sphere.center);
   gl.render(scene, camera);
   scene.remove(m.root);
-  const url = gl.domElement.toDataURL();
-  cache.set(key, url);
-  return url;
+  return gl.domElement.toDataURL();
 }

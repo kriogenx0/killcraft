@@ -18,7 +18,7 @@ import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
 import { mountLobby } from '../lobby/lobby_view.ts';
-import { BUILDING, type BldType } from '../../data/building.ts';
+import { BUILDING, isWall, type BldType } from '../../data/building.ts';
 import { canPlace } from '../../game/building.ts';
 import { addBuilding, addUnit } from '../../game/entity.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
@@ -138,6 +138,7 @@ export function mountGameView(root: HTMLElement): void {
     G.oil[V.team] = s.oil ?? 0;
     G.aether[V.team] = s.aether ?? 0;
     G.aetherFound[V.team] = !!s.aetherFound;
+    G.tamed[V.team] = s.tamed ?? [];
     G.ward[V.team] = !!s.ward;
     G.era[V.team] = s.era ?? 0;
     G.heal[V.team] = s.heal ?? 0;
@@ -237,7 +238,7 @@ export function mountGameView(root: HTMLElement): void {
     }
     scrollCamera(dt);
     clampCam();
-    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team), (t) => BUILDING[t as BldType].size);
+    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team, false, isWall(V.mode.type)), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
     oreT -= dt;
     if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); }

@@ -7,7 +7,7 @@ import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
 import { groupMove, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
-import { sell, toggleRepair } from './building.ts';
+import { scrap, toggleRepair } from './building.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
@@ -20,9 +20,9 @@ export type Command =
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
   | { c: 'cancel'; type: Buildable }
-  | { c: 'place'; type: BldType; tx: number; ty: number }
+  | { c: 'place'; type: BldType; tx: number; ty: number; ex?: number; ey?: number }
   | { c: 'repair'; id: number }
-  | { c: 'sell'; id: number };
+  | { c: 'scrap'; id: number };
 
 const MAX_IDS = 200;
 const BUILDABLE = new Set<string>([...UNIT_TYPES, ...BLD_TYPES, ...TECH_TYPES]);
@@ -55,9 +55,12 @@ export function parseCommand(raw: unknown): Command | null {
     case 'cancel':
       return typeof o.type === 'string' && BUILDABLE.has(o.type) ? { c: o.c as 'build' | 'hold' | 'cancel', type: o.type as Buildable } as Command : null;
     case 'place':
-      return typeof o.type === 'string' && (BLD_TYPES as readonly string[]).includes(o.type) && inMap(o.tx, o.ty) ? { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number } : null;
+      if (typeof o.type !== 'string' || !(BLD_TYPES as readonly string[]).includes(o.type) || !inMap(o.tx, o.ty)) return null;
+      // walls: the far end of a dragged line
+      if (o.ex !== undefined || o.ey !== undefined) return inMap(o.ex, o.ey) ? { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number, ex: o.ex as number, ey: o.ey as number } : null;
+      return { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number };
     case 'repair':
-    case 'sell':
+    case 'scrap':
       return isInt(o.id) ? { c: o.c, id: o.id } : null;
     default:
       return null;
@@ -112,16 +115,16 @@ export function applyCommand(team: number, cmd: Command): void {
       cancel(team, cmd.type);
       break;
     case 'place':
-      startSite(team, cmd.type, cmd.tx, cmd.ty);
+      startSite(team, cmd.type, cmd.tx, cmd.ty, cmd.ex, cmd.ey);
       break;
     case 'repair': {
       const b = ownBuilding(team, cmd.id);
       if (b) toggleRepair(b);
       break;
     }
-    case 'sell': {
+    case 'scrap': {
       const b = ownBuilding(team, cmd.id);
-      if (b) sell(b);
+      if (b) scrap(b);
       break;
     }
   }

@@ -2,11 +2,11 @@
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import * as THREE from 'three';
 import { G, haulOf, valid, type Ent } from '../../../game/state.ts';
-import { TS } from '../../../game/const.ts';
-import { BUILDING, type BldType } from '../../../data/building.ts';
+import { MH, MW, TS } from '../../../game/const.ts';
+import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
-import { nearBase, tileFree } from '../../../game/building.ts';
+import { nearBase, tileFree, wallLine } from '../../../game/building.ts';
 import { nearPortal } from '../../../game/map.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -16,6 +16,8 @@ import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
+import { animateCreature } from './creatures3d.ts';
+import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
 import { levelUnder } from './world3d.ts';
@@ -41,8 +43,8 @@ export function resetEntities3d(): void {
   S.scene.add(holder, overlays);
 }
 
-function create(e: Ent): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
+function create(e: Ent, wallMask: number): Model {
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team), wallMask);
   m.root.userData.id = e.id;
   if (e.kind === 'unit') {
     const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));
@@ -135,6 +137,7 @@ function animateUnit(m: Model, e: Ent): void {
   }
   if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
+  if (UNIT[e.type as UnitType]?.beast) animateCreature(m, e, w, atk);
 }
 
 function animateBuilding(m: Model, e: Ent, dt: number): void {
@@ -259,10 +262,28 @@ function ghostFor(type: BldType): NonNullable<typeof ghost> {
   return ghost;
 }
 
+/** Tile markers along a wall line being dragged out. */
+const linePool: THREE.Mesh[] = [];
+const lineGeo = new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2);
+
+function updateWallLine(): void {
+  const m = V.mode, line = m?.t === 'place' && m.ax != null && m.ay != null ? wallLine(m.ax, m.ay, m.tx, m.ty) : [];
+  line.forEach(([x, y], i) => {
+    let t = linePool[i];
+    if (!t) { t = new THREE.Mesh(lineGeo, basic('#4f4', 0.45)); t.renderOrder = 3; linePool.push(t); overlays.add(t); }
+    t.visible = true;
+    t.position.set(x + 0.5, 0.1, y + 0.5);
+    const ok = nearBase(x, y, 1, V.team, true) && tileFree(x, y, V.team) && !nearPortal(x, y);
+    (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
+  });
+  for (let i = line.length; i < linePool.length; i++) linePool[i].visible = false;
+}
+
 function updateGhost(): void {
   const m = V.mode;
+  updateWallLine();
   if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
-  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team);
+  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team, isWall(m.type));
   g.group.visible = true;
   const base = footprintY(m.tx, m.ty, s, s);
   g.group.position.set(m.tx + s / 2, base, m.ty + s / 2);
@@ -274,17 +295,39 @@ function updateGhost(): void {
   });
 }
 
+/**
+ * Which neighbours a wall joins (bits follow WALL_DIRS): any of its team's walls next to it. A
+ * diagonal join is left out when a straight neighbour already closes that corner.
+ */
+function wallMask(e: Ent, walls: Map<number, number>): number {
+  const at = (dx: number, dy: number) => {
+    const x = e.tx + dx, y = e.ty + dy;
+    return x >= 0 && y >= 0 && x < MW && y < MH && walls.get(y * MW + x) === e.team;
+  };
+  let mask = 0;
+  WALL_DIRS.forEach(([dx, dy], i) => {
+    if (!at(dx, dy)) return;
+    if (dx && dy && (at(dx, 0) || at(0, dy))) return;
+    mask |= 1 << i;
+  });
+  return mask;
+}
+
 /** Create, move, animate and remove models to match the world. Call once per frame. */
 export function syncEntities(dt: number): void {
   const seen = new Set<number>();
+  // which team's wall stands on each tile, so segments join up with their neighbours
+  const walls = new Map<number, number>();
+  for (const e of G.ents) if (!e.dead && e.kind === 'bld' && isWall(e.type)) walls.set(e.ty * MW + e.tx, e.team);
   for (const e of G.ents) {
     if (e.dead) continue;
     seen.add(e.id);
     let o = objs.get(e.id);
+    const mask = walls.size && e.kind === 'bld' && isWall(e.type) ? wallMask(e, walls) : 0;
     // structures change their look as their side advances through the ages
-    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
+    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}|${mask}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
     if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
-    if (!o) { o = { model: create(e), key }; objs.set(e.id, o); }
+    if (!o) { o = { model: create(e, mask), key }; objs.set(e.id, o); }
     const r = o.model.root;
     r.visible = shownToPlayer(e);
     if (!r.visible) continue;
