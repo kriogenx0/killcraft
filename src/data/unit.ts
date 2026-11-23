@@ -4,6 +4,7 @@ import type { BldType } from './building.ts';
 export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
+  | 'mage' | 'stormcaller' | 'archmage' | 'juggernaut' | 'titan'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
@@ -38,6 +39,13 @@ export interface UnitDef {
   beast?: boolean;
   /** fraction of max health regained each second, whatever the side's healing research (the Hydra) */
   regen?: number;
+  /**
+   * a spellcaster with its own robes and staff (render3d/arcane3d.ts). Like the hidden units it costs
+   * Aether, so it stays hidden until its side first finds some, but it is no copy of a regular unit.
+   */
+  magic?: boolean;
+  /** a hulking walker of flesh and steel (render3d/arcane3d.ts): it strides on two legs and twists its torso to aim */
+  cyborg?: boolean;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
   look?: UnitType;
   /** build time in seconds at full power */
@@ -62,6 +70,8 @@ export interface UnitDef {
   alt?: number;
   /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
   key?: string;
+  /** the hotkey sub-menu it sits in at its producer (views/game/hotkeys.ts); creatures and spellcasters get one by default */
+  group?: string;
   desc: string;
 }
 
@@ -90,6 +100,15 @@ export const UNIT: Record<UnitType, UnitDef> = {
   hexblade: { name: 'Hex Rifleman', cls: 'infantry', armor: 'none', hp: 55, spd: 2.0, turn: 6.5, weapon: 'hexrifle', cost: 110, wood: 20, aether: 25, t: 6, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, look: 'rifleman', desc: 'Hexed shot slows whatever it hits to half speed for a moment.' },
   phantom: { name: 'Phantom Jeep', cls: 'vehicle', armor: 'light', hp: 170, spd: 5.0, turn: 4, weapon: 'mg', cost: 450, oil: 50, aether: 60, t: 10, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, cloak: true, look: 'jeep', desc: 'Scout jeep wrapped in Aether. Unseen until it fires or an enemy comes close.' },
   starfall: { name: 'Starfall Tank', cls: 'vehicle', armor: 'heavy', hp: 380, spd: 2.8, turn: 2.5, weapon: 'starbeam', cost: 750, oil: 150, aether: 100, t: 16, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 13, look: 'tank', desc: 'Battle tank with a beam of starlight. Slow to fire, but tears through buildings.' },
+  // spellcasters: they draw on Aether, so they stay hidden until their side finds some. One per age,
+  // each a little stronger and stranger than the last. Robes don't stop bullets.
+  mage: { name: 'Battle Mage', cls: 'infantry', armor: 'none', hp: 75, spd: 2.0, turn: 6.5, weapon: 'fireball', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, desc: 'Hurls fireballs that burst over a crowd. Deadly to massed infantry, fragile up close.' },
+  stormcaller: { name: 'Storm Caller', cls: 'infantry', armor: 'none', hp: 85, spd: 2.0, turn: 6.5, weapon: 'lightning', cost: 400, aether: 50, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, desc: 'Calls down lightning that leaps from its target to two more foes nearby. Strikes aircraft too.' },
+  archmage: { name: 'Archmage', cls: 'infantry', armor: 'light', hp: 120, spd: 1.8, turn: 6, weapon: 'meteor', cost: 700, aether: 90, t: 16, era: 2, sight: 8, producer: 'infantry', turret: false, radius: 7, magic: true, desc: 'Pulls a burning star down on a spot far away. Slow to cast, and the meteor lands where the foe stood, but it wrecks bases.' },
+  // cyborgs: Modern-age giants, half soldier, half war machine, built at the War Factory. Huge,
+  // slow and costly, they wade through small-arms fire; rockets and anti-tank missiles bring them down.
+  juggernaut: { name: 'Cyborg Juggernaut', key: 'J', cls: 'vehicle', armor: 'heavy', hp: 900, spd: 2.2, turn: 3, weapon: 'minigun', cost: 1200, oil: 150, t: 20, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, cyborg: true, desc: 'A towering cyborg with a rotary cannon for an arm. Mows down infantry and shrugs off bullets.' },
+  titan: { name: 'Cyborg Titan', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2200, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft.' },
   // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 220, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 350, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 11, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry.' },

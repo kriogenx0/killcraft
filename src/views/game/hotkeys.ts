@@ -5,7 +5,8 @@
 //
 // A building with more items than free letters (the yard) sorts some into groups: walls, defenses
 // and Aether structures each sit behind one key, and their items are keyed again inside the group.
-// So with the yard selected, L then S lays a Stone Wall. A def can name its own group with `group`.
+// So with the yard selected, L then S lays a Stone Wall. The Barracks does the same for creatures of
+// myth and spellcasters. A def can name its own group with `group`.
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
 import { BUILDING, BLD_TYPES, isWall, type BldType } from '../../data/building.ts';
 import { TECH, TECH_TYPES } from '../../data/era.ts';
@@ -30,6 +31,7 @@ export const isRare = (t: string): boolean => (defOf(t)?.aether ?? 0) > 0;
 export function groupOfType(t: string): string | undefined {
   const d = defOf(t);
   if (d?.group) return d.group;
+  if (t in UNIT) { const u = UNIT[t as keyof typeof UNIT]; return u.beast ? 'Creatures' : u.magic ? 'Magic' : undefined; }
   if (!(t in BUILDING)) return undefined;
   if (isWall(t)) return 'Walls';
   if (isRare(t)) return 'Aether';
@@ -52,8 +54,11 @@ export interface KeyMap {
 
 const BLD_KEYS = Object.values(BUILDING_KEYS);
 
-/** Preferred keys for the default groups: G for guns, L for walls (W scrolls), T for the Aether's star stones. */
-const GROUP_KEYS: Record<string, string> = { Defenses: 'G', Walls: 'L', Aether: 'T' };
+/**
+ * Preferred keys for the default groups: G for guns, L for walls (W scrolls), T for the Aether's star
+ * stones; at the Barracks, Y for mythic creatures and Z for spellcasters (zap).
+ */
+const GROUP_KEYS: Record<string, string> = { Defenses: 'G', Walls: 'L', Aether: 'T', Creatures: 'Y', Magic: 'Z' };
 
 /** Keys for one building's items: groups first, then the ungrouped items around them, then each group's items. */
 export function keyMap(items: readonly Keyed[]): KeyMap {

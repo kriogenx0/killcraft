@@ -2,7 +2,7 @@
 import { G, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
-import { WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
+import { CHAIN_FALLOFF, CHAIN_REACH, WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
 import { edgeDist } from './path.ts';
 import { angleDiff, approach, turnToward } from './move.ts';
@@ -24,7 +24,7 @@ export const MELEE_LAND = 0.15;
 /** how far a target may step away mid-swing and still be struck (px) */
 const MELEE_SLACK = 12;
 /** tracer and flash colours for weapons that don't fire plain lead */
-const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a' };
+const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a', lightning: '#bfe4ff', railgun: '#8ad8ff' };
 
 export const armorOf = (e: Ent): ArmorClass => (e.kind === 'unit' ? unitDef(e).armor : 'building');
 export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unitDef(e).weapon : e.kind === 'bld' ? bldDef(e).weapon ?? null : null);
@@ -102,10 +102,32 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   if (w.proj === 'bullet') {
     part('tracer', mx, my, { ex: t.x + (Math.random() - 0.5) * 8, ey: t.y - 6 + (Math.random() - 0.5) * 8, ez: altOf(t), max: wt === 'starbeam' ? 0.25 : 0.13, z: air ? z : 0, col: BEAM_COL[wt] ?? null, size: wt === 'starbeam' ? 3 : 1 });
     hit(wt, t, s, t.x, t.y);
+    if (w.chain) chainOn(s, wt, t, w.chain);
     return;
   }
   const ground = w.ground ? { gx: t.x, gy: t.y } : {};
   G.projs.push({ ...ground, kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
+}
+
+/** Lightning leaps from the foe it struck to the nearest other foe, and on again, weaker each time. */
+function chainOn(s: Ent, wt: WeaponType, first: Ent, leaps: number): void {
+  const w = WEAPON[wt], struck = new Set([first.id]);
+  let from = first, dmg = w.dmg;
+  for (let i = 0; i < leaps; i++) {
+    let next: Ent | null = null, best = CHAIN_REACH;
+    for (const e of G.ents) {
+      if (e.dead || e.kind !== 'unit' || struck.has(e.id) || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+      const d = Math.hypot(e.x - from.x, e.y - from.y);
+      if (d < best) { best = d; next = e; }
+    }
+    if (!next) return;
+    dmg *= CHAIN_FALLOFF;
+    struck.add(next.id);
+    part('tracer', from.x, from.y - 6, { ex: next.x, ey: next.y - 6, ez: altOf(next), max: 0.18, z: altOf(from), col: BEAM_COL[wt] ?? null, size: 2 });
+    part('flash', next.x, next.y - 6, { max: 0.1, size: 10, z: altOf(next), col: BEAM_COL[wt] ?? null });
+    if (!G.visualOnly) dealDamage(next, dmg * w.vs[armorOf(next)], s);
+    from = next;
+  }
 }
 
 /** Up to `n` foes besides `t` within a melee weapon's reach of `s`. */
@@ -256,8 +278,11 @@ function landBlow(p: Projectile, t: Ent, dt: number): void {
   hit(wt, t, s, t.x, t.y);
 }
 
+/** the sparks a spell leaves in its wake */
+export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030' };
+
 /** How high each kind of projectile arcs (fraction of the distance, and a cap in px). */
-const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150], ground: [0.35, 320] };
+const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150], orb: [0.15, 40], ground: [0.35, 320] };
 
 /** A lobbed shell lands: everything near the spot takes damage, falling off toward the edge of the blast. */
 function shellLands(wt: WeaponType, x: number, y: number, src: Ent | null, team: number): void {
@@ -284,7 +309,8 @@ export function updProjs(dt: number): void {
       p.tr += st;
       const k = clamp(p.tr / Math.max(p.d0, 1), 0, 1), [arc, cap] = ARC.ground;
       p.z = lerp(p.z0, 4, k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
-      if (Math.random() < 0.5) part('trail', p.x, p.y - p.z, { max: 0.5, size: 2, soft: true });
+      if (p.kind === 'orb') part('flash', p.x, p.y, { max: 0.3, size: 9, z: p.z, col: ORB_COL[p.weapon] ?? null });
+      if (Math.random() < 0.5) part('trail', p.x, p.y - p.z, { max: 0.5, size: p.kind === 'orb' ? 4 : 2, soft: true });
       if (dist <= st + 2) { p.dead = true; shellLands(p.weapon as WeaponType, p.gx, p.gy, valid(p.src), p.team); }
       else { p.x += (dx / dist) * st; p.y += (dy / dist) * st; }
       continue;
@@ -298,6 +324,7 @@ export function updProjs(dt: number): void {
     const [arc, cap] = ARC[p.kind] ?? [0, 0];
     p.z = lerp(p.z0, 4 + altOf(t), k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
     if (p.kind === 'rocket' && Math.random() < 0.8) part('trail', p.x, p.y - p.z, { max: 0.6, size: 2.5, soft: true });
+    if (p.kind === 'orb' && Math.random() < 0.8) part('flash', p.x, p.y, { max: 0.25, size: 5, z: p.z, col: ORB_COL[p.weapon] ?? null });
     if (dist <= st + 6) {
       p.dead = true;
       hit(p.weapon as WeaponType, t, valid(p.src), t.x, t.y);

@@ -3,9 +3,10 @@ export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak'
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
+  | 'fireball' | 'lightning' | 'meteor' | 'minigun' | 'railgun'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick';
 /** melee and bullets hit at once; the rest fly as projectiles */
-export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder';
+export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
 
 export interface WeaponDef {
   dmg: number;
@@ -31,6 +32,8 @@ export interface WeaponDef {
   slow?: number;
   /** melee: strikes this many foes in reach at once (the Hydra's heads) */
   heads?: number;
+  /** bullets: the hit leaps on to this many more foes, each within CHAIN_REACH of the last, at CHAIN_FALLOFF of the damage */
+  chain?: number;
 }
 
 export const WEAPON: Record<WeaponType, WeaponDef> = {
@@ -62,6 +65,13 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   wraithlance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.95, heavy: 0.85, building: 0.4, air: 0 } },
   hexrifle: { dmg: 9, range: 3.5, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, slow: 1.5, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
   starbeam: { dmg: 44, range: 5, cd: 2.4, proj: 'bullet', speed: 0, splash: 0, vs: { none: 0.35, light: 0.8, heavy: 0.85, building: 1.5, air: 0 } },
+  // spells: fireballs and meteors fly as glowing orbs; lightning strikes at once and leaps on
+  fireball: { dmg: 22, range: 4.5, cd: 2.0, proj: 'orb', speed: 300, splash: 16, vs: { none: 1.1, light: 0.8, heavy: 0.35, building: 0.6, air: 0.7 } },
+  lightning: { dmg: 30, range: 5, cd: 2.3, proj: 'bullet', speed: 0, splash: 0, chain: 2, vs: { none: 1, light: 1, heavy: 0.8, building: 0.4, air: 1.2 } },
+  meteor: { dmg: 110, range: 9, minRange: 3, cd: 7, proj: 'orb', speed: 200, splash: 30, ground: true, vs: { none: 0.8, light: 0.9, heavy: 0.8, building: 1.3, air: 0 } },
+  // cyborg arms
+  minigun: { dmg: 8, range: 4.5, cd: 0.2, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.75, heavy: 0.3, building: 0.35, air: 0.8 } },
+  railgun: { dmg: 95, range: 6, cd: 3.2, proj: 'shell', speed: 900, splash: 14, vs: { none: 0.4, light: 1, heavy: 1.1, building: 1.1, air: 0 } },
   // creatures of Greek myth
   centaurbow: { dmg: 15, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 0.7 } },
   axe: { dmg: 34, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
@@ -72,3 +82,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },
   griffclaw: { dmg: 32, range: 0.8, cd: 1.2, proj: 'melee', speed: 0, splash: 0, vs: { none: 0.8, light: 1, heavy: 1, building: 0.5, air: 1.2 } },
 };
+
+/** Chain lightning leaps to foes within this many px of the last one struck... */
+export const CHAIN_REACH = 64;
+/** ...each leap at this fraction of the damage of the one before. */
+export const CHAIN_FALLOFF = 0.7;

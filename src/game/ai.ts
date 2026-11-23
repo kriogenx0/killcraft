@@ -495,7 +495,7 @@ function training(team: number): void {
     let t: UnitType | null = null;
     if (available(team, 'vehicle').includes('harvester') && countOf(team, 'harvester') < Math.min(6, refineries * lvl(team).harvesters) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
     else if (!saving && !full && credits > 500)
-      t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5]]);
+      t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5], ['juggernaut', credits > 1500 ? 2 : 0], ['titan', credits > 2600 ? 2 : 0]]);
     if (t) enqueue(team, t);
   }
   // a few aircraft once there's money to spare
@@ -515,7 +515,7 @@ function training(team: number): void {
   if (!saving && !full && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
-    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5],
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0],
       ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5]]);
     if (t) enqueue(team, t);
   }

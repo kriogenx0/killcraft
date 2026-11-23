@@ -110,14 +110,16 @@ const projGeo = {
   rocket: new THREE.CylinderGeometry(0.055, 0.055, 0.42, 8).rotateZ(Math.PI / 2),
   bolt: new THREE.BoxGeometry(0.5, 0.045, 0.045),
   boulder: new THREE.DodecahedronGeometry(0.2),
+  orb: new THREE.IcosahedronGeometry(0.11, 1),
 };
 const projMat = {
   shell: mat('#ffe080', { emissive: '#ffb030', emissiveIntensity: 2 }),
   rocket: mat('#d8d8c8', { emissive: '#ff8a30', emissiveIntensity: 0.6 }),
   bolt: mat('#e8d8b0', { emissive: '#fff0c8', emissiveIntensity: 0.5 }),
   boulder: M.rock(),
+  orb: mat('#fff0c0', { emissive: '#ff9a30', emissiveIntensity: 2.4 }),
 };
-const projPools: Record<string, THREE.Mesh[]> = { shell: [], rocket: [], bolt: [], boulder: [] };
+const projPools: Record<string, THREE.Mesh[]> = { shell: [], rocket: [], bolt: [], boulder: [], orb: [] };
 
 // ground marks: one instanced disc per kind, plus stones and wrecks
 const discGeo = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2);
@@ -227,13 +229,13 @@ function updateAttackLines(): void {
 }
 
 /** glow colour around each kind of projectile, and the streak behind it: length (tiles), thickness, colour */
-const PROJ_GLOW: Record<string, [number, number, number] | null> = { shell: [1, 0.6, 0.2], rocket: [1, 0.5, 0.15], bolt: [0.55, 0.5, 0.4], boulder: null };
+const PROJ_GLOW: Record<string, [number, number, number] | null> = { shell: [1, 0.6, 0.2], rocket: [1, 0.5, 0.15], bolt: [0.55, 0.5, 0.4], boulder: null, orb: [1, 0.55, 0.15] };
 const STREAK: Record<string, [number, number, number, number, number]> = {
-  shell: [0.6, 0.05, 1, 0.65, 0.25], rocket: [0.5, 0.06, 1, 0.55, 0.2], bolt: [0.55, 0.025, 0.6, 0.55, 0.45], boulder: [0, 0, 0, 0, 0],
+  shell: [0.6, 0.05, 1, 0.65, 0.25], rocket: [0.5, 0.06, 1, 0.55, 0.2], bolt: [0.55, 0.025, 0.6, 0.55, 0.45], boulder: [0, 0, 0, 0, 0], orb: [0.7, 0.09, 1, 0.45, 0.1],
 };
 
 function updateProjectiles(): void {
-  const used: Record<string, number> = { shell: 0, rocket: 0, bolt: 0, boulder: 0 };
+  const used: Record<string, number> = { shell: 0, rocket: 0, bolt: 0, boulder: 0, orb: 0 };
   for (const p of G.projs) {
     if (p.kind === 'melee' || !seenAt(p.x, p.y)) continue;
     const pool = projPools[p.kind];
@@ -254,6 +256,8 @@ function updateProjectiles(): void {
     const [len, w, r, gr, b] = STREAK[p.kind];
     if (len) beam(x - Math.cos(p.a) * len, y, z - Math.sin(p.a) * len, x, y, z, w, bc.setRGB(r, gr, b));
     if (p.kind === 'boulder') me.rotation.x = p.tr * 0.05;
+    // a meteor is a burning star: bigger, and it tumbles as it falls
+    if (p.kind === 'orb') { me.scale.setScalar(p.weapon === 'meteor' ? 2.4 : 1); me.rotation.x = p.tr * 0.08; }
   }
   for (const [kind, pool] of Object.entries(projPools)) for (let i = used[kind]; i < pool.length; i++) pool[i].visible = false;
 }

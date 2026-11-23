@@ -17,6 +17,7 @@ import { waygateLinked } from '../../../game/aether.ts';
 import { shardModel, aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
+import { animateArcane } from './arcane3d.ts';
 import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
@@ -151,6 +152,7 @@ function animateUnit(m: Model, e: Ent): void {
   if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
   if (UNIT[e.type as UnitType]?.beast) animateCreature(m, e, w, atk);
+  if (UNIT[e.type as UnitType]?.magic || UNIT[e.type as UnitType]?.cyborg) animateArcane(m, e, w, atk);
 }
 
 function animateBuilding(m: Model, e: Ent, dt: number): void {
