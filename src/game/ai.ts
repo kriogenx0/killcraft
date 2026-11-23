@@ -246,14 +246,21 @@ function research(team: number): void {
 const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'derrick', 'mill'];
 const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
 
-/** Upgrade one building at a time to the side's age, with ore to spare. */
+/** Ore the computer keeps back for troops and repairs when paying for an upgrade. */
+const REFIT_RESERVE = 300;
+
+/**
+ * Upgrade one building at a time to the side's age: the most important one it can afford, so an
+ * expensive Construction Yard waiting for funds doesn't hold up the cheaper ones.
+ */
 function refits(team: number): void {
   const own = G.ents.filter((b) => !b.dead && b.team === team && b.kind === 'bld');
   if (own.some((b) => b.upT != null)) return;
-  const b = own.filter(canRefit).sort((x, y) => refitRank(x) - refitRank(y))[0];
-  if (!b) return;
-  const p = refitPrice(b);
-  if (G.credits[team] >= p.ore + 800 && G.wood[team] >= p.wood) toggleRefit(b);
+  const b = own.filter(canRefit).sort((x, y) => refitRank(x) - refitRank(y)).find((c) => {
+    const p = refitPrice(c);
+    return G.credits[team] >= p.ore + REFIT_RESERVE && G.wood[team] >= p.wood;
+  });
+  if (b) toggleRefit(b);
 }
 
 const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
