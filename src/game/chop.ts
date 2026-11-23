@@ -4,6 +4,7 @@
 import { G, valid, type Ent, type HarvestOrder, type Target } from './state.ts';
 import { GRASS, MH, MW, TREE, TS } from './const.ts';
 import { approach, turnToward } from './move.ts';
+import { bankAt } from './haul.ts';
 import { part } from './fx.ts';
 import { CHOP_RATE, CHOP_WORTH, MILL_RADIUS, WOOD_LOAD } from '../data/economy.ts';
 
@@ -48,25 +49,39 @@ function choppersAt(i: number, u: Ent): number {
   return n;
 }
 
-/** The nearest tree with wood worth chopping within r tiles of (cx, cy), preferring ones nobody else is on. */
-export function nearestTree(u: Ent, cx: number, cy: number, r: number): number | null {
+/** Tiles from (x, y) to the nearest tile of a footprint (0 on it). */
+const tilesTo = (x: number, y: number, f: { tx: number; ty: number; w: number; h: number }): number =>
+  Math.hypot(Math.max(f.tx - x, 0, x - (f.tx + f.w - 1)), Math.max(f.ty - y, 0, y - (f.ty + f.h - 1)));
+
+/**
+ * The tree with wood worth chopping within r tiles of (cx, cy) that is closest to `home` (a
+ * drop-off, so trips stay short; (cx, cy) itself if none), preferring ones nobody else is on.
+ */
+export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: Ent | null): number | null {
   let best: number | null = null, bd = Infinity;
   const bad = cantReach.get(u);
   for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
     for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) {
       const i = y * MW + x;
       if (G.terr[i] !== TREE || G.treeWood[i] < CHOP_WORTH || !reachable(i) || bad?.has(i)) continue;
-      const d = Math.hypot(x - cx, y - cy) + choppersAt(i, u) * 6;
+      const d = (home ? tilesTo(x, y, home) : Math.hypot(x - cx, y - cy)) + choppersAt(i, u) * CROWD;
       if (d < bd) { bd = d; best = i; }
     }
   return best;
 }
 
-/** Pick the next tree: near the Worker's mill if it has one, else near the Worker; anywhere as a last resort. */
+/** How many tiles further a Worker will walk for a tree of its own rather than share one. */
+const CROWD = 3;
+
+/**
+ * Pick the next tree: the closest to the Worker's mill if it has one, else to its nearest drop-off
+ * (Lumber Mill, Refinery or Town Hall), so the walk home stays short; anywhere as a last resort.
+ */
 function nextTree(u: Ent, o: HarvestOrder): number | null {
-  const mill = valid(o.src);
-  const [cx, cy] = mill ? [mill.tx + 1, mill.ty + 1] : [Math.floor(u.x / TS), Math.floor(u.y / TS)];
-  return nearestTree(u, cx, cy, MILL_RADIUS + 2) ?? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 14) ?? nearestTree(u, cx, cy, MW);
+  const home = valid(o.src) ?? bankAt(u, [...WOOD_BANKS]);
+  if (!home) return nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 14) ?? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), MW);
+  const cx = home.tx + (home.w >> 1), cy = home.ty + (home.h >> 1);
+  return nearestTree(u, cx, cy, MILL_RADIUS + 2, home) ?? nearestTree(u, cx, cy, 16, home) ?? nearestTree(u, cx, cy, MW, home);
 }
 
 function pickAnother(u: Ent, o: HarvestOrder): void {

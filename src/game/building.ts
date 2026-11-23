@@ -7,7 +7,7 @@ import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
 import { updRefit } from './refit.ts';
-import { burst, part } from './fx.ts';
+import { burst } from './fx.ts';
 import { nearestFree } from './path.ts';
 import { nearPortal } from './map.ts';
 import { updTurret } from './combat.ts';
@@ -52,10 +52,7 @@ function completed(b: Ent): void {
 function effects(b: Ent, dt: number): void {
   if (G.vis[tileOf(b.y) * MW + tileOf(b.x)] !== 2) return;
   // damaged buildings smoke and burn: drawn by the view (render3d/burn3d.ts)
-  if (b.type === 'power' && Math.random() < dt * 5) {
-    const cx = b.tx * TS + (Math.random() < 0.5 ? 20 : 46);
-    part('smoke', cx, b.ty * TS - 18, { vz: 26, vx: 5, max: 2.2, size: 4, soft: true });
-  }
+  // power plant steam is drawn by the view, from the tops of its towers (render3d/burn3d.ts)
   if (b.repairing && Math.random() < dt * 4) burst('spark', b.x + (Math.random() - 0.5) * b.w * TS * 0.6, b.y - 10, 3, 40, 100);
 }
 

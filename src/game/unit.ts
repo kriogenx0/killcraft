@@ -48,15 +48,17 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
 }
 
 /**
- * The nearest ore no other harvester has claimed; shares a tile only if every field is taken. When
+ * The ore closest to the harvester's drop-off that no other harvester has claimed; shares a tile only if every field is taken. When
  * the ground within `r` holds less than a load (a field mined out, with only crumbs of regrowth
  * left), head for the nearest patch with worthwhile ore anywhere instead.
  */
 function pickOre(u: Ent, tx: number, ty: number, r: number): [number, number] | null {
   const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
-  const here = () => nearestOre(tx, ty, r, 1, free) ?? nearestOre(tx, ty, r, 1, ok);
+  // closest to where it'll be dropped off, so trips stay short
+  const home = bankAt(u, ['refinery', 'yard']);
+  const here = () => nearestOre(tx, ty, r, 1, free, home) ?? nearestOre(tx, ty, r, 1, ok, home);
   if (r >= MW || oreAround(tx, ty, Math.max(r, 3)) >= haulOf(u)) return here();
-  return nearestOre(tx, ty, MW, ORE_WORTH, free) ?? nearestOre(tx, ty, MW, ORE_WORTH, ok) ?? here();
+  return nearestOre(tx, ty, MW, ORE_WORTH, free, home) ?? nearestOre(tx, ty, MW, ORE_WORTH, ok, home) ?? here();
 }
 
 /** The ore within r tiles of a tile, not counting crumbs too small to be worth a trip. */

@@ -372,6 +372,12 @@ const altTiles = (e: Ent): number => (e.kind === 'unit' ? UNIT[e.type as UnitTyp
 /** How high the top of an entity's model is (tiles), for placing health bars. */
 export const modelHeight = (e: Ent): number => (objs.get(e.id)?.model.height ?? 0.6) + altTiles(e);
 
+/** Cooling towers (parts named vent0, vent1... give off steam) and chimneys (flue0... give off smoke) on a model. */
+export const ventsOf = (e: Ent): { at: THREE.Object3D; smoke: boolean }[] => {
+  const P = objs.get(e.id)?.model.parts;
+  return P ? Object.keys(P).filter((k) => k.startsWith('vent') || k.startsWith('flue')).map((k) => ({ at: P[k], smoke: k.startsWith('flue') })) : [];
+};
+
 /** A point partway up an entity's model (tiles), for picking and box selection. */
 export const midHeight = (e: Ent): number => altTiles(e) + (objs.get(e.id)?.model.height ?? 0.6) * 0.4;
 
