@@ -1,7 +1,8 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
-import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
+import { dropSalvage } from './economy.ts';
+import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
@@ -115,14 +116,13 @@ export function placeBuilding(team: number, type: BldType, tx: number, ty: numbe
   return addBuilding(type, team, tx, ty, true);
 }
 
-export function sell(b: Ent): void {
+/** Tear a building down: nothing is refunded, but its scrap is left on the ground as ore to carry home. */
+export function scrap(b: Ent): void {
   if (b.dead || b.kind !== 'bld' || b.type === 'yard') return;
-  const d = bldDef(b), f = SELL_REFUND * (b.hp / b.maxhp);
-  G.credits[b.team] += Math.round(d.cost * f);
-  G.wood[b.team] += Math.round((d.wood ?? 0) * f);
-  G.oil[b.team] += Math.round((d.oil ?? 0) * f);
+  const ore = Math.round(bldDef(b).cost * SCRAP_SHARE * (b.hp / b.maxhp) + b.carry);
   burst('dust', b.x, b.y, 20, 40, 120);
   kill(b);
+  dropSalvage(b, ore);
 }
 
 export function toggleRepair(b: Ent): void {
