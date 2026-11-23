@@ -61,7 +61,7 @@ export function resetAi(teams = 2): void {
 
 const homeOf = (team: number): Ent | undefined =>
   G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
-const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'bld' || (e.kind === 'unit' && !!unitDef(e).weapon && !isHarvester(e))));
+const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon && !isHarvester(e))));
 
 /** Keep fighting the same side until it falls, then turn on the nearest one left. */
 function foeOf(team: number): number {
@@ -494,7 +494,8 @@ function military(team: number): void {
       for (const u of army)
         if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));
   }
-  const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld');
+  // march on the enemy's buildings, never its walls: those only get broken when they're in the way
+  const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld' && !isWall(e.type));
   if (!targets.length) targets.push(...G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit'));
   if (!targets.length) return;
   const from: Ent | { x: number; y: number } = home ?? army[0] ?? { x: 0, y: 0 };

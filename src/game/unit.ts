@@ -4,6 +4,7 @@ import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
+import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
@@ -345,6 +346,12 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
 }
 
+/** An enemy wall the unit was ordered right onto, once it's within sight of it. */
+function sentToWall(u: Ent, gx: number, gy: number, sight: number): Ent | null {
+  const w = canBreach(u) ? enemyWallAt(u.team, gx, gy) : null;
+  return w && Math.hypot(w.x - u.x, w.y - u.y) <= sight * TS ? w : null;
+}
+
 export function updUnit(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
@@ -401,14 +408,23 @@ export function updUnit(u: Ent, dt: number): void {
       if (u.scan <= 0) {
         u.scan = 0.3;
         // fight back against whoever is attacking first, and armed enemies before buildings
-        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight);
+        // fight back against whoever is attacking first, and armed enemies before buildings; a wall
+        // only if it was sent to one, once it's close
+        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight) ?? sentToWall(u, o.gx, o.gy, d.sight);
         if (b) { t = b; o.sub = b.id; u.path = null; }
       }
       if (t) {
         if (!combatStep(u, t, dt)) { o.sub = null; u.path = null; }
       } else {
         if (!u.path) { u.goal = [o.gx, o.gy]; u.path = pathFor(u, o.gx, o.gy); }
-        if (followPath(u, dt)) { u.order = null; u.path = null; }
+        if (followPath(u, dt)) {
+          // stopped short, walled off from where it's going: break through the enemy wall in the way
+          const short = Math.hypot(u.x - (o.gx + 0.5) * TS, u.y - (o.gy + 0.5) * TS) > 1.5 * TS;
+          const w = short && canBreach(u) ? wallInWay(u, o.gx, o.gy) : null;
+          if (w) o.sub = w.id;
+          else u.order = null;
+          u.path = null;
+        }
       }
       break;
     }

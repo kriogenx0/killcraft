@@ -1,4 +1,5 @@
 // Setting up a match and advancing the simulation by one fixed step.
+import { isWall } from '../data/building.ts';
 import { G, hooks, unitDef } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
@@ -57,8 +58,8 @@ export function initWorld(seed: number, teams = 2): void {
   updFog();
 }
 
-/** A side is still in the game while it has a building or an armed unit. */
-export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'bld' || (e.kind === 'unit' && !!unitDef(e).weapon)));
+/** A side is still in the game while it has a building (walls don't count) or an armed unit. */
+export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon)));
 
 export function update(dt: number): void {
   G.gameT += dt;

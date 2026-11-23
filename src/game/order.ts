@@ -9,6 +9,7 @@ const FLEE_DIST = 6;
 
 export function setOrder(u: Ent, o: Order | null): void {
   u.order = o;
+  u.breach = null;
   u.path = null;
   u.goal = null;
   u.rep = 0;
