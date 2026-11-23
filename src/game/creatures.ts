@@ -7,7 +7,7 @@ import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import {
   BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_FFA_SITES, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, RISE_HP,
-  SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN,
+  RESPAWN_TIME, SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN,
 } from '../data/creatures.ts';
 import { eachInDisk, nearPortal } from './map.ts';
 import { addUnit } from './entity.ts';
@@ -59,6 +59,7 @@ export function addBeast(type: UnitType, x: number, y: number): Ent {
  */
 export function placeCreatures(seed: number): void {
   G.tamed = teams().map(() => []);
+  G.respawns = [];
   for (const [[sx, sy], type] of lairsFor(seed)) {
     eachInDisk(sx, sy, 2, (i) => { if (!G.blk[i]) { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); } });
     const ok = reachable();
@@ -160,6 +161,7 @@ function rise(u: Ent): void {
 
 function capture(u: Ent, team: number): void {
   const type = u.type as UnitType, name = UNIT[type].name;
+  u.lair = { x: u.wild?.lx ?? u.x, y: u.wild?.ly ?? u.y };
   u.wild = undefined;
   u.team = team;
   u.hp = Math.max(u.hp, u.maxhp * RISE_HP);
@@ -188,3 +190,25 @@ export function captureBeasts(dt: number): void {
 
 /** Can this team train this creature (it has captured one)? */
 export const tamed = (team: number, t: UnitType): boolean => !!G.tamed[team]?.includes(t);
+
+/**
+ * A creature from a lair died (one captured from it; wild ones only kneel): it comes back a minute
+ * later at its lair, wild and belonging to nobody. Creatures trained at a Barracks or Airfield have
+ * no lair and stay dead.
+ */
+export function beastDied(u: Ent): void {
+  const home = u.wild ? { x: u.wild.lx, y: u.wild.ly } : u.lair;
+  if (!home || !UNIT[u.type as UnitType]?.beast) return;
+  G.respawns.push({ type: u.type as string, x: home.x, y: home.y, t: G.gameT + RESPAWN_TIME });
+}
+
+/** Bring back creatures whose minute is up. */
+export function respawnBeasts(): void {
+  if (!G.respawns.length) return;
+  G.respawns = G.respawns.filter((r) => {
+    if (r.t > G.gameT) return true;
+    const u = addBeast(r.type as UnitType, r.x, r.y);
+    for (const t of teams()) if (sidesNear(u, 12)[t]) say(t, `The ${UNIT[r.type as UnitType].name} has returned to its lair`);
+    return false;
+  });
+}

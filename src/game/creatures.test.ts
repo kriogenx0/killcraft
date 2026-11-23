@@ -3,12 +3,12 @@ import { G, hooks, type Ent } from './state.ts';
 import { STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
-import { addBuilding, addUnit } from './entity.ts';
+import { addBuilding, addUnit, kill } from './entity.ts';
 import { available } from './production.ts';
 import { acquire, dealDamage, fire } from './combat.ts';
 import { addBeast, captorOf, wildBeasts } from './creatures.ts';
 import { START_YARDS } from '../data/map.ts';
-import { BEASTS, CAPTURE_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
+import { BEASTS, CAPTURE_TIME, RESPAWN_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 
 function run(seconds: number): void {
@@ -144,6 +144,33 @@ describe('creatures of myth', () => {
     expect(errors).toEqual([]);
     expect(b.dead).toBe(false);
     expect(b.team).toBe(0);
+  });
+
+  it('comes back wild at its lair a minute after a captured one dies', () => {
+    const b = beast('griffin');
+    dealDamage(b, b.maxhp, null);
+    addUnit('swordsman', 0, b.x, b.y + TS).stance = 'passive';
+    run(CAPTURE_TIME + 1.5);
+    expect(b.team).toBe(0);
+    // it wanders off with its new side and dies there
+    b.x += 10 * TS;
+    kill(b);
+    run(RESPAWN_TIME - 5);
+    expect(wildBeasts()).toHaveLength(0);
+    run(7);
+    const back = wildBeasts();
+    expect(back).toHaveLength(1);
+    expect(back[0].type).toBe('griffin');
+    expect(back[0].team).toBe(-1);
+    expect(Math.hypot(back[0].x - MID.x, back[0].y - MID.y)).toBeLessThan(TS);
+    expect(G.tamed[0]).toContain('griffin'); // the side can still train them
+  });
+
+  it("doesn't bring back creatures trained at a Barracks", () => {
+    const u = addUnit('minotaur', 0, MID.x, MID.y);
+    kill(u);
+    run(RESPAWN_TIME + 2);
+    expect(wildBeasts()).toHaveLength(0);
   });
 
   it('lets a Hydra bite several foes at once', () => {

@@ -15,7 +15,7 @@ import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
 import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
-import { captureBeasts, placeCreatures } from './creatures.ts';
+import { beastDied, captureBeasts, placeCreatures, respawnBeasts } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
@@ -91,12 +91,12 @@ export function update(dt: number): void {
   updFx(dt);
   if (G.ents.some((e) => e.dead)) {
     G.ents = G.ents.filter((e) => {
-      if (e.dead) G.byId.delete(e.id);
+      if (e.dead) { G.byId.delete(e.id); if (e.kind === 'unit') beastDied(e); }
       return !e.dead;
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows

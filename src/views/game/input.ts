@@ -8,7 +8,7 @@ import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { centerCam, clampCam, ownSelected, selectedUnits, spectating, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
-import { ROTATE_KEYS, SCROLL_KEYS, isTyping, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
+import { ROTATE_KEYS, SCROLL_KEYS, SPEED_KEYS, isTyping, zoomKey, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
 import { productionHotkey } from './sidebar.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
@@ -309,14 +309,20 @@ function onKey(ev: KeyboardEvent): void {
   if (!V.started) return;
   const k = ev.key.toLowerCase(), target = ev.target as HTMLElement;
   if (isTyping(target)) return; // typing, not playing
+  const zoom = zoomKey(ev);
+  if (zoom) { // with or without Ctrl/Cmd: the game camera zooms, never the page
+    ev.preventDefault();
+    V.cam.dist *= ZOOM_STEP ** (zoom * 2);
+    clampCam();
+    return;
+  }
   if (k === 'meta' || k === 'control') { keys.clear(); return; }
   if (tracksKey(ev)) keys.add(k);
   if ((SCROLL_KEYS[k] || ROTATE_KEYS[k]) && tracksKey(ev)) { ev.preventDefault(); return; } // camera keys only move the camera
   if (target.closest?.('button') && (k === 'enter' || k === ' ')) return; // let buttons activate
   if (k === 'escape') { if (V.keyGroup) V.keyGroup = null; else V.mode = null; refreshCommands(true); return; }
   if (k === 'p' || k === 'pause') { V.paused = !V.paused; return; }
-  if (k === '+' || k === '=') { V.speed = Math.min(4, V.speed * 2); return; }
-  if (k === '-' || k === '_') { V.speed = Math.max(0.5, V.speed / 2); return; }
+  if (SPEED_KEYS[k]) { V.speed = Math.min(4, Math.max(0.5, V.speed * SPEED_KEYS[k])); return; }
   if (k === ' ') { ev.preventDefault(); if (G.lastAlert) centerCam(G.lastAlert.x, G.lastAlert.y); return; }
   if (k === 'home' || k === 'h') {
     // select the Town Hall (its keys build structures and research) and look at it
