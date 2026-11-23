@@ -354,23 +354,27 @@ function training(team: number): void {
   }
 }
 
-/** Workers a computer player sends to each building site or badly damaged building. */
+/** Workers a computer player takes off the ore, at most, to help sites go up and fix badly damaged buildings. */
 const MENDERS = 2;
 
 function upkeep(team: number): void {
+  const rich = G.credits[team] > 600;
   for (const b of G.ents)
-    if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
-  // a couple of Workers off the ore help each site go up and fix what's badly hurt (never the haulers)
+    if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && rich) b.repairing = true;
+  // a couple of Workers off the ore (never the haulers) help sites go up and, with ore to spare, fix what's badly hurt
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
-  const mending = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
+  let menders = workers.filter((w) => w.order?.t === 'heal' && w.order.sent).length;
   for (const b of G.ents) {
-    if (b.dead || b.team !== team || b.kind !== 'bld' || !(!b.done || b.hp < b.maxhp * 0.6) || mending(b) >= MENDERS) continue;
+    if (menders >= MENDERS) return;
+    if (b.dead || b.team !== team || b.kind !== 'bld' || !(!b.done || (rich && b.hp < b.maxhp * 0.6))) continue;
+    if (workers.some((w) => w.order?.t === 'heal' && w.order.tgt === b.id)) continue;
     const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res && w.carry < haulOf(w) * 0.5));
-    // leave at least one on the ore
-    if (free.filter((w) => w.order?.t === 'harvest').length <= 1 && free.every((w) => w.order)) return;
+    // leave at least two on the ore
+    if (free.filter((w) => w.order?.t === 'harvest').length <= 2) return;
     const w = free.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
     if (!w || Math.hypot(w.x - b.x, w.y - b.y) > 16 * TS) continue;
     orderFix(w, b);
+    menders++;
   }
 }
 
