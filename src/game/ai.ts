@@ -9,7 +9,8 @@ import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace, wallLine } from './building.ts';
 import { available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
-import { oilLeft, oilNear, treesNear } from './economy.ts';
+import { oilLeft, oilNear, treesNear, woodNear } from './economy.ts';
+import { CHOPPERS_PER_MILL } from '../data/economy.ts';
 import { orderFix, orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 import { wildBeasts } from './creatures.ts';
@@ -278,7 +279,7 @@ const REFIT_SAVE_MAX = 700;
 
 /**
  * Upgrade one building at a time to the side's age: the most important one it can afford, so an
- * expensive Construction Yard waiting for funds doesn't hold up the cheaper ones.
+ * expensive Town Hall waiting for funds doesn't hold up the cheaper ones.
  */
 function refits(team: number): void {
   const own = G.ents.filter((b) => !b.dead && b.team === team && b.kind === 'bld');
@@ -297,20 +298,32 @@ function refits(team: number): void {
 
 const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
 
-/** Mills and derricks worth sending a hauler to (a dry derrick with an empty store isn't). */
-const stores = (team: number): Ent[] => [...ownDone(team, 'mill'), ...ownDone(team, 'derrick').filter((d) => d.carry > 1 || oilLeft(d) > 0)];
+/** Wood and oil jobs: each Lumber Mill with woods left wants CHOPPERS_PER_MILL choppers, each derrick with oil one hauler. */
+function stores(team: number): Ent[] {
+  const mills = ownDone(team, 'mill').filter((m) => woodNear(m) > 0);
+  const derricks = ownDone(team, 'derrick').filter((d) => d.carry > 1 || oilLeft(d) > 0);
+  // first chopper at every mill, then the derricks, then the mills' other choppers
+  const jobs: Ent[] = [...mills, ...derricks];
+  for (let k = 1; k < CHOPPERS_PER_MILL; k++) jobs.push(...mills);
+  return jobs;
+}
 
 function workersWanted(team: number): number {
   const ore = G.era[team] >= UNIT.harvester.era ? 0 : countOf(team, 'refinery') * 3;
   // plus a pair to build with (sites only go up while Workers build them)
-  return Math.min(16, Math.max(4, ore + stores(team).length + 2));
+  return Math.min(18, Math.max(4, ore + stores(team).length + 2));
 }
 
-/** Keep one Worker hauling from every mill and derrick, taken off the ore if need be. */
+/** Keep the choppers and haulers each mill and derrick wants, taken off the ore if need be. */
 function assignHaulers(team: number): void {
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
-  const hauling = (b: Ent) => workers.some((w) => w.order?.t === 'harvest' && w.order.src === b.id);
-  for (const b of stores(team)) {
+  const jobs = stores(team), seen = new Map<number, number>();
+  const hauling = (b: Ent) => {
+    const k = (seen.get(b.id) ?? 0) + 1;
+    seen.set(b.id, k);
+    return workers.filter((w) => w.order?.t === 'harvest' && w.order.src === b.id).length >= k;
+  };
+  for (const b of jobs) {
     if (hauling(b)) continue;
     const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res));
     // leave at least one on the ore while Workers are the only miners
@@ -374,7 +387,7 @@ function training(team: number): void {
     if (t) enqueue(team, t);
   }
   // Workers: about three per refinery for ore before the Modern age, plus one per mill and derrick to haul
-  // (the Construction Yard trains them too, before there's a Barracks)
+  // (the Town Hall trains them too, before there's a Barracks)
   if (available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
@@ -402,12 +415,14 @@ function upkeep(team: number): void {
   const on = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
   const free = () => workers.filter((w) => !w.order || w.order.t === 'move' || (w.order.t === 'harvest' && !w.order.res && w.carry < haulOf(w) * 0.5));
   const digging = () => workers.filter((w) => w.order?.t === 'harvest' && !w.order.res).length;
+  const chopping = () => workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
   const nearest = (list: Ent[], b: Ent) => list.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
   // sites only go up with Workers on them: one each always (off the ore if need be), a second while
   // there are spare hands, oldest site first
   for (const b of sitesOf(team)) {
     const want = on(b) === 0 ? 1 : on(b) === 1 && (digging() > 2 || !countOf(team, 'refinery')) ? 1 : 0;
-    const w = want ? nearest(free(), b) : undefined;
+    // a site with nobody on it takes a chopper off the wood if no one else is free
+    const w = want ? nearest(free(), b) ?? (on(b) === 0 ? nearest(chopping(), b) : undefined) : undefined;
     if (w) orderFix(w, b);
   }
   // with ore to spare, a couple more fix what's badly hurt, leaving at least two on the ore

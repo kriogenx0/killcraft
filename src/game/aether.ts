@@ -135,7 +135,7 @@ export function drawAether(dt: number): void {
   }
 }
 
-/** Units carrying Aether bank it once they're near their own Construction Yard or Refinery. */
+/** Units carrying Aether bank it once they're near their own Town Hall or Refinery. */
 export function bankAether(): void {
   for (const u of G.ents) {
     if (u.dead || u.kind !== 'unit' || !u.ae) continue;

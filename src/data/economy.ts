@@ -3,21 +3,27 @@
 // and anything with an engine or rocket costs oil. Nothing that runs on oil exists before the World War age.
 // Ore and wood grow back; oil does not.
 
-/** A Lumber Mill cuts wood from trees within this many tiles of its footprint. */
+/** Trees within this many tiles of a Lumber Mill count as its woods (for placing it, and where its choppers look first). */
 export const MILL_RADIUS = 5;
-/** Wood per second a mill cuts from each tree it reaches, while the tree has wood left. */
-export const WOOD_PER_TREE = 0.3;
-/** Most trees a single mill can work. */
-export const MILL_MAX_TREES = 24;
 /** Wood a full-grown tree holds, and how fast a cut tree grows back (per second). */
 export const TREE_WOOD = 150;
 export const TREE_REGROW = 0.1;
 
 /**
- * Nothing is banked until a unit carries it home. A Lumber Mill and an Oil Derrick fill their own
- * store, up to this much, and stop when it's full; Workers carry it to a Construction Yard or a Refinery.
+ * Workers chop wood at trees themselves and carry it to a Lumber Mill (or a Refinery or the
+ * Town Hall); nothing is banked until it's dropped off. A Worker chops this much wood per
+ * second, carries at most WOOD_LOAD, and skips trees with less than CHOP_WORTH left.
  */
-export const MILL_STORE = 300;
+export const CHOP_RATE = 5;
+export const WOOD_LOAD = 50;
+export const CHOP_WORTH = 10;
+/** Choppers the computer keeps at each Lumber Mill. */
+export const CHOPPERS_PER_MILL = 2;
+
+/**
+ * An Oil Derrick fills its own store, up to this much, and stops when it's full; Workers carry it
+ * to a Town Hall or a Refinery.
+ */
 export const DERRICK_STORE = 300;
 
 /** Oil per second an Oil Derrick pumps while its well has oil. */
