@@ -28,6 +28,8 @@ interface AiState {
   guards: Set<number>;
   /** ore set aside for the next structure, which must be paid for in full before it starts */
   reserve: number;
+  /** ore troops leave untouched while saving for the next building upgrade (see refits) */
+  refitSave?: number;
   /** units sent to capture a wild creature, and the creature */
   hunters: Set<number>;
   prey: number | null;
@@ -269,7 +271,10 @@ const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factor
 const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
 
 /** Ore the computer keeps back for troops and repairs when paying for an upgrade. */
-const REFIT_RESERVE = 300;
+const REFIT_RESERVE = 100;
+/** The army it takes before the computer puts training aside to save for an upgrade, and the dearest upgrade it saves for. */
+const REFIT_ARMY = 6;
+const REFIT_SAVE_MAX = 700;
 
 /**
  * Upgrade one building at a time to the side's age: the most important one it can afford, so an
@@ -278,11 +283,16 @@ const REFIT_RESERVE = 300;
 function refits(team: number): void {
   const own = G.ents.filter((b) => !b.dead && b.team === team && b.kind === 'bld');
   if (own.some((b) => b.upT != null)) return;
-  const b = own.filter(canRefit).sort((x, y) => refitRank(x) - refitRank(y)).find((c) => {
+  const due = own.filter(canRefit).sort((x, y) => refitRank(x) - refitRank(y));
+  const b = due.find((c) => {
     const p = refitPrice(c);
     return G.credits[team] >= p.ore + REFIT_RESERVE && G.wood[team] >= p.wood;
   });
-  if (b) toggleRefit(b);
+  if (b) { toggleRefit(b); ais[team].refitSave = 0; return; }
+  // can't afford one yet: once there's an army to hold the base, troops wait while it saves up
+  const next = due.find((c) => refitPrice(c).ore <= REFIT_SAVE_MAX);
+  const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length;
+  ais[team].refitSave = next && army >= REFIT_ARMY ? refitPrice(next).ore + REFIT_RESERVE : 0;
 }
 
 const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
@@ -346,7 +356,7 @@ function training(team: number): void {
   // down to its last gatherer: troops leave the price of a Worker in hand. Nothing else brings ore
   // home (scrapped buildings leave ore on the ground), so a side with none left could never recover.
   const keep = gatherers(team) < 2 ? costOf('worker') : 0;
-  const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep);
+  const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep) - (ais[team].refitSave ?? 0);
   // saving up for the next structure
   const saving = credits < 150;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
