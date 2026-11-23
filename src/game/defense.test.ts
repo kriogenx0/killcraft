@@ -198,6 +198,22 @@ describe('Big Bertha', () => {
 });
 
 describe('computer player', () => {
+  it('puts up walls in a normal match, alongside its first defenses', () => {
+    const errors: unknown[] = [];
+    hooks.error = (e) => errors.push(e);
+    ais[0].on = true; ais[1].on = true;
+    initWorld(4321);
+    const wallsOf = (t: number) => G.ents.filter((e) => !e.dead && e.team === t && isWall(e.type)).length;
+    let most = [0, 0];
+    for (let i = 0; i < 8 * 60 / STEP && !G.over; i++) {
+      update(STEP);
+      if (i % 60 === 0) most = most.map((m, t) => Math.max(m, wallsOf(t)));
+    }
+    expect(errors).toEqual([]);
+    // no extra money: both sides wall in with what they earn
+    for (const t of [0, 1]) expect(most[t], `team ${t} walls`).toBeGreaterThanOrEqual(4);
+  }, 60_000);
+
   it('builds walls and several kinds of defenses over a long game', () => {
     const errors: unknown[] = [];
     hooks.error = (e) => errors.push(e);

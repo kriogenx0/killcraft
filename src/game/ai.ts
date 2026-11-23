@@ -53,6 +53,7 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
 export function resetAi(teams = 2): void {
   while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
+  wallPause.length = 0;
   ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
@@ -81,11 +82,14 @@ function foeOf(team: number): number {
   return best;
 }
 
-function nextStructure(team: number): BldType | null {
+function nextStructure(team: number, walling: boolean): BldType | null {
   const p = power(team), can = available(team, 'structure');
   // count what the sites going up will make and use once they're done
   for (const e of sitesOf(team)) { const w = BUILDING[e.type as BldType].power; if (w > 0) p.made += w; else p.used -= w; }
   if (p.used + 20 > p.made && can.includes('power')) return 'power';
+  // walls are cheap and go up alongside the build plan, not after it: a stretch for each defensive structure
+  const wall = walling ? null : wallWanted(team, can);
+  if (wall) return wall;
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
@@ -124,10 +128,6 @@ function defense(team: number, can: readonly string[]): BldType | null {
   const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
   if (credits > 4500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
-  // a stretch of wall for every defensive structure, so the two go up together
-  const wall = (['concretewall', 'stonewall', 'palisade'] as BldType[]).find((t) => can.includes(t) && G.wood[team] >= (BUILDING[t].wood ?? 0) * AI_WALL_RUN);
-  const walls = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && isWall(e.type)).length;
-  if (wall && credits > 1200 && turrets >= 1 && walls < Math.min(AI_WALLS, turrets * AI_WALL_RUN)) return wall;
   if (credits > 2500 && turrets < 5) {
     const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
     const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
@@ -138,6 +138,26 @@ function defense(team: number, can: readonly string[]): BldType | null {
 }
 
 const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+
+/** Seconds before trying walls again after finding nowhere to put one, and until when each side waits. */
+const WALL_RETRY = 30;
+const wallPause: number[] = [];
+
+/**
+ * The wall to put up next, if any: a stretch of AI_WALL_RUN segments for every defensive structure
+ * (so walls follow the first Watchtower), up to AI_WALLS, in the best wall the side can afford a
+ * whole stretch of.
+ */
+function wallWanted(team: number, can: readonly string[]): BldType | null {
+  const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
+  const walls = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && isWall(e.type)).length;
+  if (!turrets || walls >= Math.min(AI_WALLS, turrets * AI_WALL_RUN) || G.gameT < (wallPause[team] ?? 0)) return null;
+  // keep enough ore for the next structure in the plan: walls are an extra, never a reason to stall
+  return (['concretewall', 'stonewall', 'palisade'] as BldType[]).find((t) => {
+    const p = priceOf(t);
+    return can.includes(t) && G.credits[team] >= p.ore * AI_WALL_RUN + 300 && G.wood[team] >= p.wood * AI_WALL_RUN;
+  }) ?? null;
+}
 
 /**
  * A short stretch of wall across the approach from the enemy, a few tiles out from the yard, kept
@@ -207,15 +227,17 @@ function construction(team: number): void {
   // a wall line is many small sites: it doesn't hold up the rest of the base
   const sites = sitesOf(team), walling = sites.some((e) => isWall(e.type));
   if (sites.filter((e) => !isWall(e.type)).length >= maxSites(team)) { ais[team].reserve = 0; return; }
-  const t = nextStructure(team);
-  if (!t || (walling && isWall(t))) { ais[team].reserve = 0; return; }
+  const t = nextStructure(team, walling);
+  if (!t) { ais[team].reserve = 0; return; }
   // structures are paid for up front: save up for one rather than spend everything on troops
   if (!canAfford(team, t)) { ais[team].reserve = costOf(t); return; }
   if (isWall(t)) {
     const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
     const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
     const line = yard ? wallSite(team, yard, foe) : null;
-    ais[team].reserve = line && startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1]) ? 0 : costOf(t);
+    // nowhere to put a stretch: give up on walls for a while rather than hold up the base
+    if (!line || !startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1])) wallPause[team] = G.gameT + WALL_RETRY;
+    ais[team].reserve = 0;
     return;
   }
   const site = findSite(team, t);
