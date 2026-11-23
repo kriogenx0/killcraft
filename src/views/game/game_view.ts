@@ -2,10 +2,12 @@
 // frame loop. Solo and AI-vs-AI games simulate here; online games draw what the server sends.
 import { G, hooks } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
-import { START_YARDS } from '../../data/map.ts';
+import { layoutFor } from '../../data/map.ts';
+import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, type GameSetup } from '../../data/setup.ts';
+import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, update } from '../../game/world.ts';
-import { ais } from '../../game/ai.ts';
+import { ais, setAiLevel } from '../../game/ai.ts';
 import { noUpgrades } from '../../game/upgrade.ts';
 import { rebuildBlk } from '../../game/map.ts';
 import { updFog } from '../../game/fog.ts';
@@ -18,6 +20,7 @@ import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
 import { mountLobby } from '../lobby/lobby_view.ts';
+import { mountSetup } from '../setup/setup_view.ts';
 import { BUILDING, isWall, type BldType } from '../../data/building.ts';
 import { canPlace } from '../../game/building.ts';
 import { addBuilding, addUnit } from '../../game/entity.ts';
@@ -45,6 +48,16 @@ const FOG_INTERVAL = 0.2;
 const RESIGN_CONFIRM = 3000;
 const ORE_REFRESH = 0.5;
 
+/** A random UUID (crypto.randomUUID needs a secure context, so fall back to random bytes). */
+function newGameId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 function must<T extends Element>(root: Element, selector: string): T {
   const el = root.querySelector<T>(selector);
   if (!el) throw new Error(`Missing element: ${selector}`);
@@ -62,6 +75,13 @@ export function mountGameView(root: HTMLElement): void {
   const q = new URLSearchParams(location.search);
 
   let errors = 0, messageTimer = 0, endReason = '', shownEnd = false;
+  const pausedBox = must<HTMLElement>(root, '.game-paused'), timeEl = must<HTMLElement>(root, '.topbar-time');
+  /** Every game gets a UUID when it starts (online games use the server's match id). */
+  const setGameId = (id: string) => {
+    root.dataset.gameId = id;
+    for (const el of root.querySelectorAll<HTMLElement>('.game-id')) el.textContent = `Game ID ${id}`;
+    timeEl.title = `Game ID ${id}`;
+  };
   const show = (msg: string) => {
     message.textContent = msg;
     clearTimeout(messageTimer);
@@ -115,19 +135,31 @@ export function mountGameView(root: HTMLElement): void {
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(sidebar);
   resize();
-  const home = (team: number) => { const [x, y] = START_YARDS[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
+  const home = (team: number) => { const [x, y] = layoutFor(G.teams).yards[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
   home(V.team);
 
   // ---- solo and AI vs AI ----
-  const startSolo = (demo: boolean) => {
+  /** Start a game against the computer (or, with `demo`, a computer-only match to watch) with these settings. */
+  const startSolo = (demo: boolean, s: GameSetup = DEFAULT_SETUP) => {
     closeModal(startModal);
+    const teams = s.foes === 3 ? 4 : 2;
+    // no map number: play on the map already showing behind the menu
+    initWorld(s.seed ?? G.seed, teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units });
+    setAiLevel(s.difficulty);
     // spectators see the whole map, so they can follow and inspect every side
-    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: [!demo, false], reveal: G.reveal || demo });
-    ais[0].on = demo;
-    ais[1].on = true;
-    V.team = 0;
-    V.online = false;
-    V.started = true;
+    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || !s.fog });
+    const bonus = AI_LEVEL[s.difficulty].bonus;
+    ais.forEach((a, t) => {
+      a.on = t < teams && !G.human[t];
+      if (a.on && bonus !== 1) { G.credits[t] = Math.round(G.credits[t] * bonus); G.wood[t] = Math.round(G.wood[t] * bonus); }
+    });
+    updFog();
+    setGameId(newGameId());
+    setupWorldView();
+    makeIcons(0);
+    Object.assign(V, { team: 0, online: false, sel: [], mode: null, markers: [], pings: [], paused: false, speed: s.speed, started: true });
+    home(0);
+    setSelection([]);
   };
 
   // ---- online ----
@@ -172,6 +204,7 @@ export function mountGameView(root: HTMLElement): void {
     V.team = m.team;
     for (const a of ais) a.on = false;
     initWorld(m.seed);
+    setGameId(m.game ?? newGameId());
     // the server owns every unit and building: start empty and fill in from snapshots
     Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: false, visualOnly: true, viewer: m.team, human: [m.team === 0, m.team === 1] });
     G.byId.clear();
@@ -191,8 +224,10 @@ export function mountGameView(root: HTMLElement): void {
 
   const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onBack: () => openModal(startModal) });
 
-  must(root, '.game-start-play').addEventListener('click', () => startSolo(false));
-  must(root, '.game-start-watch').addEventListener('click', () => startSolo(true));
+  const setup = mountSetup(must(root, '.view-setup'), { onStart: (s, watch) => startSolo(watch, s), onBack: () => openModal(startModal) });
+
+  must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
+  must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
   must(root, '.game-start-online').addEventListener('click', () => { closeModal(startModal); lobby.open(); });
   againBtn.addEventListener('click', () => { location.search = V.online ? '?online' : ''; });
   pauseBtn.addEventListener('click', () => { V.paused = !V.paused; });
@@ -229,9 +264,11 @@ export function mountGameView(root: HTMLElement): void {
       if (n >= MAX_STEPS_PER_FRAME) acc = 0;
       ageMarkers(dt * V.speed);
     }
+    const showPaused = V.started && V.paused && !G.over && !V.online;
+    if (pausedBox.hidden === showPaused) pausedBox.hidden = !showPaused;
     if (G.over && !shownEnd) {
       shownEnd = true;
-      must(root, '.game-result').textContent = G.demo ? `${G.winner === 0 ? 'Blue' : 'Red'} wins` : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
+      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       resignBtn.hidden = true;
       openModal(endModal);
@@ -297,11 +334,24 @@ function showcase(what: string): void {
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
  * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
+ * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3, ?res=low|high, ?army=squad|army,
+ * ?fog=off, ?speed=2.
  */
-function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void, openLobby: (quick: boolean, join?: string) => void): void {
+function testSetup(q: URLSearchParams): GameSetup {
+  const s: GameSetup = { ...DEFAULT_SETUP, seed: null };
+  const ai = q.get('ai'), res = q.get('res'), army = q.get('army');
+  if (ai && ai in AI_LEVEL) s.difficulty = ai as GameSetup['difficulty'];
+  if (res && res in START_RESOURCES) s.resources = res as GameSetup['resources'];
+  if (army && army in START_ARMY) s.army = army as GameSetup['army'];
+  if (q.get('foes') === '3') s.foes = 3;
+  if (q.get('fog') === 'off') s.fog = false;
+  if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
+  return s;
+}
+
+function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean, s?: GameSetup) => void, openLobby: (quick: boolean, join?: string) => void): void {
   if (q.has('online') || q.has('join')) { openLobby(q.get('online') === 'quick', q.get('join') ?? undefined); return; }
-  if (q.has('demo')) startSolo(true);
-  else if (q.has('auto')) startSolo(false);
+  if (q.has('demo') || q.has('auto')) startSolo(q.has('demo'), testSetup(q));
   if (q.has('era')) G.era[V.team] = Math.max(0, Math.min(LAST_ERA, Number(q.get('era')) || 0));
   if (q.has('showcase')) showcase(q.get('showcase') ?? '');
   const dmg = (q.get('damage') ?? '').split(',').map(Number).filter((f) => f > 0);

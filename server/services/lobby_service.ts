@@ -16,8 +16,8 @@ export interface Player {
 }
 
 export interface LobbyEvents {
-  /** two players were matched; the first is team 0 */
-  paired: (a: Player, b: Player) => void;
+  /** two players were matched; the first is team 0. `game` is the id of the listed game they met in, if any. */
+  paired: (a: Player, b: Player, game?: string) => void;
   /** the list of open games or someone's status changed */
   changed: () => void;
 }
@@ -71,7 +71,7 @@ export class LobbyService {
     if (!p || p.status === 'playing') return;
     this.leave(id);
     p.status = 'host';
-    this.open.set(randomUUID().slice(0, 8), id);
+    this.open.set(randomUUID(), id);
     this.events.changed();
   }
 
@@ -79,7 +79,7 @@ export class LobbyService {
     const p = this.players.get(id), host = this.players.get(this.open.get(game) ?? '');
     if (!p || !host || host.id === id || p.status === 'playing') return false;
     this.leave(id);
-    this.pair(host, p);
+    this.pair(host, p, game);
     return true;
   }
 
@@ -154,7 +154,7 @@ export class LobbyService {
     for (const p of this.players.values()) if (p.inviting === id) p.inviting = undefined;
   }
 
-  private pair(a: Player, b: Player): void {
+  private pair(a: Player, b: Player, game?: string): void {
     this.leave(a.id);
     this.leave(b.id);
     this.dropInvitesTo(a.id);
@@ -162,7 +162,7 @@ export class LobbyService {
     a.status = b.status = 'playing';
     a.opponent = b.name;
     b.opponent = a.name;
-    this.events.paired(a, b);
+    this.events.paired(a, b, game);
     this.events.changed();
   }
 }
