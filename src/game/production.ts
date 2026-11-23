@@ -135,7 +135,7 @@ function pay(team: number, type: Buildable): void {
 /**
  * Queue an order. It starts (and is paid for in full) once it reaches the front of its line and the
  * side can pay. With `wait` (a player's order) one the side can't afford yet still queues and waits;
- * without it (the computer) it's turned down. Returns false if it wasn't queued.
+ * without it (the computer) it's turned down, and paid for up front. Returns false if it wasn't queued.
  * Structures don't queue: they start when placed (startSite), so for one this only reports a shortfall.
  */
 export function enqueue(team: number, type: Buildable, wait = false): boolean {
@@ -148,7 +148,9 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
   if (short && !wait) { fundsNotice(team, short); return false; }
   const it: ProductionItem = { type, prog: 0, spent: 0, ready: false, hold: false, paid: false };
   q.push(it);
-  payWaiting(team);
+  // the computer pays up front for everything it queues, so it never counts the same ore twice
+  if (!wait) { pay(team, type); it.paid = true; it.spent = priceOf(type).ore; }
+  else payWaiting(team);
   if (!it.paid && q[0] === it && short) fundsNotice(team, short, true);
   return true;
 }
