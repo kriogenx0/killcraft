@@ -24,7 +24,7 @@ export function startServer(config: Config): Promise<RunningServer> {
     finished: (id) => lobby.finished(id),
   });
   const lobby = new LobbyService({
-    paired: (a, b) => matches.start(a, b),
+    paired: (a, b, game) => matches.start(a, b, game),
     changed: () => sockets?.broadcastLobby(),
   });
   sockets = new SocketController(lobby, matches);

@@ -2,8 +2,10 @@
 // startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Town Hall,
 // one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
-// The whole price (ore, wood, oil, Aether) is paid when an order starts; an order the side can't
-// afford doesn't start, and cancelling refunds it in full. Production runs at half speed on low power.
+// The whole price (ore, wood, oil, Aether) is paid when an order starts. A player's order the side
+// can't afford yet waits (in the queue, or as a placed site) and starts on its own once the side can
+// pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
+// only orders what it can pay for now. Production runs at half speed on low power.
 import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
@@ -24,6 +26,7 @@ const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry:
 const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'air', 'tech', 'hospital', 'armory'];
 const FUNDS_NOTICE = 6;
 const SHORT_MSG = { ore: 'Not enough ore', wood: 'Not enough wood', oil: 'Not enough oil', aether: 'Not enough Aether' };
+const RES_NAME = { ore: 'ore', wood: 'wood', oil: 'oil', aether: 'Aether' };
 const lastFundsNotice: number[] = [];
 
 export const emptyProduction = (): Production => ({ structure: [], infantry: [], vehicle: [], air: [], tech: [], hospital: [], armory: [] });
@@ -106,14 +109,20 @@ export function available(team: number, line: ProductionLine): Buildable[] {
 }
 
 /** The first resource the team lacks for the whole price, or null if it can pay. */
-function shortOf(team: number, t: Buildable): keyof typeof SHORT_MSG | null {
+export function shortOf(team: number, t: Buildable): keyof typeof SHORT_MSG | null {
   const p = priceOf(t);
   return G.credits[team] < p.ore ? 'ore' : G.wood[team] < p.wood ? 'wood' : G.oil[team] < p.oil ? 'oil' : (G.aether[team] ?? 0) < p.aether ? 'aether' : null;
 }
 
-function fundsNotice(team: number, short: keyof typeof SHORT_MSG): void {
-  if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, SHORT_MSG[short]); }
+function fundsNotice(team: number, short: keyof typeof SHORT_MSG, waiting = false): void {
+  if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) {
+    lastFundsNotice[team] = G.gameT;
+    say(team, waiting ? `${SHORT_MSG[short]}: it starts when you have it` : SHORT_MSG[short]);
+  }
 }
+
+/** The resource a waiting order is short of, as the player reads it ("ore", "Aether"), or null. */
+export const waitingFor = (team: number, t: Buildable): string | null => { const s = shortOf(team, t); return s && RES_NAME[s]; };
 
 function pay(team: number, type: Buildable): void {
   const p = priceOf(type);
@@ -124,20 +133,47 @@ function pay(team: number, type: Buildable): void {
 }
 
 /**
- * Start an order, paying its whole price now. Returns false if it can't start (or can't be afforded).
+ * Queue an order. It starts (and is paid for in full) once it reaches the front of its line and the
+ * side can pay. With `wait` (a player's order) one the side can't afford yet still queues and waits;
+ * without it (the computer) it's turned down, and paid for up front. Returns false if it wasn't queued.
  * Structures don't queue: they start when placed (startSite), so for one this only reports a shortfall.
  */
-export function enqueue(team: number, type: Buildable): boolean {
+export function enqueue(team: number, type: Buildable, wait = false): boolean {
   const line = lineOf(type), q = G.prod[team][line];
   if (!available(team, line).includes(type)) return false;
   const short = shortOf(team, type);
   if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
   const research = line === 'tech' || line === 'hospital' || line === 'armory', max = research ? 1 : QUEUE_MAX;
   if (q.length >= max) { say(team, research ? 'Already researching' : 'Queue is full'); return false; }
-  if (short) { fundsNotice(team, short); return false; }
-  pay(team, type);
-  q.push({ type, prog: 0, spent: priceOf(type).ore, ready: false, hold: false });
+  if (short && !wait) { fundsNotice(team, short); return false; }
+  const it: ProductionItem = { type, prog: 0, spent: 0, ready: false, hold: false, paid: false };
+  q.push(it);
+  // the computer pays up front for everything it queues, so it never counts the same ore twice
+  if (!wait) { pay(team, type); it.paid = true; it.spent = priceOf(type).ore; }
+  else payWaiting(team);
+  if (!it.paid && q[0] === it && short) fundsNotice(team, short, true);
   return true;
+}
+
+/**
+ * Start whatever is waiting for funds that the side can now pay for: the front order of each line,
+ * then sites placed before they could be paid for, oldest first. A cheaper order can start while a
+ * dearer one on another line still waits.
+ */
+export function payWaiting(team: number): void {
+  for (const line of LINES) {
+    const it = G.prod[team][line][0];
+    if (!it || it.paid || it.hold || shortOf(team, it.type)) continue;
+    pay(team, it.type);
+    it.paid = true;
+    it.spent = priceOf(it.type).ore;
+  }
+  for (const b of G.ents) {
+    if (b.unpaid && !b.dead && b.team === team && !shortOf(team, b.type as BldType)) {
+      pay(team, b.type as BldType);
+      b.unpaid = false;
+    }
+  }
 }
 
 /** Can the team lay out this structure here right now (available, affordable, and a free spot)? */
@@ -146,23 +182,28 @@ export function canStartSite(team: number, type: BldType, tx: number, ty: number
 }
 
 /**
- * Place a structure: pay its whole price and lay out a site that builds itself. A wall can be laid
- * as a line to (ex, ey): every segment is its own site, paid in full as it goes down, until the line
- * ends or the money runs out (segments where something is in the way are skipped).
+ * Place a structure: pay its whole price and lay out a site for Workers to build. A wall can be laid
+ * as a line to (ex, ey): every segment is its own site, paid in full as it goes down (segments where
+ * something is in the way are skipped). With `wait` (a player's order) a site the side can't pay for
+ * yet is still laid out and waits, unbuilt, until it can (payWaiting); without it (the computer)
+ * placing stops where the money runs out.
  */
-export function startSite(team: number, type: BldType, tx: number, ty: number, ex = tx, ey = ty): Ent | null {
+export function startSite(team: number, type: BldType, tx: number, ty: number, ex = tx, ey = ty, wait = false): Ent | null {
   if (!available(team, 'structure').includes(type)) return null;
   const line = isWall(type) ? wallLine(tx, ty, ex, ey) : [[tx, ty] as const];
-  let first: Ent | null = null, n = 0;
+  let first: Ent | null = null, n = 0, waiting: keyof typeof SHORT_MSG | null = null;
   for (const [x, y] of line) {
-    const short = shortOf(team, type);
-    if (short) { fundsNotice(team, short); break; }
+    // once one segment waits, the rest wait behind it so they're paid for in the order they went down
+    const short: keyof typeof SHORT_MSG | null = waiting ?? shortOf(team, type);
+    if (short && !wait) { fundsNotice(team, short); break; }
     const b = placeBuilding(team, type, x, y, line.length > 1);
     if (!b) continue;
-    pay(team, type);
+    if (short) { b.unpaid = true; waiting = short; }
+    else pay(team, type);
     first ??= b;
     n++;
   }
+  if (waiting) fundsNotice(team, shortOf(team, type) ?? waiting, true);
   if (!first && line.length > 1) say(team, 'Cannot place there');
   if (n > 1) say(team, `${n} wall segments placed`);
   if (first) sendBuilder(team, first);
@@ -190,7 +231,7 @@ export function sitesOf(team: number, type?: BldType): Ent[] {
   return G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && !e.done && (!type || e.type === type));
 }
 
-/** Cancel the newest queued item of a type (or the newest site of a structure) and refund its whole price. */
+/** Cancel the newest queued item of a type (or the newest site of a structure) and refund what was paid for it. */
 export function cancel(team: number, type: Buildable): boolean {
   if (lineOf(type) === 'structure') {
     const site = sitesOf(team, type as BldType).pop();
@@ -200,6 +241,7 @@ export function cancel(team: number, type: Buildable): boolean {
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
     if (q[i].type === type) {
+      if (!q[i].paid) { q.splice(i, 1); return true; } // still waiting for funds: nothing to give back
       const p = priceOf(q[i].type);
       G.credits[team] += p.ore;
       G.wood[team] += p.wood;
@@ -254,12 +296,14 @@ function advance(team: number, type: TechType): void {
 
 export function updProduction(team: number, dt: number): void {
   const speed = lowPower(team) ? 0.5 : 1;
+  payWaiting(team);
   for (const line of LINES) {
     const q = G.prod[team][line], it = q[0];
     if (!it || it.ready || it.hold) continue;
     const at = producerOf(team, line);
     // gone, or only a yard left, which trains nothing but Workers: refunded
     if (!at || (at.type === 'yard' && line === 'infantry' && !YARD_INFANTRY.includes(it.type as UnitType))) { cancel(team, it.type); continue; }
+    if (!it.paid) continue; // waiting until the side can pay for it
     it.prog += Math.min((speed * refitBonus(at) * dt) / timeOf(it.type), 1 - it.prog);
     if (it.prog < 1 - 1e-9) continue;
     if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }

@@ -18,6 +18,7 @@ describe('commands', () => {
     expect(parseCommand({ c: 'explode' })).toBeNull();
     expect(parseCommand({ c: 'move', ids: [1, 2], tx: 5, ty: 6, amove: true })).toEqual({ c: 'move', ids: [1, 2], tx: 5, ty: 6 });
     expect(parseCommand({ c: 'attack', ids: [1], target: 2 })).toBeNull();
+    expect(parseCommand({ c: 'patrol', ids: [1], tx: 4, ty: 5 })).toEqual({ c: 'patrol', ids: [1], tx: 4, ty: 5 });
     expect(parseCommand({ c: 'stance', ids: [1], stance: 'berserk' })).toBeNull();
     expect(parseCommand({ c: 'stance', ids: [1], stance: 'passive' })).toEqual({ c: 'stance', ids: [1], stance: 'passive' });
   });

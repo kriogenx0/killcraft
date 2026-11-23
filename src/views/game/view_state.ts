@@ -5,6 +5,7 @@ import { clampRig, defaultRig } from './camera_rig.ts';
 
 export type Mode =
   | { t: 'move' }
+  | { t: 'patrol' }
   /** ax, ay: where a wall line being dragged out starts */
   | { t: 'place'; type: BldType; tx: number; ty: number; ok: boolean; ax?: number; ay?: number }
   | null;

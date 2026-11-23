@@ -4,10 +4,11 @@ import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
+import { TEND_RADIUS } from '../../game/unit.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { available, eraOf, lineOf, nameOf, priceOf, sitesOf, type Buildable } from '../../game/production.ts';
+import { available, eraOf, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -91,8 +92,11 @@ export function commandList(): Command[] {
   if (first.kind === 'unit')
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
+      ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
+      // Workers: T, to tend the base
+      ...(s.some((u) => u.type === 'worker') ? [{ id: 'tend', label: 'Fix, then harvest', hotkey: COMMAND_KEYS.tend, icon: ICON.repair, tip: `Fix everything damaged within ${TEND_RADIUS} tiles (buildings, building sites and wounded units), then go back to harvesting. Idle Workers do this for what's close by on their own`, active: s.every((u) => u.type !== 'worker' || u.tending) }] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
     return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
@@ -119,8 +123,9 @@ export function runCommand(id: string): void {
   if (id === 'cancel') V.mode = null;
   else if (id === 'back') V.keyGroup = null;
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
-  else if (id === 'move') V.mode = { t: id };
+  else if (id === 'move' || id === 'patrol') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
+  else if (id === 'tend') dispatch({ c: 'tend', ids: ids(s.filter((u) => u.type === 'worker')) });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });
@@ -230,7 +235,7 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   const own = insight(e) && e.done;
   if (!e.done)
-    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">Under construction, ${Math.floor(e.prog * 100)}%${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
+    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">${e.unpaid && insight(e) ? `Waiting for ${waitingFor(e.team, e.type as BldType) ?? 'funds'} to start building` : `Under construction, ${Math.floor(e.prog * 100)}%`}${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
@@ -262,7 +267,8 @@ export function productionDetails(e: Ent): string {
   const n = lines.includes('structure') ? sitesOf(e.team).length : 0;
   const sites = n ? `<p class="hud-stats">${n} structure${n > 1 ? 's' : ''} under construction</p>` : '';
   if (!queue.length) return sites || '<p class="hud-stats">Not producing</p>';
-  const head = queue[0], state = head.hold ? 'on hold' : `${Math.round(head.prog * 100)}%`;
+  const head = queue[0], need = !head.paid && waitingFor(e.team, head.type);
+  const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
   const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
   return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}`;
 }

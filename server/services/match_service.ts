@@ -35,20 +35,21 @@ export class MatchService {
     return this.matches.size;
   }
 
-  start(a: Player, b: Player): void {
+  /** Start a match; a game listed in the lobby keeps its id, so every match has a UUID from the start. */
+  start(a: Player, b: Player, id: string = randomUUID()): void {
     if (this.matches.size >= MAX_MATCHES) {
       for (const p of [a, b]) { this.events.send(p.id, { k: 'error', msg: 'The server is full right now. Try again in a few minutes.' }); this.events.finished(p.id); }
       return;
     }
     const seed = Math.floor(Math.random() * 1e6);
     const worker = new Worker(new URL('../workers/match_worker.ts', import.meta.url), { workerData: { seed } });
-    const m: Match = { id: randomUUID(), players: [a, b], worker, over: false };
+    const m: Match = { id, players: [a, b], worker, over: false };
     this.matches.set(m.id, m);
     this.byPlayer.set(a.id, m);
     this.byPlayer.set(b.id, m);
     worker.on('message', (msg: WorkerOut) => this.fromWorker(m, msg));
     worker.on('error', (err) => { console.error('match worker failed', err); this.end(m, -1, 'left'); });
-    m.players.forEach((p, team) => this.events.send(p.id, { k: 'start', team, seed, opponent: m.players[1 - team].name }));
+    m.players.forEach((p, team) => this.events.send(p.id, { k: 'start', team, seed, game: m.id, opponent: m.players[1 - team].name }));
   }
 
   command(playerId: string, cmd: unknown): void {

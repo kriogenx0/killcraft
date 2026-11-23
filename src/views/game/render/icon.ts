@@ -102,6 +102,15 @@ export function makeIcons(team = 0): void {
     for (const [x, y] of [[-12, -6], [2, -6], [2, -14], [15, 0], [2, 14], [2, 6], [-12, 6]]) g.lineTo(x, y);
     g.closePath(); g.fill(); g.stroke();
   });
+  ICON.patrol = cmd((g) => {
+    // two arrows chasing each other: there and back
+    g.fillStyle = '#5ab0f0'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    for (const k of [1, -1]) {
+      g.beginPath();
+      for (const [x, y] of [[-14, -2], [6, -2], [6, -9], [16, 0], [6, 9], [6, 2], [-14, 2]]) g.lineTo(x * k, (y - 7) * k);
+      g.closePath(); g.fill(); g.stroke();
+    }
+  });
   ICON.stop = cmd((g) => {
     g.fillStyle = '#c83a2a'; g.strokeStyle = '#000'; g.lineWidth = 2;
     g.beginPath();

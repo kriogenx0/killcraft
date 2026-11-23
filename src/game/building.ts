@@ -79,7 +79,7 @@ export function mend(b: Ent, hp: number): boolean {
  * build (unit.ts); any number of sites can rise at once.
  */
 export function advanceSite(b: Ent, share: number): void {
-  if (b.done || b.dead) return;
+  if (b.done || b.dead || b.unpaid) return;
   const step = Math.min(share, 1 - b.prog);
   b.prog += step;
   b.hp = Math.min(b.maxhp, b.hp + b.maxhp * (1 - SITE_HP) * step);
@@ -151,10 +151,11 @@ export function placeBuilding(team: number, type: BldType, tx: number, ty: numbe
   return b;
 }
 
-/** Call off a site that isn't finished: its whole price comes back. */
+/** Call off a site that isn't finished: its whole price comes back (nothing, if it was still waiting to be paid for). */
 export function cancelSite(b: Ent): void {
   if (b.dead || b.kind !== 'bld' || b.done) return;
   const d = bldDef(b);
+  if (b.unpaid) { burst('dust', b.x, b.y, 12, 30, 90); kill(b); return; }
   G.credits[b.team] += d.cost;
   G.wood[b.team] += d.wood ?? 0;
   G.oil[b.team] += d.oil ?? 0;

@@ -166,6 +166,13 @@
     filter: grayscale(0.7) brightness(0.65);
   }
 
+  // queued, but waiting until the side can pay for it
+  &--waiting .build-cell-status {
+    font-size: $font-xs;
+    color: #ffb070;
+    letter-spacing: 0;
+  }
+
   &--short .build-cell-main {
     filter: grayscale(0.5) brightness(0.75);
   }

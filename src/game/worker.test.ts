@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { G, hooks } from './state.ts';
+import { G, hooks, type Ent } from './state.ts';
 import { STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
-import { placeBuilding } from './building.ts';
+import { advanceSite, placeBuilding } from './building.ts';
 import { applyCommand, parseCommand } from './command.ts';
 import { BUILDING } from '../data/building.ts';
 import { MEDIC_HEAL, WORKER_BUILD, WORKER_HEAL } from '../data/unit.ts';
@@ -105,6 +105,39 @@ describe('Workers', () => {
     // another side can't order them
     applyCommand(1, { c: 'fix', ids: [w.id], target: b.id });
     expect(w.order?.t).not.toBe('heal');
+  });
+});
+
+describe('Fix, then harvest', () => {
+  it('sends Workers to fix everything damaged further off, then back to the ore', () => {
+    addBuilding('power', 0, 12, 50, false);
+    advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
+    const far = addBuilding('barracks', 0, 22, 50, false), wounded = addUnit('swordsman', 0, 21 * TS, 47 * TS);
+    far.hp = far.maxhp * 0.5;
+    wounded.hp = 20;
+    const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
+    run(3);
+    expect(w.order?.t).toBe('harvest'); // too far off to notice by itself
+    const cmd = parseCommand({ c: 'tend', ids: [w.id] });
+    expect(cmd).toEqual({ c: 'tend', ids: [w.id] });
+    if (!cmd) return;
+    applyCommand(0, cmd);
+    expect(w.tending).toBe(true);
+    run(1);
+    expect(w.order).toMatchObject({ t: 'heal', tgt: far.id }); // buildings first
+    run(60);
+    expect(far.hp).toBe(far.maxhp);
+    expect(wounded.hp).toBeGreaterThan(20 + 15);
+    for (let i = 0; i < 40 && w.order?.t !== 'harvest'; i++) run(1);
+    expect(w.order?.t).toBe('harvest');
+    expect(w.tending).toBe(false);
+  });
+
+  it('ends when the Worker gets another order', () => {
+    const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
+    applyCommand(0, { c: 'tend', ids: [w.id] });
+    applyCommand(0, { c: 'move', ids: [w.id], tx: 20, ty: 50 });
+    expect(w.tending).toBe(false);
   });
 });
 
