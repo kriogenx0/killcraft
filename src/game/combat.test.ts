@@ -4,6 +4,7 @@ import { MH, MW, STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addUnit } from './entity.ts';
+import { fire, MELEE_LAND, updProjs } from './combat.ts';
 import { groupMove, orderAttack, setStance } from './order.ts';
 import type { UnitType } from '../data/unit.ts';
 
@@ -41,6 +42,17 @@ describe('medieval arms', () => {
     // clear the starting armies so they don't join in
     for (const e of G.ents) if (e.kind === 'unit') e.dead = true;
     G.ents = G.ents.filter((e) => !e.dead);
+  });
+
+  it('a sword blow lands as the swing comes down, not when it starts', () => {
+    const [x, y] = openGround(2);
+    const u = addUnit('swordsman', 0, x, y), foe = addUnit('rifleman', 1, x + 10, y);
+    fire(u, 'sword', foe);
+    expect(foe.hp).toBe(foe.maxhp);
+    updProjs(MELEE_LAND * 0.5);
+    expect(foe.hp).toBe(foe.maxhp);
+    updProjs(MELEE_LAND * 0.6);
+    expect(foe.hp).toBeLessThan(foe.maxhp);
   });
 
   it('a swordsman closes in and cuts down a rifleman', () => {

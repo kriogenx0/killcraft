@@ -105,14 +105,15 @@ export interface Ent extends Target {
   shownT?: number;
 }
 
+/** Shots in flight, and sword and lance blows on their way down ('melee': lands after MELEE_LAND seconds). */
 export interface Projectile {
-  kind: Exclude<ProjectileKind, 'melee' | 'bullet'>;
+  kind: Exclude<ProjectileKind, 'bullet'>;
   x: number; y: number; z: number; z0: number;
   tid: number; dmg: number; src: number; team: number;
   weapon: string; sp: number; d0: number; tr: number; a: number; dead: boolean;
 }
 
-export type FxKind = 'blood' | 'chip' | 'debris' | 'spark' | 'dust' | 'smoke' | 'fire' | 'flash' | 'tracer' | 'trail' | 'ore';
+export type FxKind = 'blood' | 'chip' | 'debris' | 'spark' | 'dust' | 'smoke' | 'fire' | 'flash' | 'tracer' | 'trail' | 'ore' | 'slash';
 export interface Particle {
   kind: FxKind; x: number; y: number; z: number; vx: number; vy: number; vz: number;
   life: number; max: number; size: number; col: string | null; rot: number; soft: boolean; landed: boolean;
@@ -222,6 +223,8 @@ export const hooks = {
   killedBy: (_e: Ent, _by: Ent | null): void => {},
   /** a harvester unloaded `amount` ore */
   income: (_team: number, _amount: number): void => {},
+  /** a side banked resources at a spot on the map (`by` merges a steady trickle, such as unloading, into one number) */
+  gain: (_team: number, _x: number, _y: number, _kind: 'ore' | 'wood' | 'oil' | 'aether', _amount: number, _by: number): void => {},
   /** a side was paid a bounty for destroying something of the leader's */
   bounty: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },
