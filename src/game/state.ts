@@ -121,6 +121,8 @@ export interface Ent extends Target {
   shownT?: number;
   /** a wild creature guarding its lair (data/creatures.ts); dropped once a side captures it */
   wild?: Wild;
+  /** a captured creature's lair (px), where it comes back wild after it dies */
+  lair?: Point;
 }
 
 /** A wild creature's lair, and whether it's kneeling and being captured. */
@@ -215,6 +217,8 @@ export const G = {
   aetherFound: [] as boolean[],
   /** creature kinds each team has captured, and so can train (data/creatures.ts) */
   tamed: [] as string[][],
+  /** creatures that died and come back wild at their lair at game time `t` */
+  respawns: [] as { type: string; x: number; y: number; t: number }[],
   /** the side with a bounty on it for being far ahead (see bounty.ts), or -1 */
   leader: -1,
   /** each team has researched the Aether Ward */
