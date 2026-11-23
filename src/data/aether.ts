@@ -49,3 +49,7 @@ export const SHRINE_HEAL = 0.01;
 export const WARD_STONE_SIGHT = 6;
 /** A side links at most this many Waygates (one pair). */
 export const MAX_WAYGATES = 2;
+/** A unit picks up dropped Aether within this many tiles of it. */
+export const SHARD_PICKUP = 0.8;
+/** An idle Worker goes for dropped Aether within this many tiles. */
+export const SHARD_SEEK = 8;

@@ -9,8 +9,8 @@ import { clamp } from '../util/math.ts';
 
 export type Tile = [number, number];
 export type EntKind = 'unit' | 'bld' | 'source';
-/** 'source' is an ore crystal rock, 'aether' an Aether deposit (its hp is the Aether left) */
-export type EntType = UnitType | BldType | 'source' | 'aether';
+/** 'source' is an ore crystal rock, 'aether' an Aether deposit, 'shard' Aether dropped by a fallen carrier (their hp is the Aether left) */
+export type EntType = UnitType | BldType | 'source' | 'aether' | 'shard';
 
 /**
  * How a unit fights. There is only one way to move; the stance decides what happens on the way.

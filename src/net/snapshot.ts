@@ -10,13 +10,13 @@ import { addBuilding, addSource, addUnit, kill } from '../game/entity.ts';
 import { fire } from '../game/combat.ts';
 import { nearPortal, rebuildBlk } from '../game/map.ts';
 import { warpFx } from '../game/fx.ts';
-import { addAether, cloakedFrom, syncWaygates } from '../game/aether.ts';
-import { AETHER_PER_DEPOSIT } from '../data/aether.ts';
+import { addAether, addShard, cloakedFrom, syncWaygates } from '../game/aether.ts';
+import { AETHER_CARRY, AETHER_PER_DEPOSIT } from '../data/aether.ts';
 import { lerp } from '../util/math.ts';
 
 export const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory',
   'palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha',
-  'shrine', 'wardstone', 'waygate'];
+  'shrine', 'wardstone', 'waygate', 'shard'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY, building age, upgrade*100 (-1: none)] */
@@ -29,10 +29,12 @@ const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8, DRAWING = 64;
 const KNEELING = 128;
 /** two bits above the flags: the stance of one of our own units (the HUD shows it) */
 const STANCE_SHIFT = 4;
+/** Aether a unit carries, in the bits above the flags (it glows, and drops it if it falls) */
+const AE_SHIFT = 8;
 
 export function encodeEnt(e: Ent, own: boolean): EntRow {
   const stance = own && e.kind === 'unit' ? STANCES.indexOf(e.stance) << STANCE_SHIFT : 0;
-  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance;
+  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance | (e.kind === 'unit' ? Math.min(255, Math.ceil(e.ae ?? 0)) << AE_SHIFT : 0);
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
     Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y), e.lvl ?? 0, own && e.upT != null ? Math.floor(e.upT * 100) : -1];
@@ -68,6 +70,7 @@ export function decodeOre(b64: string): void {
 const targets = new Map<number, { x: number; y: number; face: number; tface: number }>();
 
 function create(type: EntType, team: number, x: number, y: number): Ent {
+  if (type === 'shard') return addShard(x, y, 1);
   if (type === 'aether') return addAether(Math.floor(x / TS), Math.floor(y / TS));
   if (type === 'source') return addSource(Math.floor(x / TS), Math.floor(y / TS));
   if (isUnitType(type)) return addUnit(type, team, x, y);
@@ -95,7 +98,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     }
     if (hp < e.hp) e.flash = 0.1;
     e.hp = hp;
-    e.maxhp = isUnitType(type) ? UNIT[type as UnitType].hp : type === 'source' ? 1 : type === 'aether' ? AETHER_PER_DEPOSIT : bldHp(type as BldType, lvl ?? 0);
+    e.maxhp = isUnitType(type) ? UNIT[type as UnitType].hp : type === 'source' ? 1 : type === 'aether' ? AETHER_PER_DEPOSIT : type === 'shard' ? Math.max(AETHER_CARRY, hp) : bldHp(type as BldType, lvl ?? 0);
     if (e.kind === 'bld') { e.lvl = lvl ?? 0; e.upT = up != null && up >= 0 ? up / 100 : undefined; }
     e.carry = carry;
     e.moving = (flags & MOVING) !== 0;
@@ -104,6 +107,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     e.stance = STANCES[(flags >> STANCE_SHIFT) & 3] ?? 'engage';
     if (flags & FIRING) e.atkT = Math.max(e.atkT, 0.05);
     e.drawT = flags & DRAWING ? G.gameT + 0.4 : 0;
+    if (e.kind === 'unit') e.ae = (flags >> AE_SHIFT) & 255;
     // a unit with no side is a wild creature guarding its lair; captured ones join a side
     if (e.kind === 'unit') {
       e.team = team;

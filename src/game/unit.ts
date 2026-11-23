@@ -2,11 +2,13 @@
 import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
-import { DIRS, nearestFree, pathFor } from './path.ts';
+import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
-import { orderFlee, orderHarvest, setOrder, arrive } from './order.ts';
+import { orderFlee, orderHarvest, orderMove, setOrder, arrive } from './order.ts';
+import { shardFor } from './aether.ts';
+import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
@@ -379,6 +381,13 @@ export function updUnit(u: Ent, dt: number): void {
     if (u.type === 'medic') {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
+    }
+    // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
+    if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
+      const s = shardFor(u);
+      if (s) { orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
+      const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
+      if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
     }
     // an idle Worker mends what's near (a passive one only when no enemy is about), before going back to the ore
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {

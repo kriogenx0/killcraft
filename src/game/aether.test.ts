@@ -5,7 +5,7 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { available, enqueue } from './production.ts';
-import { cloakedFrom, deposits, drawingFrom, holderOf, isDrawing, syncWaygates, waygateLinked } from './aether.ts';
+import { cloakedFrom, deposits, drawingFrom, shards, holderOf, isDrawing, syncWaygates, waygateLinked } from './aether.ts';
 import { applySnapshot, encodeEnt } from '../net/snapshot.ts';
 import { findPath, isJump } from './path.ts';
 import { acquire, dealDamage, fire, MELEE_LAND, updProjs } from './combat.ts';
@@ -141,6 +141,39 @@ describe('Aether', () => {
     u.x = 5 * TS; u.y = 8 * TS;
     run(2);
     expect(isDrawing(u)).toBe(false);
+  });
+
+  it('drops carried Aether when a carrier dies, and a Worker fetches it home', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
+    const carrier = addUnit('swordsman', 0, yard.x + 6 * TS, yard.y - 4 * TS);
+    carrier.ae = 30;
+    dealDamage(carrier, 9999, null);
+    expect(carrier.dead).toBe(true);
+    const [s] = shards();
+    expect(s).toBeDefined();
+    expect(s.hp).toBeCloseTo(30, 0);
+    expect(G.blk[s.ty * MW + s.tx]).toBe(0); // it doesn't block the way
+    // an idle Worker nearby goes and picks it up, then takes it home and banks it
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
+    const before = G.aether[0] ?? 0;
+    const w = addUnit('worker', 0, s.x - 3 * TS, s.y);
+    let picked = false;
+    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= (w.ae ?? 0) > 0; }
+    expect(picked).toBe(true);
+    expect(shards()).toHaveLength(0);
+    expect(G.aether[0]).toBeCloseTo(before + 30, 0);
+    expect(errors).toEqual([]);
+  });
+
+  it('lets any unit that walks over dropped Aether pick it up, up to what it can carry', () => {
+    const u = addUnit('swordsman', 1, 30 * TS, 30 * TS);
+    u.ae = AETHER_CARRY - 10;
+    const v = addUnit('knight', 0, 30 * TS, 30 * TS);
+    v.ae = 25;
+    dealDamage(v, 9999, null);
+    run(0.1);
+    expect(u.ae).toBeCloseTo(AETHER_CARRY, 0);
+    expect(shards()[0]?.hp).toBeCloseTo(15, 0);
   });
 
   it('spends Aether on hidden units, and can\'t start one without it', () => {

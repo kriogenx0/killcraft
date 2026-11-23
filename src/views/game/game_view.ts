@@ -35,7 +35,7 @@ import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { initBurning, updateBurning } from './render3d/burn3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
-import { updateAetherBeams } from './render3d/aetherbeam3d.ts';
+import { updateAetherBeams, updateAetherGlows } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
@@ -288,6 +288,7 @@ export function mountGameView(root: HTMLElement): void {
       updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);
       updateAetherBeams();
+      updateAetherGlows();
       animateWater(dt);
       renderScene();
       drawOverlay(og);

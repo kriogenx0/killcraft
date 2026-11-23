@@ -285,6 +285,7 @@ function detailsMarkup(s: Ent[]): string {
     return `<h3>Aether Deposit</h3>${barHtml(e.hp / e.maxhp, 'progress', 'Aether left')}<p class="hud-stats">${Math.ceil(e.hp)} Aether left${held}</p>` +
       '<p class="hud-stats">Shards of a fallen star. Keep a unit beside it, with no enemy there, to draw Aether. It never regrows.</p>';
   }
+  if (e.type === 'shard') return `<h3>Dropped Aether</h3><p class="hud-stats">${Math.ceil(e.hp)} Aether, fallen with the unit that carried it. Any unit that walks over it picks it up; idle Workers nearby fetch it and take it home.</p>`;
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
 }
 

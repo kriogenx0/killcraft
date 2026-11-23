@@ -62,6 +62,7 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
   for (const e of G.ents) {
     if (e.dead) continue;
     if (e.type === 'aether') continue; // drawn over the fog below
+    if (e.type === 'shard') { if (G.vis[tileOf(e.y) * MW + tileOf(e.x)] === 2) { m.fillStyle = '#d8a0ff'; m.fillRect((e.x / TS) * k - 1, (e.y / TS) * k - 1, 2, 2); } continue; }
     if (!spectating() && cloakedFrom(e, V.team)) continue;
     if (e.team !== V.team && G.vis[tileOf(e.y) * MW + tileOf(e.x)] < (e.kind === 'unit' ? 2 : 1)) continue;
     m.fillStyle = e.team < 0 ? '#fff0a0' : teamColors(e.team).l;
