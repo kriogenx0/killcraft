@@ -180,6 +180,38 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  // stats: label and value pairs, two to a line
+  .hud-table {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px $space-2;
+    margin: $space-1 0 0;
+    font-size: $font-xs;
+    line-height: 1.35;
+  }
+
+  .hud-row {
+    display: flex;
+    gap: $space-1;
+    min-width: 0;
+
+    dt {
+      flex: none;
+      width: 44px;
+      color: var(--color-text-muted);
+    }
+
+    dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .hud-row--wide {
+    grid-column: 1 / -1;
+  }
+
   .hud-side {
     font-size: $font-sm;
   }
