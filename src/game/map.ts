@@ -241,10 +241,14 @@ function placePortals(seed: number): void {
   }
 }
 
-/** Is a tile within `r` tiles (square) of a portal gate? */
+/** Is a tile within `r` tiles (square) of a gate? A map portal's stone ring is wider, so it keeps one more tile clear. */
 export function nearPortal(tx: number, ty: number, r = 1): boolean {
-  return [...G.portals, ...G.waygates].some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= r && Math.abs(y - ty) <= r));
+  const near = (gates: { a: Tile; b: Tile }[], d: number) => gates.some((p) => [p.a, p.b].some(([x, y]) => Math.abs(x - tx) <= d && Math.abs(y - ty) <= d));
+  return near(G.portals, r + 1) || near(G.waygates, r);
 }
+
+/** Is this tile one of the map's portal gates (not a player's Waygate)? */
+export const isMapPortal = (tx: number, ty: number): boolean => G.portals.some((p) => [p.a, p.b].some(([x, y]) => x === tx && y === ty));
 
 /** Generate a playable map, trying following seeds until the bases connect. Returns the seed used. */
 export function generateMap(seed: number): number {

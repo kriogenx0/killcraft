@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { heightAt } from './heights.ts';
 import { G } from '../../../game/state.ts';
 import { MW } from '../../../game/const.ts';
-import { PORTAL_COLORS } from '../../../data/map.ts';
+import { PORTAL_COLORS, PORTAL_RADIUS } from '../../../data/map.ts';
 import { mkCanvas, ctx2d } from '../../../util/canvas.ts';
 import { S } from './scene.ts';
 import { mat } from './materials.ts';
@@ -44,39 +44,40 @@ function swirlTexture(): THREE.CanvasTexture {
 function makeGate(x: number, y: number, color: string, seed: number): Gate {
   const group = new THREE.Group();
   group.position.set(x + 0.5, heightAt(x + 0.5, y + 0.5), y + 0.5);
-  // worn stone platform
+  // worn stone platform; the swirl inside the rim is exactly the area that carries units across
+  const R = PORTAL_RADIUS;
   const stone = mat('#8d877c', { rough: 0.95, tex: 'stone' }), dark = mat('#5e5a52', { rough: 1, tex: 'stone' });
-  const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.15, 0.08, 10), dark);
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.3, R + 0.4, 0.08, 12), dark);
   pad.position.y = 0.04;
   pad.receiveShadow = true;
   group.add(pad);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.07, 5, 24).rotateX(Math.PI / 2), mat(color, { emissive: color, emissiveIntensity: 0.8, rough: 0.4 }));
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(R + 0.04, 0.07, 5, 32).rotateX(Math.PI / 2), mat(color, { emissive: color, emissiveIntensity: 0.8, rough: 0.4 }));
   rim.position.y = 0.09;
   group.add(rim);
   // standing stones, a little crooked, with a glowing rune on each
   const rune = new THREE.MeshBasicMaterial({ color });
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2 + seed, h = 0.62 + ((k * 37 + seed * 11) % 7) * 0.035;
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2 + seed, h = 0.62 + ((k * 37 + seed * 11) % 7) * 0.035;
     const s = new THREE.Mesh(new THREE.BoxGeometry(0.17, h, 0.12), stone);
-    s.position.set(Math.cos(a) * 1.0, h / 2, Math.sin(a) * 1.0);
+    s.position.set(Math.cos(a) * (R + 0.24), h / 2, Math.sin(a) * (R + 0.24));
     s.rotation.set(((k % 3) - 1) * 0.06, -a, ((k % 2) - 0.5) * 0.08);
     s.castShadow = true;
     group.add(s);
     const r = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.16), rune);
-    r.position.set(Math.cos(a) * 0.93, h * 0.6, Math.sin(a) * 0.93);
+    r.position.set(Math.cos(a) * (R + 0.17), h * 0.6, Math.sin(a) * (R + 0.17));
     r.rotation.y = -a - Math.PI / 2;
     group.add(r);
   }
   // the swirl on the ground and a faint column of light above it
   const swirl = new THREE.Mesh(
-    new THREE.CircleGeometry(0.78, 32).rotateX(-Math.PI / 2),
+    new THREE.CircleGeometry(R, 40).rotateX(-Math.PI / 2),
     new THREE.MeshBasicMaterial({ map: swirlTex, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
   );
   swirl.position.y = 0.1;
   swirl.renderOrder = 3;
   group.add(swirl);
   const glow = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.55, 0.75, 1.6, 20, 1, true).translate(0, 0.8, 0),
+    new THREE.CylinderGeometry(R * 0.7, R * 0.95, 1.6, 24, 1, true).translate(0, 0.8, 0),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
   );
   glow.renderOrder = 3;

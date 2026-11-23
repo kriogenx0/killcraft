@@ -5,6 +5,8 @@ import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
 import { edgeDist, isJump, los, pathFor, pathTo } from './path.ts';
 import { warpFx } from './fx.ts';
+import { PORTAL_RADIUS } from '../data/map.ts';
+import { isMapPortal } from './map.ts';
 import { slowFactor } from './aether.ts';
 import { canBreach, wallInWay } from './breach.ts';
 import { isWall } from '../data/building.ts';
@@ -94,6 +96,14 @@ export function followPath(u: Ent, dt: number): boolean {
   };
   const wp = u.path[0], air = isAir(u);
   if (!air && G.blk[wp[1] * MW + wp[0]]) return repath();
+  // anywhere on a map portal's swirl counts as entering it, so a crowd doesn't have to queue for the centre
+  const through = u.path[1];
+  if (!air && through && isJump(wp, through) && isMapPortal(wp[0], wp[1]) && G.warp[wp[1] * MW + wp[0]] === through[1] * MW + through[0]
+    && Math.hypot((wp[0] + 0.5) * TS - u.x, (wp[1] + 0.5) * TS - u.y) <= PORTAL_RADIUS * TS) {
+    u.path.shift();
+    warp(u, through);
+    return !u.path.length;
+  }
   // A crowd can't all stand on a waypoint's centre: near enough to one on the way counts as passing
   // it, as long as the next one is in a clear straight line (and neither is a portal gate).
   const after = u.path[1];
@@ -107,14 +117,16 @@ export function followPath(u: Ent, dt: number): boolean {
   if (r === 'moving') return false;
   u.path.shift();
   const next = u.path[0];
-  if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) {
-    // step through the portal
-    warpFx(u.x, u.y);
-    u.x = u.px = (next[0] + 0.5) * TS; u.y = u.py = (next[1] + 0.5) * TS;
-    warpFx(u.x, u.y);
-    u.path.shift();
-  }
+  if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) warp(u, next);
   return !u.path.length;
+}
+
+/** Step through a portal: come out at the centre of the exit gate (its tile is the path's next waypoint). */
+function warp(u: Ent, exit: [number, number]): void {
+  warpFx(u.x, u.y);
+  u.x = u.px = (exit[0] + 0.5) * TS; u.y = u.py = (exit[1] + 0.5) * TS;
+  warpFx(u.x, u.y);
+  u.path?.shift();
 }
 
 /** Walk toward a target until within range. true = in range, false = still walking, null = unreachable. */
