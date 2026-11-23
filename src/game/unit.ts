@@ -19,6 +19,8 @@ import { hasBuilding } from './entity.ts';
 import { updWild } from './creatures.ts';
 
 const AUTO_CHASE = 9 * TS;
+/** Idle Workers repair buildings on their own only while the bank holds more ore than this. */
+const AUTO_REPAIR_FLOOR = 200;
 const ORE_SEARCH = 24;
 /** How far (px) a stuck unit edges aside to get past a unit in its way. */
 const SIDESTEP = 8;
@@ -319,6 +321,8 @@ function mendNear(u: Ent, r: number): Ent | null {
   let bld: Ent | null = null, bd = Infinity, unit: Ent | null = null;
   for (const e of G.ents) {
     if (!mendable(u, e, 0.5)) continue; // not for a scratch
+    // left to themselves, Workers don't spend the last of the bank on repairs
+    if (e.kind === 'bld' && e.done && G.credits[u.team] < AUTO_REPAIR_FLOOR) continue;
     const d = Math.hypot(e.x - u.x, e.y - u.y) - (e.w ? (e.w * TS) / 2 : 0);
     if (d > r) continue;
     if (e.kind === 'bld') { if (d < bd) { bd = d; bld = e; } }

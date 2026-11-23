@@ -112,7 +112,7 @@ describe('the computer', () => {
     ais[0].on = true;
     addBuilding('power', 0, 12, 50, false);
     addBuilding('refinery', 0, 6, 46, false);
-    for (let i = 0; i < 3; i++) addUnit('worker', 0, (12 + i) * TS, 47 * TS);
+    for (let i = 0; i < 4; i++) addUnit('worker', 0, (12 + i) * TS, 47 * TS);
     run(2);
     const site = G.ents.find((e) => !e.dead && e.team === 0 && e.kind === 'bld' && !e.done) ?? placeBuilding(0, 'barracks', 16, 50);
     if (!site) throw new Error('no site');

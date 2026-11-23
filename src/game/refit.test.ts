@@ -127,12 +127,17 @@ describe('building upgrades', () => {
     initWorld(99);
     let t = 0;
     while (t < 900 && !G.over && G.era.every((e) => !e)) { run(1); t++; }
-    const team = G.era.findIndex((e) => e > 0);
-    expect(team).toBeGreaterThanOrEqual(0);
-    const old = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && behind(e));
-    expect(old.length).toBeGreaterThan(0);
-    run(90);
-    expect(old.filter((e) => (e.lvl ?? 0) >= 1).length).toBeGreaterThan(0);
+    expect(G.era.some((e) => e > 0)).toBe(true);
+    // a side can reach an age just as it's beaten and broke: give the other time to get there too
+    // (new buildings go up in the side's age already: only a building that gained a level counts)
+    const seen = new Map<number, number>();
+    const upgraded = () => G.ents.some((e) => {
+      if (e.dead || e.kind !== 'bld') return false;
+      if (!seen.has(e.id)) seen.set(e.id, e.lvl ?? 0);
+      return (e.lvl ?? 0) > (seen.get(e.id) ?? 0);
+    });
+    for (let i = 0; i < 120 && !G.over && !upgraded(); i++) run(5);
+    expect(upgraded()).toBe(true);
   });
 
   it('the computer upgrades its buildings once it has ore to spare', () => {
