@@ -12,7 +12,9 @@ import { bankAt } from './haul.ts';
 import { millRate, oilLeft } from './economy.ts';
 import { part } from './fx.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
-import { MEDIC_HEAL, MEDIC_RANGE } from '../data/unit.ts';
+import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
+import { advanceSite, mend } from './building.ts';
+import { bldDef } from './state.ts';
 import { hasBuilding } from './entity.ts';
 import { updWild } from './creatures.ts';
 
@@ -305,6 +307,40 @@ function updMedic(u: Ent, o: HealOrder, dt: number): void {
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
 }
 
+/** Something a Worker can mend: its side's site or damaged building (if the bank can pay), or a hurt unit on the ground. */
+function mendable(u: Ent, t: Ent | null, slack = 0): t is Ent {
+  if (!t || t === u || t.dead || t.team !== u.team) return false;
+  if (t.kind === 'bld') return !t.done || (t.hp < t.maxhp - slack && G.credits[t.team] >= 1);
+  return t.kind === 'unit' && !isAir(t) && !t.wild && t.hp < t.maxhp - slack;
+}
+
+/** The nearest site or damaged building within a radius, else the most hurt unit there. */
+function mendNear(u: Ent, r: number): Ent | null {
+  let bld: Ent | null = null, bd = Infinity, unit: Ent | null = null;
+  for (const e of G.ents) {
+    if (!mendable(u, e, 0.5)) continue; // not for a scratch
+    const d = Math.hypot(e.x - u.x, e.y - u.y) - (e.w ? (e.w * TS) / 2 : 0);
+    if (d > r) continue;
+    if (e.kind === 'bld') { if (d < bd) { bd = d; bld = e; } }
+    else if (!unit || e.hp / e.maxhp < unit.hp / unit.maxhp) unit = e;
+  }
+  return bld ?? unit;
+}
+
+/** A Worker mending: helps a site go up, repairs a building (for ore), or patches up a unit. */
+function updMend(u: Ent, o: HealOrder, dt: number): void {
+  const t = valid(o.tgt);
+  if (!mendable(u, t) || (!o.sent && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE)) { setOrder(u, null); return; }
+  const r = approach(u, t, MEDIC_RANGE, dt);
+  if (r === null) { setOrder(u, null); return; }
+  if (!r) return;
+  u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
+  u.atkT = 0.25; // hammers away: drawn like an attack
+  if (t.kind === 'bld' && !t.done) advanceSite(t, (WORKER_BUILD * dt) / bldDef(t).t);
+  else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
+  else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
+}
+
 export function updUnit(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
@@ -319,7 +355,7 @@ export function updUnit(u: Ent, dt: number): void {
   const o = u.order;
   if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {
-    if (u.stance === 'skirmish' && d.weapon) { fireOnTheMove(u, dt); return; } // holds its ground and shoots what's in range
+    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); return; } // holds its ground and shoots what's in range
     u.scan -= dt;
     if (u.scan > 0) return;
     u.scan = 0.3 + Math.random() * 0.2;
@@ -327,12 +363,18 @@ export function updUnit(u: Ent, dt: number): void {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y }); return; }
     }
+    // an idle Worker mends what's near (a passive one only when no enemy is about), before going back to the ore
+    if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
+      const t = mendNear(u, d.sight * TS);
+      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y }); return; }
+    }
+    // a Worker only fights back, or an enemy that comes right up to it
+    const foe = u.stance === 'passive' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
     if (u.stance === 'passive') {
       const threat = nearestThreat(u, Math.min(d.sight, 7));
       if (threat) orderFlee(u, threat);
-    } else if (d.weapon) {
-      const t = attacker(u) ?? acquire(u, d.sight);
-      if (t) setOrder(u, { t: 'attack', tgt: t.id, auto: true, ox: u.x, oy: u.y });
+    } else if (foe) {
+      setOrder(u, { t: 'attack', tgt: foe.id, auto: true, ox: u.x, oy: u.y });
     } else if (isHarvester(u) && nearestOwn(u, 'refinery')) {
       u.scan = 1.5;
       if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
@@ -384,6 +426,7 @@ export function updUnit(u: Ent, dt: number): void {
       break;
     case 'heal':
       if (u.type === 'medic') updMedic(u, o, dt);
+      else if (u.type === 'worker') updMend(u, o, dt);
       else u.order = null;
       break;
   }

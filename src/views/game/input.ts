@@ -55,6 +55,15 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   }
   const harvesters = units.filter(isHarvester), rest = units.filter((u) => !isHarvester(u));
   const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty });
+  // Workers mend your own damaged buildings, building sites and wounded units
+  const workers = harvesters.filter((u) => u.type === 'worker');
+  if (workers.length && hit && hit.team === V.team && hit.kind !== 'source' && !workers.includes(hit) && (hit.kind === 'bld' ? !hit.done || hit.hp < hit.maxhp : hit.hp < hit.maxhp)) {
+    dispatch({ c: 'fix', ids: ids(workers), target: hit.id });
+    const others = units.filter((u) => !workers.includes(u));
+    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty });
+    mark(wx, wy, '#5cf');
+    return;
+  }
   if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }

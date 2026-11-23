@@ -52,6 +52,11 @@ export function orderHaul(u: Ent, src: Ent): void {
   setOrder(u, { t: 'harvest', st: 'go', tx: src.tx, ty: src.ty, wait: 0, res: src.type === 'mill' ? 'wood' : 'oil', src: src.id });
 }
 
+/** Send a Worker to mend an ally or building (a site: help build it). */
+export function orderFix(u: Ent, t: Ent): void {
+  setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: true });
+}
+
 /** Take the current load to a refinery, then carry on harvesting. */
 export function orderReturn(u: Ent): void {
   setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });

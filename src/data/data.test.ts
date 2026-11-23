@@ -51,7 +51,9 @@ describe('static data', () => {
 
   it('gathers ore with Workers until the Modern age, then Harvesters', () => {
     expect(UNIT.harvester.era).toBe(ERA.length - 1);
-    for (const u of UNIT_TYPES) if (UNIT[u].haul) expect(UNIT[u].weapon).toBeNull();
+    // gatherers are no army: only a Worker's pick, the weakest blow there is
+    for (const u of UNIT_TYPES) if (UNIT[u].haul) expect(UNIT[u].weapon === null || UNIT[u].weapon === 'pick').toBe(true);
+    for (const w of Object.keys(WEAPON) as (keyof typeof WEAPON)[]) if (w !== 'pick') expect(WEAPON[w].dmg / WEAPON[w].cd).toBeGreaterThan(WEAPON.pick.dmg / WEAPON.pick.cd);
     expect(UNIT.worker.haul ?? 0).toBeLessThan(UNIT.harvester.haul ?? 0);
   });
 
