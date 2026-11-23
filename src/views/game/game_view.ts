@@ -113,7 +113,7 @@ export function mountGameView(root: HTMLElement): void {
     speed: speedBtn, pause: pauseBtn,
     details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'),
   });
-  initSidebar(must(root, '.build-list--structure'), must(root, '.build-list--unit'));
+  initSidebar(must(root, '.build-list--structure'), must(root, '.build-list--unit'), must(root, '.game-tooltip'));
   initInput(canvas, minimap);
 
   const resize = () => {

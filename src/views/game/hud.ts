@@ -210,7 +210,6 @@ function unitDetails(e: Ent): string {
     ['Reload', w ? `${w.cd}s` : ''],
     ['Speed', num(d.spd)],
     ['Turn', `${Math.round((d.turn * 180) / Math.PI)}°/s`],
-    ['Sight', String(d.sight)],
     ['Heals', heal],
     ['Cost', costText(e.type)],
   ];
@@ -219,8 +218,11 @@ function unitDetails(e: Ent): string {
   if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
   if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
   if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Town Hall or a Refinery`, true]);
-  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
+  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
 }
+
+/** What it does in game, in a sentence or two, under the selected thing's name. */
+const descHtml = (desc: string): string => (desc ? `<p class="hud-desc">${desc}</p>` : '');
 
 const perMin = (perSec: number): number => Math.round(perSec * 60);
 
@@ -228,7 +230,7 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   const own = insight(e) && e.done;
   if (!e.done)
-    return `<h3>${d.name}${enemy}</h3>${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">Under construction, ${Math.floor(e.prog * 100)}%${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
+    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">Under construction, ${Math.floor(e.prog * 100)}%${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
@@ -242,13 +244,12 @@ function buildingDetails(e: Ent): string {
     ['Damage', w ? String(num(w.dmg * refitBonus(e))) : ''],
     ['Range', w ? String(w.range) : ''],
     ['Reload', w ? `${num(w.cd * slow)}s` : ''],
-    ['Sight', String(d.sight)],
     ['Cost', costText(e.type)],
     ['Status', !e.done ? 'Building' : e.upT != null ? `Upgrading to ${ERA[lvlOf(e) + 1]?.name} · ${Math.floor(e.upT * 100)}%` : e.repairing ? 'Repairing' : ''],
   ];
   if (d.weapon && e.done) rows.push(['DPS', dpsRow(d.weapon, refitBonus(e), slow) + (slow > 1 ? ' · low power' : ''), true]);
   if (yieldText) rows.push(['Output', yieldText, true]);
-  return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
+  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
     (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
 }
