@@ -289,7 +289,7 @@ function onKey(ev: KeyboardEvent): void {
   if (tracksKey(ev)) keys.add(k);
   if ((SCROLL_KEYS[k] || ROTATE_KEYS[k]) && tracksKey(ev)) { ev.preventDefault(); return; } // camera keys only move the camera
   if (target.closest?.('button') && (k === 'enter' || k === ' ')) return; // let buttons activate
-  if (k === 'escape') { V.mode = null; refreshCommands(true); return; }
+  if (k === 'escape') { if (V.keyGroup) V.keyGroup = null; else V.mode = null; refreshCommands(true); return; }
   if (k === 'p' || k === 'pause') { V.paused = !V.paused; return; }
   if (k === '+' || k === '=') { V.speed = Math.min(4, V.speed * 2); return; }
   if (k === '-' || k === '_') { V.speed = Math.max(0.5, V.speed / 2); return; }
@@ -316,7 +316,7 @@ function onKey(ev: KeyboardEvent): void {
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const hk = normalizeKey(ev.key);
-  if (runHotkey(hk) || productionHotkey(hk)) ev.preventDefault();
+  if (productionHotkey(hk) || runHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }
 }
 
 /** Move the view by a screen offset (px), as if dragging the ground the other way. */

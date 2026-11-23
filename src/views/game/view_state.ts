@@ -27,6 +27,8 @@ export const V = {
   topH: 32,
   sel: [] as Ent[],
   mode: null as Mode,
+  /** the production hotkey group open on the selected building (see hotkeys.ts), e.g. 'Walls' */
+  keyGroup: null as string | null,
   groups: new Map<string, number[]>(),
   mouse: { x: 0, y: 0, down: false, drag: false, sx: 0, sy: 0, inside: false },
   markers: [] as Marker[],
