@@ -16,7 +16,7 @@ export const ROTATE_KEYS: Record<string, number> = { q: 1, e: -1 };
 export const COMMAND_KEYS = { move: 'M', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V' } as const;
 
 /** Hotkeys for a selected building. Production keys (see hotkeys.ts) fit around these. */
-export const BUILDING_KEYS = { repair: 'R', sell: 'Delete' } as const;
+export const BUILDING_KEYS = { repair: 'R', scrap: 'Delete' } as const;
 
 /** Direction to scroll for the keys being held (opposite keys cancel out). */
 export function scrollVector(held: Iterable<string>): [number, number] {

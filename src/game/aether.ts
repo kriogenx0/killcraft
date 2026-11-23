@@ -85,6 +85,17 @@ function exhaust(d: Ent): void {
 }
 
 /** The team holding a deposit: it has a unit next to it and no other side does. -1 if nobody or contested. */
+/** A unit keeps showing its beam this long after its last draw (draws come once a second). */
+export const DRAW_SHOW = 1.25;
+export const isDrawing = (u: Ent): boolean => (u.drawT ?? 0) > G.gameT;
+
+/** The deposit a drawing unit is drawing from (the nearest one in reach). */
+export function drawingFrom(u: Ent): Ent | null {
+  let best: Ent | null = null, bd = AETHER_REACH * TS + 4;
+  for (const d of deposits()) { const dist = Math.hypot(d.x - u.x, d.y - u.y); if (dist <= bd) { bd = dist; best = d; } }
+  return best;
+}
+
 export function holderOf(d: Ent): number {
   const r = AETHER_REACH * TS;
   let holder = -1;
@@ -113,6 +124,10 @@ export function drawAether(dt: number): void {
     const a = Math.min(d.hp, AETHER_RATE * dt, AETHER_CARRY - (carrier.ae ?? 0));
     d.hp -= a;
     carrier.ae = (carrier.ae ?? 0) + a;
+    // show it like an attack: the unit turns to the shards and channels a beam, pulsing with each draw
+    carrier.drawT = G.gameT + DRAW_SHOW;
+    carrier.atkT = Math.max(carrier.atkT, 0.25);
+    if (!carrier.order && !carrier.moving) carrier.face = carrier.tface = Math.atan2(d.y - carrier.y, d.x - carrier.x);
     if (d.hp <= 0.01) {
       exhaust(d);
       for (const t of teams()) say(t, 'An Aether deposit has run dry');
@@ -127,6 +142,7 @@ export function bankAether(): void {
     const home = bankAt(u, ['yard', 'refinery']);
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.aether[u.team] = (G.aether[u.team] ?? 0) + u.ae;
+    hooks.gain(u.team, u.x, u.y, 'aether', u.ae, u.id);
     u.ae = 0;
     if (!G.aetherFound[u.team]) { G.aetherFound[u.team] = true; say(u.team, 'Aether found! Hidden units revealed'); }
   }

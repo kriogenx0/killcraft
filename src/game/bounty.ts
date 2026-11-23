@@ -54,6 +54,7 @@ export function bankLoot(): void {
     const home = bankAt(u, ['yard', 'refinery']);
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.credits[u.team] += u.loot;
+    hooks.gain(u.team, u.x, u.y, 'ore', u.loot, u.id);
     hooks.bounty(u.team, u.loot);
     say(u.team, `Bounty brought home: ${Math.round(u.loot)} ore`);
     u.loot = 0;

@@ -40,14 +40,46 @@ $sidebar-width: 248px;
     left: 0;
     z-index: 5;
     display: flex;
-    gap: $space-5;
+    gap: $space-4;
+    flex-wrap: nowrap;
     align-items: center;
-    min-height: 32px;
+    // a fixed height and fixed-width counters, so changing numbers never move or resize the bar
+    height: 32px;
     padding: 0 $gutter;
+    overflow: hidden;
+    white-space: nowrap;
     border-bottom-width: 3px;
+
+    > * {
+      flex: none;
+    }
+
+    .ui-resource-value {
+      display: inline-block;
+      min-width: 4ch; // counts are at most four characters (see shortCount)
+      font-variant-numeric: tabular-nums;
+    }
+
+    .topbar-power {
+      min-width: 7ch;
+    }
+
+    // the age name is last before the spacer, so on a cramped bar it gives way (with an ellipsis)
+    // and nothing else moves
+    .ui-resource:has(.topbar-era) {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .topbar-era {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
   }
 
-  .topbar-spacer {
+  .topbar .topbar-spacer {
     flex: 1;
   }
 
@@ -231,8 +263,18 @@ $sidebar-width: 248px;
   @media (max-width: 760px) {
     .topbar {
       right: 0;
-      gap: $space-2;
+      gap: $space-1;
+      height: 48px;
+      padding: 0 $space-2;
       font-size: $font-sm;
+
+      .ui-resource {
+        gap: 2px;
+      }
+
+      .ui-button--small {
+        min-width: 36px;
+      }
     }
 
     .topbar-time {

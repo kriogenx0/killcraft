@@ -72,8 +72,11 @@ export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'h
 /** New structures must be placed within this many tiles of an existing one. */
 export const BUILD_RADIUS = 3;
 
-/** Fraction of a building's cost returned when it is sold. */
-export const SELL_REFUND = 0.5;
+/**
+ * Scrapping a building leaves this share of its ore price (times its remaining health) on the ground
+ * as ore, for Workers and Harvesters to carry home. A bit more than battle salvage (SALVAGE_SHARE).
+ */
+export const SCRAP_SHARE = 0.4;
 
 /** Repairs restore this much health per second and cost proportionally to the building's price. */
 export const REPAIR_RATE = 25;

@@ -1,7 +1,8 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
-import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
+import { dropSalvage } from './economy.ts';
+import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
@@ -47,11 +48,7 @@ function completed(b: Ent): void {
 
 function effects(b: Ent, dt: number): void {
   if (G.vis[tileOf(b.y) * MW + tileOf(b.x)] !== 2) return;
-  if (b.hp < b.maxhp * 0.6 && Math.random() < dt * (b.hp < b.maxhp * 0.3 ? 18 : 7)) {
-    const x = b.tx * TS + TS * 0.2 + Math.random() * (b.w - 0.4) * TS, y = b.ty * TS + Math.random() * b.h * TS * 0.6;
-    part('fire', x, y, { vz: 30 + Math.random() * 30, max: 0.5 + Math.random() * 0.4, size: 4 + Math.random() * 5 });
-    if (Math.random() < 0.5) part('smoke', x, y, { vz: 25 + Math.random() * 20, max: 2 + Math.random() * 1.5, size: 5 + Math.random() * 4, z: 10 });
-  }
+  // damaged buildings smoke and burn: drawn by the view (render3d/burn3d.ts)
   if (b.type === 'power' && Math.random() < dt * 5) {
     const cx = b.tx * TS + (Math.random() < 0.5 ? 20 : 46);
     part('smoke', cx, b.ty * TS - 18, { vz: 26, vx: 5, max: 2.2, size: 4, soft: true });
@@ -115,14 +112,13 @@ export function placeBuilding(team: number, type: BldType, tx: number, ty: numbe
   return addBuilding(type, team, tx, ty, true);
 }
 
-export function sell(b: Ent): void {
+/** Tear a building down: nothing is refunded, but its scrap is left on the ground as ore to carry home. */
+export function scrap(b: Ent): void {
   if (b.dead || b.kind !== 'bld' || b.type === 'yard') return;
-  const d = bldDef(b), f = SELL_REFUND * (b.hp / b.maxhp);
-  G.credits[b.team] += Math.round(d.cost * f);
-  G.wood[b.team] += Math.round((d.wood ?? 0) * f);
-  G.oil[b.team] += Math.round((d.oil ?? 0) * f);
+  const ore = Math.round(bldDef(b).cost * SCRAP_SHARE * (b.hp / b.maxhp) + b.carry);
   burst('dust', b.x, b.y, 20, 40, 120);
   kill(b);
+  dropSalvage(b, ore);
 }
 
 export function toggleRepair(b: Ent): void {

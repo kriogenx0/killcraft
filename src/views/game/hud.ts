@@ -80,8 +80,8 @@ export function commandList(): Command[] {
     ];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
-    // Delete, away from the letters, so selling is hard to hit by accident
-    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Sell this building for half its value' });
+    // Delete, away from the letters, so scrapping is hard to hit by accident
+    if (first.type !== 'yard') list.push({ id: 'scrap', label: 'Scrap', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Tear this building down. Its scrap is left on the ground as ore for your Workers to carry home' });
     return list;
   }
   return [];
@@ -94,7 +94,7 @@ export function runCommand(id: string): void {
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
-  else if (id === 'sell' && s[0]) { dispatch({ c: 'sell', id: s[0].id }); V.sel = []; }
+  else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }
   refreshCommands(true);
 }
 
@@ -245,17 +245,27 @@ function setTitle(value: HTMLElement, title: string): void {
   if (box && box.title !== title) box.title = title;
 }
 
+/** A stock count in at most four characters, so the top bar's slots never overflow: 9999, then 12k. */
+export function shortCount(n: number): string {
+  const v = Math.floor(n);
+  return v < 10000 ? String(v) : `${Math.min(999, Math.floor(v / 1000))}k`;
+}
+
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+
 export function refreshHud(): void {
   const p = power(V.team);
-  els.credits.textContent = String(Math.floor(G.credits[V.team]));
-  els.wood.textContent = String(Math.floor(G.wood[V.team] ?? 0));
-  els.oil.textContent = String(Math.floor(G.oil[V.team] ?? 0));
+  setText(els.credits, shortCount(G.credits[V.team]));
+  setText(els.wood, shortCount(G.wood[V.team] ?? 0));
+  setText(els.oil, shortCount(G.oil[V.team] ?? 0));
   const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
   if (box && box.hidden === found) box.hidden = !found;
-  if (found) els.aether.textContent = String(Math.floor(G.aether[V.team] ?? 0));
+  if (found) setText(els.aether, shortCount(G.aether[V.team] ?? 0));
   setTitle(els.wood, `Wood +${perMin(woodRate(V.team))}/min. Lumber Mills cut it from nearby trees; Workers carry it home.`);
   setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
-  els.power.textContent = `${p.used} / ${p.made}`;
+  setText(els.power, `${p.used}/${p.made}`);
   els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
   const era = ERA[eraOf(V.team)]?.name ?? '';
   if (els.era.textContent !== era) els.era.textContent = era;

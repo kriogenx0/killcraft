@@ -30,7 +30,9 @@ import { initScene, setMood, renderScene, resizeScene, updateCamera, viewFootpri
 import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
+import { initBurning, updateBurning } from './render3d/burn3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
+import { updateAetherBeams } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
@@ -78,6 +80,7 @@ export function mountGameView(root: HTMLElement): void {
     initPortals3d();
     resetEntities3d();
     initFx3d();
+    initBurning();
   };
 
   G.reveal = q.has('reveal');
@@ -242,7 +245,9 @@ export function mountGameView(root: HTMLElement): void {
       updateCamera();
       syncEntities(dt);
       updateFx3d();
+      updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);
+      updateAetherBeams();
       animateWater(dt);
       renderScene();
       drawOverlay(og);
@@ -290,7 +295,7 @@ function showcase(what: string): void {
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
- * your Armory armour upgrades at level N.
+ * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
  */
 function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void, openLobby: (quick: boolean, join?: string) => void): void {
   if (q.has('online') || q.has('join')) { openLobby(q.get('online') === 'quick', q.get('join') ?? undefined); return; }
@@ -298,6 +303,8 @@ function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void
   else if (q.has('auto')) startSolo(false);
   if (q.has('era')) G.era[V.team] = Math.max(0, Math.min(LAST_ERA, Number(q.get('era')) || 0));
   if (q.has('showcase')) showcase(q.get('showcase') ?? '');
+  const dmg = (q.get('damage') ?? '').split(',').map(Number).filter((f) => f > 0);
+  if (dmg.length) G.ents.filter((e) => e.kind === 'bld' && e.team === V.team).forEach((e, i) => { e.hp = e.maxhp * dmg[i % dmg.length]; });
   const armor = Number(q.get('armor'));
   if (armor > 0 && G.upg[V.team]) G.upg[V.team].infArmor = G.upg[V.team].vehArmor = Math.min(3, armor);
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
