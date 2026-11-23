@@ -39,7 +39,7 @@ export function tracksKey(ev: { ctrlKey: boolean; metaKey: boolean; altKey: bool
   return !(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable));
 }
 
-/** Keys that work whatever is selected: P pauses, H selects the Construction Yard and looks at it. */
+/** Keys that work whatever is selected: P pauses, H selects the Town Hall and looks at it. */
 export const GLOBAL_KEYS = { pause: 'P', home: 'H' } as const;
 
 /** Letters no command or production hotkey may take: the camera keys and the global keys. */

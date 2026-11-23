@@ -4,21 +4,25 @@ import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
+import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderHarvest, setOrder } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
-import { millRate, oilLeft } from './economy.ts';
+import { oilLeft } from './economy.ts';
+import { WOOD_BANKS, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
-import { hasBuilding } from './entity.ts';
+import { hasBuilding, lowPower } from './entity.ts';
 import { updWild } from './creatures.ts';
 
 const AUTO_CHASE = 9 * TS;
+/** Idle Workers repair buildings on their own only while the bank holds more ore than this. */
+const AUTO_REPAIR_FLOOR = 200;
 const ORE_SEARCH = 24;
 /** How far (px) a stuck unit edges aside to get past a unit in its way. */
 const SIDESTEP = 8;
@@ -75,6 +79,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (o.wait > 0) { o.wait -= dt; return; }
   // carrying something else: take it home first
   if ((o.st === 'go' || o.st === 'gather') && u.carry > 0 && (u.cargo ?? 'ore') !== (o.res ?? 'ore')) { o.st = 'ret'; u.path = null; }
+  if (o.res === 'wood' && (o.st === 'go' || o.st === 'gather')) { updChop(u, o, dt); return; }
   if (o.res && (o.st === 'go' || o.st === 'gather')) { updHauler(u, o, dt); return; }
   if (o.st === 'go') {
     const i = o.ty * MW + o.tx;
@@ -127,8 +132,9 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  // ore goes to a Refinery; wood and oil to a Refinery or the Construction Yard
-  const ref = bankAt(u, (u.cargo ?? 'ore') === 'ore' ? ['refinery'] : ['refinery', 'yard']);
+  // ore goes to a Refinery; wood to a Lumber Mill, Refinery or the Town Hall; oil to a Refinery or the Town Hall
+  const cargo0 = u.cargo ?? 'ore';
+  const ref = bankAt(u, cargo0 === 'ore' ? ['refinery'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {
     const r = approach(u, ref, NEAR, dt);
@@ -146,9 +152,9 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
 }
 
-/** Haul wood or oil: walk to a mill or derrick, fill up from its store, then head home. */
+/** Haul oil: walk to a derrick, fill up from its store, then head home. */
 function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
-  const type = o.res === 'wood' ? 'mill' : 'derrick';
+  const type = 'derrick';
   let src = valid(o.src);
   if (!src || src.team !== u.team || src.type !== type || !src.done) {
     src = nearestOwn(u, type);
@@ -177,7 +183,7 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
     u.atkT = 0.2;
   }
   // full, or the store is empty: take what we have home; with nothing, wait for more
-  const refills = src.type === 'mill' ? millRate(src) > 0 : oilLeft(src) > 0;
+  const refills = oilLeft(src) > 0;
   if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0 && (u.carry >= Math.min(haulOf(u), 60) || !refills))) o.st = 'ret';
   else if (src.carry <= 0.01) o.wait = 1;
 }
@@ -319,6 +325,8 @@ function mendNear(u: Ent, r: number): Ent | null {
   let bld: Ent | null = null, bd = Infinity, unit: Ent | null = null;
   for (const e of G.ents) {
     if (!mendable(u, e, 0.5)) continue; // not for a scratch
+    // left to themselves, Workers don't spend the last of the bank on repairs
+    if (e.kind === 'bld' && e.done && G.credits[u.team] < AUTO_REPAIR_FLOOR) continue;
     const d = Math.hypot(e.x - u.x, e.y - u.y) - (e.w ? (e.w * TS) / 2 : 0);
     if (d > r) continue;
     if (e.kind === 'bld') { if (d < bd) { bd = d; bld = e; } }
@@ -336,9 +344,15 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // hammers away: drawn like an attack
-  if (t.kind === 'bld' && !t.done) advanceSite(t, (WORKER_BUILD * dt) / bldDef(t).t);
+  if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * WORKER_BUILD * dt) / bldDef(t).t);
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
   else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
+}
+
+/** An enemy wall the unit was ordered right onto, once it's within sight of it. */
+function sentToWall(u: Ent, gx: number, gy: number, sight: number): Ent | null {
+  const w = canBreach(u) ? enemyWallAt(u.team, gx, gy) : null;
+  return w && Math.hypot(w.x - u.x, w.y - u.y) <= sight * TS ? w : null;
 }
 
 export function updUnit(u: Ent, dt: number): void {
@@ -397,14 +411,23 @@ export function updUnit(u: Ent, dt: number): void {
       if (u.scan <= 0) {
         u.scan = 0.3;
         // fight back against whoever is attacking first, and armed enemies before buildings
-        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight);
+        // fight back against whoever is attacking first, and armed enemies before buildings; a wall
+        // only if it was sent to one, once it's close
+        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight) ?? sentToWall(u, o.gx, o.gy, d.sight);
         if (b) { t = b; o.sub = b.id; u.path = null; }
       }
       if (t) {
         if (!combatStep(u, t, dt)) { o.sub = null; u.path = null; }
       } else {
         if (!u.path) { u.goal = [o.gx, o.gy]; u.path = pathFor(u, o.gx, o.gy); }
-        if (followPath(u, dt)) { u.order = null; u.path = null; }
+        if (followPath(u, dt)) {
+          // stopped short, walled off from where it's going: break through the enemy wall in the way
+          const short = Math.hypot(u.x - (o.gx + 0.5) * TS, u.y - (o.gy + 0.5) * TS) > 1.5 * TS;
+          const w = short && canBreach(u) ? wallInWay(u, o.gx, o.gy) : null;
+          if (w) o.sub = w.id;
+          else u.order = null;
+          u.path = null;
+        }
       }
       break;
     }

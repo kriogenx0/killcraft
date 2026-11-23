@@ -6,6 +6,8 @@ import { clamp } from '../util/math.ts';
 import { edgeDist, isJump, los, pathFor, pathTo } from './path.ts';
 import { warpFx } from './fx.ts';
 import { slowFactor } from './aether.ts';
+import { canBreach, wallInWay } from './breach.ts';
+import { isWall } from '../data/building.ts';
 
 /** Turn an angle toward a target angle by at most `max` radians. */
 export function turnToward(a: number, target: number, max: number): number {
@@ -124,6 +126,12 @@ export function approach(u: Ent, t: Target, range: number, dt: number): boolean 
     u.rep = 0.5;
     u.path = pathTo(u, t);
     if (!u.path) return null;
+    // can't get there for enemy walls: break through the one in the way (combatStep aims at it)
+    if (u.kind === 'unit' && !isWall((t as Ent).type ?? '') && canBreach(u)) {
+      const end = u.path[u.path.length - 1] ?? [tileOf(u.x), tileOf(u.y)], g = u.goal;
+      const reached = !!g && end[0] === g[0] && end[1] === g[1];
+      u.breach = reached || !g ? null : wallInWay(u, g[0], g[1])?.id ?? null;
+    }
   }
   if (u.path.length) {
     if (followPath(u, dt)) u.path = [];

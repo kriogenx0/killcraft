@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
-import { MH, MW, STEP, TS } from './const.ts';
+import { GRASS, MH, MW, STEP, TS } from './const.ts';
+import { rebuildBlk } from './map.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
-import { orderMove } from './order.ts';
+import { orderAttack, orderMove } from './order.ts';
 import { findPath } from './path.ts';
 import { canPlace, wallLine } from './building.ts';
 import { startSite } from './production.ts';
@@ -26,6 +27,15 @@ function openSquare(n: number): [number, number] {
       if (ok) return [tx, ty];
     }
   throw new Error('no open ground');
+}
+
+/** Clear a square of ground to plain grass (top-left tile), for tests that need more room than the map has free. */
+function clearSquare(n: number): [number, number] {
+  const tx = 24, ty = 24;
+  for (let y = ty - 1; y <= ty + n; y++) for (let x = tx - 1; x <= tx + n; x++) { const i = y * MW + x; G.terr[i] = GRASS; G.blk[i] = 0; G.ore[i] = 0; }
+  G.ents.filter((e) => !e.dead && e.w && e.tx + e.w >= tx - 1 && e.tx <= tx + n && e.ty + e.h >= ty - 1 && e.ty <= ty + n).forEach(kill);
+  rebuildBlk();
+  return [tx, ty];
 }
 
 beforeEach(() => {
@@ -65,9 +75,9 @@ describe('walls', () => {
     expect(ore - G.credits[0]).toBe(5 * BUILDING.palisade.cost);
     expect(wood - G.wood[0]).toBe(5 * (BUILDING.palisade.wood ?? 0));
     for (const w of walls) expect(G.blk[w.ty * MW + w.tx]).toBe(1);
-    // every segment goes up at once
+    // the Workers build one segment after another
     expect(walls.every((w) => !w.done)).toBe(true);
-    run(BUILDING.palisade.t + 1);
+    run(5 * BUILDING.palisade.t + 15);
     expect(walls.every((w) => w.done)).toBe(true);
   });
 
@@ -99,14 +109,67 @@ describe('walls', () => {
     expect(u.x).toBeGreaterThan((tx + 9) * TS);
   });
 
-  it('get attacked by units that are walled off from their goal', () => {
+  /** A closed ring of enemy (team 1) palisade, 9 tiles across, with its top-left at (tx, ty). */
+  function ring(tx: number, ty: number, gap = false): void {
+    for (let x = tx; x < tx + 9; x++) for (const y of [ty, ty + 8]) addBuilding('palisade', 1, x, y, false);
+    for (let y = ty + 1; y < ty + 8; y++) for (const x of [tx, tx + 8]) if (!(gap && x === tx + 8 && y === ty + 4)) addBuilding('palisade', 1, x, y, false);
+    ringSize = G.ents.filter((e) => e.type === 'palisade').length;
+  }
+  /** Walls of the ring knocked down or hurt. */
+  const damaged = (): number => {
+    const ws = G.ents.filter((e) => e.type === 'palisade');
+    return ws.filter((e) => e.dead || e.hp < e.maxhp).length + (ringSize - ws.length);
+  };
+  let ringSize = 0;
+
+  it('are left alone by idle troops and turrets right beside them', () => {
     const [tx, ty] = openSquare(9);
-    for (let y = ty - 1; y < ty + 10; y++) addBuilding('palisade', 1, tx + 5, y, false);
-    const u = addUnit('swordsman', 0, (tx + 2.5) * TS, (ty + 4.5) * TS);
+    for (let y = ty; y < ty + 9; y++) addBuilding('palisade', 1, tx + 5, y, false);
+    addUnit('swordsman', 0, (tx + 4.5) * TS, (ty + 4.5) * TS);
+    addUnit('crossbowman', 0, (tx + 3.5) * TS, (ty + 2.5) * TS);
+    addBuilding('pillbox', 0, tx + 2, ty + 6, false);
+    run(15);
+    expect(G.ents.filter((e) => e.type === 'palisade' && e.hp < e.maxhp)).toHaveLength(0);
+  });
+
+  it('are walked around when there is a way around', () => {
+    const [tx, ty] = clearSquare(13);
+    ring(tx + 2, ty + 2, true);
+    const u = addUnit('swordsman', 0, (tx + 0.5) * TS, (ty + 6.5) * TS);
+    orderMove(u, tx + 6, ty + 6); // the middle of the ring, through the gap on the far side
     run(20);
-    const walls = G.ents.filter((e) => e.type === 'palisade');
-    expect(walls.some((w) => w.hp < w.maxhp) || walls.length < 11).toBe(true);
-    expect(u.dead).toBe(false);
+    expect(damaged()).toBe(0);
+    expect(Math.hypot(u.x - (tx + 6.5) * TS, u.y - (ty + 6.5) * TS)).toBeLessThan(2 * TS);
+  });
+
+  it('get broken through when there is no other way to where a unit is going', () => {
+    const [tx, ty] = clearSquare(13);
+    ring(tx + 2, ty + 2);
+    const u = addUnit('knight', 0, (tx + 0.5) * TS, (ty + 6.5) * TS);
+    orderMove(u, tx + 6, ty + 6);
+    run(70);
+    expect(damaged()).toBeGreaterThan(0);
+    expect(Math.hypot(u.x - (tx + 6.5) * TS, u.y - (ty + 6.5) * TS)).toBeLessThan(2 * TS);
+  });
+
+  it('get broken through to reach an enemy walled in', () => {
+    const [tx, ty] = clearSquare(13);
+    ring(tx + 2, ty + 2);
+    const foe = addBuilding('power', 1, tx + 5, ty + 5, false); // unarmed, so the knight lives to reach it
+    const u = addUnit('knight', 0, (tx + 0.5) * TS, (ty + 6.5) * TS);
+    orderAttack(u, foe);
+    run(80);
+    expect(damaged()).toBeGreaterThan(0);
+    expect(foe.hp).toBeLessThan(foe.maxhp);
+  });
+
+  it('get attacked when a unit is sent right onto one', () => {
+    const [tx, ty] = openSquare(9);
+    const w = addBuilding('palisade', 1, tx + 6, ty + 4, false);
+    const u = addUnit('swordsman', 0, (tx + 1.5) * TS, (ty + 4.5) * TS);
+    orderMove(u, tx + 6, ty + 4);
+    run(10);
+    expect(w.dead || w.hp < w.maxhp).toBe(true);
   });
 
   it('accept a dragged line in a place command, and reject a bad end', () => {
@@ -198,6 +261,22 @@ describe('Big Bertha', () => {
 });
 
 describe('computer player', () => {
+  it('puts up walls in a normal match, alongside its first defenses', () => {
+    const errors: unknown[] = [];
+    hooks.error = (e) => errors.push(e);
+    ais[0].on = true; ais[1].on = true;
+    initWorld(4321);
+    const wallsOf = (t: number) => G.ents.filter((e) => !e.dead && e.team === t && isWall(e.type)).length;
+    let most = [0, 0];
+    for (let i = 0; i < 8 * 60 / STEP && !G.over; i++) {
+      update(STEP);
+      if (i % 60 === 0) most = most.map((m, t) => Math.max(m, wallsOf(t)));
+    }
+    expect(errors).toEqual([]);
+    // no extra money: both sides wall in with what they earn
+    for (const t of [0, 1]) expect(most[t], `team ${t} walls`).toBeGreaterThanOrEqual(4);
+  }, 60_000);
+
   it('builds walls and several kinds of defenses over a long game', () => {
     const errors: unknown[] = [];
     hooks.error = (e) => errors.push(e);

@@ -3,6 +3,7 @@ import { G, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type 
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
+import { isWall } from '../data/building.ts';
 import { edgeDist } from './path.ts';
 import { angleDiff, approach, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
@@ -153,6 +154,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
     if (e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
+    if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40);
@@ -179,9 +181,14 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
   if (!d.weapon || !canHit(d.weapon, t) || cloakedFrom(t, u.team) || kneeling(t)) return false;
-  const w = WEAPON[d.weapon], r = approach(u, t, w.range * TS, dt);
+  // walled off from the target: break through the wall in the way first
+  const via = valid(u.breach);
+  if (!via) u.breach = null;
+  const at = via && via !== t ? via : t;
+  // a blade reaches a building's wall from a little further off (a body pressed to a footprint's edge can't get closer)
+  const w = WEAPON[d.weapon], r = approach(u, at, w.range * TS + (w.proj === 'melee' && at.w ? MELEE_SLACK / 2 : 0), dt);
   if (r === null) return false;
-  if (r && aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
+  if (r && aim(u, at, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, at); }
   return true;
 }
 

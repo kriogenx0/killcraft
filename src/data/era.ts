@@ -1,6 +1,6 @@
 // Ages of technology. Every side starts in the Medieval age. Oil is the way forward: an Oil Derrick
 // on a well lets a side build the Engine Works, which takes it into the World War age, and the
-// Modern age is researched at the Construction Yard for oil alone. Each age unlocks newer units and
+// Modern age is researched at the Town Hall for oil alone. Each age unlocks newer units and
 // structures, and older ones stay available.
 // The Hospital researches faster healing for organic units, and the Armory weapon and armor upgrades.
 import type { BldType } from './building.ts';
@@ -45,7 +45,7 @@ export interface TechDef {
   ward?: boolean;
   /** an Armory upgrade: the track and the level it reaches */
   upg?: { track: UpgradeTrack; level: number };
-  /** the building that researches it, if not the Construction Yard */
+  /** the building that researches it, if not the Town Hall */
   at?: 'hospital' | 'armory';
   /** ore */
   cost: number;

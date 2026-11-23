@@ -149,7 +149,7 @@ function cannon(x: number, y: number, z: number, scale = 1): THREE.Group {
 
 // ---------------------------------------------------------------- structures
 
-/** Construction Yard: a stone keep with team-roofed corner towers and a treadwheel crane. */
+/** Town Hall: a stone keep with team-roofed corner towers and a treadwheel crane. */
 function keep(L: Look): Model {
   const root = new THREE.Group(), parts: Parts = {}, W = L.wall, team = L.team;
   ground(root, 3, 11);
@@ -507,7 +507,7 @@ function campfire(root: THREE.Object3D, x: number, z: number): void {
 }
 const dodecaRock = () => box(0.05, 0.04, 0.05);
 
-/** Construction Yard: a log longhouse inside a stake palisade, with a wooden crane. */
+/** Town Hall: a log longhouse inside a stake palisade, with a wooden crane. */
 function fort(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   ground(root, 3, 61);

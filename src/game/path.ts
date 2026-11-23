@@ -34,18 +34,23 @@ export function nearestFree(gx: number, gy: number, maxr = 12): Tile | null {
   return null;
 }
 
+/** Did the last findPath get all the way to its goal (or the free tile standing in for a blocked one)? */
+export let pathReached = true;
+
 /**
  * Tile path (excluding the start). If the goal can't be reached, ends at the closest reachable tile.
  * `team` may also step through its own Waygates; map portals are open to everyone.
  */
 export function findPath(sx: number, sy: number, gx: number, gy: number, team = -1): Tile[] {
   sx = clamp(sx, 0, MW - 1); sy = clamp(sy, 0, MH - 1); gx = clamp(gx, 0, MW - 1); gy = clamp(gy, 0, MH - 1);
+  pathReached = false;
   if (G.blk[gy * MW + gx]) {
     const f = nearestFree(gx, gy);
     if (!f) return [];
     [gx, gy] = f;
   }
-  if (sx === gx && sy === gy) return [];
+  pathReached = sx === gx && sy === gy;
+  if (pathReached) return [];
   stamp++;
   const hf: number[] = [], hi: number[] = [];
   const push = (i: number, f: number) => {
@@ -121,6 +126,7 @@ export function findPath(sx: number, sy: number, gx: number, gy: number, team = 
       }
     }
   }
+  pathReached = best === gi;
   const path: Tile[] = [];
   for (let c = best; c !== si && c !== -1; c = cameFrom[c]) path.push([c % MW, (c / MW) | 0]);
   return path.reverse();

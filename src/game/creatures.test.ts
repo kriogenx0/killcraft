@@ -158,7 +158,7 @@ describe('creatures of myth', () => {
     initWorld(1234);
     const yard = G.ents.find((e) => e.team === 1 && e.type === 'yard') as Ent;
     // a strong army at home, and one wild creature a little way off
-    for (let i = 0; i < 10; i++) addUnit('knight', 1, yard.x - 3 * TS + (i % 5) * 16, yard.y + 3 * TS + Math.floor(i / 5) * 16);
+    for (let i = 0; i < 14; i++) addUnit('knight', 1, yard.x - 3 * TS + (i % 5) * 16, yard.y + 3 * TS + Math.floor(i / 5) * 16);
     const near = wildBeasts().filter((b) => !UNIT[b.type as 'centaur'].alt).sort((a, c) => Math.hypot(a.x - yard.x, a.y - yard.y) - Math.hypot(c.x - yard.x, c.y - yard.y))[0];
     for (const b of wildBeasts()) if (b !== near) { b.dead = true; G.byId.delete(b.id); }
     G.ents = G.ents.filter((e) => !e.dead);

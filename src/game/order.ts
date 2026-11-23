@@ -9,6 +9,7 @@ const FLEE_DIST = 6;
 
 export function setOrder(u: Ent, o: Order | null): void {
   u.order = o;
+  u.breach = null;
   u.path = null;
   u.goal = null;
   u.rep = 0;
@@ -47,9 +48,16 @@ export function orderHarvest(u: Ent, tx: number, ty: number): void {
   setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0 });
 }
 
-/** Haul wood from a Lumber Mill or oil from an Oil Derrick back to base, over and over. */
+/** Chop wood in a Lumber Mill's woods (Workers only), or haul oil from an Oil Derrick back to base, over and over. */
 export function orderHaul(u: Ent, src: Ent): void {
+  if (src.type === 'mill' && u.type !== 'worker') return;
   setOrder(u, { t: 'harvest', st: 'go', tx: src.tx, ty: src.ty, wait: 0, res: src.type === 'mill' ? 'wood' : 'oil', src: src.id });
+}
+
+/** Chop a tree (or the nearest one with wood) and carry the wood home, over and over. Workers only. */
+export function orderChop(u: Ent, tx: number, ty: number): void {
+  if (u.type !== 'worker') return;
+  setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0, res: 'wood' });
 }
 
 /** Send a Worker to mend an ally or building (a site: help build it). */

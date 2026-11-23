@@ -1,5 +1,5 @@
 // Sidebar production: structures are placed first and then build on site (any number at once, see
-// startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Construction Yard,
+// startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Town Hall,
 // one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
 // The whole price (ore, wood, oil, Aether) is paid when an order starts; an order the side can't
@@ -14,7 +14,7 @@ import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
 import { cancelSite, canPlace, exitTile, placeBuilding, wallLine } from './building.ts';
-import { orderHarvest, orderMove } from './order.ts';
+import { orderFix, orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 
 export type Buildable = UnitType | BldType | TechType;
@@ -80,8 +80,12 @@ export function nextUpgrades(team: number): TechType[] {
   }));
 }
 
+/** Infantry the Town Hall trains while the side has no Barracks, so it can always get Workers back. */
+const YARD_INFANTRY: readonly UnitType[] = ['worker'];
+
 export function producerOf(team: number, line: ProductionLine): Ent | null {
-  return G.ents.find((e) => !e.dead && e.team === team && e.type === PRODUCER[line] && e.done) ?? null;
+  const own = (type: BldType) => G.ents.find((e) => !e.dead && e.team === team && e.type === type && e.done) ?? null;
+  return own(PRODUCER[line]) ?? (line === 'infantry' ? own('yard') : null);
 }
 
 /** What a team can build right now on a production line. */
@@ -97,7 +101,8 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   if (line === 'tech') {
     return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
+  const yardOnly = line === 'infantry' && producerOf(team, line)?.type === 'yard';
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
 /** The first resource the team lacks for the whole price, or null if it can pay. */
@@ -160,7 +165,24 @@ export function startSite(team: number, type: BldType, tx: number, ty: number, e
   }
   if (!first && line.length > 1) say(team, 'Cannot place there');
   if (n > 1) say(team, `${n} wall segments placed`);
+  if (first) sendBuilder(team, first);
   return first;
+}
+
+/** A Worker free to build: idle, or digging ore (not hauling from a mill or derrick, nor building already). */
+const freeToBuild = (w: Ent): boolean => !w.order || (w.order.t === 'harvest' && !w.order.res) || w.order.t === 'move';
+
+/** Sites only go up while Workers build them: send the nearest free Worker to a new one. */
+export function sendBuilder(team: number, site: Ent): Ent | null {
+  const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
+  if (!workers.length) { say(team, 'Needs a Worker to build it'); return null; }
+  // building comes before chopping wood: with nobody else free, take a chopper
+  let free = workers.filter(freeToBuild);
+  if (!free.length) free = workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
+  const w = free.sort((a, c) => Math.hypot(a.x - site.x, a.y - site.y) - Math.hypot(c.x - site.x, c.y - site.y))[0];
+  if (w) orderFix(w, site);
+  else say(team, 'No Worker free: right-click the site with Workers selected');
+  return w ?? null;
 }
 
 /** A team's structures still going up, oldest first (optionally of one type). */
@@ -236,7 +258,8 @@ export function updProduction(team: number, dt: number): void {
     const q = G.prod[team][line], it = q[0];
     if (!it || it.ready || it.hold) continue;
     const at = producerOf(team, line);
-    if (!at) { cancel(team, it.type); continue; }
+    // gone, or only a yard left, which trains nothing but Workers: refunded
+    if (!at || (at.type === 'yard' && line === 'infantry' && !YARD_INFANTRY.includes(it.type as UnitType))) { cancel(team, it.type); continue; }
     it.prog += Math.min((speed * refitBonus(at) * dt) / timeOf(it.type), 1 - it.prog);
     if (it.prog < 1 - 1e-9) continue;
     if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }

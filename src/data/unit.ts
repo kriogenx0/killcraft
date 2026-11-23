@@ -78,7 +78,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1300, oil: 200, t: 22, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, desc: 'Slow, heavily armored twin-cannon tank.' },
   catapult: { name: 'Catapult', cls: 'vehicle', armor: 'light', hp: 220, spd: 1.6, turn: 1.5, weapon: 'catapult', cost: 500, wood: 400, t: 16, era: 0, sight: 6, producer: 'vehicle', turret: false, radius: 14, desc: 'Lobs boulders from long range. Crushes buildings and packed infantry.' },
   harvester: { name: 'Harvester', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.4, turn: 2, weapon: null, cost: 1400, wood: 100, t: 18, era: 2, sight: 4, producer: 'vehicle', turret: false, radius: 15, haul: 600, scoop: 160, desc: 'Collects ore and brings it to a refinery. Unarmed.' },
-  worker: { name: 'Worker', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'pick', cost: 250, t: 7, era: 0, sight: 4, producer: 'infantry', turret: false, radius: 6, haul: 300, scoop: 80, desc: 'Peasant with a pick and a basket. Digs ore and carries it to a Refinery, and hauls wood from Lumber Mills and oil from Oil Derricks. With nothing to carry, mends what is near: speeds up building sites, repairs damaged buildings (for ore), and patches up wounded troops and vehicles, slower than a Medic. Swings the pick if attacked. In the Modern age Harvesters take over the ore.' },
+  worker: { name: 'Worker', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'pick', cost: 250, t: 7, era: 0, sight: 4, producer: 'infantry', turret: false, radius: 6, haul: 300, scoop: 80, desc: 'Peasant with a pick and a basket. Builds every structure: a placed site only goes up while Workers work on it. Digs ore and carries it to a Refinery, chops trees and carries the wood to a Lumber Mill, and hauls oil from Oil Derricks. With nothing to carry, mends what is near: builds sites, repairs damaged buildings (for ore), and patches up wounded troops and vehicles, slower than a Medic. Swings the pick if attacked. Trained at the Barracks, or at the Town Hall before there is one. In the Modern age Harvesters take over the ore.' },
   // aircraft, built at the Airfield. They fly straight over buildings, cliffs and water, and only
   // weapons that can aim upward (bows, guns, rockets, flak) can hit them.
   balloon: { name: 'War Balloon', cls: 'air', armor: 'air', hp: 170, spd: 1.3, turn: 1, weapon: 'bomb', cost: 150, wood: 200, t: 12, era: 1, sight: 9, producer: 'air', turret: false, radius: 12, alt: 2.2, desc: 'Silk envelope and a wicker basket. Drifts slowly over walls and drops bombs. Sees far.' },
@@ -94,12 +94,12 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 220, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 350, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 11, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry.' },
   minotaur: { name: 'Minotaur', cls: 'infantry', armor: 'light', hp: 460, spd: 2.4, turn: 4, weapon: 'axe', cost: 450, aether: 45, t: 12, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 12, beast: true, desc: 'Bull-headed brute with a great double axe. Slow, tough, and smashes buildings.' },
-  cyclops: { name: 'Cyclops', cls: 'infantry', armor: 'heavy', hp: 650, spd: 1.8, turn: 3, weapon: 'hurl', cost: 650, aether: 70, t: 16, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 15, beast: true, desc: 'One-eyed giant who hurls boulders from long range. Crushes tanks and walls.' },
+  cyclops: { name: 'Cyclops', cls: 'infantry', armor: 'heavy', hp: 450, spd: 1.8, turn: 3, weapon: 'hurl', cost: 650, aether: 70, t: 16, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 15, beast: true, desc: 'One-eyed giant who hurls boulders from long range. Crushes tanks and walls.' },
   hydra: { name: 'Hydra', cls: 'infantry', armor: 'light', hp: 560, spd: 1.6, turn: 3, weapon: 'hydrabite', cost: 600, aether: 60, t: 15, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 14, beast: true, regen: 0.012, desc: 'Many-headed serpent. Bites three foes at once and keeps growing back its wounds.' },
   cerberus: { name: 'Cerberus', cls: 'infantry', armor: 'light', hp: 380, spd: 4.0, turn: 5.5, weapon: 'hellfire', cost: 500, aether: 50, t: 12, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 12, beast: true, desc: 'Three-headed hound of the underworld. Breathes fire over a crowd of infantry.' },
   harpy: { name: 'Harpy', cls: 'air', armor: 'air', hp: 130, spd: 6.0, turn: 5, weapon: 'talons', cost: 250, aether: 25, t: 8, era: 0, sight: 8, producer: 'air', turret: false, radius: 9, alt: 1.4, beast: true, desc: 'Shrieking winged hag. Swoops on harvesters and infantry; easy prey for archers.' },
   pegasus: { name: 'Pegasus', cls: 'air', armor: 'air', hp: 240, spd: 6.5, turn: 4, weapon: 'hoof', cost: 400, aether: 45, t: 11, era: 0, sight: 10, producer: 'air', turret: false, radius: 12, alt: 1.6, beast: true, desc: 'Winged horse. The fastest thing in the sky, it charges down on foes and sees far.' },
-  griffin: { name: 'Griffin', cls: 'air', armor: 'air', hp: 340, spd: 4.8, turn: 3.5, weapon: 'griffclaw', cost: 500, aether: 55, t: 13, era: 0, sight: 8, producer: 'air', turret: false, radius: 13, alt: 1.5, beast: true, desc: 'Eagle-lion that dives on vehicles and tears aircraft out of the sky.' },
+  griffin: { name: 'Griffin', cls: 'air', armor: 'air', hp: 280, spd: 4.8, turn: 3.5, weapon: 'griffclaw', cost: 500, aether: 55, t: 13, era: 0, sight: 8, producer: 'air', turret: false, radius: 13, alt: 1.5, beast: true, desc: 'Eagle-lion that dives on vehicles and tears aircraft out of the sky.' },
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */
@@ -109,8 +109,11 @@ export const MEDIC_RANGE = 20;
 export const WORKER_HEAL = 3;
 /** A Worker repairs a damaged building this many hit points a second (paying ore like the Repair button). */
 export const WORKER_REPAIR = 10;
-/** Each Worker on a building site adds this much to its building speed (0.5 = half again as fast). */
-export const WORKER_BUILD = 0.5;
+/**
+ * Sites only go up while Workers build them: each Worker on a site builds this much of it per second
+ * of its build time (1 = one Worker builds it in its build time, two in half that).
+ */
+export const WORKER_BUILD = 1;
 
 export const UNIT_TYPES = Object.keys(UNIT) as UnitType[];
 

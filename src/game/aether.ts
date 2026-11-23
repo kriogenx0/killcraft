@@ -43,7 +43,7 @@ export function addAether(tx: number, ty: number, amount = AETHER_PER_DEPOSIT): 
     id: G.nextId++, kind: 'source', type: 'aether', team: -1, x: (tx + 0.5) * TS, y: (ty + 0.5) * TS, hp: amount, maxhp: AETHER_PER_DEPOSIT, dead: false, flash: 0,
     tx, ty, w: 1, h: 1,
     order: null, path: null, goal: null, cd: 0, face: 0, tface: 0, carry: 0,
-    scan: 0, rep: 0, px: 0, py: 0, stkT: 0, walk: 0, moving: false, atkT: 0, stance: 'engage', shot: null, foe: null, foeT: -99,
+    scan: 0, rep: 0, px: 0, py: 0, stkT: 0, walk: 0, moving: false, atkT: 0, stance: 'engage', shot: null, breach: null, foe: null, foeT: -99,
     done: true, prog: 1, repairing: false, rally: null,
   };
   setBlk(e, true);
@@ -135,7 +135,7 @@ export function drawAether(dt: number): void {
   }
 }
 
-/** Units carrying Aether bank it once they're near their own Construction Yard or Refinery. */
+/** Units carrying Aether bank it once they're near their own Town Hall or Refinery. */
 export function bankAether(): void {
   for (const u of G.ents) {
     if (u.dead || u.kind !== 'unit' || !u.ae) continue;
