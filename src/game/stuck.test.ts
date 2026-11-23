@@ -167,6 +167,22 @@ describe('units never stand around with an order', () => {
     expect(trees).toBe(7);
   });
 
+  it('a Worker picks the tree closest to the Lumber Mill, not the one closest to itself', () => {
+    emptyMap();
+    const tree = (x: number, y: number) => { G.terr[y * MW + x] = TREE; G.treeWood[y * MW + x] = 150; };
+    tree(12, 12); // right by the Worker, far from the mill
+    tree(34, 31); // two tiles from the mill
+    tree(35, 31); // a little further
+    addBuilding('mill', 0, 30, 30, false);
+    rebuildBlk();
+    const w = addUnit('worker', 0, 10.5 * TS, 10.5 * TS), v = addUnit('worker', 0, 11.5 * TS, 10.5 * TS);
+    for (const u of [w, v]) u.order = { t: 'harvest', st: 'go', tx: 0, ty: 0, wait: 0, res: 'wood' };
+    run(STEP);
+    const at = (u: typeof w) => (u.order?.t === 'harvest' ? [u.order.tx, u.order.ty] : null);
+    // the closest to the mill, and the second Worker takes the next one over rather than crowd it
+    expect([at(w), at(v)]).toEqual([[34, 31], [35, 31]]);
+  });
+
   it('the computer won\'t put a structure across the only way out of a pocket its own Workers are in', () => {
     emptyMap();
     const yard = addBuilding('yard', 0, 10, 10, false);
