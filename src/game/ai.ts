@@ -6,7 +6,7 @@ import { MW, TS } from './const.ts';
 import { BUILDING, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
-import { canPlace, sell, wallLine } from './building.ts';
+import { canPlace, wallLine } from './building.ts';
 import { available, canAfford, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
 import { oilLeft, oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance, orderHaul } from './order.ts';
@@ -286,7 +286,10 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  const prod = G.prod[team], credits = G.credits[team] - ais[team].reserve;
+  // down to its last gatherer: troops leave the price of a Worker in hand. Nothing else brings ore
+  // home (scrapped buildings leave ore on the ground), so a side with none left could never recover.
+  const keep = gatherers(team) < 2 ? costOf('worker') : 0;
+  const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep);
   // saving up for the next structure
   const saving = credits < 150;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
@@ -315,17 +318,9 @@ function training(team: number): void {
   }
 }
 
-/** What the computer sells first when it's broke and has nobody left to gather ore. */
-const SELL_FIRST: BldType[] = ['hospital', 'tower', 'turret', 'flak', 'airfield', 'mill', 'factory'];
-
 function upkeep(team: number): void {
   for (const b of G.ents)
     if (!b.dead && b.team === team && b.kind === 'bld' && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
-  // broke with no Workers or harvesters: sell something to pay for a Worker rather than stall for good
-  if (gatherers(team) === 0 && G.credits[team] < costOf('worker') && hasBuilding(team, 'refinery') && hasBuilding(team, 'barracks')) {
-    const b = SELL_FIRST.map((t) => G.ents.find((e) => !e.dead && e.team === team && e.type === t && e.done)).find((e) => !!e);
-    if (b) sell(b);
-  }
 }
 
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */

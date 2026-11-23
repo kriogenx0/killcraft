@@ -31,13 +31,13 @@ describe('commands', () => {
     for (const e of own) expect(e.order?.t).toBe('move');
   });
 
-  it("can't sell or repair the other team's buildings", () => {
+  it("can't scrap or repair the other team's buildings", () => {
     const yard = G.ents.find((e) => e.team === 1 && e.type === 'yard');
     if (!yard) throw new Error('no yard');
     yard.hp = 100;
     applyCommand(0, { c: 'repair', id: yard.id });
     expect(yard.repairing).toBe(false);
-    applyCommand(0, { c: 'sell', id: yard.id });
+    applyCommand(0, { c: 'scrap', id: yard.id });
     expect(yard.dead).toBe(false);
   });
 });

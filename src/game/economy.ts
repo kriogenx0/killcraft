@@ -101,10 +101,10 @@ export function salvageOf(e: Ent): number {
   return Math.round(price * SALVAGE_SHARE + e.carry + (e.loot ?? 0));
 }
 
-/** Scatter a destroyed thing's salvage as ore on open ground around where it stood. */
-export function dropSalvage(e: Ent): void {
+/** Scatter a destroyed (or scrapped) thing's salvage as ore on open ground around where it stood. */
+export function dropSalvage(e: Ent, amount = salvageOf(e)): void {
   if (G.visualOnly) return; // the server's ore map is the truth online
-  let left = salvageOf(e);
+  let left = amount;
   if (left <= 0) return;
   const cx = Math.floor(e.x / TS), cy = Math.floor(e.y / TS), size = Math.max(1, e.w);
   const tiles: number[] = [];
