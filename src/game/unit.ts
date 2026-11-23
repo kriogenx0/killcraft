@@ -252,7 +252,18 @@ function pullOver(u: Ent, e: Ent): Tile | null {
 const pulledOver = new WeakMap<Ent, Tile>();
 
 function unstick(u: Ent, dt: number): void {
-  if (isAir(u)) return; // nothing blocks aircraft
+  if (isAir(u)) {
+    // nothing blocks aircraft, but a flight sent to one spot jostles over it (see separate):
+    // hovering near the goal counts as arrived
+    if (!u.path?.length) return;
+    u.stkT -= dt;
+    if (u.stkT > 0) return;
+    u.stkT = 0.6;
+    const last = u.path[u.path.length - 1];
+    if (Math.hypot(u.x - u.px, u.y - u.py) < 4 && Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 1.5 * TS) u.path.length = 0;
+    u.px = u.x; u.py = u.y;
+    return;
+  }
   if (G.blk[tileOf(u.y) * MW + tileOf(u.x)]) {
     const f = nearestFree(tileOf(u.x), tileOf(u.y));
     if (f) { u.x = (f[0] + 0.5) * TS; u.y = (f[1] + 0.5) * TS; u.path = null; }

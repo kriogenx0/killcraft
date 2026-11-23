@@ -64,12 +64,12 @@ export interface TechDef {
 
 /**
  * Organic units (infantry, knights) slowly heal on their own. Fraction of max health regained per
- * second at each healing level: level 0 takes over eight minutes to heal fully, level 3 about a minute.
+ * second at each healing level: level 0 takes over sixteen minutes to heal fully, level 3 about two.
  */
-export const HEAL_RATE = [0.002, 0.004, 0.008, 0.016];
+export const HEAL_RATE = [0.001, 0.002, 0.004, 0.008];
 export const MAX_HEAL = HEAL_RATE.length - 1;
 /** Having a Hospital makes organic units heal this much faster. */
-export const HOSPITAL_HEAL = 1.5;
+export const HOSPITAL_HEAL = 1.25;
 const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
 
 export const TECH: Record<TechType, TechDef> = {

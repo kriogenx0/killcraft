@@ -103,10 +103,10 @@ export const UNIT: Record<UnitType, UnitDef> = {
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */
-export const MEDIC_HEAL = 6;
+export const MEDIC_HEAL = 4;
 export const MEDIC_RANGE = 20;
 /** A Worker patches up a hurt unit this many hit points a second (half a Medic). */
-export const WORKER_HEAL = 3;
+export const WORKER_HEAL = 2;
 /** A Worker repairs a damaged building this many hit points a second (paying ore like the Repair button). */
 export const WORKER_REPAIR = 10;
 /**

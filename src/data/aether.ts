@@ -43,8 +43,8 @@ export const WARD_FACTOR = 0.9;
 
 /** The Star Shrine heals your units within this many tiles of it... */
 export const SHRINE_RANGE = 4;
-/** ...by this share of their health per second (full in about 100 s). */
-export const SHRINE_HEAL = 0.01;
+/** ...by this share of their health per second (full in about 200 s). */
+export const SHRINE_HEAL = 0.005;
 /** A Ward Stone reveals cloaked enemies within this many tiles. */
 export const WARD_STONE_SIGHT = 6;
 /** A side links at most this many Waygates (one pair). */
