@@ -87,6 +87,41 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  // shown while a solo game is paused, with the game's ID
+  .game-paused {
+    position: absolute;
+    bottom: $space-5;
+    left: calc((100% - #{$sidebar-width}) / 2);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
+    align-items: center;
+    max-width: calc(100% - #{$sidebar-width} - 2 * #{$gutter});
+    padding: $space-2 $space-4;
+    font-size: $font-xl;
+    color: var(--color-gold);
+    text-align: center;
+    transform: translateX(-50%);
+
+    &[hidden] {
+      display: none;
+    }
+
+    .game-id {
+      font-size: $font-sm;
+      color: var(--color-text-muted);
+      overflow-wrap: anywhere;
+      user-select: text;
+    }
+  }
+
+  .game-end-id {
+    font-size: $font-sm;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
   .game-message {
     position: absolute;
     top: 48px;
@@ -177,6 +212,13 @@ $sidebar-width: 248px;
 
   .hud-stats {
     font-size: $font-sm;
+    color: var(--color-text-muted);
+  }
+
+  .hud-desc {
+    margin: 2px 0 $space-1;
+    font-size: $font-sm;
+    line-height: 1.35;
     color: var(--color-text-muted);
   }
 
@@ -283,6 +325,13 @@ $sidebar-width: 248px;
 
     .game-message {
       right: $gutter;
+    }
+
+    .game-paused {
+      top: 56px;
+      bottom: auto;
+      left: 50%;
+      max-width: calc(100% - 2 * #{$gutter});
     }
 
     .ui-resource-label {

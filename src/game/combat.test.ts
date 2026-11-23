@@ -5,6 +5,7 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addUnit } from './entity.ts';
 import { fire, MELEE_LAND, updProjs } from './combat.ts';
+import { applyCommand } from './command.ts';
 import { groupMove, orderAttack, setStance } from './order.ts';
 import type { UnitType } from '../data/unit.ts';
 
@@ -116,6 +117,21 @@ describe('stances', () => {
     run(12);
     expect(foe.dead).toBe(true);
     expect(prey.dead).toBe(false);
+  });
+
+  it('patrol walks back and forth, fighting what it meets on the way', () => {
+    const [x, y] = openGround(10);
+    const u = addUnit('tank', 0, x, y), tx = Math.floor(x / TS) + 8, ty = Math.floor(y / TS);
+    applyCommand(0, { c: 'patrol', ids: [u.id], tx, ty });
+    let far = 0;
+    for (let i = 0; i < 12 / STEP; i++) { update(STEP); far = Math.max(far, u.x - x); }
+    expect(far).toBeGreaterThan(7 * TS); // got to the far end
+    expect(u.order?.t).toBe('move'); // and is still patrolling
+    run(8);
+    expect(Math.abs(u.x - x)).toBeLessThan(3 * TS); // back near the start by now, or on the way
+    const prey = addUnit('harvester', 1, x + 4 * TS, y + TS);
+    run(10);
+    expect(prey.hp).toBeLessThan(prey.maxhp);
   });
 
   it('stop and attack (the default): a moving unit stops to fight what it meets', () => {

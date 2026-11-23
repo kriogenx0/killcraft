@@ -21,7 +21,8 @@ export const STANCES = ['engage', 'skirmish', 'passive'] as const;
 export type Stance = (typeof STANCES)[number];
 
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
-export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
+/** `pat`: on patrol, the other end of the beat; on arriving the unit turns back toward it. */
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 /** What a unit is carrying home. */
 export type Cargo = 'ore' | 'wood' | 'oil';
@@ -41,6 +42,8 @@ export interface ProductionItem {
   prog: number;
   /** ore paid for it (the whole price is paid when the order starts) */
   spent: number;
+  /** paid for and started; an order the side can't afford yet waits in the queue until it can */
+  paid: boolean;
   /** finished structure waiting to be placed */
   ready: boolean;
   /** paused by the player */
@@ -81,6 +84,8 @@ export interface Ent extends Target {
   drawT?: number;
   /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
   loot?: number;
+  /** a Worker told to fix everything nearby, then harvest: looks further for things to mend until there are none */
+  tending?: boolean;
   scan: number;
   rep: number;
   px: number;
@@ -102,6 +107,8 @@ export interface Ent extends Target {
   /** 0..1 rise-up animation after placement */
   prog: number;
   repairing: boolean;
+  /** a site placed before the side could pay for it: Workers can't build it until it's paid (production.ts) */
+  unpaid?: boolean;
   /** the age a building's look and stats belong to: the one it was built in, plus upgrades (see refit.ts) */
   lvl?: number;
   /** 0..1 progress of an upgrade under way */
