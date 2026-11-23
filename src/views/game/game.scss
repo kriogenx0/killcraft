@@ -180,6 +180,13 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  .hud-desc {
+    margin: 2px 0 $space-1;
+    font-size: $font-sm;
+    line-height: 1.35;
+    color: var(--color-text-muted);
+  }
+
   // stats: label and value pairs, two to a line
   .hud-table {
     display: grid;

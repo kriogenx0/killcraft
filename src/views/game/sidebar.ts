@@ -12,6 +12,9 @@ import { V, ownSelected, spectating } from './view_state.ts';
 import { groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
+import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
+import { priceText } from './components/build_cell.ts';
+import { keyLabel } from './keyboard.ts';
 
 interface Cell {
   root: HTMLElement;
@@ -130,10 +133,26 @@ export function refreshSidebar(): void {
   }
 }
 
-export function initSidebar(structures: HTMLElement, units: HTMLElement): void {
+/** Hover card for a sidebar item: name and hotkey, what it does, then price and damage. */
+function tooltipHtml(t: Buildable): string {
+  const key = hotkeyOf(t), p = producerOfType(t);
+  const keys = key ? ` ${key.split(' ').map((k) => `<kbd class="ui-key">${keyLabel(k)}</kbd>`).join('')}` : '';
+  const wt = isUnitType(t) ? UNIT[t].weapon : t in BUILDING ? BUILDING[t as BldType].weapon : null;
+  const dps = wt ? ` · DPS ${dpsText(wt, isUnitType(t) ? teamWeaponBonus(V.team, t) : 1)}` : '';
+  const via = key && p ? `<br><small>Hotkey with the ${BUILDING[p].name} selected</small>` : '';
+  return `<b>${nameOf(t)}</b>${keys}<br>${descOf(t)}<br><small>${priceText(priceOf(t))}${dps}</small>${via}`;
+}
+
+export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip: HTMLElement): void {
   structureList = structures;
   unitList = units;
   for (const list of [structures, units]) {
+    list.addEventListener('mouseover', (ev) => {
+      const cell = (ev.target as HTMLElement).closest<HTMLElement>('.build-cell');
+      if (!cell) { hideTooltip(tooltip); return; }
+      showTooltip(tooltip, tooltipHtml(cell.dataset.type as Buildable));
+    });
+    list.addEventListener('mouseleave', () => hideTooltip(tooltip));
     list.addEventListener('click', (ev) => {
       const el = ev.target as HTMLElement, cell = el.closest<HTMLElement>('.build-cell');
       if (!cell) return;
