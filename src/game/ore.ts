@@ -29,13 +29,18 @@ export function takeOre(tx: number, ty: number, amount: number): number {
 }
 
 /** Nearest tile with ore, searching outward up to `r` tiles. Skips tiles under buildings and any `skip` rejects. */
-export function nearestOre(tx: number, ty: number, r: number, min = 1, skip?: (i: number) => boolean): Tile | null {
+/**
+ * The ore tile within r tiles of (tx, ty) with at least `min` ore, nearest to (tx, ty), or, given a
+ * `home` footprint (a drop-off), nearest to that so trips stay short.
+ */
+export function nearestOre(tx: number, ty: number, r: number, min = 1, skip?: (i: number) => boolean, home?: { tx: number; ty: number; w: number; h: number } | null): Tile | null {
   let best: Tile | null = null, bd = 1e9;
   for (let y = Math.max(0, ty - r); y <= Math.min(MH - 1, ty + r); y++)
     for (let x = Math.max(0, tx - r); x <= Math.min(MW - 1, tx + r); x++) {
       const i = y * MW + x;
       if (G.ore[i] < min || G.blk[i] || skip?.(i)) continue;
-      const d = Math.hypot(x - tx, y - ty) - G.ore[i] / 1000; // prefer richer tiles at equal distance
+      const d = (home ? Math.hypot(Math.max(home.tx - x, 0, x - (home.tx + home.w - 1)), Math.max(home.ty - y, 0, y - (home.ty + home.h - 1))) : Math.hypot(x - tx, y - ty))
+        - G.ore[i] / 1000; // prefer richer tiles at equal distance
       if (d < bd) { bd = d; best = [x, y]; }
     }
   return best;
