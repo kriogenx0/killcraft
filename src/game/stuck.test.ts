@@ -183,6 +183,20 @@ describe('units never stand around with an order', () => {
     expect([at(w), at(v)]).toEqual([[34, 31], [35, 31]]);
   });
 
+  it('Workers and Harvesters dig the ore closest to their drop-off, not the ore closest to themselves', () => {
+    emptyMap();
+    G.ore[12 * MW + 12] = 300; // right by them, far from the Refinery
+    G.ore[31 * MW + 34] = 300; // two tiles from the Refinery
+    G.ore[31 * MW + 35] = 300;
+    addBuilding('refinery', 0, 30, 30, false);
+    rebuildBlk();
+    const w = addUnit('worker', 0, 10.5 * TS, 10.5 * TS), h = addUnit('harvester', 0, 11.5 * TS, 10.5 * TS);
+    for (const u of [w, h]) u.order = { t: 'harvest', st: 'go', tx: 11, ty: 11, wait: 0 };
+    run(STEP);
+    const at = (u: typeof w) => (u.order?.t === 'harvest' ? [u.order.tx, u.order.ty] : null);
+    expect([at(w), at(h)].sort()).toEqual([[34, 31], [35, 31]]);
+  });
+
   it('the computer won\'t put a structure across the only way out of a pocket its own Workers are in', () => {
     emptyMap();
     const yard = addBuilding('yard', 0, 10, 10, false);
