@@ -94,7 +94,7 @@ export function commandList(): Command[] {
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
-      // Workers: R, like a building's Repair
+      // Workers: T, to tend the base
       ...(s.some((u) => u.type === 'worker') ? [{ id: 'tend', label: 'Fix, then harvest', hotkey: COMMAND_KEYS.tend, icon: ICON.repair, tip: `Fix everything damaged within ${TEND_RADIUS} tiles (buildings, building sites and wounded units), then go back to harvesting. Idle Workers do this for what's close by on their own`, active: s.every((u) => u.type !== 'worker' || u.tending) }] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
