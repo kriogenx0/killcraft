@@ -6,9 +6,9 @@ const DOUBLE_TAP_MS = 300;
 export function blockBrowserZoom(): void {
   // Ctrl/Cmd + wheel, which is also what a trackpad pinch sends
   window.addEventListener('wheel', (ev) => { if (ev.ctrlKey || ev.metaKey) ev.preventDefault(); }, { passive: false });
-  // Ctrl/Cmd + plus, minus or zero
+  // Ctrl/Cmd + plus, minus or zero (in a game, + and - zoom the camera instead: views/game/input.ts)
   window.addEventListener('keydown', (ev) => {
-    if ((ev.ctrlKey || ev.metaKey) && ZOOM_KEYS.has(ev.key)) ev.preventDefault();
+    if ((ev.ctrlKey || ev.metaKey) && (ZOOM_KEYS.has(ev.key) || ev.code === 'NumpadAdd' || ev.code === 'NumpadSubtract')) ev.preventDefault();
   });
   // Safari pinch (it ignores user-scalable=no)
   for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, (ev) => ev.preventDefault(), { passive: false });

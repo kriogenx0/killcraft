@@ -87,3 +87,16 @@ export const normalizeKey = (k: string): string => {
   const l = k.toLowerCase();
   return l === 'backspace' ? 'delete' : l;
 };
+
+/**
+ * Camera zoom for a key press: -1 zooms in (+, =, numpad +), 1 zooms out (-, _, numpad -), else 0.
+ * Ctrl/Cmd don't matter, so the browser's own zoom shortcut zooms the game camera instead.
+ */
+export function zoomKey(ev: { key: string; code?: string }): -1 | 0 | 1 {
+  if (ev.key === '+' || ev.key === '=' || ev.code === 'NumpadAdd') return -1;
+  if (ev.key === '-' || ev.key === '_' || ev.code === 'NumpadSubtract') return 1;
+  return 0;
+}
+
+/** Game speed keys: ] faster, [ slower (+ and - zoom). */
+export const SPEED_KEYS: Record<string, number> = { ']': 2, '[': 0.5 };

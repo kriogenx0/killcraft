@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMMAND_KEYS, ROTATE_KEYS, SCROLL_KEYS, isTyping, scrollVector, tracksKey } from './keyboard.ts';
+import { COMMAND_KEYS, ROTATE_KEYS, SCROLL_KEYS, SPEED_KEYS, isTyping, zoomKey, scrollVector, tracksKey } from './keyboard.ts';
 
 const ev = (o: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: unknown }> = {}) =>
   ({ ctrlKey: false, metaKey: false, altKey: false, target: { tagName: 'CANVAS' }, ...o });
@@ -42,5 +42,16 @@ describe('keyboard', () => {
     expect(isTyping(field(false))).toBe(false);
     expect(tracksKey(ev({ target: field(false) }))).toBe(true);
     expect(isTyping({ tagName: 'CANVAS' })).toBe(false);
+  });
+
+  it('zooms the camera with + and -, the numpad, and the browser-zoom shortcuts', () => {
+    expect(zoomKey({ key: '+' })).toBe(-1);
+    expect(zoomKey({ key: '=' })).toBe(-1);
+    expect(zoomKey({ key: '+', code: 'NumpadAdd' })).toBe(-1);
+    expect(zoomKey({ key: '-' })).toBe(1);
+    expect(zoomKey({ key: '_' })).toBe(1);
+    expect(zoomKey({ key: 'Subtract', code: 'NumpadSubtract' })).toBe(1);
+    expect(zoomKey({ key: 'z' })).toBe(0);
+    for (const k of Object.keys(SPEED_KEYS)) expect(zoomKey({ key: k })).toBe(0);
   });
 });
