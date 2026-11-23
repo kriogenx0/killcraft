@@ -7,7 +7,7 @@ import { power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { available, eraOf, lineOf, nameOf, priceOf, sitesOf, type Buildable } from '../../game/production.ts';
+import { available, eraOf, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -223,7 +223,7 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   const own = insight(e) && e.done;
   if (!e.done)
-    return `<h3>${d.name}${enemy}</h3>${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">Under construction, ${Math.floor(e.prog * 100)}%${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
+    return `<h3>${d.name}${enemy}</h3>${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">${e.unpaid && insight(e) ? `Waiting for ${waitingFor(e.team, e.type as BldType) ?? 'funds'} to start building` : `Under construction, ${Math.floor(e.prog * 100)}%`}${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
@@ -256,7 +256,8 @@ export function productionDetails(e: Ent): string {
   const n = lines.includes('structure') ? sitesOf(e.team).length : 0;
   const sites = n ? `<p class="hud-stats">${n} structure${n > 1 ? 's' : ''} under construction</p>` : '';
   if (!queue.length) return sites || '<p class="hud-stats">Not producing</p>';
-  const head = queue[0], state = head.hold ? 'on hold' : `${Math.round(head.prog * 100)}%`;
+  const head = queue[0], need = !head.paid && waitingFor(e.team, head.type);
+  const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
   const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
   return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}`;
 }

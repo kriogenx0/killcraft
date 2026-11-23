@@ -317,6 +317,60 @@ describe('production', () => {
     expect(G.credits[0]).toBe(5000);
   });
 
+  it("queues a player's order it can't pay for yet, and starts it once it can", () => {
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    for (const w of G.ents.filter((e) => e.team === 0 && e.type === 'worker')) kill(w); // no income meanwhile
+    const cost = UNIT.swordsman.cost;
+    G.credits[0] = cost - 1;
+    expect(enqueue(0, 'swordsman')).toBe(false); // the computer's orders still need the money now
+    expect(enqueue(0, 'swordsman', true)).toBe(true);
+    expect(enqueue(0, 'swordsman', true)).toBe(true);
+    const q = G.prod[0].infantry;
+    expect(q.map((x) => x.paid)).toEqual([false, false]);
+    expect(G.credits[0]).toBe(cost - 1); // nothing taken while it waits
+    run(UNIT.swordsman.t + 1);
+    expect(q[0].prog).toBe(0);
+    expect(G.ents.some((e) => e.team === 0 && e.type === 'swordsman')).toBe(false);
+    // cancelling a waiting order costs nothing and gives nothing back
+    expect(cancel(0, 'swordsman')).toBe(true);
+    expect(q).toHaveLength(1);
+    expect(G.credits[0]).toBe(cost - 1);
+    G.credits[0] = cost + 5;
+    run(STEP);
+    expect(q[0].paid).toBe(true);
+    expect(G.credits[0]).toBe(5); // paid in full the moment it could start
+    run(UNIT.swordsman.t + 1);
+    expect(G.ents.some((e) => e.team === 0 && e.type === 'swordsman')).toBe(true);
+    expect(q).toHaveLength(0);
+  });
+
+  it("lays out a player's site it can't pay for yet; Workers build it once it's paid", () => {
+    addBuilding('power', 0, 10, 50, false);
+    G.credits[0] = 5000;
+    G.wood[0] = 0;
+    expect(startSite(0, 'barracks', 13, 50)).toBeNull(); // the computer stops where the money runs out
+    const site = startSite(0, 'barracks', 13, 50, 13, 50, true);
+    expect(site?.unpaid).toBe(true);
+    expect(G.credits[0]).toBe(5000);
+    advanceSite(site!, 0.5);
+    expect(site?.prog).toBe(0); // no building before it's paid for
+    G.wood[0] = BUILDING.barracks.wood ?? 0;
+    run(STEP);
+    expect(site?.unpaid).toBe(false);
+    expect(G.credits[0]).toBe(5000 - BUILDING.barracks.cost);
+    expect(G.wood[0]).toBe(0);
+    // an unpaid site called off gives nothing back
+    G.wood[0] = 0;
+    const other = startSite(0, 'barracks', 17, 50, 17, 50, true);
+    expect(other?.unpaid).toBe(true);
+    const ore = G.credits[0];
+    cancel(0, 'barracks');
+    expect(other?.dead).toBe(true);
+    expect(G.credits[0]).toBe(ore);
+    expect(G.wood[0]).toBe(0);
+  });
+
   it('turns ore into credits with the two free Workers', () => {
     addBuilding('power', 0, 10, 50, false);
     const workers = G.ents.filter((e) => e.team === 0 && e.type === 'worker').length;

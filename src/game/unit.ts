@@ -340,6 +340,7 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
+  if (t.kind === 'bld' && t.unpaid) return; // waits at the site until the side can pay for it
   u.atkT = 0.25; // hammers away: drawn like an attack
   if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * WORKER_BUILD * dt) / bldDef(t).t);
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }

@@ -117,7 +117,7 @@ export function applyCommand(team: number, cmd: Command): void {
       break;
     }
     case 'build':
-      enqueue(team, cmd.type);
+      enqueue(team, cmd.type, true); // a player's order waits in the queue until it can be paid for
       break;
     case 'hold':
       toggleHold(team, cmd.type);
@@ -126,7 +126,7 @@ export function applyCommand(team: number, cmd: Command): void {
       cancel(team, cmd.type);
       break;
     case 'place':
-      startSite(team, cmd.type, cmd.tx, cmd.ty, cmd.ex, cmd.ey);
+      startSite(team, cmd.type, cmd.tx, cmd.ty, cmd.ex, cmd.ey, true);
       break;
     case 'repair': {
       const b = ownBuilding(team, cmd.id);
