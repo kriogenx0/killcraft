@@ -81,6 +81,8 @@ export interface Ent extends Target {
   drawT?: number;
   /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
   loot?: number;
+  /** a Worker told to fix everything nearby, then harvest: looks further for things to mend until there are none */
+  tending?: boolean;
   scan: number;
   rep: number;
   px: number;

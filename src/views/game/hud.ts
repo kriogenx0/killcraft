@@ -4,6 +4,7 @@ import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
+import { TEND_RADIUS } from '../../game/unit.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
@@ -93,6 +94,8 @@ export function commandList(): Command[] {
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
+      // Workers: R, like a building's Repair
+      ...(s.some((u) => u.type === 'worker') ? [{ id: 'tend', label: 'Fix, then harvest', hotkey: COMMAND_KEYS.tend, icon: ICON.repair, tip: `Fix everything damaged within ${TEND_RADIUS} tiles (buildings, building sites and wounded units), then go back to harvesting. Idle Workers do this for what's close by on their own`, active: s.every((u) => u.type !== 'worker' || u.tending) }] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
     return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
@@ -121,6 +124,7 @@ export function runCommand(id: string): void {
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'move') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
+  else if (id === 'tend') dispatch({ c: 'tend', ids: ids(s.filter((u) => u.type === 'worker')) });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });
