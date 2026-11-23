@@ -9,7 +9,7 @@ import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
-import { hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
+import { groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
 
@@ -60,10 +60,20 @@ export function selectedProducer(): BldType | null {
  * structure to place), just like clicking them in the sidebar.
  */
 export function productionHotkey(key: string): boolean {
-  const b = selectedProducer(), type = b && itemForKey(b, key);
-  if (!type || !available(V.team, lineOf(type)).includes(type)) return false;
-  activate(type);
-  return true;
+  const b = selectedProducer();
+  if (!b) return false;
+  const group = V.keyGroup;
+  if (!group) {
+    const g = groupForKey(b, key);
+    if (g) { V.keyGroup = g; return true; }
+  }
+  const type = itemForKey(b, key, group);
+  if (type && available(V.team, lineOf(type)).includes(type)) {
+    activate(type);
+    V.keyGroup = null;
+    return true;
+  }
+  return !!group; // inside a group, other letters do nothing (Esc closes it)
 }
 
 /** Left click: pick up a structure to place (it's paid for and built once placed), or start or resume an order. */
@@ -116,7 +126,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
     c.root.classList.toggle('build-cell--short', !items.length && !canAfford(V.team, type));
-    c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer);
+    c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
   }
 }
 

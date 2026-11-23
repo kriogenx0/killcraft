@@ -2,6 +2,10 @@
 // added to data/ gets a key with no extra work. Keys are scoped to the building that makes the item:
 // select the Construction Yard (H) and press a structure's or research's key, select a Barracks and
 // press an infantry key, and so on. A def can ask for a letter with `key`.
+//
+// A building with more items than free letters (the yard) sorts some into groups: walls, defenses
+// and Aether structures each sit behind one key, and their items are keyed again inside the group.
+// So with the yard selected, L then S lays a Stone Wall. A def can name its own group with `group`.
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
 import { BUILDING, BLD_TYPES, isWall, type BldType } from '../../data/building.ts';
 import { TECH, TECH_TYPES } from '../../data/era.ts';
@@ -15,11 +19,23 @@ export function linesOf(b: BldType): ProductionLine[] {
   return !p ? [] : p === 'structure' ? ['structure', 'tech'] : [p];
 }
 
-/** Things bought with Aether are rare: they get keys after everything else, and may go mouse-only. */
-export const isRare = (t: string): boolean => ((t in UNIT ? UNIT[t as keyof typeof UNIT] : t in TECH ? TECH[t as keyof typeof TECH] : BUILDING[t as BldType])?.aether ?? 0) > 0;
+function defOf(t: string): { aether?: number; group?: string; key?: string } | undefined {
+  return t in UNIT ? UNIT[t as keyof typeof UNIT] : t in TECH ? TECH[t as keyof typeof TECH] : BUILDING[t as BldType];
+}
 
-/** Rare items and wall segments get keys last: the yard has more structures than free letters. */
-export const keyedLast = (t: string): boolean => isRare(t) || isWall(t);
+/** Things bought with Aether are rare. */
+export const isRare = (t: string): boolean => (defOf(t)?.aether ?? 0) > 0;
+
+/** The sub-menu a structure sits in, or undefined for the top level. */
+export function groupOfType(t: string): string | undefined {
+  const d = defOf(t);
+  if (d?.group) return d.group;
+  if (!(t in BUILDING)) return undefined;
+  if (isWall(t)) return 'Walls';
+  if (isRare(t)) return 'Aether';
+  if (BUILDING[t as BldType].weapon) return 'Defenses';
+  return undefined;
+}
 
 function itemsOn(line: ProductionLine): Keyed[] {
   if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].buildable).map((t) => ({ id: t, name: BUILDING[t].name, key: BUILDING[t].key }));
@@ -27,28 +43,57 @@ function itemsOn(line: ProductionLine): Keyed[] {
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line).map((t) => ({ id: t, name: UNIT[t].name, key: UNIT[t].key }));
 }
 
-/** Every producing building's item → key map. */
-export const PRODUCTION_KEYS: ReadonlyMap<BldType, ReadonlyMap<Buildable, string>> = new Map(
-  (Object.keys(BUILDING) as BldType[]).filter((b) => linesOf(b).length).map((b) => [
-    b,
-    assignKeys([...linesOf(b).flatMap(itemsOn)].sort((x, y) => Number(keyedLast(x.id)) - Number(keyedLast(y.id))), Object.values(BUILDING_KEYS)) as Map<Buildable, string>,
-  ]),
+export interface KeyMap {
+  /** item → its key at the top level, or inside its group */
+  items: Map<Buildable, string>;
+  /** group name → the key that opens it */
+  groups: Map<string, string>;
+}
+
+const BLD_KEYS = Object.values(BUILDING_KEYS);
+
+/** Preferred keys for the default groups: G for guns, L for walls (W scrolls), T for the Aether's star stones. */
+const GROUP_KEYS: Record<string, string> = { Defenses: 'G', Walls: 'L', Aether: 'T' };
+
+/** Keys for one building's items: groups first, then the ungrouped items around them, then each group's items. */
+export function keyMap(items: readonly Keyed[]): KeyMap {
+  const names = [...new Set(items.map((i) => groupOfType(i.id)).filter((g): g is string => !!g))];
+  const groups = assignKeys(names.map((n) => ({ id: n, name: n, key: GROUP_KEYS[n] })), BLD_KEYS);
+  const out = assignKeys(items.filter((i) => !groupOfType(i.id)), [...BLD_KEYS, ...groups.values()]) as Map<Buildable, string>;
+  for (const g of names) for (const [t, k] of assignKeys(items.filter((i) => groupOfType(i.id) === g), BLD_KEYS)) out.set(t as Buildable, k);
+  return { items: out, groups };
+}
+
+/** Every producing building's keys. */
+export const PRODUCTION_KEYS: ReadonlyMap<BldType, KeyMap> = new Map(
+  (Object.keys(BUILDING) as BldType[]).filter((b) => linesOf(b).length).map((b) => [b, keyMap(linesOf(b).flatMap(itemsOn))]),
 );
 
 const PRODUCER_OF = new Map<Buildable, BldType>();
-for (const [b, m] of PRODUCTION_KEYS) for (const t of m.keys()) PRODUCER_OF.set(t, b);
+for (const [b, m] of PRODUCTION_KEYS) for (const t of m.items.keys()) PRODUCER_OF.set(t, b);
 
 /** The building that makes an item (and must be selected for its hotkey). */
 export const producerOfType = (t: Buildable): BldType | undefined => PRODUCER_OF.get(t);
 
-/** An item's hotkey, or '' if it has none. */
-export const hotkeyOf = (t: Buildable): string => {
-  const b = PRODUCER_OF.get(t);
-  return (b && PRODUCTION_KEYS.get(b)?.get(t)) ?? '';
-};
+/** The keys to press for an item once its building is selected: "N", or "L S" inside a group. '' if none. */
+export function hotkeyOf(t: Buildable): string {
+  const b = PRODUCER_OF.get(t), m = b && PRODUCTION_KEYS.get(b), k = m?.items.get(t);
+  if (!m || !k) return '';
+  const g = groupOfType(t), gk = g && m.groups.get(g);
+  return gk ? `${gk} ${k}` : k;
+}
 
-/** The item a key builds while a building of type `b` is selected. */
-export function itemForKey(b: BldType, key: string): Buildable | undefined {
-  for (const [t, k] of PRODUCTION_KEYS.get(b) ?? []) if (k.toLowerCase() === key) return t;
+/** The groups a building's items are sorted into, as [name, key]. */
+export const groupsOf = (b: BldType): [string, string][] => [...(PRODUCTION_KEYS.get(b)?.groups ?? [])];
+
+/** The group a key opens while a building of type `b` is selected (and no group is open). */
+export function groupForKey(b: BldType, key: string): string | undefined {
+  for (const [g, k] of PRODUCTION_KEYS.get(b)?.groups ?? []) if (k.toLowerCase() === key) return g;
+  return undefined;
+}
+
+/** The item a key builds while a building of type `b` is selected, at the top level or inside `group`. */
+export function itemForKey(b: BldType, key: string, group?: string | null): Buildable | undefined {
+  for (const [t, k] of PRODUCTION_KEYS.get(b)?.items ?? []) if (k.toLowerCase() === key && groupOfType(t) === (group ?? undefined)) return t;
   return undefined;
 }

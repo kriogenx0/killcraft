@@ -7,9 +7,9 @@ import { power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { eraOf, nameOf, priceOf, sitesOf, type Buildable } from '../../game/production.ts';
+import { available, eraOf, lineOf, nameOf, priceOf, sitesOf, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
-import { linesOf } from './hotkeys.ts';
+import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
 import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
@@ -55,6 +55,7 @@ export const formatTime = (t: number): string => `${Math.floor(t / 60)}:${String
 
 export function setSelection(list: Ent[]): void {
   V.sel = list;
+  V.keyGroup = null;
   if (V.mode?.t !== 'place') V.mode = null;
   refreshCommands(true);
 }
@@ -72,6 +73,7 @@ export function commandList(): Command[] {
   const s = ownSelected();
   const first = s[0];
   if (!first) return [];
+  if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
@@ -83,6 +85,13 @@ export function commandList(): Command[] {
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     // Delete, away from the letters, so scrapping is hard to hit by accident
+    // sub-menus of production hotkeys, such as the yard's walls and defenses
+    for (const [g, key] of first.done ? groupsOf(first.type as BldType) : []) {
+      const icon = Object.keys(ICON).find((t) => groupOfType(t) === g && producerOfType(t as Buildable) === first.type);
+      // hide a group with nothing in it yet, such as Aether before any is found
+      if (!icon || !available(V.team, lineOf(icon as Buildable)).some((t) => groupOfType(t) === g)) continue;
+      list.push({ id: `group:${g}`, label: g, hotkey: key, icon: ICON[icon], tip: `${g}: press ${key}, then the letter shown on one in the sidebar` });
+    }
     if (first.type !== 'yard') list.push({ id: 'scrap', label: 'Scrap', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Tear this building down. Its scrap is left on the ground as ore for your Workers to carry home' });
     return list;
   }
@@ -92,6 +101,8 @@ export function commandList(): Command[] {
 export function runCommand(id: string): void {
   const s = ownSelected();
   if (id === 'cancel') V.mode = null;
+  else if (id === 'back') V.keyGroup = null;
+  else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'move') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });

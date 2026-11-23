@@ -3,27 +3,43 @@ import { BUILDING, BLD_TYPES } from '../../data/building.ts';
 import { UNIT_TYPES } from '../../data/unit.ts';
 import { TECH_TYPES } from '../../data/era.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, GLOBAL_KEYS, RESERVED_KEYS, ROTATE_KEYS, SCROLL_KEYS, assignKeys, keyLabel, normalizeKey } from './keyboard.ts';
-import { PRODUCTION_KEYS, hotkeyOf, itemForKey, keyedLast, producerOfType } from './hotkeys.ts';
+import { PRODUCTION_KEYS, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 
 describe('hotkeys', () => {
   it('gives every structure, unit and research a key', () => {
     for (const t of [...BLD_TYPES.filter((b) => BUILDING[b].buildable), ...UNIT_TYPES, ...TECH_TYPES]) {
-      if (keyedLast(t)) continue; // Aether items and walls are keyed last and may run out of letters
-      expect(hotkeyOf(t), t).toMatch(/^[A-Z]$/);
+      expect(hotkeyOf(t), t).toMatch(groupOfType(t) ? /^[A-Z] [A-Z]$/ : /^[A-Z]$/);
       expect(producerOfType(t), t).toBeDefined();
     }
   });
 
-  it('never repeats a key within one building, or clashes with its commands or the camera', () => {
+  it('never repeats a key within one building or group, or clashes with its commands or the camera', () => {
     const bldKeys = Object.values(BUILDING_KEYS).map((k) => k.toLowerCase());
     for (const [b, m] of PRODUCTION_KEYS) {
-      const keys = [...m.values()].map((k) => k.toLowerCase());
-      expect(new Set(keys).size, b).toBe(keys.length);
-      for (const k of keys) {
-        expect(RESERVED_KEYS.has(k), `${b} ${k}`).toBe(false);
-        expect(bldKeys).not.toContain(k);
+      // what one key press can mean: the top level holds ungrouped items and the group keys
+      const menus = new Map<string, string[]>([['', [...m.groups.values()]]]);
+      for (const [t, k] of m.items) {
+        const g = groupOfType(t) ?? '';
+        menus.set(g, [...(menus.get(g) ?? []), k]);
+      }
+      for (const [g, list] of menus) {
+        const keys = list.map((k) => k.toLowerCase());
+        expect(new Set(keys).size, `${b} ${g}`).toBe(keys.length);
+        for (const k of keys) {
+          expect(RESERVED_KEYS.has(k), `${b} ${k}`).toBe(false);
+          expect(bldKeys).not.toContain(k);
+        }
       }
     }
+  });
+
+  it('puts the yard\'s walls, defenses and Aether structures behind a group key', () => {
+    expect(groupForKey('yard', 'l')).toBe('Walls');
+    expect(itemForKey('yard', hotkeyOf('stonewall').split(' ')[1].toLowerCase(), 'Walls')).toBe('stonewall');
+    expect(itemForKey('yard', hotkeyOf('stonewall').split(' ')[1].toLowerCase())).not.toBe('stonewall');
+    expect(groupOfType('tower')).toBe('Defenses');
+    expect(groupOfType('shrine')).toBe('Aether');
+    expect(groupOfType('barracks')).toBeUndefined();
   });
 
   it('keeps unit, building and global keys off the camera keys and apart from each other', () => {

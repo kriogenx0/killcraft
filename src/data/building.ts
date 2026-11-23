@@ -43,6 +43,8 @@ export interface BldDef {
   buildable: boolean;
   /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
   key?: string;
+  /** the hotkey sub-menu it sits in at its producer; walls, defenses and Aether structures get one by default (views/game/hotkeys.ts) */
+  group?: string;
   desc: string;
 }
 
