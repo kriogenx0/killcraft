@@ -345,7 +345,10 @@ function training(team: number): void {
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
-  if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
+  // an idle War Factory in the World War age or later: save up for a vehicle instead of spending every
+  // last coin on cheap infantry
+  const forVehicle = hasBuilding(team, 'factory') && !prod.vehicle.length && G.era[team] >= 1 && credits < 900;
+  if (!saving && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
     const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5],

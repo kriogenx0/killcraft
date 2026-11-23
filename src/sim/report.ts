@@ -51,9 +51,9 @@ export function report(results: MatchResult[]): string {
   out.push('', '## Economy (per side)', '');
   const perMin = sides.map((s) => s.income / Math.max(1, (s.outAt ?? results.find((r) => r.stats.includes(s))?.length ?? 1) / 60));
   out.push(table(['', 'Median', '10th', '90th'], [
-    ['Gold harvested per minute alive', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(perMin, q)))],
+    ['Ore harvested per minute alive', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(perMin, q)))],
     ['Bounty ore banked', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.bounty ?? 0), q)))],
-    ['Gold harvested in total', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.income), q)))],
+    ['Ore harvested in total', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.income), q)))],
     ['Average ore in the bank', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgBank), q)))],
     ['Average wood in store', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgWood), q)))],
     ['Average oil in store', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.avgOil), q)))],

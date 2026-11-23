@@ -375,9 +375,9 @@ describe('a computer-vs-computer match', () => {
     ais[1].on = true;
     initWorld(99);
     // gatherers lost to raids don't count against harvesting
-    const raided = [0, 0], income = [0, 0], prev = { ...hooks };
+    const raided = [0, 0], refineriesLost = [0, 0], income = [0, 0], prev = { ...hooks };
     onTestFinished(() => { Object.assign(hooks, prev); });
-    hooks.killedBy = (v) => { if (isHarvester(v)) raided[v.team]++; };
+    hooks.killedBy = (v) => { if (isHarvester(v)) raided[v.team]++; if (v.type === 'refinery') refineriesLost[v.team]++; };
     hooks.income = (team, a) => { income[team] += a; };
     run(360); // room for the lumber mill and the wood that research needs
     expect(errors).toEqual([]);
@@ -387,7 +387,8 @@ describe('a computer-vs-computer match', () => {
     for (const team of [0, 1]) {
       if (G.over && G.winner !== team) continue;
       const types = G.ents.filter((e) => e.team === team).map((e) => e.type);
-      expect(types).toContain('refinery');
+      // built a refinery (it may since have been destroyed in the fighting)
+      if (!refineriesLost[team]) expect(types).toContain('refinery');
       expect(income[team]).toBeGreaterThan(0);
       if (!raided[team]) expect(G.ents.some((e) => e.team === team && isHarvester(e))).toBe(true);
     }

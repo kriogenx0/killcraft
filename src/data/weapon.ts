@@ -34,14 +34,14 @@ export interface WeaponDef {
 }
 
 export const WEAPON: Record<WeaponType, WeaponDef> = {
-  rifle: { dmg: 9, range: 3.5, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
+  rifle: { dmg: 10, range: 3.5, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
   lmg: { dmg: 7, range: 4, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.55, heavy: 0.15, building: 0.25, air: 0.7 } },
   dronegun: { dmg: 9, range: 3.5, cd: 0.4, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.7, heavy: 0.35, building: 0.35, air: 0.9 } },
   mg: { dmg: 9, range: 4, cd: 0.45, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.1, light: 0.6, heavy: 0.25, building: 0.3, air: 0.7 } },
   rocket: { dmg: 42, range: 5, cd: 2.2, proj: 'rocket', speed: 320, splash: 10, vs: { none: 0.3, light: 1, heavy: 1, building: 0.7, air: 1.3 } },
   cannon: { dmg: 32, range: 4.5, cd: 1.6, proj: 'shell', speed: 650, splash: 14, vs: { none: 0.45, light: 0.9, heavy: 1, building: 0.9, air: 0 } },
   heavycannon: { dmg: 46, range: 4.75, cd: 1.9, proj: 'shell', speed: 650, splash: 18, vs: { none: 0.5, light: 0.9, heavy: 1, building: 1, air: 0 } },
-  turretcannon: { dmg: 34, range: 5.5, cd: 1.5, proj: 'shell', speed: 700, splash: 12, vs: { none: 0.5, light: 1, heavy: 1, building: 0.5, air: 0 } },
+  turretcannon: { dmg: 30, range: 5.5, cd: 1.5, proj: 'shell', speed: 700, splash: 12, vs: { none: 0.5, light: 1, heavy: 1, building: 0.5, air: 0 } },
   pillboxmg: { dmg: 10, range: 5.5, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.7, heavy: 0.15, building: 0.2, air: 0.6 } },
   atmissile: { dmg: 80, range: 7, cd: 2.8, proj: 'rocket', speed: 360, splash: 8, vs: { none: 0.2, light: 0.9, heavy: 1.25, building: 0.5, air: 0 } },
   bertha: { dmg: 220, range: 22, minRange: 5, cd: 10, proj: 'shell', speed: 150, splash: 40, ground: true, vs: { none: 0.7, light: 0.8, heavy: 0.8, building: 1, air: 0 } },
@@ -51,7 +51,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   sword: { dmg: 18, range: 0.6, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.7, heavy: 0.35, building: 0.5, air: 0 } },
   lance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.45, building: 0.4, air: 0 } },
   crossbow: { dmg: 16, range: 4.5, cd: 1.6, proj: 'bolt', speed: 520, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.35, building: 0.3, air: 0.6 } },
-  ballista: { dmg: 24, range: 5.5, cd: 1.5, proj: 'bolt', speed: 560, splash: 0, vs: { none: 1, light: 1, heavy: 0.35, building: 0.3, air: 0.8 } },
+  ballista: { dmg: 20, range: 5.5, cd: 1.5, proj: 'bolt', speed: 560, splash: 0, vs: { none: 1, light: 1, heavy: 0.35, building: 0.3, air: 0.8 } },
   catapult: { dmg: 60, range: 7.5, cd: 4, proj: 'boulder', speed: 230, splash: 22, vs: { none: 0.9, light: 0.8, heavy: 0.6, building: 1.4, air: 0 } },
   // air war: bombs dropped from above, aircraft guns and missiles, and flak to bring them down
   bomb: { dmg: 32, range: 0.7, cd: 3.5, proj: 'shell', speed: 260, splash: 18, vs: { none: 0.8, light: 0.8, heavy: 0.6, building: 1.2, air: 0 } },
@@ -65,8 +65,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // creatures of Greek myth
   centaurbow: { dmg: 15, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 0.7 } },
   axe: { dmg: 40, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
-  hurl: { dmg: 55, range: 6, cd: 3.2, proj: 'boulder', speed: 260, splash: 16, vs: { none: 0.6, light: 0.9, heavy: 1.1, building: 1.4, air: 0 } },
-  hydrabite: { dmg: 20, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
+  hurl: { dmg: 45, range: 6, cd: 3.2, proj: 'boulder', speed: 260, splash: 16, vs: { none: 0.6, light: 0.9, heavy: 1.1, building: 1.4, air: 0 } },
+  hydrabite: { dmg: 16, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
   hellfire: { dmg: 26, range: 1.8, cd: 1.4, proj: 'shell', speed: 300, splash: 16, vs: { none: 1.2, light: 0.8, heavy: 0.4, building: 0.6, air: 0 } },
   talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },
   hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },
