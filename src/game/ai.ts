@@ -278,7 +278,7 @@ const REFIT_SAVE_MAX = 700;
 
 /**
  * Upgrade one building at a time to the side's age: the most important one it can afford, so an
- * expensive Construction Yard waiting for funds doesn't hold up the cheaper ones.
+ * expensive Town Hall waiting for funds doesn't hold up the cheaper ones.
  */
 function refits(team: number): void {
   const own = G.ents.filter((b) => !b.dead && b.team === team && b.kind === 'bld');
@@ -374,7 +374,7 @@ function training(team: number): void {
     if (t) enqueue(team, t);
   }
   // Workers: about three per refinery for ore before the Modern age, plus one per mill and derrick to haul
-  // (the Construction Yard trains them too, before there's a Barracks)
+  // (the Town Hall trains them too, before there's a Barracks)
   if (available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops

@@ -212,8 +212,8 @@ function unitDetails(e: Ent): string {
   if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
   if (insight(e)) rows.push(['Doing', `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
   if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
-  if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Construction Yard or a Refinery`, true]);
-  if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Construction Yard or a Refinery`, true]);
+  if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
+  if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Town Hall or a Refinery`, true]);
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
 }
 

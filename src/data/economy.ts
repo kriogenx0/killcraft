@@ -15,7 +15,7 @@ export const TREE_REGROW = 0.1;
 
 /**
  * Nothing is banked until a unit carries it home. A Lumber Mill and an Oil Derrick fill their own
- * store, up to this much, and stop when it's full; Workers carry it to a Construction Yard or a Refinery.
+ * store, up to this much, and stop when it's full; Workers carry it to a Town Hall or a Refinery.
  */
 export const MILL_STORE = 300;
 export const DERRICK_STORE = 300;

@@ -15,7 +15,7 @@ import { medievalBuilding } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
-import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
+import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, prism, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
 
@@ -1100,6 +1100,111 @@ type FixedLook = 'palisade' | 'stonewall' | 'concretewall' | 'pillbox' | 'atturr
 const FIXED_LOOK = new Set<BldType>(['palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha']);
 const isFixedLook = (t: BldType): t is FixedLook => FIXED_LOOK.has(t);
 
+/** A flagpole with a waving team flag (the `flag` part). */
+function hallFlag(root: THREE.Object3D, parts: Parts, team: number, x: number, y: number, z: number, h: number): void {
+  root.add(mesh(cyl(0.012, 0.015, h, 6), M.steel(), x, y + h / 2, z));
+  root.add(mesh(sph(0.022, 8, 6), M.gold(), x, y + h + 0.01, z));
+  const flag = group(x, y + h - 0.1, z,
+    mesh(box(0.3, 0.16, 0.01), teamMat(team), 0.15, 0, 0),
+    mesh(box(0.1, 0.16, 0.012), teamMat(team, 'd'), 0.27, 0, 0));
+  parts.flag = flag;
+  root.add(flag);
+}
+
+/**
+ * The Town Hall in the World War age: a brick civic hall with a columned stone porch and a clock
+ * tower. (The Medieval hall is a timber longhouse inside a palisade: see medieval.ts.)
+ */
+function townHallBrick(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  const p = pad(3);
+  p.material = M.darkStone();
+  root.add(p);
+  const hz = -0.35, front = hz + 0.55;
+  root.add(mesh(box(2.3, 0.12, 1.2), M.dressedStone(), 0, 0.12, hz)); // plinth
+  root.add(mesh(box(2.2, 0.8, 1.1), M.brick(), 0, 0.56, hz));
+  root.add(mesh(box(2.28, 0.06, 1.18), M.dressedStone(), 0, 0.98, hz)); // cornice
+  root.add(mesh(prism(2.24, 1.14, 0.38), M.slate(), 0, 1.01, hz));
+  for (const x of [-1.1, 1.1]) root.add(mesh(box(0.06, 0.9, 1.12), M.dressedStone(), x, 0.56, hz)); // quoins
+  // tall windows either side of the porch, and a row upstairs
+  windows(root, -0.95, -0.6, 2, 0.5, front + 0.005, 0.12, 0.26);
+  windows(root, 0.6, 0.95, 2, 0.5, front + 0.005, 0.12, 0.26);
+  // columned porch with a pediment, and steps up to the doors
+  for (const x of [-0.42, -0.14, 0.14, 0.42]) root.add(mesh(cyl(0.045, 0.05, 0.66, 10), M.dressedStone(), x, 0.51, front + 0.3));
+  root.add(mesh(box(1.12, 0.08, 0.4), M.dressedStone(), 0, 0.88, front + 0.17));
+  root.add(rot(mesh(prism(0.36, 1.12, 0.24), M.dressedStone(), 0, 0.92, front + 0.17), 0, Math.PI / 2, 0));
+  root.add(mesh(box(0.5, 0.06, 0.02), tm, 0, 0.88, front + 0.375));
+  for (let i = 0; i < 3; i++) root.add(mesh(box(1.1 - i * 0.08, 0.05, 0.14), M.dressedStone(), 0, 0.03 + i * 0.05, front + 0.55 - i * 0.1));
+  root.add(mesh(box(0.3, 0.44, 0.02), M.darkWood(), 0, 0.4, front + 0.005));
+  for (const x of [-0.27, 0.27]) root.add(mesh(box(0.12, 0.3, 0.012), tm, x, 0.55, front + 0.012)); // banners
+  // clock tower rising from the ridge
+  const tz = hz - 0.1;
+  root.add(mesh(box(0.44, 1.25, 0.44), M.brick(), 0, 1.45, tz));
+  root.add(mesh(box(0.5, 0.06, 0.5), M.dressedStone(), 0, 2.1, tz));
+  for (const [dx, dz, ry] of [[0, 0.225, 0], [0, -0.225, Math.PI], [0.225, 0, Math.PI / 2], [-0.225, 0, -Math.PI / 2]] as const) {
+    const face = group(dx, 1.85, tz + dz,
+      rot(mesh(cyl(0.14, 0.14, 0.02, 16), M.dressedStone(), 0, 0, 0), Math.PI / 2, 0, 0),
+      rot(mesh(cyl(0.12, 0.12, 0.022, 16), M.white(), 0, 0, 0.002), Math.PI / 2, 0, 0),
+      mesh(box(0.01, 0.09, 0.008), M.dark(), 0, 0.04, 0.016),
+      rot(mesh(box(0.008, 0.07, 0.008), M.dark(), 0.025, 0.01, 0.016), 0, 0, -1.2));
+    face.rotation.y = ry;
+    root.add(face);
+  }
+  // open belfry and a slate spire
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) root.add(mesh(box(0.06, 0.3, 0.06), M.dressedStone(), sx * 0.19, 2.28, tz + sz * 0.19));
+  root.add(mesh(cyl(0.07, 0.09, 0.12, 10), M.bronze(), 0, 2.25, tz)); // bell
+  root.add(mesh(box(0.48, 0.05, 0.48), M.dressedStone(), 0, 2.45, tz));
+  root.add(rot(mesh(cone(0.34, 0.55, 4), M.slate(), 0, 2.74, tz), 0, Math.PI / 4, 0));
+  root.add(mesh(sph(0.03, 8, 6), M.gold(), 0, 3.03, tz));
+  // chimneys, lamp posts and a flag out front
+  for (const x of [-0.75, 0.75]) root.add(mesh(box(0.14, 0.4, 0.14), M.brick(), x, 1.25, hz - 0.2));
+  for (const x of [-0.75, 0.75]) {
+    root.add(mesh(cyl(0.012, 0.016, 0.5, 6), M.iron(), x, 0.25, 0.95));
+    root.add(mesh(sph(0.04, 8, 6), M.lamp(), x, 0.52, 0.95));
+  }
+  hallFlag(root, parts, team, 1.15, 0, 1.1, 1.0);
+  return { root, parts, height: 3.0 };
+}
+
+/** The Town Hall in the Modern age: a glass and concrete civic tower on a podium, with a helipad. */
+function townHallModern(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(3));
+  kerb(root, 3);
+  // podium with a glass lobby
+  root.add(mesh(box(2.4, 0.45, 1.5), M.lightConcrete(), 0, 0.28, -0.3));
+  root.add(mesh(box(1.4, 0.32, 0.02), M.glass(), 0.2, 0.24, 0.46));
+  root.add(mesh(box(2.44, 0.05, 1.54), tm, 0, 0.52, -0.3));
+  // the tower: glass between concrete fins, a floor band every storey
+  const tx = -0.5, tz = -0.5, th = 2.0;
+  root.add(mesh(box(0.95, th, 0.8), M.glass(), tx, 0.5 + th / 2, tz));
+  for (let i = 0; i <= 5; i++) root.add(mesh(box(0.06, th, 0.06), M.lightConcrete(), tx - 0.475 + i * 0.19, 0.5 + th / 2, tz + 0.41));
+  for (let i = 1; i <= 6; i++) root.add(mesh(box(0.99, 0.04, 0.84), M.concrete(), tx, 0.5 + (i * th) / 6, tz));
+  root.add(mesh(box(1.0, 0.1, 0.86), tm, tx, 0.5 + th + 0.05, tz));
+  // helipad and mast on the roof
+  const ry = 0.5 + th + 0.1;
+  root.add(mesh(cyl(0.36, 0.36, 0.04, 20), M.darkSteel(), tx, ry + 0.02, tz));
+  root.add(mesh(box(0.04, 0.005, 0.24), M.white(), tx - 0.08, ry + 0.045, tz));
+  root.add(mesh(box(0.04, 0.005, 0.24), M.white(), tx + 0.08, ry + 0.045, tz));
+  root.add(mesh(box(0.16, 0.005, 0.04), M.white(), tx, ry + 0.045, tz));
+  root.add(mesh(cyl(0.01, 0.01, 0.5, 4), M.gun(), tx + 0.42, ry + 0.25, tz - 0.35));
+  root.add(mesh(sph(0.025, 6, 4), M.redLamp(), tx + 0.42, ry + 0.5, tz - 0.35));
+  // low council wing with a row of windows
+  root.add(mesh(box(1.0, 0.5, 1.0), M.concrete(), 0.65, 0.75, -0.4));
+  root.add(mesh(box(1.04, 0.05, 1.04), M.metalRoof(), 0.65, 1.02, -0.4));
+  windows(root, 0.3, 1.0, 4, 0.78, 0.105);
+  roofKit(root, 0.55, 1.04, -0.55);
+  // entrance canopy and a row of flags
+  root.add(mesh(box(1.3, 0.04, 0.45), M.white(), 0.2, 0.62, 0.72));
+  for (const x of [-0.35, 0.75]) root.add(mesh(cyl(0.015, 0.015, 0.6, 6), M.steel(), x, 0.3, 0.9));
+  for (const x of [-0.5, 0.75]) {
+    root.add(mesh(cyl(0.01, 0.012, 0.9, 6), M.steel(), x - 0.6, 0.45, 1.15));
+    root.add(mesh(box(0.22, 0.12, 0.008), tm, x - 0.49, 0.82, 1.15));
+  }
+  hallFlag(root, parts, team, 1.15, 0, 1.15, 1.0);
+  return { root, parts, height: th + 0.9 };
+}
+
 /** Industrial-age surfaces: the modern layouts in brick, cast iron and slate, before concrete. */
 function industrial(m: Model): Model {
   const swap = new Map<THREE.Material, THREE.Material>([
@@ -1153,6 +1258,8 @@ export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length
           : makeBuilding('barracks', team));
     return cached(`b:${type}:${team}:${lk}`, () => (type === 'hospital' ? hospital(base()) : armory(base(), team)));
   }
+  // the Town Hall is its own building in each age, not the Town Hall's block made over
+  if (type === 'yard' && lk >= 2) return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? townHallBrick(team) : townHallModern(team)));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>
     lk === 0 ? medievalBuilding(type, team, 'wood')

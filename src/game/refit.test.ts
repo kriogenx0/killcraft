@@ -111,7 +111,7 @@ describe('building upgrades', () => {
     expect(encodeEnt(yard, false)[14]).toBe(-1); // the enemy doesn't see the progress
   });
 
-  it("the computer upgrades a cheaper building while it can't yet afford the Construction Yard", () => {
+  it("the computer upgrades a cheaper building while it can't yet afford the Town Hall", () => {
     const yard = yardOf(1);
     const p = addBuilding('power', 1, yard.tx - 4, yard.ty, false);
     G.era[1] = 1;

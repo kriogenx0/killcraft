@@ -130,7 +130,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  // ore goes to a Refinery; wood and oil to a Refinery or the Construction Yard
+  // ore goes to a Refinery; wood and oil to a Refinery or the Town Hall
   const ref = bankAt(u, (u.cargo ?? 'ore') === 'ore' ? ['refinery'] : ['refinery', 'yard']);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {

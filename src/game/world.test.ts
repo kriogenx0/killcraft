@@ -265,7 +265,7 @@ describe('production', () => {
     run(5);
     expect(d.carry).toBe(before);
     expect(oilRate(0)).toBe(0);
-    // a Worker carries the store to the Construction Yard
+    // a Worker carries the store to the Town Hall
     const w = addUnit('worker', 0, d.x, d.y + 2 * TS);
     orderHaul(w, d);
     run(150);

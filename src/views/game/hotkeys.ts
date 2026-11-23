@@ -1,6 +1,6 @@
 // Production hotkeys, worked out from the unit, structure and research definitions so that anything
 // added to data/ gets a key with no extra work. Keys are scoped to the building that makes the item:
-// select the Construction Yard (H) and press a structure's or research's key, select a Barracks and
+// select the Town Hall (H) and press a structure's or research's key, select a Barracks and
 // press an infantry key, and so on. A def can ask for a letter with `key`.
 //
 // A building with more items than free letters (the yard) sorts some into groups: walls, defenses

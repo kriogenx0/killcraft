@@ -311,7 +311,7 @@ function onKey(ev: KeyboardEvent): void {
   if (k === '-' || k === '_') { V.speed = Math.max(0.5, V.speed / 2); return; }
   if (k === ' ') { ev.preventDefault(); if (G.lastAlert) centerCam(G.lastAlert.x, G.lastAlert.y); return; }
   if (k === 'home' || k === 'h') {
-    // select the Construction Yard (its keys build structures and research) and look at it
+    // select the Town Hall (its keys build structures and research) and look at it
     const own = G.ents.filter((x) => !x.dead && x.team === V.team && x.kind === 'bld');
     const y = own.find((x) => x.type === 'yard' && x.done) ?? own[0];
     if (y) { centerCam(y.x, y.y); if (y.type === 'yard') setSelection([y]); }
