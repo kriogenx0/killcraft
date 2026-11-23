@@ -13,7 +13,7 @@ import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
 import { oilLeft } from './economy.ts';
-import { WOOD_BANKS, updChop } from './chop.ts';
+import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
@@ -141,7 +141,10 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   const ref = bankAt(u, cargo0 === 'ore' ? ['refinery', 'yard'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {
+    // shut in by trees on the way home: cut a way out
+    if (fellingOut(u) && chopOut(u, ref, dt)) return;
     const r = approach(u, ref, NEAR, dt);
+    if (!r && !u.path?.length && chopOut(u, ref, dt)) return;
     if (r === null) { o.wait = 1; return; }
     if (r) o.st = 'unload';
     return;

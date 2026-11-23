@@ -1,8 +1,8 @@
 // Units with an order must keep acting on it: these are the ways they used to get stuck standing still.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G } from './state.ts';
-import { GRASS, MW, ROCK, STEP, TS } from './const.ts';
-import { ais } from './ai.ts';
+import { GRASS, MW, ROCK, STEP, TREE, TS } from './const.ts';
+import { ais, sealsIn } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { rebuildBlk } from './map.ts';
@@ -147,6 +147,36 @@ describe('units never stand around with an order', () => {
     expect(w.order?.t === 'harvest' && w.order.res).toBeFalsy();
     expect(w.carry + G.credits[0]).toBeGreaterThan(0);
     expect(G.ore[20 * MW + 20]).toBeLessThan(500);
+  });
+
+  it('a Worker shut in by trees on its way home cuts its way out and drops off its wood', () => {
+    emptyMap();
+    // a ring of trees around one open tile, with the Worker inside it holding a load
+    for (let y = 19; y <= 21; y++) for (let x = 19; x <= 21; x++) if (x !== 20 || y !== 20) { G.terr[y * MW + x] = TREE; G.treeWood[y * MW + x] = 150; }
+    const mill = addBuilding('mill', 0, 26, 19, false);
+    rebuildBlk();
+    const w = addUnit('worker', 0, 20.5 * TS, 20.5 * TS);
+    w.carry = 50; w.cargo = 'wood';
+    w.order = { t: 'harvest', st: 'ret', tx: 20, ty: 20, wait: 0, res: 'wood', src: mill.id };
+    G.wood[0] = 0;
+    run(30);
+    expect(G.wood[0]).toBeGreaterThanOrEqual(49);
+    // one tree felled, the rest still standing
+    let trees = 0;
+    for (let y = 19; y <= 21; y++) for (let x = 19; x <= 21; x++) if (G.terr[y * MW + x] === TREE) trees++;
+    expect(trees).toBe(7);
+  });
+
+  it('the computer won\'t put a structure across the only way out of a pocket its own Workers are in', () => {
+    emptyMap();
+    const yard = addBuilding('yard', 0, 10, 10, false);
+    // a rock pocket east of the yard, open only at (20, 12)
+    for (let y = 9; y <= 15; y++) for (let x = 20; x <= 26; x++) if (x === 20 || x === 26 || y === 9 || y === 15) rock(x, y);
+    G.terr[12 * MW + 20] = GRASS;
+    rebuildBlk();
+    addUnit('worker', 0, 23.5 * TS, 12.5 * TS);
+    expect(sealsIn(0, yard, [12 * MW + 20])).toBe(true);
+    expect(sealsIn(0, yard, [5 * MW + 5, 5 * MW + 6])).toBe(false);
   });
 
   it('in a four-player computer match, nobody sits still, walks in circles or stutters with an order', () => {
