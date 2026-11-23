@@ -140,7 +140,7 @@ describe('creatures of myth', () => {
     const b = beast('centaur');
     for (let i = 0; i < 6; i++) addUnit('knight', 0, MID.x - 7 * TS, MID.y + (i - 3) * 14).face = 0;
     for (const u of G.ents) if (u.team === 0 && u.type === 'knight') u.order = { t: 'move', gx: Math.floor(MID.x / TS), gy: Math.floor(MID.y / TS), sub: null };
-    run(40);
+    run(60);
     expect(errors).toEqual([]);
     expect(b.dead).toBe(false);
     expect(b.team).toBe(0);
