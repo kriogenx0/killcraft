@@ -75,14 +75,9 @@ export function mend(b: Ent, hp: number): boolean {
 }
 
 /**
- * A placed structure builds itself on site over its build time (half speed on low power), gaining
- * hit points as it goes up. Any number of sites can rise at once.
+ * Move a site along by a share of its whole build, gaining hit points as it goes up. Only Workers
+ * build (unit.ts); any number of sites can rise at once.
  */
-function construct(b: Ent, dt: number): void {
-  advanceSite(b, ((lowPower(b.team) ? 0.5 : 1) * dt) / bldDef(b).t);
-}
-
-/** Move a site along by a share of its whole build (Workers lend a hand through this too). */
 export function advanceSite(b: Ent, share: number): void {
   if (b.done || b.dead) return;
   const step = Math.min(share, 1 - b.prog);
@@ -94,7 +89,7 @@ export function advanceSite(b: Ent, share: number): void {
 export function updBld(b: Ent, dt: number): void {
   b.flash = Math.max(0, b.flash - dt);
   b.atkT = Math.max(0, b.atkT - dt);
-  if (!b.done) { construct(b, dt); return; }
+  if (!b.done) return; // waits for Workers to build it
   effects(b, dt);
   repair(b, dt);
   if (b.upT != null) updRefit(b, dt, lowPower(b.team));
