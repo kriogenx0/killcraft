@@ -52,7 +52,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   for (const [x, y] of ore) addSource(x, y);
   yards.forEach(([x, y], team) => {
     addBuilding('yard', team, x, y, false);
-    // starting troops face the middle of the map
+    // the starting Workers face the middle of the map
     const face = Math.atan2(MH / 2 - y, MW / 2 - x);
     units.forEach((type, i) => {
       const u = addUnit(type, team, (x + 3.5 + (i % 2)) * TS, (y + 1 + Math.floor(i / 2)) * TS);

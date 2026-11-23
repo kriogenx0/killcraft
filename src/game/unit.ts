@@ -16,7 +16,7 @@ import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
-import { hasBuilding } from './entity.ts';
+import { hasBuilding, lowPower } from './entity.ts';
 import { updWild } from './creatures.ts';
 
 const AUTO_CHASE = 9 * TS;
@@ -341,7 +341,7 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // hammers away: drawn like an attack
-  if (t.kind === 'bld' && !t.done) advanceSite(t, (WORKER_BUILD * dt) / bldDef(t).t);
+  if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * WORKER_BUILD * dt) / bldDef(t).t);
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
   else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
 }

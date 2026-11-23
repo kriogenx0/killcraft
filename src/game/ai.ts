@@ -316,7 +316,8 @@ const stores = (team: number): Ent[] => [...ownDone(team, 'mill'), ...ownDone(te
 
 function workersWanted(team: number): number {
   const L = lvl(team), ore = G.era[team] >= UNIT.harvester.era ? 0 : countOf(team, 'refinery') * L.workers;
-  return Math.min(L.maxWorkers, ore + stores(team).length);
+  // plus a pair to build with (sites only go up while Workers build them)
+  return Math.min(L.maxWorkers, Math.max(4, ore + stores(team).length + 2));
 }
 
 /** Keep one Worker hauling from every mill and derrick, taken off the ore if need be. */
@@ -390,7 +391,8 @@ function training(team: number): void {
     if (t) enqueue(team, t);
   }
   // Workers: a few per refinery (by difficulty) for ore before the Modern age, plus one per mill and derrick to haul
-  if (hasBuilding(team, 'barracks') && available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
+  // (the Construction Yard trains them too, before there's a Barracks)
+  if (available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? L.queue + 2 : L.queue;
@@ -413,17 +415,25 @@ function upkeep(team: number): void {
   const rich = G.credits[team] > 600;
   for (const b of G.ents)
     if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && rich) b.repairing = true;
-  // a couple of Workers off the ore (never the haulers) help sites go up and, with ore to spare, fix what's badly hurt
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
-  let menders = workers.filter((w) => w.order?.t === 'heal' && w.order.sent).length;
+  const on = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
+  const free = () => workers.filter((w) => !w.order || w.order.t === 'move' || (w.order.t === 'harvest' && !w.order.res && w.carry < haulOf(w) * 0.5));
+  const digging = () => workers.filter((w) => w.order?.t === 'harvest' && !w.order.res).length;
+  const nearest = (list: Ent[], b: Ent) => list.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
+  // sites only go up with Workers on them: one each always (off the ore if need be), a second while
+  // there are spare hands, oldest site first
+  for (const b of sitesOf(team)) {
+    const want = on(b) === 0 ? 1 : on(b) === 1 && (digging() > 2 || !countOf(team, 'refinery')) ? 1 : 0;
+    const w = want ? nearest(free(), b) : undefined;
+    if (w) orderFix(w, b);
+  }
+  // with ore to spare, a couple more fix what's badly hurt, leaving at least two on the ore
+  let menders = workers.filter((w) => w.order?.t === 'heal' && w.order.sent && valid(w.order.tgt)?.done).length;
   for (const b of G.ents) {
-    if (menders >= MENDERS) return;
-    if (b.dead || b.team !== team || b.kind !== 'bld' || !(!b.done || (rich && b.hp < b.maxhp * 0.6))) continue;
-    if (workers.some((w) => w.order?.t === 'heal' && w.order.tgt === b.id)) continue;
-    const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res && w.carry < haulOf(w) * 0.5));
-    // leave at least two on the ore
-    if (free.filter((w) => w.order?.t === 'harvest').length <= 2) return;
-    const w = free.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
+    if (menders >= MENDERS || !rich) return;
+    if (b.dead || b.team !== team || b.kind !== 'bld' || !b.done || b.hp >= b.maxhp * 0.6 || on(b)) continue;
+    if (digging() <= 2) return;
+    const w = nearest(free(), b);
     if (!w || Math.hypot(w.x - b.x, w.y - b.y) > 16 * TS) continue;
     orderFix(w, b);
     menders++;

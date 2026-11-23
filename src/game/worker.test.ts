@@ -3,7 +3,7 @@ import { G, hooks } from './state.ts';
 import { STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
-import { addBuilding, addUnit } from './entity.ts';
+import { addBuilding, addUnit, kill } from './entity.ts';
 import { placeBuilding } from './building.ts';
 import { applyCommand, parseCommand } from './command.ts';
 import { BUILDING } from '../data/building.ts';
@@ -36,15 +36,16 @@ afterEach(() => {
 });
 
 describe('Workers', () => {
-  it('help a building site nearby go up faster', () => {
+  it('build sites: nothing goes up without one, and two build twice as fast', () => {
     addBuilding('power', 0, 12, 50, false);
     const helped = placeBuilding(0, 'barracks', 16, 50), alone = placeBuilding(0, 'barracks', 13, 46);
     if (!helped || !alone) throw new Error('no site');
-    addUnit('worker', 0, 19 * TS, 51 * TS); // idle (no refinery to dig for), right by the first site
+    for (const w of G.ents.filter((e) => e.type === 'worker')) kill(w); // the starting pair stay out of it
+    for (let i = 0; i < 2; i++) addUnit('worker', 0, (19 + i * 0.5) * TS, 51 * TS); // idle (no refinery to dig for), right by the first site
     const t = BUILDING.barracks.t;
-    run(t / (1 + WORKER_BUILD) + 2);
+    run(t / (2 * WORKER_BUILD) + 2);
     expect(helped.done).toBe(true);
-    expect(alone.done).toBe(false);
+    expect(alone.prog).toBe(0);
   });
 
   it('repair a damaged building, paying ore for it', () => {

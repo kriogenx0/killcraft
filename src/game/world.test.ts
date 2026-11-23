@@ -3,10 +3,10 @@ import { G, hooks, isHarvester } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
-import { addBuilding, addUnit, power } from './entity.ts';
+import { addBuilding, addUnit, kill, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
-import { available, cancel, enqueue, sitesOf, startSite } from './production.ts';
-import { canPlace, scrap } from './building.ts';
+import { available, cancel, enqueue, sendBuilder, sitesOf, startSite } from './production.ts';
+import { advanceSite, canPlace, scrap } from './building.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodRate } from './economy.ts';
 import { dealDamage } from './combat.ts';
 import { OIL_WELLS } from '../data/map.ts';
@@ -72,13 +72,15 @@ describe('production', () => {
     const b = startSite(0, 'power', spots[1][0], spots[1][1]);
     expect(b).not.toBeNull();
     expect(sitesOf(0, 'power')).toHaveLength(2);
+    // the two starting Workers go to build them, one each
+    expect(G.ents.filter((e) => e.type === 'worker' && e.team === 0 && e.order?.t === 'heal').map((e) => e.order?.t === 'heal' && e.order.tgt).sort()).toEqual([a?.id, b?.id].sort());
     const made = power(0).made; // the yard's own
     run(BUILDING.power.t / 2);
     expect(a?.done).toBe(false);
     expect(a?.prog).toBeGreaterThan(0.4);
     expect(a?.hp).toBeLessThan(a?.maxhp ?? 0);
     expect(power(0).made).toBe(made);
-    run(BUILDING.power.t / 2 + 1);
+    run(BUILDING.power.t / 2 + 6); // plus the walk over
     expect(a?.done && b?.done).toBe(true);
     expect(a?.hp).toBe(a?.maxhp);
     expect(power(0).made).toBeGreaterThan(made);
@@ -122,7 +124,10 @@ describe('production', () => {
     const works = addBuilding('works', 0, 19, 50, true);
     expect(available(0, 'structure')).not.toContain('works'); // one at a time
     expect(G.era[0]).toBe(0);
-    run(BUILDING.works.t + 1);
+    run(BUILDING.works.t);
+    expect(works.done).toBe(false); // nobody is building it
+    expect(sendBuilder(0, works)).not.toBeNull();
+    run(BUILDING.works.t + 10);
     expect(works.done).toBe(true);
     expect(G.era[0]).toBe(1);
     expect(available(0, 'structure')).not.toContain('works');
@@ -314,10 +319,11 @@ describe('production', () => {
 
   it('turns ore into credits with the two free Workers', () => {
     addBuilding('power', 0, 10, 50, false);
-    addBuilding('refinery', 0, 6, 46, true);
+    const workers = G.ents.filter((e) => e.team === 0 && e.type === 'worker').length;
+    advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
     G.credits[0] = 0;
     run(90);
-    expect(G.ents.filter((e) => e.team === 0 && e.type === 'worker')).toHaveLength(2);
+    expect(G.ents.filter((e) => e.team === 0 && e.type === 'worker')).toHaveLength(workers + 2);
     expect(G.ents.some((e) => e.team === 0 && e.type === 'harvester')).toBe(false);
     expect(G.credits[0]).toBeGreaterThan(1000);
   });
@@ -326,10 +332,11 @@ describe('production', () => {
     G.era[0] = 2;
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
-    addBuilding('refinery', 0, 6, 46, true);
+    const workers = G.ents.filter((e) => e.team === 0 && e.type === 'worker').length;
+    advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
     run(20);
     expect(G.ents.filter((e) => e.team === 0 && e.type === 'harvester')).toHaveLength(1);
-    expect(G.ents.some((e) => e.team === 0 && e.type === 'worker')).toBe(false);
+    expect(G.ents.filter((e) => e.team === 0 && e.type === 'worker')).toHaveLength(workers); // none come with it
     expect(available(0, 'infantry')).toContain('worker');
   });
 
@@ -347,7 +354,8 @@ describe('harvesters sharing a field', () => {
     initWorld(1234);
     addBuilding('power', 0, 10, 50, false);
     G.era[0] = 2; // Modern: the refinery brings one harvester
-    addBuilding('refinery', 0, 6, 46, true);
+    for (const w of G.ents.filter((e) => e.type === 'worker')) kill(w); // only harvesters dig here
+    advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
     run(2);
     for (let i = 1; i < harvesters; i++) orderHarvest(addUnit('harvester', 0, (8 + i) * TS, 49.5 * TS), 14, 54);
     G.credits[0] = 0;

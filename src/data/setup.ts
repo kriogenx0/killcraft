@@ -36,19 +36,19 @@ export interface AiLevel {
 export const AI_LEVEL: Record<Difficulty, AiLevel> = {
   easy: {
     name: 'Easy', desc: 'Slow to react, a small economy and at most 12 troops. Attacks in small groups from 6 minutes.',
-    think: 2.5, firstWave: 5, waveStep: 1, firstAttack: 360, workers: 2, maxWorkers: 6, harvesters: 1, sites: 1, queue: 1, armyCap: 12, defendRange: 10, bonus: 1,
+    think: 2.5, firstWave: 5, waveStep: 1, firstAttack: 360, workers: 2, maxWorkers: 7, harvesters: 1, sites: 1, queue: 1, armyCap: 12, defendRange: 10, bonus: 1,
   },
   normal: {
     name: 'Normal', desc: 'A balanced opponent.',
-    think: 1, firstWave: 8, waveStep: 3, firstAttack: 0, workers: 3, maxWorkers: 14, harvesters: 2, sites: 2, queue: 2, armyCap: 80, defendRange: 14, bonus: 1,
+    think: 1, firstWave: 8, waveStep: 3, firstAttack: 0, workers: 3, maxWorkers: 16, harvesters: 2, sites: 2, queue: 2, armyCap: 80, defendRange: 14, bonus: 1,
   },
   hard: {
     name: 'Hard', desc: 'Reacts twice as fast, runs a bigger economy, builds three sites at once and attacks in larger waves.',
-    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 16, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1,
+    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 18, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1,
   },
   brutal: {
     name: 'Brutal', desc: 'Plays like Hard and starts with 25% more ore and wood.',
-    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 16, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1.25,
+    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 18, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1.25,
   },
 };
 

@@ -75,7 +75,8 @@ export const layoutFor = (teams: number): MapLayout =>
 export const START_CREDITS = 3500;
 export const START_WOOD = 400;
 export const START_OIL = 0;
-export const START_UNITS = ['swordsman', 'swordsman', 'crossbowman', 'knight'] as const;
+/** Every side starts with its Construction Yard and two Workers to build with (Alex, 2026-11-23). */
+export const START_UNITS = ['worker', 'worker'] as const;
 
 // ---- terrain shape ----
 /** Ground units in shallow water move at this share of their speed (paths count the cost). */

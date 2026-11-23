@@ -75,9 +75,9 @@ describe('walls', () => {
     expect(ore - G.credits[0]).toBe(5 * BUILDING.palisade.cost);
     expect(wood - G.wood[0]).toBe(5 * (BUILDING.palisade.wood ?? 0));
     for (const w of walls) expect(G.blk[w.ty * MW + w.tx]).toBe(1);
-    // every segment goes up at once
+    // the Workers build one segment after another
     expect(walls.every((w) => !w.done)).toBe(true);
-    run(BUILDING.palisade.t + 1);
+    run(5 * BUILDING.palisade.t + 15);
     expect(walls.every((w) => w.done)).toBe(true);
   });
 
