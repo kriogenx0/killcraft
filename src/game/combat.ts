@@ -1,6 +1,6 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
-import { G, hooks, altOf, bldDef, isAir, unitDef, valid, type Ent, type Projectile } from './state.ts';
-import { TS } from './const.ts';
+import { G, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
+import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
 import { edgeDist } from './path.ts';
@@ -98,7 +98,8 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
     hit(wt, t, s, t.x, t.y);
     return;
   }
-  G.projs.push({ kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
+  const ground = w.ground ? { gx: t.x, gy: t.y } : {};
+  G.projs.push({ ...ground, kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
 }
 
 /** How long (s) a unit remembers who hit it. */
@@ -124,13 +125,16 @@ export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number): Ent 
 }
 
 /** Best enemy within a radius (tiles): armed units first, then other units, then buildings. */
-export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false): Ent | null {
-  const r = radiusTiles * TS;
+export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false, minTiles = 0): Ent | null {
+  const r = radiusTiles * TS, rmin = minTiles * TS;
+  // a gun that outranges its own sight only fires at what its side can see
+  const spotted = s.kind === 'bld' && radiusTiles > bldDef(s).sight ? G.sight[s.team] : null;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
     if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
-    if (dist > r || !canAttack(s, e)) continue;
+    if (dist > r || dist < rmin || !canAttack(s, e)) continue;
+    if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : weaponOf(e) ? 0 : 40);
     if (score < bs) { bs = score; best = e; }
   }
@@ -202,10 +206,10 @@ export function updTurret(b: Ent, dt: number): void {
   b.cd -= dt;
   b.scan -= dt;
   let t = valid(b.order?.t === 'attack' ? b.order.tgt : null);
-  if (t && (edgeDist(b, t) > w.range * TS || cloakedFrom(t, b.team))) t = null;
+  if (t && (edgeDist(b, t) > w.range * TS || edgeDist(b, t) < (w.minRange ?? 0) * TS || cloakedFrom(t, b.team))) t = null;
   if (!t && b.scan <= 0) {
     b.scan = 0.3;
-    t = acquire(b, w.range, true);
+    t = acquire(b, w.range, !w.ground, false, w.minRange);
     b.order = t ? { t: 'attack', tgt: t.id, auto: true, ox: b.x, oy: b.y } : null;
   }
   if (t && aim(b, t, dt, true) && b.cd <= 0) {
@@ -226,12 +230,38 @@ function landBlow(p: Projectile, t: Ent, dt: number): void {
 }
 
 /** How high each kind of projectile arcs (fraction of the distance, and a cap in px). */
-const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150] };
+const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150], ground: [0.35, 320] };
+
+/** A lobbed shell lands: everything near the spot takes damage, falling off toward the edge of the blast. */
+function shellLands(wt: WeaponType, x: number, y: number, src: Ent | null, team: number): void {
+  const w = WEAPON[wt];
+  explosion(x, y, w.splash);
+  burst('debris', x, y, 10, 60, 180);
+  if (G.visualOnly) return; // the server decides damage
+  for (const e of G.ents) {
+    if (e.dead || e.kind === 'source' || e.team === team) continue;
+    const d = e.w ? edgeDist({ x, y }, e) : Math.max(0, Math.hypot(e.x - x, e.y - y) - unitDef(e).radius);
+    if (d > w.splash) continue;
+    dealDamage(e, w.dmg * w.vs[armorOf(e)] * (1 - 0.6 * (d / w.splash)), src);
+  }
+}
 
 /** Shells fly straight; rockets and bolts arc a little; boulders are lobbed high. */
 export function updProjs(dt: number): void {
   for (const p of G.projs) {
     const t = valid(p.tid);
+    if (p.gx != null && p.gy != null) {
+      // lobbed at a spot: flies on even if the target dies or moves
+      const dx = p.gx - p.x, dy = p.gy - p.y, dist = Math.hypot(dx, dy), st = p.sp * dt;
+      p.a = Math.atan2(dy, dx);
+      p.tr += st;
+      const k = clamp(p.tr / Math.max(p.d0, 1), 0, 1), [arc, cap] = ARC.ground;
+      p.z = lerp(p.z0, 4, k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
+      if (Math.random() < 0.5) part('trail', p.x, p.y - p.z, { max: 0.5, size: 2, soft: true });
+      if (dist <= st + 2) { p.dead = true; shellLands(p.weapon as WeaponType, p.gx, p.gy, valid(p.src), p.team); }
+      else { p.x += (dx / dist) * st; p.y += (dy / dist) * st; }
+      continue;
+    }
     if (!t) { p.dead = true; continue; }
     if (p.kind === 'melee') { landBlow(p, t, dt); continue; }
     const dx = t.x - p.x, dy = t.y - 6 - p.y, dist = Math.hypot(dx, dy), st = p.sp * dt;

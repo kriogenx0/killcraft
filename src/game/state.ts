@@ -111,6 +111,8 @@ export interface Projectile {
   x: number; y: number; z: number; z0: number;
   tid: number; dmg: number; src: number; team: number;
   weapon: string; sp: number; d0: number; tr: number; a: number; dead: boolean;
+  /** where a lobbed (non-homing) shell will land */
+  gx?: number; gy?: number;
 }
 
 export type FxKind = 'blood' | 'chip' | 'debris' | 'spark' | 'dust' | 'smoke' | 'fire' | 'flash' | 'tracer' | 'trail' | 'ore' | 'slash';

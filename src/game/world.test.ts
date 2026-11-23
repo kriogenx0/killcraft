@@ -56,7 +56,7 @@ describe('production', () => {
   });
 
   it('pays the whole price up front and places a finished structure', () => {
-    expect(available(0, 'structure')).toEqual(['power', 'mill']);
+    expect(available(0, 'structure')).toEqual(['power', 'mill', 'palisade', 'stonewall']);
     expect(enqueue(0, 'power')).toBe(true);
     expect(G.credits[0]).toBe(START_CREDITS - BUILDING.power.cost);
     run(10);

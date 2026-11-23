@@ -2,7 +2,7 @@
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { dropSalvage } from './economy.ts';
-import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, type BldType } from '../data/building.ts';
+import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
@@ -86,15 +86,33 @@ export function tileFree(x: number, y: number, team: number): boolean {
   return !G.ents.some((e) => !e.dead && e.kind === 'unit' && tileOf(e.x) === x && tileOf(e.y) === y);
 }
 
-/** Structures must be placed within BUILD_RADIUS tiles of one of the team's buildings. */
-export function nearBase(tx: number, ty: number, s: number, team: number): boolean {
-  return G.ents.some((e) => !e.dead && e.team === team && e.kind === 'bld' &&
-    tx < e.tx + e.w + BUILD_RADIUS && tx + s > e.tx - BUILD_RADIUS && ty < e.ty + e.h + BUILD_RADIUS && ty + s > e.ty - BUILD_RADIUS);
+/**
+ * Structures must be placed within BUILD_RADIUS tiles of one of the team's buildings; walls within
+ * WALL_RADIUS. Walls never count as base themselves, so they can't be chained across the map.
+ */
+export function nearBase(tx: number, ty: number, s: number, team: number, wall = false): boolean {
+  const R = wall ? WALL_RADIUS : BUILD_RADIUS;
+  return G.ents.some((e) => !e.dead && e.team === team && e.kind === 'bld' && !isWall(e.type) &&
+    tx < e.tx + e.w + R && tx + s > e.tx - R && ty < e.ty + e.h + R && ty + s > e.ty - R);
+}
+
+/**
+ * The tiles of a wall dragged from one tile to another: a straight run along the nearer of the
+ * eight directions (so diagonals work too), at most WALL_LINE_MAX segments.
+ */
+export function wallLine(x0: number, y0: number, x1: number, y1: number): Tile[] {
+  const dx = x1 - x0, dy = y1 - y0, ax = Math.abs(dx), ay = Math.abs(dy);
+  // snap to a straight or 45-degree line
+  const sx = ax >= ay * 0.5 ? Math.sign(dx) : 0, sy = ay >= ax * 0.5 ? Math.sign(dy) : 0;
+  const n = Math.min(WALL_LINE_MAX - 1, sx && sy ? Math.max(ax, ay) : sx ? ax : ay);
+  const out: Tile[] = [];
+  for (let i = 0; i <= n; i++) out.push([x0 + sx * i, y0 + sy * i]);
+  return out;
 }
 
 /** With margin, keeps a one-tile lane free around other buildings (used by the computer player). */
-export function canPlace(tx: number, ty: number, s: number, team: number, margin = false): boolean {
-  if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !nearBase(tx, ty, s, team)) return false;
+export function canPlace(tx: number, ty: number, s: number, team: number, margin = false, wall = false): boolean {
+  if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !nearBase(tx, ty, s, team, wall)) return false;
   for (let y = ty; y < ty + s; y++) for (let x = tx; x < tx + s; x++) if (!tileFree(x, y, team) || nearPortal(x, y)) return false;
   if (margin)
     for (let y = ty - 1; y <= ty + s; y++)
@@ -106,8 +124,8 @@ export function canPlace(tx: number, ty: number, s: number, team: number, margin
   return true;
 }
 
-export function placeBuilding(team: number, type: BldType, tx: number, ty: number): Ent | null {
-  if (!canPlace(tx, ty, BUILDING[type].size, team)) { say(team, 'Cannot place there'); return null; }
+export function placeBuilding(team: number, type: BldType, tx: number, ty: number, quiet = false): Ent | null {
+  if (!canPlace(tx, ty, BUILDING[type].size, team, false, isWall(type))) { if (!quiet) say(team, 'Cannot place there'); return null; }
   for (let y = ty; y < ty + BUILDING[type].size; y++) for (let x = tx; x < tx + BUILDING[type].size; x++) G.ore[y * MW + x] = 0;
   return addBuilding(type, team, tx, ty, true);
 }
