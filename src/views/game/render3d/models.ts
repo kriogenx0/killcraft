@@ -515,11 +515,13 @@ function worker(team: number): Model {
   // a pick held in the right fist: the haft runs through the hand (gripped near its butt) and
   // the iron head sits across its far end, so it moves with the arm when it swings
   m.parts.armR.rotation.z = 1.0;
+  // the striking side (-y, it leads the downswing) tapers to a long point; the back is a short flat blade
   const pick = group(0, -0.175, 0,
     mesh(box(0.3, 0.02, 0.02), M.wood(), 0.09, 0, 0),
-    mesh(box(0.022, 0.17, 0.022), M.iron(), 0.235, 0, 0),
-    rot(mesh(box(0.016, 0.05, 0.016), M.iron(), 0.235, 0.105, 0), 0, 0, 0.35),
-    rot(mesh(box(0.016, 0.05, 0.016), M.iron(), 0.235, -0.105, 0), 0, 0, -0.35));
+    mesh(box(0.034, 0.04, 0.028), M.iron(), 0.235, 0, 0), // eye round the haft
+    rot(mesh(cone(0.016, 0.13, 6), M.iron(), 0.235, -0.085, 0), Math.PI, 0, 0), // the point
+    mesh(box(0.024, 0.05, 0.016), M.iron(), 0.235, 0.045, 0),
+    mesh(box(0.05, 0.018, 0.012), M.steel(), 0.235, 0.075, 0)); // the blade's edge
   m.parts.gun = pick;
   m.parts.armR.add(pick);
   return m;

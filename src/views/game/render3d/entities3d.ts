@@ -65,6 +65,16 @@ function recoil(p: THREE.Object3D | undefined, amount: number): void {
 /** how far through a melee swing (0..1) the blow lands: MELEE_LAND of the 0.25 s attack */
 const STRIKE = MELEE_LAND / 0.25;
 
+/** Worker's pick-axe cycle (arm angle): raised, a quick blow down, a pause at impact, then a slow lift. */
+const PICK_CYCLE = 0.9, PICK_UP = 2.3, PICK_DOWN = 0.15;
+export function pickSwing(t: number): number {
+  const p = (t / PICK_CYCLE) % 1;
+  if (p < 0.14) return lerp(PICK_UP, PICK_DOWN, (p / 0.14) ** 2); // strike, speeding up into the blow
+  if (p < 0.34) return PICK_DOWN; // stuck in for a moment
+  const r = (p - 0.34) / 0.66;
+  return lerp(PICK_DOWN, PICK_UP, r * r * (3 - 2 * r)); // pull back, easing in and out
+}
+
 function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
@@ -105,8 +115,8 @@ function animateUnit(m: Model, e: Ent): void {
       const load = Math.min(1, e.carry / haulOf(e));
       P.heap.visible = load > 0.02;
       P.heap.scale.y = 0.2 + load * 0.8;
-      // swing the pick while digging
-      if (P.armR) P.armR.rotation.z = !e.moving && e.atkT > 0 ? 1.0 + Math.sin(G.gameT * 8) * 0.8 : 1.0 + swing * 0.2;
+      // the pick: a fast strike, a moment's pause in the ground, then a slower pull back up
+      if (P.armR) P.armR.rotation.z = !e.moving && e.atkT > 0 ? pickSwing(G.gameT + e.id * 0.37) : 1.0 + swing * 0.2;
       break;
     }
     case 'harvester': {
