@@ -5,6 +5,8 @@ import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
 import { edgeDist, isJump, los, pathFor, pathTo } from './path.ts';
 import { warpFx } from './fx.ts';
+import { PORTAL_RADIUS } from '../data/map.ts';
+import { isMapPortal } from './map.ts';
 import { slowFactor } from './aether.ts';
 import { canBreach, wallInWay } from './breach.ts';
 import { isWall } from '../data/building.ts';
@@ -55,7 +57,8 @@ export function steer(u: Ent, tx: number, ty: number, max: number, dt: number, a
     u.x = tx; u.y = ty;
     return 'arrived';
   }
-  let nx = u.x + (dx / dist) * step, ny = u.y + (dy / dist) * step;
+  const [mx, my, pace] = air ? [dx / dist, dy / dist, 1] : avoid(u, dx / dist, dy / dist, Math.min(dist, lookahead(u)), dt);
+  let nx = u.x + mx * step * pace, ny = u.y + my * step * pace;
   if (!air && !canStep(u.x, u.y, nx, ny) && !blkAt(u.x, u.y)) {
     // clipping a corner: slide along it; only a wall straight ahead blocks the way
     // (sliding has to get somewhere: a wall square ahead leaves nothing to slide along)
@@ -68,6 +71,75 @@ export function steer(u: Ent, tx: number, ty: number, max: number, dt: number, a
   }
   u.x = nx; u.y = ny;
   return 'moving';
+}
+
+/** Ground units bucketed into CELL-px squares, rebuilt once per step: who is near whom. */
+const CELL = 64;
+const crowd = new Map<number, Ent[]>();
+let crowdT = -1;
+function nearby(x: number, y: number): Ent[] {
+  if (crowdT !== G.gameT) {
+    crowdT = G.gameT;
+    crowd.clear();
+    for (const e of G.ents) {
+      if (e.dead || e.kind !== 'unit' || isAir(e)) continue;
+      const k = Math.floor(e.y / CELL) * 1024 + Math.floor(e.x / CELL);
+      const c = crowd.get(k);
+      if (c) c.push(e); else crowd.set(k, [e]);
+    }
+  }
+  const out: Ent[] = [], cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
+  for (let j = cy - 1; j <= cy + 1; j++) for (let i = cx - 1; i <= cx + 1; i++) { const c = crowd.get(j * 1024 + i); if (c) out.push(...c); }
+  return out;
+}
+
+/** How far ahead (px) a walking unit looks for others in its way. */
+const lookahead = (u: Ent): number => Math.max(40, unitDef(u).radius * 4);
+
+/** A unit that is just standing about, with nothing to do, and so can make way. */
+const idle = (e: Ent): boolean => !e.order && !e.moving;
+
+/**
+ * Local avoidance: bend a walking unit's heading (ux, uy) around others before it walks into them,
+ * looking `look` px ahead. Units coming the other way both keep to their right; anyone else in the
+ * way is passed on the side it isn't; a friend walking the same way just ahead is followed at a
+ * distance rather than shoved; units alongside are given a little room. An idle unit of the same
+ * side standing in the way steps aside. Returns the heading to walk along and a speed factor.
+ */
+function avoid(u: Ent, ux: number, uy: number, look: number, dt: number): [number, number, number] {
+  const ru = unitDef(u).radius, px = -uy, py = ux, heading = Math.atan2(uy, ux); // (px, py): the unit's right
+  let side = 0, pace = 1;
+  for (const e of nearby(u.x, u.y)) {
+    if (e === u) continue;
+    const rx = e.x - u.x, ry = e.y - u.y, along = rx * ux + ry * uy, lat = rx * px + ry * py;
+    const re = unitDef(e).radius, clear = ru + re + 4;
+    if (Math.abs(lat) >= clear + 4 || along <= -clear || along > look) continue;
+    if (along <= 0) {
+      // alongside: ease away so we don't rub shoulders
+      side -= Math.sign(lat || 1) * 0.3 * (1 - Math.abs(lat) / (clear + 4));
+      continue;
+    }
+    if (Math.abs(lat) >= clear) continue;
+    const together = e.moving && Math.cos(e.face - heading) > 0.5;
+    if (together && e.team === u.team) {
+      // a friend going our way: fall in behind it instead of pushing past
+      pace = Math.min(pace, Math.max(0.3, (along - ru - re) / 12));
+      continue;
+    }
+    if (e.team === u.team && idle(e) && !anchored(e) && along < ru + re + 16) {
+      // a friend standing in the way steps off our line
+      const s = lat >= 0 ? 1 : -1, d = stepOf(e, dt) * 0.8;
+      if (canStep(e.x, e.y, e.x + px * s * d, e.y + py * s * d)) { e.x += px * s * d; e.y += py * s * d; }
+    }
+    const urgency = (1 - along / look) * (1 - Math.abs(lat) / clear);
+    const oncoming = e.moving && Math.cos(e.face - heading) < -0.5;
+    // pass oncoming traffic on the right; anything else on whichever side it isn't
+    side += (oncoming ? 1 : lat > 0 ? -1 : lat < 0 ? 1 : e.id < u.id ? 1 : -1) * urgency;
+  }
+  if (!side) return [ux, uy, pace];
+  // bend by up to about 50 degrees
+  const k = Math.max(-1.2, Math.min(1.2, side * 1.5)), vx = ux + px * k, vy = uy + py * k, vl = Math.hypot(vx, vy);
+  return [vx / vl, vy / vl, pace];
 }
 
 /**
@@ -94,6 +166,14 @@ export function followPath(u: Ent, dt: number): boolean {
   };
   const wp = u.path[0], air = isAir(u);
   if (!air && G.blk[wp[1] * MW + wp[0]]) return repath();
+  // anywhere on a map portal's swirl counts as entering it, so a crowd doesn't have to queue for the centre
+  const through = u.path[1];
+  if (!air && through && isJump(wp, through) && isMapPortal(wp[0], wp[1]) && G.warp[wp[1] * MW + wp[0]] === through[1] * MW + through[0]
+    && Math.hypot((wp[0] + 0.5) * TS - u.x, (wp[1] + 0.5) * TS - u.y) <= PORTAL_RADIUS * TS) {
+    u.path.shift();
+    warp(u, through);
+    return !u.path.length;
+  }
   // A crowd can't all stand on a waypoint's centre: near enough to one on the way counts as passing
   // it, as long as the next one is in a clear straight line (and neither is a portal gate).
   const after = u.path[1];
@@ -107,14 +187,16 @@ export function followPath(u: Ent, dt: number): boolean {
   if (r === 'moving') return false;
   u.path.shift();
   const next = u.path[0];
-  if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) {
-    // step through the portal
-    warpFx(u.x, u.y);
-    u.x = u.px = (next[0] + 0.5) * TS; u.y = u.py = (next[1] + 0.5) * TS;
-    warpFx(u.x, u.y);
-    u.path.shift();
-  }
+  if (next && isJump(wp, next) && G.warp[wp[1] * MW + wp[0]] === next[1] * MW + next[0]) warp(u, next);
   return !u.path.length;
+}
+
+/** Step through a portal: come out at the centre of the exit gate (its tile is the path's next waypoint). */
+function warp(u: Ent, exit: [number, number]): void {
+  warpFx(u.x, u.y);
+  u.x = u.px = (exit[0] + 0.5) * TS; u.y = u.py = (exit[1] + 0.5) * TS;
+  warpFx(u.x, u.y);
+  u.path?.shift();
 }
 
 /** Walk toward a target until within range. true = in range, false = still walking, null = unreachable. */
@@ -166,6 +248,9 @@ function nudge(u: Ent, dx: number, dy: number, air: boolean): void {
   else if (canStep(u.x, u.y, u.x, u.y + dy)) u.y += dy;
 }
 
+/** How far (px) collisions have shoved walking units about, in total: a measure of units walking into each other. */
+export const shoved = { px: 0 };
+
 /** Soft collision: overlapping units push apart; idle units yield to moving ones. */
 export function separate(): void {
   const us = G.ents.filter((e) => !e.dead && e.kind === 'unit').sort((a, b) => a.x - b.x);
@@ -188,6 +273,8 @@ export function separate(): void {
       const ax = (dx / d) * sa, ay = (dy / d) * sa, bx = (dx / d) * sb, by = (dy / d) * sb;
       nudge(a, ax, ay, air[i]);
       nudge(b, -bx, -by, air[j]);
+      if (a.moving && !air[i]) shoved.px += sa;
+      if (b.moving && !air[j]) shoved.px += sb;
     }
   }
   for (const a of us) {

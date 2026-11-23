@@ -7,8 +7,9 @@ import { generateMap, nearPortal } from './map.ts';
 import { addUnit } from './entity.ts';
 import { orderMove } from './order.ts';
 import { canPlace } from './building.ts';
+import { followPath } from './move.ts';
 import { findPath, isJump, smoothPath } from './path.ts';
-import { PORTAL_LAYOUTS } from '../data/map.ts';
+import { PORTAL_LAYOUTS, PORTAL_RADIUS } from '../data/map.ts';
 
 const link = (a: [number, number], b: [number, number]) => {
   G.portals = [{ a, b }];
@@ -101,5 +102,26 @@ describe('portal maps', () => {
     expect(errors).toEqual([]);
     expect(warped).toBe(true);
     expect(Math.hypot(u.x - (b[0] + 1.5) * TS, u.y - (b[1] + 0.5) * TS)).toBeLessThan(TS);
+  });
+
+  it('carries a unit across from anywhere on the swirl, not just its centre', () => {
+    let seed = 1;
+    while (generateMap(seed) && !G.portals.length) seed++;
+    ais[0].on = false;
+    ais[1].on = false;
+    initWorld(seed);
+    const { a, b } = G.portals[0];
+    const edge = (PORTAL_RADIUS - 0.05) * TS;
+    const u = addUnit('knight', 0, (a[0] + 0.5) * TS + edge * Math.SQRT1_2, (a[1] + 0.5) * TS + edge * Math.SQRT1_2);
+    u.path = [[a[0], a[1]], [b[0], b[1]], [b[0] + 1, b[1]]];
+    followPath(u, STEP);
+    expect(Math.hypot(u.x - (b[0] + 0.5) * TS, u.y - (b[1] + 0.5) * TS)).toBeLessThan(1);
+    expect(u.path).toEqual([[b[0] + 1, b[1]]]);
+    // just outside the swirl it has to walk in first
+    const v = addUnit('knight', 0, (a[0] + 0.5 + PORTAL_RADIUS + 0.2) * TS, (a[1] + 0.5) * TS);
+    v.path = [[a[0], a[1]], [b[0], b[1]]];
+    followPath(v, STEP);
+    expect(Math.hypot(v.x - (a[0] + 0.5) * TS, v.y - (a[1] + 0.5) * TS)).toBeLessThan(2 * TS);
+    expect(v.path?.[0]).toEqual([a[0], a[1]]);
   });
 });

@@ -47,8 +47,10 @@ export const PORTAL_CHANCE = 0.5;
 export const PORTAL_DOUBLE_CHANCE = 0.3;
 /** Colour of each linked pair, so players can tell which gates go together. */
 export const PORTAL_COLORS = ['#a070ff', '#3fd8c4'];
+/** How close (tiles) a unit heading through a gate must get to its centre to be carried across. The gate art matches it. */
+export const PORTAL_RADIUS = 1.1;
 /** Ground kept clear around each gate (tiles). */
-export const PORTAL_CLEAR = 2.5;
+export const PORTAL_CLEAR = 3;
 
 /**
  * Four-player free-for-all layout: one base in each corner, mirrored left-right and top-bottom so no
