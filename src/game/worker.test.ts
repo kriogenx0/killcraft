@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
-import { MW, STEP, TS } from './const.ts';
-import { ais } from './ai.ts';
+import { MW, STEP, TREE, TS } from './const.ts';
+import { ais, assignHaulers } from './ai.ts';
+import { rebuildBlk } from './map.ts';
+import { orderHarvest } from './order.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { advanceSite, placeBuilding } from './building.ts';
@@ -53,6 +55,34 @@ describe('Workers', () => {
     run(60);
     expect(G.credits[0]).toBeGreaterThan(start + 600); // several loads banked
     for (const w of ws) expect(w.order?.t).toBe('harvest');
+  });
+
+  it('the computer moves Workers to whatever it is short of, and back once it has plenty', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
+    if (!yard) throw new Error('no yard');
+    const mx = yard.tx + 8, my = yard.ty;
+    for (let y = my - 2; y < my + 4; y++) for (let x = mx + 3; x < mx + 6; x++) { G.terr[y * MW + x] = TREE; G.treeWood[y * MW + x] = 150; }
+    const mill = addBuilding('mill', 0, mx, my, false);
+    rebuildBlk();
+    const ws = [...G.ents.filter((e) => e.team === 0 && e.type === 'worker')];
+    while (ws.length < 6) ws.push(addUnit('worker', 0, yard.x, yard.y + 3 * TS));
+    for (const w of ws) orderHarvest(w, yard.tx, yard.ty + 4);
+    const choppers = () => ws.filter((w) => w.order?.t === 'harvest' && w.order.src === mill.id).length;
+    // out of wood with ore to spare: extra hands on the trees
+    G.credits[0] = 2000; G.wood[0] = 0;
+    assignHaulers(0);
+    expect(choppers()).toBe(4);
+    // plenty of wood now: all of them back on the ore
+    G.wood[0] = 5000;
+    G.gameT += 30; // it settles on a split for a while before looking again
+    assignHaulers(0);
+    expect(choppers()).toBe(0);
+    expect(ws.every((w) => w.order?.t === 'harvest' && !w.order.res)).toBe(true);
+    // short of ore, wood fine: a single chopper keeps the wood coming
+    G.credits[0] = 100; G.wood[0] = 600;
+    G.gameT += 30;
+    assignHaulers(0);
+    expect(choppers()).toBe(1);
   });
 
   it('build sites: nothing goes up without one, and two build twice as fast', () => {

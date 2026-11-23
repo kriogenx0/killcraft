@@ -11,7 +11,7 @@ import { canPlace, wallLine } from './building.ts';
 import { available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear, woodNear } from './economy.ts';
 import { CHOPPERS_PER_MILL } from '../data/economy.ts';
-import { orderFix, orderMove, setStance, orderHaul } from './order.ts';
+import { orderFix, orderHarvest, orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 import { wildBeasts } from './creatures.ts';
 import { canAttack } from './combat.ts';
@@ -368,13 +368,49 @@ function refits(team: number): void {
 
 const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
 
-/** Wood and oil jobs: each Lumber Mill with woods left wants CHOPPERS_PER_MILL choppers, each derrick with oil one hauler. */
+/** How the side stands on a resource against what it wants to buy next. */
+type Stock = 'short' | 'ok' | 'plenty';
+
+/** Below the first number a side is short of a resource; above the second it has plenty. */
+const STOCK = { ore: [500, 3000], wood: [200, 1500], oil: [150, 1000] } as const;
+
+/** Short, fine or flush on ore, wood and oil, counting what it's saving up for. */
+export function stockOf(team: number): Record<'ore' | 'wood' | 'oil', Stock> {
+  const A = ais[team];
+  const one = (have: number, want: number, [lo, hi]: readonly [number, number]): Stock =>
+    have < Math.max(lo, want) ? 'short' : have > Math.max(hi, want * 3) ? 'plenty' : 'ok';
+  return {
+    ore: one(G.credits[team], A?.reserve ?? 0, STOCK.ore),
+    wood: one(G.wood[team], A?.reserveWood ?? 0, STOCK.wood),
+    oil: one(G.oil[team], 0, STOCK.oil),
+  };
+}
+
+/**
+ * Workers wanted on each Lumber Mill and each Oil Derrick: CHOPPERS_PER_MILL and one as a rule,
+ * more while the side is short of that resource (and not of ore), none while it has plenty, so
+ * Workers move to whatever the side is short of and back once it isn't.
+ */
+function crewOf(team: number): { mill: number; derrick: number } {
+  // settle on a split for a while rather than march Workers back and forth as the bank goes up and down
+  const was = crewSet[team];
+  if (was && G.gameT >= was.t && G.gameT < was.t + CREW_HOLD) return was;
+  const s = stockOf(team);
+  const crew = (r: Stock, base: number, extra: number) => (r === 'plenty' ? 0 : r === 'short' && s.ore !== 'short' ? base + extra : s.ore === 'short' && r === 'ok' ? Math.max(1, base - 1) : base);
+  const now = { t: G.gameT, mill: crew(s.wood, CHOPPERS_PER_MILL, 2), derrick: crew(s.oil, 1, 1) };
+  crewSet[team] = now;
+  return now;
+}
+/** Seconds the computer keeps its Workers' split between ore, wood and oil before looking again. */
+const CREW_HOLD = 20;
+const crewSet: { t: number; mill: number; derrick: number }[] = [];
+
+/** Wood and oil jobs, one entry per Worker wanted: the first at every mill and derrick, then the rest. */
 function stores(team: number): Ent[] {
   const mills = ownDone(team, 'mill').filter((m) => woodNear(m) > 0);
   const derricks = ownDone(team, 'derrick').filter((d) => d.carry > 1 || oilLeft(d) > 0);
-  // first chopper at every mill, then the derricks, then the mills' other choppers
-  const jobs: Ent[] = [...mills, ...derricks];
-  for (let k = 1; k < CHOPPERS_PER_MILL; k++) jobs.push(...mills);
+  const c = crewOf(team), jobs: Ent[] = [];
+  for (let k = 0; k < Math.max(c.mill, c.derrick); k++) jobs.push(...(k < c.mill ? mills : []), ...(k < c.derrick ? derricks : []));
   return jobs;
 }
 
@@ -385,7 +421,7 @@ function workersWanted(team: number): number {
 }
 
 /** Keep the choppers and haulers each mill and derrick wants, taken off the ore if need be. */
-function assignHaulers(team: number): void {
+export function assignHaulers(team: number): void {
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
   const jobs = stores(team), seen = new Map<number, number>();
   const hauling = (b: Ent) => {
@@ -393,6 +429,14 @@ function assignHaulers(team: number): void {
     seen.set(b.id, k);
     return workers.filter((w) => w.order?.t === 'harvest' && w.order.src === b.id).length >= k;
   };
+  // more on a mill or derrick than it wants now (the side has plenty of that, or is short of ore):
+  // send the extra back to digging ore
+  const wanted = new Map<number, number>();
+  for (const b of jobs) wanted.set(b.id, (wanted.get(b.id) ?? 0) + 1);
+  for (const b of [...ownDone(team, 'mill'), ...ownDone(team, 'derrick')]) {
+    const crew = workers.filter((w) => w.order?.t === 'harvest' && w.order.src === b.id);
+    for (const w of crew.slice(wanted.get(b.id) ?? 0)) orderHarvest(w, tileOf(w.x), tileOf(w.y));
+  }
   for (const b of jobs) {
     if (hauling(b)) continue;
     const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res));

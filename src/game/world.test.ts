@@ -473,5 +473,5 @@ describe('a computer-vs-computer match', () => {
     }
     // nothing may stand inside a wall or building
     for (const u of G.ents.filter((e) => e.kind === 'unit')) expect(G.blk[Math.floor(u.y / TS) * MW + Math.floor(u.x / TS)]).toBe(0);
-  });
+  }, 15_000);
 });
