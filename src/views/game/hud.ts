@@ -205,7 +205,6 @@ function unitDetails(e: Ent): string {
     ['Reload', w ? `${w.cd}s` : ''],
     ['Speed', num(d.spd)],
     ['Turn', `${Math.round((d.turn * 180) / Math.PI)}°/s`],
-    ['Sight', String(d.sight)],
     ['Heals', heal],
     ['Cost', costText(e.type)],
   ];
@@ -237,7 +236,6 @@ function buildingDetails(e: Ent): string {
     ['Damage', w ? String(num(w.dmg * refitBonus(e))) : ''],
     ['Range', w ? String(w.range) : ''],
     ['Reload', w ? `${num(w.cd * slow)}s` : ''],
-    ['Sight', String(d.sight)],
     ['Cost', costText(e.type)],
     ['Status', !e.done ? 'Building' : e.upT != null ? `Upgrading to ${ERA[lvlOf(e) + 1]?.name} · ${Math.floor(e.upT * 100)}%` : e.repairing ? 'Repairing' : ''],
   ];
