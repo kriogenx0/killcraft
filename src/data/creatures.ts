@@ -44,5 +44,7 @@ export const RISE_HP = 0.6;
 export const GUARD_RADIUS = 3.5;
 /** …but gives up the chase this many tiles from its lair. */
 export const LEASH = 6;
+/** Seconds after a creature from a lair dies (wild or captured) before it comes back, wild, at its lair. */
+export const RESPAWN_TIME = 60;
 /** Fraction of max health a wild creature regains each second while nobody is fighting it. */
 export const WILD_REGEN = 0.02;
