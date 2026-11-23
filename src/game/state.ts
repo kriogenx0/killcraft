@@ -21,7 +21,8 @@ export const STANCES = ['engage', 'skirmish', 'passive'] as const;
 export type Stance = (typeof STANCES)[number];
 
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
-export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
+/** `pat`: on patrol, the other end of the beat; on arriving the unit turns back toward it. */
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 /** What a unit is carrying home. */
 export type Cargo = 'ore' | 'wood' | 'oil';

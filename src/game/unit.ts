@@ -6,7 +6,7 @@ import { DIRS, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
-import { orderFlee, orderHarvest, setOrder } from './order.ts';
+import { orderFlee, orderHarvest, setOrder, arrive } from './order.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
@@ -400,7 +400,7 @@ export function updUnit(u: Ent, dt: number): void {
     case 'move': {
       if (u.stance === 'skirmish' || u.stance === 'passive' || !d.weapon) {
         // keep going; a skirmisher shoots along the way
-        if (followPath(u, dt)) { u.order = null; u.path = null; }
+        if (followPath(u, dt)) arrive(u);
         if (u.stance === 'skirmish') fireOnTheMove(u, dt);
         break;
       }
@@ -410,7 +410,6 @@ export function updUnit(u: Ent, dt: number): void {
       u.scan -= dt;
       if (u.scan <= 0) {
         u.scan = 0.3;
-        // fight back against whoever is attacking first, and armed enemies before buildings
         // fight back against whoever is attacking first, and armed enemies before buildings; a wall
         // only if it was sent to one, once it's close
         const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight) ?? sentToWall(u, o.gx, o.gy, d.sight);
@@ -424,9 +423,8 @@ export function updUnit(u: Ent, dt: number): void {
           // stopped short, walled off from where it's going: break through the enemy wall in the way
           const short = Math.hypot(u.x - (o.gx + 0.5) * TS, u.y - (o.gy + 0.5) * TS) > 1.5 * TS;
           const w = short && canBreach(u) ? wallInWay(u, o.gx, o.gy) : null;
-          if (w) o.sub = w.id;
-          else u.order = null;
-          u.path = null;
+          if (w) { o.sub = w.id; u.path = null; }
+          else arrive(u);
         }
       }
       break;

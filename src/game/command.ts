@@ -1,6 +1,6 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { G, STANCES, isHarvester, valid, type Ent, type Stance } from './state.ts';
+import { G, STANCES, isHarvester, unitDef, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
@@ -12,6 +12,7 @@ import { toggleRefit } from './refit.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
+  | { c: 'patrol'; ids: number[]; tx: number; ty: number }
   | { c: 'stance'; ids: number[]; stance: Stance }
   | { c: 'stop'; ids: number[] }
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
@@ -41,7 +42,8 @@ export function parseCommand(raw: unknown): Command | null {
   const o = raw as Record<string, unknown>;
   switch (o.c) {
     case 'move':
-      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'move', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
+    case 'patrol':
+      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
     case 'stance':
       return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
     case 'stop':
@@ -87,6 +89,10 @@ export function applyCommand(team: number, cmd: Command): void {
   switch (cmd.c) {
     case 'move':
       groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty);
+      break;
+    case 'patrol':
+      // only units that can fight patrol
+      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon), cmd.tx, cmd.ty, true);
       break;
     case 'stance':
       for (const u of ownUnits(team, cmd.ids)) setStance(u, cmd.stance);

@@ -96,8 +96,8 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
   }
   V.mode = null;
   const us = selectedUnits();
-  dispatch({ c: 'move', ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
-  mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
+  dispatch({ c: m.t, ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
+  mark(wx, wy, m.t === 'patrol' ? '#5af' : isEnemy(hit) ? '#f44' : '#5f5');
   refreshCommands(true);
 }
 
