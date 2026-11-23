@@ -78,7 +78,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1300, oil: 200, t: 22, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, desc: 'Slow, heavily armored twin-cannon tank.' },
   catapult: { name: 'Catapult', cls: 'vehicle', armor: 'light', hp: 220, spd: 1.6, turn: 1.5, weapon: 'catapult', cost: 500, wood: 400, t: 16, era: 0, sight: 6, producer: 'vehicle', turret: false, radius: 14, desc: 'Lobs boulders from long range. Crushes buildings and packed infantry.' },
   harvester: { name: 'Harvester', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.4, turn: 2, weapon: null, cost: 1400, wood: 100, t: 18, era: 2, sight: 4, producer: 'vehicle', turret: false, radius: 15, haul: 600, scoop: 160, desc: 'Collects ore and brings it to a refinery. Unarmed.' },
-  worker: { name: 'Worker', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: null, cost: 250, t: 7, era: 0, sight: 4, producer: 'infantry', turret: false, radius: 6, haul: 300, scoop: 80, desc: 'Peasant with a pick and a basket. Digs ore and carries it to a Refinery, and hauls wood from Lumber Mills and oil from Oil Derricks. Unarmed; heals like other infantry. In the Modern age Harvesters take over the ore.' },
+  worker: { name: 'Worker', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'pick', cost: 250, t: 7, era: 0, sight: 4, producer: 'infantry', turret: false, radius: 6, haul: 300, scoop: 80, desc: 'Peasant with a pick and a basket. Digs ore and carries it to a Refinery, and hauls wood from Lumber Mills and oil from Oil Derricks. With nothing to carry, mends what is near: speeds up building sites, repairs damaged buildings (for ore), and patches up wounded troops and vehicles, slower than a Medic. Swings the pick if attacked. In the Modern age Harvesters take over the ore.' },
   // aircraft, built at the Airfield. They fly straight over buildings, cliffs and water, and only
   // weapons that can aim upward (bows, guns, rockets, flak) can hit them.
   balloon: { name: 'War Balloon', cls: 'air', armor: 'air', hp: 170, spd: 1.3, turn: 1, weapon: 'bomb', cost: 150, wood: 200, t: 12, era: 1, sight: 9, producer: 'air', turret: false, radius: 12, alt: 2.2, desc: 'Silk envelope and a wicker basket. Drifts slowly over walls and drops bombs. Sees far.' },
@@ -105,6 +105,12 @@ export const UNIT: Record<UnitType, UnitDef> = {
 /** Medics heal this many hit points a second, standing within this many px of their patient. */
 export const MEDIC_HEAL = 6;
 export const MEDIC_RANGE = 20;
+/** A Worker patches up a hurt unit this many hit points a second (half a Medic). */
+export const WORKER_HEAL = 3;
+/** A Worker repairs a damaged building this many hit points a second (paying ore like the Repair button). */
+export const WORKER_REPAIR = 10;
+/** Each Worker on a building site adds this much to its building speed (0.5 = half again as fast). */
+export const WORKER_BUILD = 0.5;
 
 export const UNIT_TYPES = Object.keys(UNIT) as UnitType[];
 

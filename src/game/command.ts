@@ -5,7 +5,7 @@ import { MW, MH, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
+import { groupMove, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
@@ -17,6 +17,7 @@ export type Command =
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
   | { c: 'haul'; ids: number[]; target: number }
+  | { c: 'fix'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
@@ -47,7 +48,8 @@ export function parseCommand(raw: unknown): Command | null {
     case 'return':
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
     case 'haul':
-      return isIds(o.ids) && isInt(o.target) ? { c: 'haul', ids: o.ids, target: o.target } : null;
+    case 'fix':
+      return isIds(o.ids) && isInt(o.target) ? { c: o.c, ids: o.ids, target: o.target } : null;
     case 'harvest':
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'harvest', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
     case 'rally':
@@ -101,6 +103,12 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'haul': {
       const b = ownBuilding(team, cmd.target);
       if (b && b.done && (b.type === 'mill' || b.type === 'derrick')) for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHaul(u, b);
+      break;
+    }
+    case 'fix': {
+      // Workers mend one of the side's own buildings or units
+      const t = valid(cmd.target);
+      if (t && t.team === team && t.kind !== 'source') for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker' && u !== t) orderFix(u, t);
       break;
     }
     case 'rally': {

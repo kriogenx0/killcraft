@@ -62,10 +62,16 @@ function effects(b: Ent, dt: number): void {
 function repair(b: Ent, dt: number): void {
   if (!b.repairing) return;
   if (b.hp >= b.maxhp) { b.repairing = false; return; }
-  const hp = Math.min(REPAIR_RATE * dt, b.maxhp - b.hp), cost = (hp * bldDef(b).cost) / b.maxhp / 2;
-  if (G.credits[b.team] < cost) return;
+  mend(b, REPAIR_RATE * dt);
+}
+
+/** Restore up to `hp` hit points to a finished building, paying ore for it. False if the bank can't. */
+export function mend(b: Ent, hp: number): boolean {
+  const amt = Math.min(hp, b.maxhp - b.hp), cost = (amt * bldDef(b).cost) / b.maxhp / 2;
+  if (G.credits[b.team] < cost) return false;
   G.credits[b.team] -= cost;
-  b.hp += hp;
+  b.hp += amt;
+  return true;
 }
 
 /**
@@ -73,7 +79,13 @@ function repair(b: Ent, dt: number): void {
  * hit points as it goes up. Any number of sites can rise at once.
  */
 function construct(b: Ent, dt: number): void {
-  const step = Math.min(((lowPower(b.team) ? 0.5 : 1) * dt) / bldDef(b).t, 1 - b.prog);
+  advanceSite(b, ((lowPower(b.team) ? 0.5 : 1) * dt) / bldDef(b).t);
+}
+
+/** Move a site along by a share of its whole build (Workers lend a hand through this too). */
+export function advanceSite(b: Ent, share: number): void {
+  if (b.done || b.dead) return;
+  const step = Math.min(share, 1 - b.prog);
   b.prog += step;
   b.hp = Math.min(b.maxhp, b.hp + b.maxhp * (1 - SITE_HP) * step);
   if (b.prog >= 1 - 1e-9) { b.prog = 1; b.done = true; completed(b); }

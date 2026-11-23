@@ -1,7 +1,7 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
-import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, haulOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MW, TS } from './const.ts';
 import { BUILDING, isWall, type BldType } from '../data/building.ts';
@@ -10,7 +10,7 @@ import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace, wallLine } from './building.ts';
 import { available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear } from './economy.ts';
-import { orderMove, setStance, orderHaul } from './order.ts';
+import { orderFix, orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 import { wildBeasts } from './creatures.ts';
 import { canAttack } from './combat.ts';
@@ -58,7 +58,7 @@ export function resetAi(teams = 2): void {
 
 const homeOf = (team: number): Ent | undefined =>
   G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
-const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'bld' || (e.kind === 'unit' && !!unitDef(e).weapon)));
+const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'bld' || (e.kind === 'unit' && !!unitDef(e).weapon && !isHarvester(e))));
 
 /** Keep fighting the same side until it falls, then turn on the nearest one left. */
 function foeOf(team: number): number {
@@ -294,7 +294,7 @@ function armory(team: number): void {
   if (G.prod[team].armory.length) return;
   const can = available(team, 'armory').filter(isTechType);
   if (!can.length) return;
-  const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
+  const army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e));
   if (army.length < 5) return;
   const foot = army.filter(isOrganic).length, side = foot * 2 >= army.length ? 'inf' : 'veh';
   const mine = can.filter((t) => TECH[t].upg?.track.startsWith(side));
@@ -347,9 +347,24 @@ function training(team: number): void {
   }
 }
 
+/** Workers a computer player sends to each building site or badly damaged building. */
+const MENDERS = 2;
+
 function upkeep(team: number): void {
   for (const b of G.ents)
-    if (!b.dead && b.team === team && b.kind === 'bld' && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
+    if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
+  // a couple of Workers off the ore help each site go up and fix what's badly hurt (never the haulers)
+  const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
+  const mending = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
+  for (const b of G.ents) {
+    if (b.dead || b.team !== team || b.kind !== 'bld' || !(!b.done || b.hp < b.maxhp * 0.6) || mending(b) >= MENDERS) continue;
+    const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res && w.carry < haulOf(w) * 0.5));
+    // leave at least one on the ore
+    if (free.filter((w) => w.order?.t === 'harvest').length <= 1 && free.every((w) => w.order)) return;
+    const w = free.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
+    if (!w || Math.hypot(w.x - b.x, w.y - b.y) > 16 * TS) continue;
+    orderFix(w, b);
+  }
 }
 
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */
@@ -419,7 +434,7 @@ function advance(u: Ent, tx: number, ty: number): void {
 function military(team: number): void {
   const A = ais[team], foe = foeOf(team);
   if (foe < 0) return;
-  const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
+  const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e));
   holdAether(team, all, homeOf(team));
   huntBeasts(team, all.filter((e) => !A.guards.has(e.id)), homeOf(team));
   const army = all.filter((e) => !A.guards.has(e.id) && !A.hunters.has(e.id));
@@ -439,7 +454,7 @@ function military(team: number): void {
   const from: Ent | { x: number; y: number } = home ?? army[0] ?? { x: 0, y: 0 };
   const tgt = targets.reduce((a, p) => (Math.hypot(p.x - from.x, p.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? p : a));
   const idle = army.filter((u) => !u.order);
-  const enemyArmy = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit' && unitDef(e).weapon).length;
+  const enemyArmy = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length;
   // attack in waves, or press on whenever the enemy army is clearly smaller
   if (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2)) {
     A.attacking = true;
