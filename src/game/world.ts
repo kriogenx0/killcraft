@@ -19,19 +19,28 @@ import { captureBeasts, placeCreatures } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
+import { AI_LEVEL } from '../data/setup.ts';
+import type { UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
 
 const FOG_INTERVAL = 0.2;
-const AI_INTERVAL = 1;
 const ORE_INTERVAL = 1;
 
+export interface StartOptions {
+  /** starting ore and wood, as a share of the normal amount */
+  share?: number;
+  /** the units each side starts with beside its yard */
+  units?: readonly UnitType[];
+}
+
 /** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (free-for-all, one base per corner). */
-export function initWorld(seed: number, teams = 2): void {
+export function initWorld(seed: number, teams = 2, start: StartOptions = {}): void {
+  const share = start.share ?? 1, units = start.units ?? START_UNITS;
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1,
     alertT: each(() => -99), lastAlert: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
-    credits: each(() => START_CREDITS), wood: each(() => START_WOOD), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), upg: each(noUpgrades), prod: each(emptyProduction),
+    credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), upg: each(noUpgrades), prod: each(emptyProduction),
   });
   while (G.sight.length < n) G.sight.push(new Uint8Array(MW * MH));
   G.sight.length = n;
@@ -45,7 +54,7 @@ export function initWorld(seed: number, teams = 2): void {
     addBuilding('yard', team, x, y, false);
     // the starting Workers face the middle of the map
     const face = Math.atan2(MH / 2 - y, MW / 2 - x);
-    START_UNITS.forEach((type, i) => {
+    units.forEach((type, i) => {
       const u = addUnit(type, team, (x + 3.5 + (i % 2)) * TS, (y + 1 + Math.floor(i / 2)) * TS);
       u.face = u.tface = face;
     });
@@ -89,14 +98,14 @@ export function update(dt: number): void {
   if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
-  G.aiT -= dt;
-  if (G.aiT <= 0) {
-    G.aiT = AI_INTERVAL;
-    ais.forEach((a, team) => {
-      if (!a.on || team >= G.teams) return; // sides left over from a bigger match sit out
-      try { aiThink(team); } catch (err) { hooks.error(err); }
-    });
-  }
+  // each computer player thinks as often as its difficulty allows
+  ais.forEach((a, team) => {
+    if (!a.on || team >= G.teams) return; // sides left over from a bigger match sit out
+    a.thinkT -= dt;
+    if (a.thinkT > 0) return;
+    a.thinkT = AI_LEVEL[a.level].think;
+    try { aiThink(team); } catch (err) { hooks.error(err); }
+  });
   G.endT -= dt;
   if (G.endT <= 0 && G.gameT > 3 && !G.over) {
     G.endT = 1;
