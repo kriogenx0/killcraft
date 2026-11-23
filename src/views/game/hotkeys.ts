@@ -97,3 +97,14 @@ export function itemForKey(b: BldType, key: string, group?: string | null): Buil
   for (const [t, k] of PRODUCTION_KEYS.get(b)?.items ?? []) if (k.toLowerCase() === key && groupOfType(t) === (group ?? undefined)) return t;
   return undefined;
 }
+
+/**
+ * Whose production keys are live. A selected producing building's; otherwise, when no building of
+ * ours is selected (nothing, or only units), the Town Hall's, so the letters on the structure buttons
+ * always work. Unit commands still win for their own letters (M, X, G, F, V).
+ */
+export function hotkeyProducer(selected: readonly { kind: string; type: string; done?: boolean }[], hall: boolean): BldType | null {
+  const b = selected.find((e) => e.kind === 'bld');
+  if (b) return b.done && linesOf(b.type as BldType).length ? (b.type as BldType) : null;
+  return hall ? 'yard' : null;
+}

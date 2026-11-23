@@ -1,8 +1,11 @@
+// Units carrying Aether, and Aether dropped on the ground, glow a soft violet.
 // Drawing Aether shows like an attack: a violet beam from the deposit's shards to each unit
 // channelling it, with motes of light flowing along it and a flare at the unit as each draw lands.
 import * as THREE from 'three';
 import { G, type Ent } from '../../../game/state.ts';
 import { TS } from '../../../game/const.ts';
+import { AETHER_CARRY } from '../../../data/aether.ts';
+import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { drawingFrom, isDrawing } from '../../../game/aether.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { groundY } from './heights.ts';
@@ -73,4 +76,47 @@ export function updateAetherBeams(): void {
     n++;
   }
   for (let i = n; i < pool.length; i++) pool[i].group.visible = false;
+}
+
+// ---- glows ----
+
+let glowTex: THREE.CanvasTexture | null = null;
+function glowTexture(): THREE.CanvasTexture {
+  const c = mkCanvas(64, 64), g = ctx2d(c), rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  rg.addColorStop(0, 'rgba(255,255,255,1)');
+  rg.addColorStop(0.35, 'rgba(255,255,255,.45)');
+  rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+const glowPool: THREE.Sprite[] = [];
+
+/** A soft violet halo round every visible unit carrying Aether, brighter the more it holds, and round dropped Aether. Call once per frame. */
+export function updateAetherGlows(): void {
+  if (layer.parent !== S.scene) S.scene.add(layer);
+  glowTex ??= glowTexture();
+  const t = performance.now() / 1000;
+  let n = 0;
+  for (const e of G.ents) {
+    if (e.dead) continue;
+    const carrying = e.kind === 'unit' && (e.ae ?? 0) > 0.5, dropped = e.type === 'shard';
+    if ((!carrying && !dropped) || !shownToPlayer(e)) continue;
+    let s = glowPool[n];
+    if (!s) {
+      s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#b060ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      s.renderOrder = 3;
+      glowPool.push(s);
+      layer.add(s);
+    }
+    n++;
+    const full = Math.min(1, (dropped ? e.hp : e.ae ?? 0) / AETHER_CARRY), pulse = Math.sin(t * 2.4 + e.id) * 0.5 + 0.5;
+    const h = dropped ? 0.12 : Math.min(0.45, modelHeight(e) * 0.45);
+    s.visible = true;
+    s.position.set(e.x / TS, groundY(e.x, e.y) + h, e.y / TS);
+    s.scale.setScalar((dropped ? 0.55 : 0.5 + full * 0.25) * (0.95 + pulse * 0.1));
+    s.material.opacity = (dropped ? 0.55 : 0.22 + full * 0.18) * (0.85 + pulse * 0.15);
+  }
+  for (let i = n; i < glowPool.length; i++) glowPool[i].visible = false;
 }

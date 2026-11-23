@@ -2,16 +2,18 @@
 import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
-import { DIRS, nearestFree, pathFor } from './path.ts';
+import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
-import { orderFlee, orderHarvest, setOrder } from './order.ts';
+import { orderFlee, orderHarvest, orderMove, setOrder, arrive } from './order.ts';
+import { shardFor } from './aether.ts';
+import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
 import { oilLeft } from './economy.ts';
-import { WOOD_BANKS, updChop } from './chop.ts';
+import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
@@ -134,12 +136,15 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  // ore goes to a Refinery; wood to a Lumber Mill, Refinery or the Town Hall; oil to a Refinery or the Town Hall
+  // ore and oil go to a Refinery or the Town Hall; wood also to a Lumber Mill
   const cargo0 = u.cargo ?? 'ore';
-  const ref = bankAt(u, cargo0 === 'ore' ? ['refinery'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
+  const ref = bankAt(u, cargo0 === 'ore' ? ['refinery', 'yard'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {
+    // shut in by trees on the way home: cut a way out
+    if (fellingOut(u) && chopOut(u, ref, dt)) return;
     const r = approach(u, ref, NEAR, dt);
+    if (!r && !u.path?.length && chopOut(u, ref, dt)) return;
     if (r === null) { o.wait = 1; return; }
     if (r) o.st = 'unload';
     return;
@@ -380,6 +385,13 @@ export function updUnit(u: Ent, dt: number): void {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
     }
+    // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
+    if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
+      const s = shardFor(u);
+      if (s) { orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
+      const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
+      if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
+    }
     // an idle Worker mends what's near (a passive one only when no enemy is about), before going back to the ore
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
       const t = mendNear(u, (u.tending ? TEND_RADIUS : d.sight) * TS);
@@ -404,7 +416,7 @@ export function updUnit(u: Ent, dt: number): void {
     case 'move': {
       if (u.stance === 'skirmish' || u.stance === 'passive' || !d.weapon) {
         // keep going; a skirmisher shoots along the way
-        if (followPath(u, dt)) { u.order = null; u.path = null; }
+        if (followPath(u, dt)) arrive(u);
         if (u.stance === 'skirmish') fireOnTheMove(u, dt);
         break;
       }
@@ -414,7 +426,6 @@ export function updUnit(u: Ent, dt: number): void {
       u.scan -= dt;
       if (u.scan <= 0) {
         u.scan = 0.3;
-        // fight back against whoever is attacking first, and armed enemies before buildings
         // fight back against whoever is attacking first, and armed enemies before buildings; a wall
         // only if it was sent to one, once it's close
         const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight) ?? sentToWall(u, o.gx, o.gy, d.sight);
@@ -428,9 +439,8 @@ export function updUnit(u: Ent, dt: number): void {
           // stopped short, walled off from where it's going: break through the enemy wall in the way
           const short = Math.hypot(u.x - (o.gx + 0.5) * TS, u.y - (o.gy + 0.5) * TS) > 1.5 * TS;
           const w = short && canBreach(u) ? wallInWay(u, o.gx, o.gy) : null;
-          if (w) o.sub = w.id;
-          else u.order = null;
-          u.path = null;
+          if (w) { o.sub = w.id; u.path = null; }
+          else arrive(u);
         }
       }
       break;

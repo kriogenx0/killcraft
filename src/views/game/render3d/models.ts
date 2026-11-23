@@ -1315,3 +1315,19 @@ function makeAether(): Model {
 export function aetherModel(): Model {
   return cached('aether', makeAether);
 }
+
+/** Aether dropped by a fallen carrier: a few loose glowing shards on the ground. */
+function makeShard(): Model {
+  const root = new THREE.Group();
+  for (const [x, z, h, a] of [[0, 0, 0.22, 0.2], [0.09, 0.06, 0.15, -0.5], [-0.08, 0.05, 0.13, 0.6], [0.02, -0.09, 0.11, -0.3]]) {
+    const c = mesh(octa(0.05), M.aether(), x, h * 0.35, z);
+    c.scale.set(0.8, h * 7, 0.8);
+    c.rotation.z = a;
+    root.add(c);
+  }
+  return { root, parts: {}, height: 0.3 };
+}
+
+export function shardModel(): Model {
+  return cached('shard', makeShard);
+}

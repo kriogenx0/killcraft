@@ -3,7 +3,7 @@ import { BUILDING, BLD_TYPES } from '../../data/building.ts';
 import { UNIT_TYPES } from '../../data/unit.ts';
 import { TECH_TYPES } from '../../data/era.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, GLOBAL_KEYS, RESERVED_KEYS, ROTATE_KEYS, SCROLL_KEYS, assignKeys, keyLabel, normalizeKey } from './keyboard.ts';
-import { PRODUCTION_KEYS, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
+import { PRODUCTION_KEYS, hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 
 describe('hotkeys', () => {
   it('gives every structure, unit and research a key', () => {
@@ -75,5 +75,19 @@ describe('hotkeys', () => {
     expect(keyLabel('Delete')).toBe('Del');
     expect(normalizeKey('Backspace')).toBe('delete');
     expect(normalizeKey('K')).toBe('k');
+  });
+});
+
+describe('whose production keys are live', () => {
+  const unit = { kind: 'unit', type: 'worker' };
+  it('uses the Town Hall when no building is selected, so sidebar letters always work', () => {
+    expect(hotkeyProducer([], true)).toBe('yard');
+    expect(hotkeyProducer([unit], true)).toBe('yard');
+    expect(hotkeyProducer([], false)).toBeNull();
+  });
+  it('uses a selected producer, and nothing for a building that makes nothing or is unfinished', () => {
+    expect(hotkeyProducer([{ kind: 'bld', type: 'barracks', done: true }], true)).toBe('barracks');
+    expect(hotkeyProducer([{ kind: 'bld', type: 'power', done: true }], true)).toBeNull();
+    expect(hotkeyProducer([{ kind: 'bld', type: 'barracks', done: false }], true)).toBeNull();
   });
 });

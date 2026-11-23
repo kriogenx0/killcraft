@@ -21,6 +21,26 @@ export function orderMove(u: Ent, tx: number, ty: number): void {
   u.path = pathFor(u, tx, ty);
 }
 
+/**
+ * A move finished. A patrolling unit turns around and heads for the other end of its beat;
+ * anyone else stops. Returns true if the order is over.
+ */
+export function arrive(u: Ent): boolean {
+  const o = u.order;
+  u.path = null;
+  if (o?.t === 'move' && o.pat) {
+    const back = o.pat;
+    o.pat = [o.gx, o.gy];
+    [o.gx, o.gy] = back;
+    o.sub = null;
+    u.goal = [o.gx, o.gy];
+    u.path = pathFor(u, o.gx, o.gy);
+    return false;
+  }
+  u.order = null;
+  return true;
+}
+
 export function orderAttack(u: Ent, t: Ent): void {
   setOrder(u, { t: 'attack', tgt: t.id, auto: false, ox: u.x, oy: u.y });
 }
@@ -71,10 +91,14 @@ export function orderReturn(u: Ent): void {
 }
 
 /** Move a group, giving each unit its own free tile around the goal. */
-export function groupMove(us: Ent[], gx: number, gy: number): void {
+export function groupMove(us: Ent[], gx: number, gy: number, patrol = false): void {
   const n = us.length;
   if (!n) return;
-  const send = (u: Ent, t: Tile) => orderMove(u, t[0], t[1]);
+  const send = (u: Ent, t: Tile) => {
+    const from: Tile = [tileOf(u.x), tileOf(u.y)];
+    orderMove(u, t[0], t[1]);
+    if (patrol && u.order?.t === 'move') u.order.pat = from;
+  };
   if (n === 1) { send(us[0], [gx, gy]); return; }
   const tiles: Tile[] = [], seen = new Set<number>([gy * MW + gx]), q: Tile[] = [[gx, gy]];
   while (q.length && tiles.length < n) {

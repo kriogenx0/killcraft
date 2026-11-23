@@ -2,13 +2,16 @@
 // Lumber Mill, Refinery or Town Hall (see unit.ts for the trip home); nothing is banked
 // until it's dropped off. Workers spread over the trees, one to a tree while there are enough.
 import { G, valid, type Ent, type HarvestOrder, type Target } from './state.ts';
-import { MH, MW, TREE, TS } from './const.ts';
+import { GRASS, MH, MW, TREE, TS } from './const.ts';
 import { approach, turnToward } from './move.ts';
 import { part } from './fx.ts';
 import { CHOP_RATE, CHOP_WORTH, MILL_RADIUS, WOOD_LOAD } from '../data/economy.ts';
 
 /** Where a Worker drops off wood. */
 export const WOOD_BANKS = ['mill', 'refinery', 'yard'] as const;
+
+/** How close (px, from the tree's edge) a Worker has to stand to chop: anywhere on a tile touching it, corners included. */
+const CHOP_REACH = TS * 0.75;
 
 /** Most wood a unit carries. */
 export const woodLoad = (_u: Ent): number => WOOD_LOAD;
@@ -86,8 +89,9 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
   }
   const tree = treeTarget(i);
   if (o.st === 'go') {
-    const r = approach(u, tree, 6, dt);
-    if (r === null) { giveUpOn(u, i); o.wait = 0.5; pickAnother(u, o); return; } // no way there: try another tree
+    const r = approach(u, tree, CHOP_REACH, dt);
+    // no way there (or the path ran out short of it): try another tree
+    if (r === null || (!r && u.path?.length === 0)) { giveUpOn(u, i); o.wait = 0.5; pickAnother(u, o); return; }
     if (r) o.st = 'gather';
     return;
   }
@@ -103,3 +107,85 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
   if (u.carry >= woodLoad(u) - 0.01) { o.st = 'ret'; u.path = null; }
   else if (G.treeWood[i] < 1) { o.st = 'go'; u.path = null; } // this one's bare: on to the next
 }
+
+/** Seconds it takes a Worker to cut a tree down to clear a way out. */
+const FELL_TIME = 4;
+/** How far (tiles) a shut-in Worker looks for a way out through the trees. */
+const FELL_SEARCH = 30;
+
+/** The tree each shut-in Worker is cutting down, and how long it has been at it. */
+const felling = new WeakMap<Ent, { i: number; t: number }>();
+const lastLook = new WeakMap<Ent, number>();
+
+/**
+ * The first tree in the way on the shortest walk to `goal` that goes through as few trees as
+ * possible; null when there's an open way (or no way at all, trees or not).
+ */
+function treeInWay(u: Ent, goal: Target): number | null {
+  const sx = Math.floor(u.x / TS), sy = Math.floor(u.y / TS);
+  const x0 = Math.max(0, sx - FELL_SEARCH), y0 = Math.max(0, sy - FELL_SEARCH), x1 = Math.min(MW - 1, sx + FELL_SEARCH), y1 = Math.min(MH - 1, sy + FELL_SEARCH);
+  const atGoal = (x: number, y: number) => x >= goal.tx - 1 && x <= goal.tx + goal.w && y >= goal.ty - 1 && y <= goal.ty + goal.h;
+  const cost = new Map<number, number>(), from = new Map<number, number>();
+  // 0-1 search: open ground is free, each tree costs one
+  const dq: number[] = [sy * MW + sx];
+  cost.set(dq[0], 0);
+  while (dq.length) {
+    const i = dq.shift() as number, x = i % MW, y = (i / MW) | 0, c = cost.get(i) as number;
+    if (atGoal(x, y) && !G.blk[i]) {
+      if (c === 0) return null;
+      // walk back to the first tree on the way
+      let first = -1;
+      for (let k: number | undefined = i; k !== undefined; k = from.get(k)) if (G.terr[k] === TREE) first = k;
+      return first;
+    }
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      if (nx < x0 || ny < y0 || nx > x1 || ny > y1) continue;
+      const ni = ny * MW + nx, tree = G.terr[ni] === TREE;
+      if (G.blk[ni] && !tree) continue;
+      const nc = c + (tree ? 1 : 0);
+      if (nc >= (cost.get(ni) ?? Infinity)) continue;
+      cost.set(ni, nc);
+      from.set(ni, i);
+      if (tree) dq.push(ni); else dq.unshift(ni);
+    }
+  }
+  return null;
+}
+
+/** Cut a tree down for good: the tile becomes open ground. */
+function fell(i: number): void {
+  G.terr[i] = GRASS;
+  G.treeWood[i] = 0;
+  G.blk[i] = G.ents.some((e) => !e.dead && e.kind === 'bld' && i % MW >= e.tx && i % MW < e.tx + e.w && ((i / MW) | 0) >= e.ty && ((i / MW) | 0) < e.ty + e.h) ? 1 : 0;
+}
+
+/**
+ * A Worker shut in by trees (say, a structure went up across the only gap) cuts its way out toward
+ * `goal`. Returns true while it's doing so, false when there's no tree to cut that would help.
+ */
+export function chopOut(u: Ent, goal: Target, dt: number): boolean {
+  if (u.type !== 'worker') return false;
+  let f = felling.get(u);
+  if (!f || G.terr[f.i] !== TREE) {
+    // looking for a way out is a wide search: at most once a second
+    if (G.gameT < (lastLook.get(u) ?? -Infinity) + 1) return false;
+    lastLook.set(u, G.gameT);
+    const i = treeInWay(u, goal);
+    if (i === null || i < 0) { felling.delete(u); return false; }
+    felling.set(u, (f = { i, t: 0 }));
+    u.path = null;
+  }
+  const tree = treeTarget(f.i);
+  const r = approach(u, tree, CHOP_REACH, dt);
+  if (r === null) { felling.delete(u); return false; }
+  if (!r) return true;
+  f.t += dt;
+  u.atkT = 0.2; // swing the axe
+  u.face = turnToward(u.face, Math.atan2(tree.y - u.y, tree.x - u.x), 8 * dt);
+  if (Math.random() < dt * 4) part('chip', tree.x + (Math.random() - 0.5) * 10, tree.y, { vz: 50, vx: (Math.random() - 0.5) * 40, max: 0.5, size: 2, col: '#c89a5a' });
+  if (f.t >= FELL_TIME) { fell(f.i); felling.delete(u); u.path = null; }
+  return true;
+}
+
+/** Whether a Worker is part-way through cutting its way out. */
+export const fellingOut = (u: Ent): boolean => felling.has(u);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COMMAND_KEYS, ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
+import { COMMAND_KEYS, ROTATE_KEYS, SCROLL_KEYS, isTyping, scrollVector, tracksKey } from './keyboard.ts';
 
 const ev = (o: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: unknown }> = {}) =>
   ({ ctrlKey: false, metaKey: false, altKey: false, target: { tagName: 'CANVAS' }, ...o });
@@ -34,5 +34,13 @@ describe('keyboard', () => {
     expect(tracksKey(ev({ metaKey: true }))).toBe(false);
     expect(tracksKey(ev({ ctrlKey: true }))).toBe(false);
     expect(tracksKey(ev({ altKey: true }))).toBe(false);
+  });
+
+  it('ignores a hidden field that kept focus, like the lobby name box after a match starts', () => {
+    const field = (shown: boolean) => ({ tagName: 'INPUT', getClientRects: () => ({ length: shown ? 1 : 0 }) });
+    expect(isTyping(field(true))).toBe(true);
+    expect(isTyping(field(false))).toBe(false);
+    expect(tracksKey(ev({ target: field(false) }))).toBe(true);
+    expect(isTyping({ tagName: 'CANVAS' })).toBe(false);
   });
 });

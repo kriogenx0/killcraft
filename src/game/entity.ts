@@ -6,6 +6,7 @@ import { UNIT, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import { setBlk } from './map.ts';
 import { burst, explosion } from './fx.ts';
+import { dropAether } from './aether.ts';
 
 function baseEnt(kind: EntKind, type: EntType, team: number, x: number, y: number, hp: number): Ent {
   return {
@@ -52,7 +53,9 @@ export function kill(e: Ent): void {
   if (e.dead) return;
   e.dead = true;
   hooks.killed(e);
+  if (e.kind === 'unit' && e.ae) dropAether(e); // carried Aether falls where it stood
   if (e.w) setBlk(e, false);
+  if (e.kind === 'source') return; // crystals and Aether just vanish: no rubble
   const base = { t: 0, team: e.team, seed: e.id, w: e.w, r: 0, a: e.face };
   if (e.kind === 'unit' && !isVehicle(e)) {
     G.decals.push({ kind: 'corpse', x: e.x, y: e.y, max: 40, ...base });

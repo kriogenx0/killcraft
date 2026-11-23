@@ -14,7 +14,7 @@ import { MARKER_LIFE, V } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { waygateLinked } from '../../../game/aether.ts';
-import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
+import { shardModel, aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
 import { WALL_DIRS } from './defenses.ts';
@@ -44,7 +44,7 @@ export function resetEntities3d(): void {
 }
 
 function create(e: Ent, wallMask: number): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, e.lvl ?? 0, wallMask);
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.type === 'shard' ? shardModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, e.lvl ?? 0, wallMask);
   m.root.userData.id = e.id;
   if (e.kind === 'unit') {
     const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));

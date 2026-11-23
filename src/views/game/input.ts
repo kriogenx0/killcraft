@@ -8,7 +8,7 @@ import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { centerCam, clampCam, ownSelected, selectedUnits, spectating, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
-import { ROTATE_KEYS, SCROLL_KEYS, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
+import { ROTATE_KEYS, SCROLL_KEYS, isTyping, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
 import { productionHotkey } from './sidebar.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
@@ -65,7 +65,7 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     return;
   }
   if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
-  if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
+  if (harvesters.length && (hit?.type === 'refinery' || hit?.type === 'yard') && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   // Workers right-clicked on a tree chop wood there and carry it to the nearest Lumber Mill, Refinery or Yard
   if (workers.length && G.terr[ty * MW + tx] === TREE && G.vis[ty * MW + tx]) {
     dispatch({ c: 'harvest', ids: ids(workers), tx, ty });
@@ -96,8 +96,8 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
   }
   V.mode = null;
   const us = selectedUnits();
-  dispatch({ c: 'move', ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
-  mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
+  dispatch({ c: m.t, ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
+  mark(wx, wy, m.t === 'patrol' ? '#5af' : isEnemy(hit) ? '#f44' : '#5f5');
   refreshCommands(true);
 }
 
@@ -308,7 +308,7 @@ let lastGroupKey = 0;
 function onKey(ev: KeyboardEvent): void {
   if (!V.started) return;
   const k = ev.key.toLowerCase(), target = ev.target as HTMLElement;
-  if (target.closest?.('input, textarea, select, [contenteditable="true"]')) return; // typing, not playing
+  if (isTyping(target)) return; // typing, not playing
   if (k === 'meta' || k === 'control') { keys.clear(); return; }
   if (tracksKey(ev)) keys.add(k);
   if ((SCROLL_KEYS[k] || ROTATE_KEYS[k]) && tracksKey(ev)) { ev.preventDefault(); return; } // camera keys only move the camera
@@ -340,7 +340,8 @@ function onKey(ev: KeyboardEvent): void {
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const hk = normalizeKey(ev.key);
-  if (productionHotkey(hk) || runHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }
+  // the command card first, so a unit's M, X, G, F and V beat the Town Hall's letters
+  if (runHotkey(hk) || productionHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }
 }
 
 /** Move the view by a screen offset (px), as if dragging the ground the other way. */

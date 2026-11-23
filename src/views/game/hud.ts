@@ -92,6 +92,7 @@ export function commandList(): Command[] {
   if (first.kind === 'unit')
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
+      ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
       // Workers: T, to tend the base
@@ -122,7 +123,7 @@ export function runCommand(id: string): void {
   if (id === 'cancel') V.mode = null;
   else if (id === 'back') V.keyGroup = null;
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
-  else if (id === 'move') V.mode = { t: id };
+  else if (id === 'move' || id === 'patrol') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'tend') dispatch({ c: 'tend', ids: ids(s.filter((u) => u.type === 'worker')) });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
@@ -284,6 +285,7 @@ function detailsMarkup(s: Ent[]): string {
     return `<h3>Aether Deposit</h3>${barHtml(e.hp / e.maxhp, 'progress', 'Aether left')}<p class="hud-stats">${Math.ceil(e.hp)} Aether left${held}</p>` +
       '<p class="hud-stats">Shards of a fallen star. Keep a unit beside it, with no enemy there, to draw Aether. It never regrows.</p>';
   }
+  if (e.type === 'shard') return `<h3>Dropped Aether</h3><p class="hud-stats">${Math.ceil(e.hp)} Aether, fallen with the unit that carried it. Any unit that walks over it picks it up; idle Workers nearby fetch it and take it home.</p>`;
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';
 }
 

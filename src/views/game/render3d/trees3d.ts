@@ -154,7 +154,7 @@ export function refreshTrees(force = false): void {
   if (!sets) return;
   let changed = force;
   for (let k = 0; k < trees.length; k++) {
-    const t = trees[k], s = G.vis[t.i] > 0 ? 1 + growth(t.i) : 0;
+    const t = trees[k], s = G.vis[t.i] > 0 && G.terr[t.i] === TREE ? 1 + growth(t.i) : 0; // a felled tree is gone
     if (s !== shown[k]) { shown[k] = s; changed = true; }
   }
   if (!changed) return;

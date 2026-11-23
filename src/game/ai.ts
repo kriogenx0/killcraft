@@ -3,7 +3,7 @@
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { G, haulOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
-import { MW, TS } from './const.ts';
+import { MH, MW, TS } from './const.ts';
 import { BUILDING, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
@@ -188,7 +188,7 @@ function wallSite(team: number, yard: Ent, foe: Ent | undefined): [Tile, Tile] |
     const line = wallLine(x0, y0, x1, y1);
     if (line.length < 2) continue;
     const ok = line.every(([x, y]) => canPlace(x, y, 1, team, false, true) && G.ore[y * MW + x] <= 0 && clearAround(x, y));
-    if (ok) return [line[0], line[line.length - 1]];
+    if (ok && !sealsIn(team, yard, line.map(([x, y]) => y * MW + x))) return [line[0], line[line.length - 1]];
   }
   return null;
 }
@@ -201,6 +201,55 @@ function clearAround(x: number, y: number): boolean {
     return x >= e.tx - m && x < e.tx + e.w + m && y >= e.ty - m && y < e.ty + e.h + m;
   });
 }
+
+/** How far out from the yard (tiles) the computer checks that a new structure doesn't shut anything in. */
+const SEAL_BOX = 26;
+
+/**
+ * Own ground units, and own structures, that can walk (or be walked up to) from the yard, with the
+ * given extra tiles blocked. A 4-way flood fill over a box around the yard.
+ */
+function reachableFromYard(team: number, yard: Ent, extra: Set<number>): number {
+  const x0 = Math.max(0, yard.tx - SEAL_BOX), y0 = Math.max(0, yard.ty - SEAL_BOX);
+  const x1 = Math.min(MW - 1, yard.tx + yard.w + SEAL_BOX), y1 = Math.min(MH - 1, yard.ty + yard.h + SEAL_BOX);
+  const inBox = (x: number, y: number) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+  const free = (x: number, y: number) => inBox(x, y) && !G.blk[y * MW + x] && !extra.has(y * MW + x);
+  const seen = new Uint8Array(MW * MH), stack: number[] = [];
+  const ring = (e: Ent, fn: (x: number, y: number) => void) => {
+    for (let x = e.tx - 1; x <= e.tx + e.w; x++) { fn(x, e.ty - 1); fn(x, e.ty + e.h); }
+    for (let y = e.ty; y < e.ty + e.h; y++) { fn(e.tx - 1, y); fn(e.tx + e.w, y); }
+  };
+  ring(yard, (x, y) => { if (free(x, y) && !seen[y * MW + x]) { seen[y * MW + x] = 1; stack.push(y * MW + x); } });
+  while (stack.length) {
+    const i = stack.pop() as number, x = i % MW, y = (i / MW) | 0;
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      if (!free(nx, ny) || seen[ny * MW + nx]) continue;
+      seen[ny * MW + nx] = 1;
+      stack.push(ny * MW + nx);
+    }
+  }
+  let n = 0;
+  for (const e of G.ents) {
+    if (e.dead || e.team !== team || e === yard) continue;
+    if (e.kind === 'unit') {
+      const i = tileOf(e.y) * MW + tileOf(e.x);
+      if (!isAir(e) && !extra.has(i) && seen[i]) n++;
+    } else if (e.kind === 'bld' && !isWall(e.type)) {
+      let open = false;
+      ring(e, (x, y) => { if (inBox(x, y) && seen[y * MW + x]) open = true; });
+      if (open) n++;
+    }
+  }
+  return n;
+}
+
+/** Would blocking these tiles shut any of the side's own units or structures off from its yard? */
+export function sealsIn(team: number, yard: Ent, tiles: number[]): boolean {
+  // the count as things stand only changes as the game moves on: work it out once a tick
+  if (sealBase.t !== G.gameT || sealBase.yard !== yard) sealBase = { t: G.gameT, yard, n: reachableFromYard(team, yard, new Set()) };
+  return reachableFromYard(team, yard, new Set(tiles)) < sealBase.n;
+}
+let sealBase: { t: number; yard: Ent | null; n: number } = { t: -1, yard: null, n: 0 };
 
 function findSite(team: number, type: BldType): Tile | null {
   const s = BUILDING[type].size, own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
@@ -216,12 +265,19 @@ function findSite(team: number, type: BldType): Tile | null {
     const a = def && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
     const rad = (def ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
-    if (!canPlace(tx, ty, s, team, true)) continue;
+    if (!canPlace(tx, ty, s, team, true) || sealsIn(team, yard, footprint(tx, ty, s))) continue;
     if (type !== 'mill') return [tx, ty];
     const n = treesNear(tx, ty, s);
     if (n > bestTrees) { bestTrees = n; best = [tx, ty]; }
   }
   return best;
+}
+
+/** The tiles a square structure of size s at (tx, ty) covers. */
+function footprint(tx: number, ty: number, s: number): number[] {
+  const out: number[] = [];
+  for (let y = ty; y < ty + s; y++) for (let x = tx; x < tx + s; x++) out.push(y * MW + x);
+  return out;
 }
 
 /** The placeable spot near the base that reaches the most oil, if any reaches some. */
@@ -231,7 +287,7 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
   for (let ty = cy - 16; ty <= cy + 16; ty++)
     for (let tx = cx - 16; tx <= cx + 16; tx++) {
       const oil = oilNear(tx, ty, s);
-      if (oil > most && canPlace(tx, ty, s, team, true)) { most = oil; best = [tx, ty]; }
+      if (oil > most && canPlace(tx, ty, s, team, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; best = [tx, ty]; }
     }
   return best;
 }
