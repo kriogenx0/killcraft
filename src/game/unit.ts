@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
-import { HARVEST_RATE, UNLOAD_RATE } from '../data/ore.ts';
+import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
@@ -36,11 +36,26 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
   return false;
 }
 
-/** The nearest ore no other harvester has claimed; shares a tile only if every field is taken. */
+/**
+ * The nearest ore no other harvester has claimed; shares a tile only if every field is taken. When
+ * the ground within `r` holds less than a load (a field mined out, with only crumbs of regrowth
+ * left), head for the nearest patch with worthwhile ore anywhere instead.
+ */
 function pickOre(u: Ent, tx: number, ty: number, r: number): [number, number] | null {
-  const bad = cantReach.get(u);
-  return nearestOre(tx, ty, r, 1, (i) => !!bad?.has(i) || oreTaken(i, u, true)) ?? nearestOre(tx, ty, r, 1, bad && ((i) => bad.has(i)));
+  const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
+  const here = () => nearestOre(tx, ty, r, 1, free) ?? nearestOre(tx, ty, r, 1, ok);
+  if (r >= MW || oreAround(tx, ty, Math.max(r, 3)) >= haulOf(u)) return here();
+  return nearestOre(tx, ty, MW, ORE_WORTH, free) ?? nearestOre(tx, ty, MW, ORE_WORTH, ok) ?? here();
 }
+
+/** The ore within r tiles of a tile, not counting crumbs too small to be worth a trip. */
+function oreAround(tx: number, ty: number, r: number): number {
+  let sum = 0;
+  for (let y = Math.max(0, ty - r); y <= Math.min(MH - 1, ty + r); y++)
+    for (let x = Math.max(0, tx - r); x <= Math.min(MW - 1, tx + r); x++) if (G.ore[y * MW + x] >= ORE_WORTH) sum += G.ore[y * MW + x];
+  return sum;
+}
+
 
 /** Ore tiles each harvester found it couldn't walk up to, so it doesn't keep trying them. Forgotten once it scoops. */
 const cantReach = new WeakMap<Ent, Set<number>>();

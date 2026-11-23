@@ -8,6 +8,11 @@ export const ORE_FIELD_RADIUS = 5;
 export const ORE_REGROW = 8;
 export const ORE_REGROW_TILES = 2;
 export const ORE_REGROW_RADIUS = 5;
+/**
+ * Ore a tile needs before a gatherer bothers walking to it while richer ground exists anywhere:
+ * a mined-out field is speckled with crumbs of regrowth that aren't worth a trip each.
+ */
+export const ORE_WORTH = 60;
 
 /** Ore a harvester can carry (Workers carry less: see each unit's `haul`). */
 export const HARVESTER_CAPACITY = 600;
