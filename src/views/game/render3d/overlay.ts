@@ -5,6 +5,7 @@ import { shownToPlayer } from '../render/minimap.ts';
 import { clamp } from '../../../util/math.ts';
 import { S, worldToScreen } from './scene.ts';
 import { modelHeight } from './entities3d.ts';
+import { drawFloatText } from './float_text.ts';
 
 export function drawOverlay(g: CanvasRenderingContext2D): void {
   const w = g.canvas.width, h = g.canvas.height, r = S.canvas.getBoundingClientRect();
@@ -21,6 +22,7 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     g.fillStyle = f > 0.6 ? '#3d3' : f > 0.3 ? '#ec3' : '#e33'; g.fillRect(x, y0, bw * f, 4);
     if (isHarvester(e) && e.team === V.team) { g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 5, bw * Math.min(1, e.carry / haulOf(e)), 2); }
   }
+  drawFloatText(g, r.left, r.top);
   if (V.mouse.down && V.mouse.drag) {
     const { sx, sy, x: mx, y: my } = V.mouse, x = Math.min(sx, mx) - r.left, y = Math.min(sy, my) - r.top, bw = Math.abs(mx - sx), bh = Math.abs(my - sy);
     g.fillStyle = 'rgba(80,255,80,.08)'; g.fillRect(x, y, bw, bh);

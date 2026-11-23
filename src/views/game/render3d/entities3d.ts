@@ -2,11 +2,11 @@
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import * as THREE from 'three';
 import { G, haulOf, valid, type Ent } from '../../../game/state.ts';
-import { TS } from '../../../game/const.ts';
-import { BUILDING, type BldType } from '../../../data/building.ts';
+import { MH, MW, TS } from '../../../game/const.ts';
+import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
-import { nearBase, tileFree } from '../../../game/building.ts';
+import { nearBase, tileFree, wallLine } from '../../../game/building.ts';
 import { nearPortal } from '../../../game/map.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -17,6 +17,8 @@ import { waygateLinked } from '../../../game/aether.ts';
 import { aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
+import { WALL_DIRS } from './defenses.ts';
+import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
 import { levelUnder } from './world3d.ts';
 import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
@@ -41,8 +43,8 @@ export function resetEntities3d(): void {
   S.scene.add(holder, overlays);
 }
 
-function create(e: Ent): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team));
+function create(e: Ent, wallMask: number): Model {
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team), wallMask);
   m.root.userData.id = e.id;
   if (e.kind === 'unit') {
     const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));
@@ -60,6 +62,9 @@ function recoil(p: THREE.Object3D | undefined, amount: number): void {
   if (p && rest) p.position.x = rest.x - amount;
 }
 
+/** how far through a melee swing (0..1) the blow lands: MELEE_LAND of the 0.25 s attack */
+const STRIKE = MELEE_LAND / 0.25;
+
 function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
@@ -69,13 +74,22 @@ function animateUnit(m: Model, e: Ent): void {
   switch (look) {
     case 'swordsman':
       // overhead cut when striking, sword lowered and swaying when not
-      P.armR.rotation.z = atk > 0 ? lerp(2.8, 0.2, atk) : 0.35 + swing * 0.3;
+      // the blade comes down just as the blow lands (MELEE_LAND), then rests
+      P.armR.rotation.z = atk > 0 ? (atk < STRIKE ? lerp(2.8, 0.2, (atk / STRIKE) ** 2) : 0.2) : 0.35 + swing * 0.3;
       P.armL.rotation.z = 0.9 - swing * 0.2;
       break;
     case 'knight':
       for (const [k, s] of [['legFL', 1], ['legBR', 1], ['legFR', -1], ['legBL', -1]] as const) P[k].rotation.z = (e.moving ? Math.sin(w * 1.3) * 0.7 : 0) * s;
-      recoil(P.lance, atk > 0 ? -Math.sin(atk * Math.PI) * 0.2 : 0);
       m.root.position.y = e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.04 : 0;
+      if (atk > 0) {
+        // charge: the horse rears back, then lunges as the lance drives home at the moment the blow lands
+        const drive = atk < STRIKE ? (atk / STRIKE) ** 2 : 1 - (atk - STRIKE) / (1 - STRIKE), rear = atk < STRIKE ? Math.sin((atk / STRIKE) * Math.PI) : 0;
+        recoil(P.lance, -drive * 0.4);
+        m.root.position.x += Math.cos(e.face) * drive * 0.14;
+        m.root.position.z += Math.sin(e.face) * drive * 0.14;
+        m.root.rotation.z = rear * 0.22 - drive * 0.08;
+        P.legFL.rotation.z = P.legFR.rotation.z = -rear * 0.9;
+      } else recoil(P.lance, 0);
       break;
     case 'medic':
       // reaches out to bandage while tending someone
@@ -85,7 +99,7 @@ function animateUnit(m: Model, e: Ent): void {
     case 'gunner':
     case 'rocket':
     case 'crossbowman':
-      recoil(P.gun, atk > 0 ? (1 - atk) * 0.04 : 0);
+      recoil(P.gun, atk > 0 ? (1 - atk) * 0.08 : 0);
       break;
     case 'worker': {
       const load = Math.min(1, e.carry / haulOf(e));
@@ -248,10 +262,28 @@ function ghostFor(type: BldType): NonNullable<typeof ghost> {
   return ghost;
 }
 
+/** Tile markers along a wall line being dragged out. */
+const linePool: THREE.Mesh[] = [];
+const lineGeo = new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2);
+
+function updateWallLine(): void {
+  const m = V.mode, line = m?.t === 'place' && m.ax != null && m.ay != null ? wallLine(m.ax, m.ay, m.tx, m.ty) : [];
+  line.forEach(([x, y], i) => {
+    let t = linePool[i];
+    if (!t) { t = new THREE.Mesh(lineGeo, basic('#4f4', 0.45)); t.renderOrder = 3; linePool.push(t); overlays.add(t); }
+    t.visible = true;
+    t.position.set(x + 0.5, 0.1, y + 0.5);
+    const ok = nearBase(x, y, 1, V.team, true) && tileFree(x, y, V.team) && !nearPortal(x, y);
+    (t.material as THREE.MeshBasicMaterial).color.set(ok ? '#4f4' : '#f33');
+  });
+  for (let i = line.length; i < linePool.length; i++) linePool[i].visible = false;
+}
+
 function updateGhost(): void {
   const m = V.mode;
+  updateWallLine();
   if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
-  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team);
+  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team, isWall(m.type));
   g.group.visible = true;
   const base = footprintY(m.tx, m.ty, s, s);
   g.group.position.set(m.tx + s / 2, base, m.ty + s / 2);
@@ -263,17 +295,39 @@ function updateGhost(): void {
   });
 }
 
+/**
+ * Which neighbours a wall joins (bits follow WALL_DIRS): any of its team's walls next to it. A
+ * diagonal join is left out when a straight neighbour already closes that corner.
+ */
+function wallMask(e: Ent, walls: Map<number, number>): number {
+  const at = (dx: number, dy: number) => {
+    const x = e.tx + dx, y = e.ty + dy;
+    return x >= 0 && y >= 0 && x < MW && y < MH && walls.get(y * MW + x) === e.team;
+  };
+  let mask = 0;
+  WALL_DIRS.forEach(([dx, dy], i) => {
+    if (!at(dx, dy)) return;
+    if (dx && dy && (at(dx, 0) || at(0, dy))) return;
+    mask |= 1 << i;
+  });
+  return mask;
+}
+
 /** Create, move, animate and remove models to match the world. Call once per frame. */
 export function syncEntities(dt: number): void {
   const seen = new Set<number>();
+  // which team's wall stands on each tile, so segments join up with their neighbours
+  const walls = new Map<number, number>();
+  for (const e of G.ents) if (!e.dead && e.kind === 'bld' && isWall(e.type)) walls.set(e.ty * MW + e.tx, e.team);
   for (const e of G.ents) {
     if (e.dead) continue;
     seen.add(e.id);
     let o = objs.get(e.id);
+    const mask = walls.size && e.kind === 'bld' && isWall(e.type) ? wallMask(e, walls) : 0;
     // structures change their look as their side advances through the ages
-    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
+    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}|${mask}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
     if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
-    if (!o) { o = { model: create(e), key }; objs.set(e.id, o); }
+    if (!o) { o = { model: create(e, mask), key }; objs.set(e.id, o); }
     const r = o.model.root;
     r.visible = shownToPlayer(e);
     if (!r.visible) continue;

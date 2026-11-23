@@ -377,7 +377,8 @@ function drawWaygate(g: G2, T: TeamColors): void {
   g.fillStyle = T.m; g.beginPath(); g.rect(28, -16, 8, 8); g.fill(); outline(g, 1);
 }
 
-const ART: Record<BldType, (g: G2, T: TeamColors) => void> = {
+/** 2D art is only the fallback icon when WebGL is missing; newer structures draw as a plain block. */
+const ART: Partial<Record<BldType, (g: G2, T: TeamColors) => void>> = {
   yard: drawYard, power: drawPower, refinery: drawRefinery, barracks: drawBarracks, factory: drawFactory, turret: (g) => drawTurretBase(g), tower: drawTower,
   mill: drawMill, derrick: drawDerrick, works: drawWorks, airfield: drawAirfield, flak: drawFlak, hospital: drawHospital, armory: drawArmory,
   shrine: drawShrine, wardstone: drawWardstone, waygate: drawWaygate,
@@ -392,7 +393,11 @@ export function sprite(type: SpriteType, team: number): Sprite {
   const W = size * TS, c = mkCanvas(W + PAD * 2, W + top + PAD + 4), g = ctx2d(c);
   g.translate(PAD, top + 4);
   if (type === 'source') drawSource(g);
-  else ART[type](g, teamColors(team));
+  else {
+    const draw = ART[type], T = teamColors(team);
+    if (draw) draw(g, T);
+    else { g.fillStyle = T.m; g.fillRect(4, -10, W - 8, W + 6); g.fillStyle = '#888'; g.fillRect(8, -6, W - 16, W - 2); }
+  }
   const s = { c, ox: PAD, oy: top + 4 };
   cache.set(key, s);
   return s;

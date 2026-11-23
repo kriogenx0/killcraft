@@ -8,7 +8,7 @@ import { available, enqueue } from './production.ts';
 import { cloakedFrom, deposits, drawingFrom, holderOf, isDrawing, syncWaygates, waygateLinked } from './aether.ts';
 import { applySnapshot, encodeEnt } from '../net/snapshot.ts';
 import { findPath, isJump } from './path.ts';
-import { acquire, dealDamage, fire } from './combat.ts';
+import { acquire, dealDamage, fire, MELEE_LAND, updProjs } from './combat.ts';
 import type { WeaponType } from '../data/weapon.ts';
 import { orderMove } from './order.ts';
 import { START_YARDS } from '../data/map.ts';
@@ -173,6 +173,7 @@ describe('Aether', () => {
     const blow = (type: 'knight' | 'wraith'): number => {
       const tank = addUnit('tank', 1, 20 * TS, 20 * TS), u = addUnit(type, 0, 20 * TS - 10, 20 * TS);
       fire(u, UNIT[type].weapon as WeaponType, tank);
+      updProjs(MELEE_LAND); // the lance lands
       const lost = tank.maxhp - tank.hp;
       tank.dead = u.dead = true;
       return lost;

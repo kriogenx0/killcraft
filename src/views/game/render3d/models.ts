@@ -12,6 +12,7 @@ import { isAetherBld, type AetherBld, type BldType } from '../../../data/buildin
 import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
+import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
@@ -1077,7 +1078,7 @@ function armory(m: Model, team: number): Model {
   return m;
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld>, team: number): Model {
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld | FixedLook>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -1090,6 +1091,11 @@ function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 
     case 'works': return engineWorks(team);
   }
 }
+
+/** Walls and the newer defenses look the same in every age (each belongs to one). */
+type FixedLook = 'palisade' | 'stonewall' | 'concretewall' | 'pillbox' | 'atturret' | 'bertha';
+const FIXED_LOOK = new Set<BldType>(['palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha']);
+const isFixedLook = (t: BldType): t is FixedLook => FIXED_LOOK.has(t);
 
 /** Industrial-age surfaces: the modern layouts in brick, cast iron and slate, before concrete. */
 function industrial(m: Model): Model {
@@ -1120,6 +1126,7 @@ const ERA_LOOK = [0, 2, 3] as const;
 
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
+  if (isFixedLook(type)) return 3;
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
   if (type === 'derrick' || type === 'works' || type === 'flak') return e < 2 ? 2 : e;
   if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
@@ -1127,7 +1134,11 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
 }
 
 /** A structure as its team builds it in their current age (see data/era.ts). */
-export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1): Model {
+export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length - 1, wallMask = 0): Model {
+  if (isFixedLook(type)) {
+    if (type === 'palisade' || type === 'stonewall' || type === 'concretewall') return cached(`w:${type}:${team}:${wallMask}`, () => wallModel(type, team, wallMask));
+    return cached(`b:${type}:${team}`, () => (type === 'pillbox' ? pillbox(team) : type === 'atturret' ? missileTurret(team) : bertha(team)));
+  }
   const lk = bldLook(type, era);
   if (isAetherBld(type)) return cached(`b:${type}:${team}`, () => aetherBuilding(type, team)); // timeless: the same in every age
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));

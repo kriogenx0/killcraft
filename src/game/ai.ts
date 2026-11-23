@@ -3,11 +3,11 @@
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
-import { TS } from './const.ts';
-import { BUILDING, type BldType } from '../data/building.ts';
+import { MW, TS } from './const.ts';
+import { BUILDING, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
-import { canPlace, sell } from './building.ts';
+import { canPlace, wallLine } from './building.ts';
 import { available, canAfford, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
 import { oilLeft, oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance, orderHaul } from './order.ts';
@@ -103,8 +103,64 @@ function nextStructure(team: number): BldType | null {
   // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
-  if (G.credits[team] > 2500 && countOf(team, 'turret') < 4 && can.includes('turret')) return 'turret';
+  return defense(team, can);
+}
+
+/** Wall segments a computer player puts up, at most. */
+const AI_WALLS = 28;
+/** Segments in each stretch of wall; stretches are spread out, leaving gaps for the side's own units. */
+const AI_WALL_RUN = 4;
+
+/**
+ * Spare money goes into defenses that answer what the enemy fields: pillboxes against infantry,
+ * gun and missile turrets against vehicles, stretches of the best wall the age allows, and one
+ * Big Bertha once the bank is deep.
+ */
+function defense(team: number, can: readonly string[]): BldType | null {
+  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && e.team === 1 - team && e.kind === 'unit' && !isAir(e));
+  const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
+  const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
+  if (credits > 4500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
+  // a stretch of wall for every defensive structure, so the two go up together
+  const wall = (['concretewall', 'stonewall', 'palisade'] as BldType[]).find((t) => can.includes(t) && G.wood[team] >= (BUILDING[t].wood ?? 0) * AI_WALL_RUN);
+  const walls = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && isWall(e.type)).length;
+  if (wall && credits > 1200 && turrets >= 1 && walls < Math.min(AI_WALLS, turrets * AI_WALL_RUN)) return wall;
+  if (credits > 2500 && turrets < 5) {
+    const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
+    const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
+    const pick = infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
+    if (can.includes(pick)) return pick;
+  }
   return null;
+}
+
+const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+
+/**
+ * A short stretch of wall across the approach from the enemy, a few tiles out from the yard, kept
+ * off ore and clear of other structures so harvesters and new units can still get around it.
+ */
+function wallSite(team: number, yard: Ent, foe: Ent | undefined): [Tile, Tile] | null {
+  for (let k = 0; k < 300; k++) {
+    const a = (foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) : Math.random() * Math.PI * 2) + (Math.random() - 0.5) * 2.4;
+    const rad = 5 + Math.random() * (3 + k / 60), cx = yard.x / TS + Math.cos(a) * rad, cy = yard.y / TS + Math.sin(a) * rad;
+    const px = -Math.sin(a), py = Math.cos(a), half = (AI_WALL_RUN - 1) / 2;
+    const x0 = Math.round(cx - px * half), y0 = Math.round(cy - py * half), x1 = Math.round(cx + px * half), y1 = Math.round(cy + py * half);
+    const line = wallLine(x0, y0, x1, y1);
+    if (line.length < 2) continue;
+    const ok = line.every(([x, y]) => canPlace(x, y, 1, team, false, true) && G.ore[y * MW + x] <= 0 && clearAround(x, y));
+    if (ok) return [line[0], line[line.length - 1]];
+  }
+  return null;
+}
+
+/** A free tile between the wall and any structure, and two between stretches, so walls never seal a gap shut. */
+function clearAround(x: number, y: number): boolean {
+  return !G.ents.some((e) => {
+    if (e.dead || e.kind !== 'bld') return false;
+    const m = isWall(e.type) ? 2 : 1;
+    return x >= e.tx - m && x < e.tx + e.w + m && y >= e.ty - m && y < e.ty + e.h + m;
+  });
 }
 
 function findSite(team: number, type: BldType): Tile | null {
@@ -117,7 +173,7 @@ function findSite(team: number, type: BldType): Tile | null {
   let best: Tile | null = null, bestTrees = -1;
   for (let k = 0; k < 200; k++) {
     // turrets face the enemy; everything else clusters around the yard
-    const def = type === 'turret' || type === 'tower' || type === 'flak';
+    const def = DEFENSES.includes(type) || type === 'flak';
     const a = def && foe ? Math.atan2(foe.y - yard.y, foe.x - yard.x) + (Math.random() - 0.5) * 1.8 : Math.random() * Math.PI * 2;
     const rad = (def ? 4 : 2.5) + Math.random() * (4 + k / 25);
     const tx = Math.round(yard.x / TS + Math.cos(a) * rad - s / 2), ty = Math.round(yard.y / TS + Math.sin(a) * rad - s / 2);
@@ -143,6 +199,14 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
 
 function construction(team: number): void {
   const ready = readyStructure(team);
+  if (ready && isWall(ready)) {
+    const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
+    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+    const site = yard ? wallSite(team, yard, foe) : null;
+    if (site) placeReady(team, site[0][0], site[0][1], site[1][0], site[1][1]);
+    else cancel(team, ready);
+    return;
+  }
   if (ready) {
     const site = findSite(team, ready);
     if (site) placeReady(team, site[0], site[1]);
@@ -233,7 +297,10 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  const prod = G.prod[team], credits = G.credits[team] - ais[team].reserve;
+  // down to its last gatherer: troops leave the price of a Worker in hand. Nothing else brings ore
+  // home (scrapped buildings leave ore on the ground), so a side with none left could never recover.
+  const keep = gatherers(team) < 2 ? costOf('worker') : 0;
+  const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep);
   // saving up for the next structure
   const saving = credits < 150;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
@@ -263,17 +330,9 @@ function training(team: number): void {
   }
 }
 
-/** What the computer sells first when it's broke and has nobody left to gather ore. */
-const SELL_FIRST: BldType[] = ['hospital', 'tower', 'turret', 'flak', 'airfield', 'mill', 'factory'];
-
 function upkeep(team: number): void {
   for (const b of G.ents)
     if (!b.dead && b.team === team && b.kind === 'bld' && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
-  // broke with no Workers or harvesters: sell something to pay for a Worker rather than stall for good
-  if (gatherers(team) === 0 && G.credits[team] < costOf('worker') && hasBuilding(team, 'refinery') && hasBuilding(team, 'barracks')) {
-    const b = SELL_FIRST.map((t) => G.ents.find((e) => !e.dead && e.team === team && e.type === t && e.done)).find((e) => !!e);
-    if (b) sell(b);
-  }
 }
 
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */

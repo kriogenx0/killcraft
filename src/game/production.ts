@@ -6,12 +6,12 @@
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
-import { BUILDING, BLD_TYPES, type BldType } from '../data/building.ts';
+import { BUILDING, BLD_TYPES, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, type TechType } from '../data/era.ts';
 import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
-import { exitTile, placeBuilding } from './building.ts';
+import { exitTile, placeBuilding, wallLine } from './building.ts';
 import { orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 
@@ -202,10 +202,26 @@ export function readyStructure(team: number): BldType | null {
   return it?.ready ? (it.type as BldType) : null;
 }
 
-export function placeReady(team: number, tx: number, ty: number): Ent | null {
+/**
+ * Place the finished structure. A wall can be laid as a line to (ex, ey): the first segment is the
+ * one built at the yard, and each further segment is paid in full as it goes down, until the line
+ * ends, something is in the way or the money runs out.
+ */
+export function placeReady(team: number, tx: number, ty: number, ex = tx, ey = ty): Ent | null {
   const type = readyStructure(team);
   if (!type) return null;
-  const b = placeBuilding(team, type, tx, ty);
-  if (b) G.prod[team].structure.shift();
-  return b;
+  const line = isWall(type) ? wallLine(tx, ty, ex, ey) : [[tx, ty] as const];
+  let first: Ent | null = null, extra = 0;
+  for (const [x, y] of line) {
+    if (first && !canAfford(team, type)) { say(team, SHORT_MSG[G.credits[team] < costOf(type) ? 'ore' : 'wood']); break; }
+    const b = placeBuilding(team, type, x, y, line.length > 1);
+    if (!b) { if (first) continue; break; }
+    if (!first) { first = b; G.prod[team].structure.shift(); continue; }
+    const p = priceOf(type);
+    G.credits[team] -= p.ore; G.wood[team] -= p.wood; G.oil[team] -= p.oil;
+    extra++;
+  }
+  if (!first && line.length > 1) say(team, 'Cannot place there');
+  if (extra) say(team, `${extra + 1} wall segments placed`);
+  return first;
 }

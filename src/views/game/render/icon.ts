@@ -137,13 +137,14 @@ export function makeIcons(team = 0): void {
     g.beginPath(); g.arc(0, -8, 8, 0.6, Math.PI * 2 - 0.6 + Math.PI, false); g.fill(); g.stroke();
     g.fillStyle = '#1a1e18'; g.fillRect(-3, -18, 6, 10);
   });
-  ICON.sell = cmd((g) => {
-    // a small stack of gold coins
+  ICON.scrap = cmd((g) => {
+    // a wrecking bar over a heap of rubble
     g.strokeStyle = '#000'; g.lineWidth = 2;
-    for (const [x, y] of [[-6, 8], [6, 8], [0, 0], [0, -8]]) {
-      g.fillStyle = '#b88a18'; g.beginPath(); g.ellipse(x, y + 3, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.fillStyle = '#e8c040'; g.beginPath(); g.ellipse(x, y, 11, 5, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    for (const [x, y, w, h] of [[-12, 6, 10, 8], [-2, 9, 12, 7], [6, 3, 8, 7], [-6, 0, 9, 7]]) {
+      g.fillStyle = '#8a8478'; g.fillRect(x, y, w, h); g.strokeRect(x, y, w, h);
     }
-    g.strokeStyle = '#8a5a00'; g.lineWidth = 1; g.beginPath(); g.ellipse(0, -8, 6, 2.5, 0, 0, Math.PI * 2); g.stroke();
+    g.rotate(-Math.PI / 4);
+    oline(g, 0, -16, 0, 10, 5, '#c8ccd0');
+    oline(g, 0, -16, 6, -19, 5, '#c8ccd0');
   });
 }

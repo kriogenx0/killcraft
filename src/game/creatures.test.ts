@@ -150,6 +150,7 @@ describe('creatures of myth', () => {
     const h = addUnit('hydra', 1, MID.x, MID.y);
     const foes = [0, 1, 2].map((i) => addUnit('swordsman', 0, MID.x + 20, MID.y + (i - 1) * 10));
     fire(h, 'hydrabite', foes[0]);
+    for (let i = 0; i < 0.6 / STEP; i++) update(STEP); // the bites land as the jaws close
     expect(foes.filter((f) => f.hp < f.maxhp).length).toBe(3);
   });
 

@@ -2,7 +2,7 @@
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak'
-  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun'
+  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder';
@@ -18,6 +18,13 @@ export interface WeaponDef {
   speed: number;
   /** splash radius in px (0 = single target) */
   splash: number;
+  /** can't fire at anything closer than this (tiles) */
+  minRange?: number;
+  /**
+   * Lobbed at the spot the target stood when fired, not homing: whatever is there when it lands takes
+   * the hit (buildings and units alike), so moving targets can dodge.
+   */
+  ground?: boolean;
   /** damage multiplier against each armor class (0 = can't hit it at all) */
   vs: Record<ArmorClass, number>;
   /** seconds a hit unit is slowed (see SLOW_FACTOR in data/aether.ts) */
@@ -35,6 +42,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   cannon: { dmg: 32, range: 4.5, cd: 1.6, proj: 'shell', speed: 650, splash: 14, vs: { none: 0.45, light: 0.9, heavy: 1, building: 0.9, air: 0 } },
   heavycannon: { dmg: 46, range: 4.75, cd: 1.9, proj: 'shell', speed: 650, splash: 18, vs: { none: 0.5, light: 0.9, heavy: 1, building: 1, air: 0 } },
   turretcannon: { dmg: 34, range: 5.5, cd: 1.5, proj: 'shell', speed: 700, splash: 12, vs: { none: 0.5, light: 1, heavy: 1, building: 0.5, air: 0 } },
+  pillboxmg: { dmg: 10, range: 5.5, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.7, heavy: 0.15, building: 0.2, air: 0.6 } },
+  atmissile: { dmg: 80, range: 7, cd: 2.8, proj: 'rocket', speed: 360, splash: 8, vs: { none: 0.2, light: 0.9, heavy: 1.25, building: 0.5, air: 0 } },
+  bertha: { dmg: 220, range: 22, minRange: 5, cd: 10, proj: 'shell', speed: 150, splash: 40, ground: true, vs: { none: 0.7, light: 0.8, heavy: 0.8, building: 1, air: 0 } },
   // medieval arms
   sword: { dmg: 18, range: 0.6, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.7, heavy: 0.35, building: 0.5, air: 0 } },
   lance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.45, building: 0.4, air: 0 } },

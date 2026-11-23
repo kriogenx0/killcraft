@@ -77,8 +77,8 @@ export function commandList(): Command[] {
     ];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
-    // Delete, away from the letters, so selling is hard to hit by accident
-    if (first.type !== 'yard') list.push({ id: 'sell', label: 'Sell', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Sell this building for half its value' });
+    // Delete, away from the letters, so scrapping is hard to hit by accident
+    if (first.type !== 'yard') list.push({ id: 'scrap', label: 'Scrap', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Tear this building down. Its scrap is left on the ground as ore for your Workers to carry home' });
     return list;
   }
   return [];
@@ -91,7 +91,7 @@ export function runCommand(id: string): void {
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
-  else if (id === 'sell' && s[0]) { dispatch({ c: 'sell', id: s[0].id }); V.sel = []; }
+  else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }
   refreshCommands(true);
 }
 
