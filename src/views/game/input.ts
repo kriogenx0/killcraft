@@ -3,6 +3,7 @@ import { G, bldDef, isHarvester, tileOf, unitDef, valid, type Ent } from '../../
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TS } from '../../game/const.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
+import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { centerCam, clampCam, ownSelected, selectedUnits, spectating, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
@@ -60,12 +61,18 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
 }
 
-/** Finish a targeting command (move or place) at a world point. */
-function useMode(wx: number, wy: number, hit: Ent | null): void {
+/** Finish a targeting command (move or place) at a world point. Shift-click keeps placing the same structure. */
+function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
   const m = V.mode;
   if (!m) return;
   if (m.t === 'place') {
-    if (m.ok) { dispatch({ c: 'place', tx: m.tx, ty: m.ty }); V.mode = null; }
+    if (m.ok) {
+      dispatch({ c: 'place', type: m.type, tx: m.tx, ty: m.ty });
+      // keep the ghost for another only while the bank still covers one more
+      const p = priceOf(m.type);
+      const left = { ore: G.credits[V.team] - p.ore, wood: G.wood[V.team] - p.wood, oil: G.oil[V.team] - p.oil, aether: (G.aether[V.team] ?? 0) - p.aether };
+      if (!more || left.ore < p.ore || left.wood < p.wood || left.oil < p.oil || left.aether < p.aether) V.mode = null;
+    }
     refreshCommands(true);
     return;
   }
@@ -164,7 +171,7 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       return;
     }
     if (ev.button !== 0) return;
-    if (V.mode) { if (w) useMode(w.x, w.y, pickEntity(ev.clientX, ev.clientY)); return; }
+    if (V.mode) { if (w) useMode(w.x, w.y, pickEntity(ev.clientX, ev.clientY), ev.shiftKey); return; }
     Object.assign(V.mouse, { down: true, drag: false, sx: ev.clientX, sy: ev.clientY });
     canvas.setPointerCapture(ev.pointerId);
   });

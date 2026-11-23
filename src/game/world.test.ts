@@ -5,13 +5,13 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
-import { available, cancel, enqueue, placeReady, readyStructure } from './production.ts';
+import { available, cancel, enqueue, sitesOf, startSite } from './production.ts';
 import { canPlace } from './building.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodRate } from './economy.ts';
 import { dealDamage } from './combat.ts';
 import { OIL_WELLS } from '../data/map.ts';
 import { TREE_WOOD } from '../data/economy.ts';
-import { START_CREDITS, START_UNITS } from '../data/map.ts';
+import { START_CREDITS, START_UNITS, START_WOOD } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { BUILDING } from '../data/building.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
@@ -55,23 +55,48 @@ describe('production', () => {
     }
   });
 
-  it('pays the whole price up front and places a finished structure', () => {
+  it('places a structure first, pays for it then, and builds it on site', () => {
     expect(available(0, 'structure')).toEqual(['power', 'mill']);
-    expect(enqueue(0, 'power')).toBe(true);
-    expect(G.credits[0]).toBe(START_CREDITS - BUILDING.power.cost);
-    run(10);
-    expect(readyStructure(0)).toBe('power');
+    expect(enqueue(0, 'power')).toBe(false); // structures don't queue: they start when placed
+    expect(G.credits[0]).toBe(START_CREDITS);
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
     if (!yard) throw new Error('no yard');
-    // first free spot next to the yard (units standing there block placement)
-    const spots = [[3, -2], [-2, 0], [0, -2], [0, 3], [3, 3], [-2, 3]].map(([dx, dy]) => [yard.tx + dx, yard.ty + dy]);
-    const spot = spots.find(([x, y]) => canPlace(x, y, 2, 0));
-    expect(spot).toBeDefined();
-    const b = placeReady(0, spot?.[0] ?? 0, spot?.[1] ?? 0);
-    expect(b?.type).toBe('power');
-    run(2);
-    expect(power(0).made).toBeGreaterThan(0);
+    // free spots next to the yard (units standing there block placement)
+    const spots = [[3, -2], [-2, 0], [0, -2], [0, 3], [3, 3], [-2, 3], [3, 0], [-2, -2]].map(([dx, dy]) => [yard.tx + dx, yard.ty + dy]).filter(([x, y]) => canPlace(x, y, 2, 0));
+    expect(spots.length).toBeGreaterThanOrEqual(2);
+    const a = startSite(0, 'power', spots[0][0], spots[0][1]);
+    expect(a?.type).toBe('power');
+    expect(a?.done).toBe(false);
+    expect(G.credits[0]).toBe(START_CREDITS - BUILDING.power.cost);
+    // a second one goes up at the same time
+    const b = startSite(0, 'power', spots[1][0], spots[1][1]);
+    expect(b).not.toBeNull();
+    expect(sitesOf(0, 'power')).toHaveLength(2);
+    const made = power(0).made; // the yard's own
+    run(BUILDING.power.t / 2);
+    expect(a?.done).toBe(false);
+    expect(a?.prog).toBeGreaterThan(0.4);
+    expect(a?.hp).toBeLessThan(a?.maxhp ?? 0);
+    expect(power(0).made).toBe(made);
+    run(BUILDING.power.t / 2 + 1);
+    expect(a?.done && b?.done).toBe(true);
+    expect(a?.hp).toBe(a?.maxhp);
+    expect(power(0).made).toBeGreaterThan(made);
     expect(available(0, 'structure')).toContain('refinery');
+  });
+
+  it('refunds the whole price when a site is cancelled', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
+    if (!yard) throw new Error('no yard');
+    const spot = [[3, -2], [-2, 0], [0, -2], [0, 3], [3, 3], [-2, 3]].map(([dx, dy]) => [yard.tx + dx, yard.ty + dy]).find(([x, y]) => canPlace(x, y, 2, 0));
+    const site = startSite(0, 'mill', spot?.[0] ?? 0, spot?.[1] ?? 0);
+    expect(site).not.toBeNull();
+    expect(G.credits[0]).toBeLessThan(START_CREDITS);
+    run(2);
+    expect(cancel(0, 'mill')).toBe(true);
+    expect(site?.dead).toBe(true);
+    expect(G.credits[0]).toBe(START_CREDITS);
+    expect(G.wood[0]).toBe(START_WOOD);
   });
 
   it('starts in the Medieval age with medieval troops only', () => {
@@ -97,7 +122,7 @@ describe('production', () => {
     const works = addBuilding('works', 0, 19, 50, true);
     expect(available(0, 'structure')).not.toContain('works'); // one at a time
     expect(G.era[0]).toBe(0);
-    run(5);
+    run(BUILDING.works.t + 1);
     expect(works.done).toBe(true);
     expect(G.era[0]).toBe(1);
     expect(available(0, 'structure')).not.toContain('works');
@@ -175,10 +200,11 @@ describe('production', () => {
 
   it('stalls without credits instead of going into debt', () => {
     G.credits[0] = 50;
-    enqueue(0, 'power');
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
+    expect(startSite(0, 'power', (yard?.tx ?? 0) + 3, (yard?.ty ?? 0) - 2)).toBeNull();
     run(20);
     expect(G.credits[0]).toBeGreaterThanOrEqual(0);
-    expect(readyStructure(0)).toBeNull();
+    expect(sitesOf(0)).toHaveLength(0);
   });
 
   it('cuts wood with a lumber mill next to trees, and none without', () => {
@@ -264,10 +290,10 @@ describe('production', () => {
     addBuilding('power', 0, 10, 50, false);
     G.credits[0] = 5000;
     G.wood[0] = (BUILDING.barracks.wood ?? 0) - 1;
-    expect(enqueue(0, 'barracks')).toBe(false);
+    expect(startSite(0, 'barracks', 13, 50)).toBeNull();
     expect(G.credits[0]).toBe(5000);
     G.wood[0] = BUILDING.barracks.wood ?? 0;
-    expect(enqueue(0, 'barracks')).toBe(true);
+    expect(startSite(0, 'barracks', 13, 50)).not.toBeNull();
     expect(G.wood[0]).toBe(0);
     expect(G.credits[0]).toBe(5000 - BUILDING.barracks.cost);
     run(4); // part built

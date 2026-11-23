@@ -3,7 +3,7 @@
 import { G } from '../../game/state.ts';
 import { isUnitType } from '../../data/unit.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
+import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -49,7 +49,7 @@ export function selectedProducer(): BldType | null {
 
 /**
  * Production hotkey: with a producing building selected, its items' keys start them (or pick up a
- * finished structure to place), just like clicking them in the sidebar.
+ * structure to place), just like clicking them in the sidebar.
  */
 export function productionHotkey(key: string): boolean {
   const b = selectedProducer(), type = b && itemForKey(b, key);
@@ -58,16 +58,27 @@ export function productionHotkey(key: string): boolean {
   return true;
 }
 
-/** Left click: start, resume, or pick up a finished structure for placement. */
+/** Left click: pick up a structure to place (it's paid for and built once placed), or start or resume an order. */
 function activate(type: Buildable): void {
   if (spectating()) return;
+  if (lineOf(type) === 'structure') {
+    // can't afford it: the build command just reports what's short
+    if (canAfford(V.team, type)) V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false };
+    else dispatch({ c: 'build', type });
+    return;
+  }
   const it = itemsOf(V.team, type)[0];
-  if (it?.ready) { V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false }; return; }
-  dispatch({ c: it?.hold ? 'hold' : 'build', type });
+  if (it?.hold) dispatch({ c: 'hold', type });
+  else dispatch({ c: 'build', type });
 }
 
-/** Right click: put on hold, or cancel if already on hold or finished. */
+/** Right click: put on hold, or cancel if already on hold (a structure: cancel its newest site). */
 function holdOrCancel(type: Buildable): void {
+  if (lineOf(type) === 'structure') {
+    if (V.mode?.t === 'place' && V.mode.type === type) V.mode = null;
+    else dispatch({ c: 'cancel', type });
+    return;
+  }
   const it = itemsOf(V.team, type)[0];
   if (!it) return;
   if (it.hold || it.ready) { dispatch({ c: 'cancel', type }); if (V.mode?.t === 'place' && V.mode.type === type) V.mode = null; }
@@ -80,20 +91,23 @@ export function refreshSidebar(): void {
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
   for (const [type, c] of cells) {
-    const items = itemsOf(V.team, type), first = items[0], line = lineOf(type), head = G.prod[V.team][line][0];
-    const inProgress = head && head.type === type ? head : null;
-    const deg = inProgress ? Math.round(inProgress.prog * 360) : 0;
-    c.progress.style.background = inProgress && !inProgress.ready ? `conic-gradient(rgba(0,0,0,0) ${deg}deg, rgba(0,0,0,.6) 0)` : '';
-    const status = first?.ready ? 'READY' : first?.hold ? 'ON HOLD' : '';
+    const line = lineOf(type), structure = line === 'structure';
+    // a structure's "items" are its sites going up on the map; the ring follows the one nearest done
+    const sites = structure ? sitesOf(V.team, type as BldType) : [];
+    const items = structure ? sites : itemsOf(V.team, type), first = structure ? null : itemsOf(V.team, type)[0], head = G.prod[V.team][line][0];
+    const prog = structure ? Math.max(0, ...sites.map((e) => e.prog)) : head && head.type === type && !head.ready ? head.prog : 0;
+    const deg = Math.round(prog * 360);
+    c.progress.style.background = items.length ? `conic-gradient(rgba(0,0,0,0) ${deg}deg, rgba(0,0,0,.6) 0)` : '';
+    const placing = V.mode?.t === 'place' && V.mode.type === type;
+    const status = placing ? 'PLACE' : first?.hold ? 'ON HOLD' : '';
     if (c.status.textContent !== status) c.status.textContent = status;
-    const count = isUnitType(type) && items.length > 0 ? String(items.length) : '';
+    const count = (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
     c.root.classList.toggle('build-cell--active', items.length > 0);
-    c.root.classList.toggle('build-cell--ready', !!first?.ready);
-    c.root.classList.toggle('build-cell--busy', line === 'structure' && !!head && head.type !== type);
+    c.root.classList.toggle('build-cell--ready', placing);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
-    c.root.classList.toggle('build-cell--short', !first && !canAfford(V.team, type));
+    c.root.classList.toggle('build-cell--short', !items.length && !canAfford(V.team, type));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer);
   }
 }

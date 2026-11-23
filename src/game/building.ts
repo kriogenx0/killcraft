@@ -4,14 +4,15 @@ import { MW, MH, TS, GRASS } from './const.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
-import { addBuilding, addUnit, kill } from './entity.ts';
+import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
 import { nearPortal } from './map.ts';
 import { updTurret } from './combat.ts';
 import { orderHarvest } from './order.ts';
 
-const RISE_TIME = 1.2;
+/** A new site starts with this share of its hit points and gains the rest as it goes up. */
+export const SITE_HP = 0.1;
 
 /** Free tile next to a building, nearest to `toward` (default: below the building, where doors are). */
 export function exitTile(b: Ent, toward?: Point): Tile {
@@ -31,6 +32,7 @@ export function exitTile(b: Ent, toward?: Point): Tile {
 
 function completed(b: Ent): void {
   burst('dust', b.x, b.y + (b.h * TS) / 2, 14, 40, 100);
+  if (!G.visualOnly) say(b.team, `${bldDef(b).name} complete`);
   const to = bldDef(b).advances;
   if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
     G.era[b.team] = Math.min(LAST_ERA, to);
@@ -64,14 +66,21 @@ function repair(b: Ent, dt: number): void {
   b.hp += hp;
 }
 
+/**
+ * A placed structure builds itself on site over its build time (half speed on low power), gaining
+ * hit points as it goes up. Any number of sites can rise at once.
+ */
+function construct(b: Ent, dt: number): void {
+  const step = Math.min(((lowPower(b.team) ? 0.5 : 1) * dt) / bldDef(b).t, 1 - b.prog);
+  b.prog += step;
+  b.hp = Math.min(b.maxhp, b.hp + b.maxhp * (1 - SITE_HP) * step);
+  if (b.prog >= 1 - 1e-9) { b.prog = 1; b.done = true; completed(b); }
+}
+
 export function updBld(b: Ent, dt: number): void {
   b.flash = Math.max(0, b.flash - dt);
   b.atkT = Math.max(0, b.atkT - dt);
-  if (!b.done) {
-    b.prog += dt / RISE_TIME;
-    if (b.prog >= 1) { b.prog = 1; b.done = true; completed(b); }
-    return;
-  }
+  if (!b.done) { construct(b, dt); return; }
   effects(b, dt);
   repair(b, dt);
   updTurret(b, dt);
@@ -105,14 +114,30 @@ export function canPlace(tx: number, ty: number, s: number, team: number, margin
   return true;
 }
 
+/** Lay out a construction site (the caller has checked and paid for it). */
 export function placeBuilding(team: number, type: BldType, tx: number, ty: number): Ent | null {
   if (!canPlace(tx, ty, BUILDING[type].size, team)) { say(team, 'Cannot place there'); return null; }
   for (let y = ty; y < ty + BUILDING[type].size; y++) for (let x = tx; x < tx + BUILDING[type].size; x++) G.ore[y * MW + x] = 0;
-  return addBuilding(type, team, tx, ty, true);
+  const b = addBuilding(type, team, tx, ty, true);
+  b.hp = b.maxhp * SITE_HP;
+  return b;
+}
+
+/** Call off a site that isn't finished: its whole price comes back. */
+export function cancelSite(b: Ent): void {
+  if (b.dead || b.kind !== 'bld' || b.done) return;
+  const d = bldDef(b);
+  G.credits[b.team] += d.cost;
+  G.wood[b.team] += d.wood ?? 0;
+  G.oil[b.team] += d.oil ?? 0;
+  if (d.aether) G.aether[b.team] = (G.aether[b.team] ?? 0) + d.aether;
+  burst('dust', b.x, b.y, 12, 30, 90);
+  kill(b);
 }
 
 export function sell(b: Ent): void {
   if (b.dead || b.kind !== 'bld' || b.type === 'yard') return;
+  if (!b.done) { cancelSite(b); return; }
   const d = bldDef(b), f = SELL_REFUND * (b.hp / b.maxhp);
   G.credits[b.team] += Math.round(d.cost * f);
   G.wood[b.team] += Math.round((d.wood ?? 0) * f);
@@ -125,5 +150,5 @@ export function sell(b: Ent): void {
 }
 
 export function toggleRepair(b: Ent): void {
-  if (b.kind === 'bld' && b.hp < b.maxhp) b.repairing = !b.repairing;
+  if (b.kind === 'bld' && b.done && b.hp < b.maxhp) b.repairing = !b.repairing;
 }

@@ -13,7 +13,7 @@ import { addAether, cloakedFrom, syncWaygates } from '../game/aether.ts';
 import { AETHER_PER_DEPOSIT } from '../data/aether.ts';
 import { lerp } from '../util/math.ts';
 
-const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory'];
+export const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory', 'shrine', 'wardstone', 'waygate'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY] */

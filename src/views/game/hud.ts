@@ -3,11 +3,11 @@ import { G, STANCES, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, typ
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON } from '../../data/weapon.ts';
 import { isUnitProducer, type BldType } from '../../data/building.ts';
-import { power } from '../../game/entity.ts';
+import { lowPower, power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { eraOf, nameOf } from '../../game/production.ts';
+import { eraOf, nameOf, sitesOf } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { linesOf } from './hotkeys.ts';
 import { millRate, oilLeft, oilRate, treesNear, woodRate, storeMax } from '../../game/economy.ts';
@@ -75,6 +75,8 @@ export function commandList(): Command[] {
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
     ];
+  if (first.kind === 'bld' && s.length === 1 && !first.done)
+    return [{ id: 'sell', label: 'Cancel', hotkey: BUILDING_KEYS.sell, icon: ICON.sell, tip: 'Stop building this and get its whole price back' }];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     // Delete, away from the letters, so selling is hard to hit by accident
@@ -160,6 +162,9 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = sideTag(e);
   const pw = d.power > 0 ? `Power +${d.power}` : d.power < 0 ? `Power ${d.power}` : '';
   const own = insight(e) && e.done;
+  if (!e.done)
+    return `<h3>${d.name}${enemy}</h3>${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">Under construction, ${Math.floor(e.prog * 100)}%${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
+      barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
   const yieldText = aetherText || (!own ? '' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees · Wood +${perMin(millRate(e))}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
@@ -173,10 +178,12 @@ export function productionDetails(e: Ent): string {
   const lines = linesOf(e.type as BldType);
   if (!lines.length) return '';
   const queue = lines.flatMap((l) => G.prod[e.team]?.[l] ?? []);
-  if (!queue.length) return '<p class="hud-stats">Not producing</p>';
-  const head = queue[0], state = head.ready ? 'ready to place' : head.hold ? 'on hold' : `${Math.round(head.prog * 100)}%`;
+  const n = lines.includes('structure') ? sitesOf(e.team).length : 0;
+  const sites = n ? `<p class="hud-stats">${n} structure${n > 1 ? 's' : ''} under construction</p>` : '';
+  if (!queue.length) return sites || '<p class="hud-stats">Not producing</p>';
+  const head = queue[0], state = head.hold ? 'on hold' : `${Math.round(head.prog * 100)}%`;
   const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
-  return `<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}`;
+  return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}`;
 }
 
 function detailsMarkup(s: Ent[]): string {

@@ -1,5 +1,5 @@
 // Flat things drawn over the 3D view: health bars and the drag-select box.
-import { G, haulOf, isHarvester, unitDef } from '../../../game/state.ts';
+import { G, haulOf, isHarvester, unitDef, type Ent } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { clamp } from '../../../util/math.ts';
@@ -7,11 +7,24 @@ import { S, worldToScreen } from './scene.ts';
 import { modelHeight } from './entities3d.ts';
 import { drawFloatText } from './float_text.ts';
 
+/** A slim bar just over the part of a site that's up so far, filling as it rises. */
+function drawSiteBar(g: CanvasRenderingContext2D, e: Ent, r: DOMRect): void {
+  const p = worldToScreen(e.x, e.y, modelHeight(e) * Math.max(0.15, e.prog) + 0.2);
+  if (!p.front) return;
+  const bw = e.w * 16, x = p.sx - r.left - bw / 2, y = p.sy - r.top;
+  g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x - 1, y - 1, bw + 2, 4);
+  g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, y, bw, 2);
+  g.fillStyle = 'rgba(150,220,255,.85)'; g.fillRect(x, y, bw * clamp(e.prog, 0, 1), 2);
+}
+
 export function drawOverlay(g: CanvasRenderingContext2D): void {
   const w = g.canvas.width, h = g.canvas.height, r = S.canvas.getBoundingClientRect();
   g.clearRect(0, 0, w, h);
   for (const e of G.ents) {
-    if (e.dead || e.kind === 'source' || !shownToPlayer(e) || (e.hp >= e.maxhp && !V.sel.includes(e))) continue;
+    if (e.dead || e.kind === 'source' || !shownToPlayer(e)) continue;
+    // a construction site: a thin, quiet progress bar instead of a health bar (its health is in the panel)
+    if (e.kind === 'bld' && !e.done) { drawSiteBar(g, e, r); continue; }
+    if (e.hp >= e.maxhp && !V.sel.includes(e)) continue;
     const p = worldToScreen(e.x, e.y, modelHeight(e) + 0.15);
     if (!p.front) continue;
     const x0 = p.sx - r.left, y0 = p.sy - r.top;

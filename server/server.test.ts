@@ -1,5 +1,8 @@
 // Starts the real server and plays the opening of a match with two WebSocket clients.
 import { START_CREDITS } from '../src/data/map.ts';
+import { BUILDING } from '../src/data/building.ts';
+import { TS } from '../src/game/const.ts';
+import { TYPES } from '../src/net/snapshot.ts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import { startServer, type RunningServer } from './main.ts';
@@ -62,10 +65,18 @@ describe('game server', () => {
     // the enemy base starts far away, under fog
     expect(first.ents.some((r) => r[2] === 1 - startA.team)).toBe(false);
 
-    a.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'build', type: 'power' } }));
-    a.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'build', type: 'nuke' } })); // ignored
+    // structures are placed first, then build on site: try spots round the yard until one takes
+    const yard = own.find((r) => TYPES[r[1]] === 'yard');
+    if (!yard) throw new Error('no yard');
+    const [yx, yy] = [Math.floor(yard[3] / TS) - 1, Math.floor(yard[4] / TS) - 1];
+    for (const [dx, dy] of [[3, -2], [-2, 0], [0, -2], [0, 3], [3, 3], [-2, 3]])
+      a.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'place', type: 'power', tx: yx + dx, ty: yy + dy } }));
+    a.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'place', type: 'nuke', tx: yx, ty: yy } })); // ignored
     const later = (await a.next('snap', (m) => m.k === 'snap' && m.credits < START_CREDITS)) as SnapMsg;
-    expect(later.prod.structure[0]?.type).toBe('power');
+    const sites = later.ents.filter((r) => r[2] === startA.team && TYPES[r[1]] === 'power');
+    expect(sites.length).toBeGreaterThan(0);
+    expect(later.credits).toBe(START_CREDITS - sites.length * BUILDING.power.cost);
+    expect(sites.every((r) => r[10] < 100)).toBe(true); // still going up
 
     b.ws.close();
     const end = await a.next('end');

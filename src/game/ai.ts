@@ -7,7 +7,7 @@ import { BUILDING, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace, sell } from './building.ts';
-import { available, canAfford, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
+import { available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
@@ -130,18 +130,17 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
   return best;
 }
 
+/** Sites the computer keeps going at once: one, or two with money in the bank. */
+const maxSites = (team: number): number => (G.credits[team] > 2500 ? 2 : 1);
+
 function construction(team: number): void {
-  const ready = readyStructure(team);
-  if (ready) {
-    const site = findSite(team, ready);
-    if (site) placeReady(team, site[0], site[1]);
-    else cancel(team, ready);
-    return;
-  }
-  if (G.prod[team].structure.length) { ais[team].reserve = 0; return; }
+  if (sitesOf(team).length >= maxSites(team)) { ais[team].reserve = 0; return; }
   const t = nextStructure(team);
+  if (!t) { ais[team].reserve = 0; return; }
   // structures are paid for up front: save up for one rather than spend everything on troops
-  ais[team].reserve = t && !enqueue(team, t) ? costOf(t) : 0;
+  if (!canAfford(team, t)) { ais[team].reserve = costOf(t); return; }
+  const site = findSite(team, t);
+  ais[team].reserve = site && startSite(team, t, site[0], site[1]) ? 0 : costOf(t);
 }
 
 /**

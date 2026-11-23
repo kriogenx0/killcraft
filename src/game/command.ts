@@ -3,10 +3,10 @@
 import { STANCES, isHarvester, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
-import { BLD_TYPES } from '../data/building.ts';
+import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
 import { groupMove, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
-import { cancel, enqueue, placeReady, toggleHold, type Buildable } from './production.ts';
+import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { sell, toggleRepair } from './building.ts';
 
 export type Command =
@@ -20,7 +20,7 @@ export type Command =
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
   | { c: 'cancel'; type: Buildable }
-  | { c: 'place'; tx: number; ty: number }
+  | { c: 'place'; type: BldType; tx: number; ty: number }
   | { c: 'repair'; id: number }
   | { c: 'sell'; id: number };
 
@@ -53,9 +53,9 @@ export function parseCommand(raw: unknown): Command | null {
     case 'build':
     case 'hold':
     case 'cancel':
-      return typeof o.type === 'string' && BUILDABLE.has(o.type) ? { c: o.c, type: o.type as Buildable } : null;
+      return typeof o.type === 'string' && BUILDABLE.has(o.type) ? { c: o.c as 'build' | 'hold' | 'cancel', type: o.type as Buildable } as Command : null;
     case 'place':
-      return inMap(o.tx, o.ty) ? { c: 'place', tx: o.tx as number, ty: o.ty as number } : null;
+      return typeof o.type === 'string' && (BLD_TYPES as readonly string[]).includes(o.type) && inMap(o.tx, o.ty) ? { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number } : null;
     case 'repair':
     case 'sell':
       return isInt(o.id) ? { c: o.c, id: o.id } : null;
@@ -112,7 +112,7 @@ export function applyCommand(team: number, cmd: Command): void {
       cancel(team, cmd.type);
       break;
     case 'place':
-      placeReady(team, cmd.tx, cmd.ty);
+      startSite(team, cmd.type, cmd.tx, cmd.ty);
       break;
     case 'repair': {
       const b = ownBuilding(team, cmd.id);

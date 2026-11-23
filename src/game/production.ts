@@ -1,4 +1,5 @@
-// Sidebar production: one structure and one research (an age, or the Aether Ward) at a time from the Construction Yard,
+// Sidebar production: structures are placed first and then build on site (any number at once, see
+// startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Construction Yard,
 // one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
 // The whole price (ore, wood, oil, Aether) is paid when an order starts; an order the side can't
@@ -11,7 +12,7 @@ import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, 
 import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
-import { exitTile, placeBuilding } from './building.ts';
+import { cancelSite, canPlace, exitTile, placeBuilding } from './building.ts';
 import { orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 
@@ -104,25 +105,58 @@ function fundsNotice(team: number, short: keyof typeof SHORT_MSG): void {
   if (G.gameT - (lastFundsNotice[team] ?? -99) > FUNDS_NOTICE) { lastFundsNotice[team] = G.gameT; say(team, SHORT_MSG[short]); }
 }
 
-/** Start an order, paying its whole price now. Returns false if it can't start (or can't be afforded). */
-export function enqueue(team: number, type: Buildable): boolean {
-  const line = lineOf(type), q = G.prod[team][line];
-  if (!available(team, line).includes(type)) return false;
-  const research = line === 'tech' || line === 'hospital' || line === 'armory', max = line === 'structure' || research ? 1 : QUEUE_MAX;
-  if (q.length >= max) { say(team, line === 'structure' ? 'Already building' : research ? 'Already researching' : 'Queue is full'); return false; }
-  const short = shortOf(team, type);
-  if (short) { fundsNotice(team, short); return false; }
+function pay(team: number, type: Buildable): void {
   const p = priceOf(type);
   G.credits[team] -= p.ore;
   G.wood[team] -= p.wood;
   G.oil[team] -= p.oil;
   if (p.aether) G.aether[team] -= p.aether;
-  q.push({ type, prog: 0, spent: p.ore, ready: false, hold: false });
+}
+
+/**
+ * Start an order, paying its whole price now. Returns false if it can't start (or can't be afforded).
+ * Structures don't queue: they start when placed (startSite), so for one this only reports a shortfall.
+ */
+export function enqueue(team: number, type: Buildable): boolean {
+  const line = lineOf(type), q = G.prod[team][line];
+  if (!available(team, line).includes(type)) return false;
+  const short = shortOf(team, type);
+  if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
+  const research = line === 'tech' || line === 'hospital' || line === 'armory', max = research ? 1 : QUEUE_MAX;
+  if (q.length >= max) { say(team, research ? 'Already researching' : 'Queue is full'); return false; }
+  if (short) { fundsNotice(team, short); return false; }
+  pay(team, type);
+  q.push({ type, prog: 0, spent: priceOf(type).ore, ready: false, hold: false });
   return true;
 }
 
-/** Remove the last queued item of a type and refund its whole price. */
+/** Can the team lay out this structure here right now (available, affordable, and a free spot)? */
+export function canStartSite(team: number, type: BldType, tx: number, ty: number): boolean {
+  return available(team, 'structure').includes(type) && canAfford(team, type) && canPlace(tx, ty, BUILDING[type].size, team);
+}
+
+/** Place a structure: pay its whole price and lay out a site that builds itself. */
+export function startSite(team: number, type: BldType, tx: number, ty: number): Ent | null {
+  if (!available(team, 'structure').includes(type)) return null;
+  const short = shortOf(team, type);
+  if (short) { fundsNotice(team, short); return null; }
+  const b = placeBuilding(team, type, tx, ty);
+  if (b) pay(team, type);
+  return b;
+}
+
+/** A team's structures still going up, oldest first (optionally of one type). */
+export function sitesOf(team: number, type?: BldType): Ent[] {
+  return G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && !e.done && (!type || e.type === type));
+}
+
+/** Cancel the newest queued item of a type (or the newest site of a structure) and refund its whole price. */
 export function cancel(team: number, type: Buildable): boolean {
+  if (lineOf(type) === 'structure') {
+    const site = sitesOf(team, type as BldType).pop();
+    if (site) cancelSite(site);
+    return !!site;
+  }
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
     if (q[i].type === type) {
@@ -186,22 +220,7 @@ export function updProduction(team: number, dt: number): void {
     if (!producerOf(team, line)) { cancel(team, it.type); continue; }
     it.prog += Math.min((speed * dt) / timeOf(it.type), 1 - it.prog);
     if (it.prog < 1 - 1e-9) continue;
-    if (line === 'structure') { it.ready = true; say(team, 'Construction complete'); }
-    else if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }
+    if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }
     else { q.shift(); deliver(team, it.type as UnitType); }
   }
-}
-
-/** The structure waiting to be placed, if any. */
-export function readyStructure(team: number): BldType | null {
-  const it = G.prod[team].structure[0];
-  return it?.ready ? (it.type as BldType) : null;
-}
-
-export function placeReady(team: number, tx: number, ty: number): Ent | null {
-  const type = readyStructure(team);
-  if (!type) return null;
-  const b = placeBuilding(team, type, tx, ty);
-  if (b) G.prod[team].structure.shift();
-  return b;
 }
