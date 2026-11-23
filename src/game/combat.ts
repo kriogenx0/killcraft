@@ -11,6 +11,8 @@ import { payBounty } from './bounty.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
+import { kneeling, subdue } from './creatures.ts';
+import { GUARD_RADIUS as WILD_REACH } from '../data/creatures.ts';
 import { armorFactor, weaponFactor } from './upgrade.ts';
 
 const ALERT_COOLDOWN = 8;
@@ -32,7 +34,7 @@ export const canHit = (wt: WeaponType | null, t: Ent): boolean => !!wt && t.kind
 export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 
 export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
-  if (t.dead || t.kind === 'source') return;
+  if (t.dead || t.kind === 'source' || kneeling(t)) return;
   t.hp -= Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
   t.flash = 0.1;
   if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
@@ -46,8 +48,9 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
       hooks.alert(t.team, t.x, t.y);
     }
   }
+  if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
   if (t.hp <= 0) { hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
-  if (t.kind !== 'unit' || !src || src.dead || src.team === t.team || src.team < 0) return;
+  if (t.kind !== 'unit' || !src || src.dead || src.team === t.team || (src.team < 0 && !src.wild)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
   // idle units react: engaging ones fight back, passive ones run
@@ -84,7 +87,9 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   hooks.fired(s, wt, t);
   if (w.proj === 'melee') {
     // the swing starts now; the blow and its damage land as the blade comes down (see updProjs)
-    G.projs.push({ kind: 'melee', x: s.x, y: s.y, z: 0, z0: 0, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: 0, d0: 0, tr: 0, a: 0, dead: false });
+    // many heads bite many foes at once
+    for (const e of [t, ...(w.heads ? otherFoesInReach(s, t, wt, w.heads - 1) : [])])
+      G.projs.push({ kind: 'melee', x: s.x, y: s.y, z: 0, z0: 0, tid: e.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: 0, d0: 0, tr: 0, a: 0, dead: false });
     return;
   }
   // gunpowder flashes; bows and catapults don't
@@ -102,13 +107,24 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   G.projs.push({ ...ground, kind: w.proj, x: bomb ? s.x : mx, y: bomb ? s.y : air ? s.y + Math.sin(s.tface) * 10 : my + z, z, z0: z, tid: t.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: w.speed, d0: Math.hypot(t.x - s.x, t.y - s.y), tr: 0, a: 0, dead: false });
 }
 
+/** Up to `n` foes besides `t` within a melee weapon's reach of `s`. */
+function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number): Ent[] {
+  const r = WEAPON[wt].range * TS, out: Ent[] = [];
+  for (const e of G.ents) {
+    if (out.length >= n) break;
+    if (e === t || e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+    if (edgeDist(s, e) <= r) out.push(e);
+  }
+  return out;
+}
+
 /** How long (s) a unit remembers who hit it. */
 const FOE_MEMORY = 4;
 
 /** The enemy that is attacking this unit, if it hit lately and can be fought back. */
 export function attacker(u: Ent): Ent | null {
   const f = valid(u.foe);
-  if (!f || G.gameT - u.foeT > FOE_MEMORY || !canAttack(u, f) || cloakedFrom(f, u.team)) return null;
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !canAttack(u, f) || cloakedFrom(f, u.team) || kneeling(f)) return null;
   return f;
 }
 
@@ -124,18 +140,22 @@ export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number): Ent 
   return null;
 }
 
-/** Best enemy within a radius (tiles): armed units first, then other units, then buildings. */
+/**
+ * Best enemy within a radius (tiles): armed units first, then other units, then buildings. Wild
+ * creatures (data/creatures.ts) are fair game too, after real enemies.
+ */
 export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false, minTiles = 0): Ent | null {
   const r = radiusTiles * TS, rmin = minTiles * TS;
   // a gun that outranges its own sight only fires at what its side can see
   const spotted = s.kind === 'bld' && radiusTiles > bldDef(s).sight ? G.sight[s.team] : null;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
-    if (e.dead || e.team === s.team || e.team < 0 || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
+    if (e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
+    if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
-    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : weaponOf(e) ? 0 : 40);
+    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40);
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -158,7 +178,7 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
-  if (!d.weapon || !canHit(d.weapon, t) || cloakedFrom(t, u.team)) return false;
+  if (!d.weapon || !canHit(d.weapon, t) || cloakedFrom(t, u.team) || kneeling(t)) return false;
   const w = WEAPON[d.weapon], r = approach(u, t, w.range * TS, dt);
   if (r === null) return false;
   if (r && aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }

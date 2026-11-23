@@ -138,6 +138,7 @@ export function mountGameView(root: HTMLElement): void {
     G.oil[V.team] = s.oil ?? 0;
     G.aether[V.team] = s.aether ?? 0;
     G.aetherFound[V.team] = !!s.aetherFound;
+    G.tamed[V.team] = s.tamed ?? [];
     G.ward[V.team] = !!s.ward;
     G.era[V.team] = s.era ?? 0;
     G.heal[V.team] = s.heal ?? 0;

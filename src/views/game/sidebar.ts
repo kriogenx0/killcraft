@@ -1,7 +1,8 @@
 // The production sidebar: one column of structures, one of units. Cells are created when the
 // available list changes and updated in place every frame, so clicks are never lost.
 import { G } from '../../game/state.ts';
-import { isUnitType } from '../../data/unit.ts';
+import { UNIT, isUnitType } from '../../data/unit.ts';
+import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
 import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
@@ -23,6 +24,13 @@ let structureList: HTMLElement, unitList: HTMLElement;
 const cells = new Map<Buildable, Cell>();
 let listKey = '';
 
+/** The description, plus damage per second (with this side's Armory upgrades) for anything armed. */
+function withDps(t: Buildable): string {
+  const wt = isUnitType(t) ? UNIT[t].weapon : t in BUILDING ? BUILDING[t as BldType].weapon : null;
+  if (!wt) return descOf(t);
+  return `${descOf(t)} · DPS ${dpsText(wt, isUnitType(t) ? teamWeaponBonus(V.team, t) : 1)}`;
+}
+
 function rebuild(structures: Buildable[], units: Buildable[]): void {
   // structure pictures follow the team's age, like the buildings on the map
   for (const t of [...structures, 'yard']) {
@@ -30,7 +38,7 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   }
   const html = (list: Buildable[]) => list.map((t) => {
     const p = producerOfType(t);
-    return buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], descOf(t), hotkeyOf(t), p ? BUILDING[p].name : '');
+    return buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], withDps(t), hotkeyOf(t), p ? BUILDING[p].name : '');
   }).join('');
   structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Construction Yard</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';
@@ -86,7 +94,7 @@ function holdOrCancel(type: Buildable): void {
 
 export function refreshSidebar(): void {
   const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
-  const key = `${V.team}|${eraOf(V.team)}|${structures.join()}|${units.join()}`;
+  const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
   for (const [type, c] of cells) {

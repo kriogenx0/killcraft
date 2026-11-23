@@ -1,5 +1,6 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
-// and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them.
+// and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
+// and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MW, TS } from './const.ts';
@@ -11,6 +12,9 @@ import { available, canAfford, cancel, costOf, enqueue, placeReady, priceOf, rea
 import { oilLeft, oilNear, treesNear } from './economy.ts';
 import { orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
+import { wildBeasts } from './creatures.ts';
+import { canAttack } from './combat.ts';
+import { CAPTURE_REACH } from '../data/creatures.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY } from '../data/aether.ts';
 
 interface AiState {
@@ -23,16 +27,23 @@ interface AiState {
   guards: Set<number>;
   /** ore set aside for the next structure, which must be paid for in full before it starts */
   reserve: number;
+  /** units sent to capture a wild creature, and the creature */
+  hunters: Set<number>;
+  prey: number | null;
 }
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), reserve: 0 },
-  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0 },
+  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
+  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
 ];
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
 const GUARDS = 2;
 const GUARD_ARMY = 5;
+/** The hunting party sent after a wild creature, the fewest worth sending, and the army it takes first. */
+const HUNTERS = 5;
+const MIN_HUNTERS = 3;
+const HUNT_ARMY = 9;
 
 const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
 const MAX_WAVE = 30;
@@ -40,8 +51,8 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
 export function resetAi(teams = 2): void {
-  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0 });
-  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.foe = teams === 2 ? 1 - team : -1; });
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -302,7 +313,7 @@ function training(team: number): void {
   }
   // a few aircraft once there's money to spare
   if (!saving && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2]]);
     if (t) enqueue(team, t);
   }
   // Workers: about three per refinery for ore before the Modern age, plus one per mill and derrick to haul
@@ -313,7 +324,8 @@ function training(team: number): void {
   if (!saving && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
-    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5]]);
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5],
+      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5]]);
     if (t) enqueue(team, t);
   }
 }
@@ -347,6 +359,36 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
 }
 
 /**
+ * Send a hunting party after the nearest wild creature it can fight: they beat it down, then stand
+ * beside it until it's captured. The party goes home to the army once the creature is gone.
+ */
+function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
+  const A = ais[team];
+  for (const id of A.hunters) { const h = G.byId.get(id); if (!h || h.dead || h.team !== team) A.hunters.delete(id); }
+  let prey = A.prey != null ? G.byId.get(A.prey) : undefined;
+  if (!prey || prey.dead || !prey.wild || !A.hunters.size) { prey = undefined; A.prey = null; A.hunters.clear(); }
+  if (!prey && home && army.length >= HUNT_ARMY) {
+    const near = (e: Ent) => Math.hypot(e.x - home.x, e.y - home.y);
+    for (const b of wildBeasts().sort((a, c) => near(a) - near(c))) {
+      const party = army.filter((u) => !u.order && canAttack(u, b)).sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y)).slice(0, HUNTERS);
+      if (party.length < MIN_HUNTERS) continue;
+      prey = b;
+      A.prey = b.id;
+      for (const u of party) A.hunters.add(u.id);
+      break;
+    }
+  }
+  if (!prey?.wild) return;
+  for (const id of A.hunters) {
+    const h = G.byId.get(id);
+    if (!h || h.order?.t === 'attack') continue;
+    const d = Math.hypot(h.x - prey.x, h.y - prey.y);
+    if (prey.wild.down) { if (!h.order && d > CAPTURE_REACH * TS * 0.6) orderMove(h, tileOf(prey.x), tileOf(prey.y) + 1); }
+    else if (!h.order) orderMove(h, tileOf(prey.x), tileOf(prey.y));
+  }
+}
+
+/**
  * Send a unit toward a tile, unless it is already fighting someone on the way there, or already
  * heading close enough to it. Re-giving the same order every think would make it drop the fight
  * (or its path) and pick it up again: attack, stop, attack, stop.
@@ -362,7 +404,8 @@ function military(team: number): void {
   if (foe < 0) return;
   const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon);
   holdAether(team, all, homeOf(team));
-  const army = all.filter((e) => !A.guards.has(e.id));
+  huntBeasts(team, all.filter((e) => !A.guards.has(e.id)), homeOf(team));
+  const army = all.filter((e) => !A.guards.has(e.id) && !A.hunters.has(e.id));
   // fast raiders shoot on the move; everyone else stops to fight (the default stance)
   for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = homeOf(team);

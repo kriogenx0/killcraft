@@ -64,6 +64,8 @@ export interface SnapMsg {
   aetherFound: boolean;
   /** the team has researched the Aether Ward */
   ward: boolean;
+  /** creature kinds the team has captured, and so can train */
+  tamed: string[];
   /** the team's age of technology */
   era: number;
   /** the team's healing level */

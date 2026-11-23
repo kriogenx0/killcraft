@@ -103,6 +103,22 @@ export interface Ent extends Target {
   slowT?: number;
   /** game time until which a cloaked unit shows after firing */
   shownT?: number;
+  /** a wild creature guarding its lair (data/creatures.ts); dropped once a side captures it */
+  wild?: Wild;
+}
+
+/** A wild creature's lair, and whether it's kneeling and being captured. */
+export interface Wild {
+  /** lair, px */
+  lx: number;
+  ly: number;
+  /** beaten down and kneeling */
+  down: boolean;
+  /** game time it knelt */
+  downT: number;
+  /** the side capturing it (-1 for none) and seconds held so far */
+  by: number;
+  held: number;
 }
 
 /** Shots in flight, and sword and lance blows on their way down ('melee': lands after MELEE_LAND seconds). */
@@ -181,6 +197,8 @@ export const G = {
   aether: [] as number[],
   /** each team has drawn Aether at least once, revealing its hidden units */
   aetherFound: [] as boolean[],
+  /** creature kinds each team has captured, and so can train (data/creatures.ts) */
+  tamed: [] as string[][],
   /** the side with a bounty on it for being far ahead (see bounty.ts), or -1 */
   leader: -1,
   /** each team has researched the Aether Ward */

@@ -14,6 +14,7 @@ import { part } from './fx.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE } from '../data/unit.ts';
 import { hasBuilding } from './entity.ts';
+import { updWild } from './creatures.ts';
 
 const AUTO_CHASE = 9 * TS;
 const ORE_SEARCH = 24;
@@ -274,10 +275,12 @@ export function refreshHealRates(): void {
   for (let team = 0; team < G.teams; team++) rates[team] = healRate(team);
 }
 
-/** Organic units slowly regain health. */
+/** Organic units slowly regain health, and a few creatures (the Hydra) grow back wounds by themselves. */
 function regen(u: Ent, dt: number): void {
-  if (u.hp >= u.maxhp || !isOrganic(u)) return;
-  u.hp = Math.min(u.maxhp, u.hp + u.maxhp * (rates[u.team] ?? HEAL_RATE[0]) * dt);
+  const own = unitDef(u).regen ?? 0;
+  if (u.hp >= u.maxhp || u.wild?.down || (!own && !isOrganic(u))) return;
+  const rate = (isOrganic(u) ? rates[u.team] ?? HEAL_RATE[0] : 0) + own;
+  u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
 }
 
 /** The most hurt organic ally (not the medic itself) within a radius, if any. */
@@ -312,6 +315,7 @@ export function updUnit(u: Ent, dt: number): void {
   unstick(u, dt);
   // vehicle turrets drift back to the hull's heading when idle
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
+  if (u.wild) { updWild(u, dt); return; } // guards its lair (data/creatures.ts)
   const o = u.order;
   if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {

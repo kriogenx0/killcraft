@@ -33,8 +33,12 @@ export interface Price { ore: number; wood: number; oil: number; aether: number 
 export const priceOf = (t: Buildable): Price => { const d = defOf(t); return { ore: d.cost, wood: d.wood ?? 0, oil: d.oil ?? 0, aether: 'aether' in d ? d.aether ?? 0 : 0 }; };
 /** Does the team have enough of every resource for the whole price? */
 export const canAfford = (team: number, t: Buildable): boolean => { const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
-/** Things that cost Aether stay hidden until the side first finds some. */
-const revealed = (team: number, t: Buildable): boolean => priceOf(t).aether <= 0 || !!G.aetherFound[team];
+/**
+ * Things that cost Aether stay hidden until the side first finds some. Creatures of myth only show
+ * once the side has captured one of their kind (data/creatures.ts).
+ */
+const revealed = (team: number, t: Buildable): boolean =>
+  isUnitType(t) && UNIT[t].beast ? !!G.tamed[team]?.includes(t) : priceOf(t).aether <= 0 || !!G.aetherFound[team];
 const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;

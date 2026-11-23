@@ -58,7 +58,7 @@ function sendSnapshots(): void {
   const ore = snaps++ % ORE_EVERY === 0 ? encodeOre() : undefined;
   for (const team of TEAMS) {
     const snap: SnapMsg = {
-      k: 'snap', t: Math.round(G.gameT * 10) / 10, credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team], era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
+      k: 'snap', t: Math.round(G.gameT * 10) / 10, credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team], tamed: G.tamed[team] ?? [], era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
       ents: G.ents.filter((e) => !e.dead && visibleTo(e, team)).map((e) => encodeEnt(e, e.team === team)),
       ev: pending[team].splice(0), ore,
     };

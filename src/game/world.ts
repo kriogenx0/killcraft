@@ -14,6 +14,7 @@ import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
 import { bankAether, drawAether, placeAether, shrineHeal, syncWaygates } from './aether.ts';
+import { captureBeasts, placeCreatures } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
@@ -51,6 +52,8 @@ export function initWorld(seed: number, teams = 2): void {
   rebuildBlk();
   placeAether(G.seed);
   rebuildBlk();
+  placeCreatures(G.seed);
+  rebuildBlk();
   updFog();
 }
 
@@ -82,14 +85,14 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   G.aiT -= dt;
   if (G.aiT <= 0) {
     G.aiT = AI_INTERVAL;
     ais.forEach((a, team) => {
-      if (!a.on) return;
+      if (!a.on || team >= G.teams) return; // sides left over from a bigger match sit out
       try { aiThink(team); } catch (err) { hooks.error(err); }
     });
   }

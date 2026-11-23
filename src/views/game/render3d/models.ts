@@ -14,6 +14,7 @@ import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, 
 import { medievalBuilding } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
+import { creatureModel } from './creatures3d.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -649,6 +650,7 @@ function aetherUnit(type: UnitType, team: number): Model {
 }
 
 function makeUnit(type: UnitType, team: number): Model {
+  if (UNIT[type].beast) return creatureModel(type, team) ?? rifleman(team);
   if (UNIT[type].look) return aetherUnit(type, team);
   switch (type) {
     case 'rifleman': return rifleman(team);
