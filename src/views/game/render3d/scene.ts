@@ -1,6 +1,10 @@
 // The three.js scene: renderer, orbit camera, sun and sky light, and conversions between the
 // screen, the 3D scene and world px. Scene units are tiles: x east, y up, z south.
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { TS } from '../../../game/const.ts';
 import { eye } from '../camera_rig.ts';
 import { V } from '../view_state.ts';
@@ -66,6 +70,7 @@ export function resizeScene(w: number, h: number): void {
   S.canvas.style.height = `${h}px`;
   S.camera.aspect = w / Math.max(1, h);
   S.camera.updateProjectionMatrix();
+  resizeComposer(w, h);
 }
 
 let camY = 0;
@@ -84,9 +89,9 @@ export function updateCamera(): void {
   sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 100;
   sc.updateProjectionMatrix();
   const fog = S.scene.fog as THREE.Fog;
-  // a light haze over distant ground when the camera looks out toward the horizon
-  fog.near = c.dist * 1.3 + 6;
-  fog.far = c.dist * 5 + 40;
+  // a light haze toward the horizon, the same at every zoom so the map doesn't change colour as you zoom
+  fog.near = 70;
+  fog.far = 190;
 }
 
 const ndc = new THREE.Vector2(), hit = new THREE.Vector3();
@@ -154,6 +159,46 @@ export function viewFootprint(): [number, number][] {
   });
 }
 
-export function renderScene(): void {
-  S.renderer.render(S.scene, S.camera);
+// ---- ambient occlusion: soft shading in corners, under eaves, and where things meet the ground ----
+
+let composer: EffectComposer | null = null, ao: GTAOPass | null = null;
+let aoMode: 'auto' | 'on' | 'off' = 'auto', slowFrames = 0, lastFrame = 0, frameMs = 16;
+
+function initComposer(w: number, h: number): void {
+  const q = new URLSearchParams(location.search).get('ao');
+  aoMode = q === '0' ? 'off' : q === '1' ? 'on' : 'auto';
+  if (aoMode === 'off') return;
+  const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: 4 });
+  composer = new EffectComposer(S.renderer, target);
+  composer.addPass(new RenderPass(S.scene, S.camera));
+  ao = new GTAOPass(S.scene, S.camera, w, h);
+  // AO at half resolution: it's soft anyway, and that keeps it cheap
+  const setSize = ao.setSize.bind(ao);
+  ao.setSize = (sw: number, sh: number) => setSize(Math.ceil(sw / 2), Math.ceil(sh / 2));
+  ao.updateGtaoMaterial({ radius: 0.6, distanceExponent: 1.4, thickness: 1.5, scale: 1.1, samples: 12 });
+  ao.blendIntensity = 1;
+  composer.addPass(ao);
+  composer.addPass(new OutputPass());
 }
+
+function resizeComposer(w: number, h: number): void {
+  if (!composer && aoMode !== 'off') initComposer(w, h);
+  composer?.setPixelRatio(S.renderer.getPixelRatio());
+  composer?.setSize(w, h);
+}
+
+export function renderScene(): void {
+  const now = performance.now();
+  if (lastFrame) frameMs = frameMs * 0.95 + Math.min(100, now - lastFrame) * 0.05;
+  lastFrame = now;
+  // on a slow machine, drop the ambient occlusion rather than the frame rate
+  if (composer && aoMode === 'auto') {
+    slowFrames = frameMs > 26 ? slowFrames + 1 : 0;
+    if (slowFrames > 120) { composer = null; console.info('Ambient occlusion off: frames too slow'); }
+  }
+  if (composer) composer.render();
+  else S.renderer.render(S.scene, S.camera);
+}
+
+// in development, expose the scene for poking at from the console (draw calls, triangles)
+if (import.meta.env?.DEV) (globalThis as unknown as Record<string, unknown>).__scene = S;

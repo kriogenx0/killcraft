@@ -47,6 +47,11 @@ export function orderHarvest(u: Ent, tx: number, ty: number): void {
   setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0 });
 }
 
+/** Haul wood from a Lumber Mill or oil from an Oil Derrick back to base, over and over. */
+export function orderHaul(u: Ent, src: Ent): void {
+  setOrder(u, { t: 'harvest', st: 'go', tx: src.tx, ty: src.ty, wait: 0, res: src.type === 'mill' ? 'wood' : 'oil', src: src.id });
+}
+
 /** Take the current load to a refinery, then carry on harvesting. */
 export function orderReturn(u: Ent): void {
   setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });

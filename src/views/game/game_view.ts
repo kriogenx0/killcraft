@@ -1,7 +1,7 @@
 // The game view: wires the engine, renderer, sidebar, HUD and input to the page and runs the
 // frame loop. Solo and AI-vs-AI games simulate here; online games draw what the server sends.
 import { G, hooks } from '../../game/state.ts';
-import { STEP, TS } from '../../game/const.ts';
+import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { START_YARDS } from '../../data/map.ts';
 import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, update } from '../../game/world.ts';
@@ -20,6 +20,8 @@ import { ctx2d } from '../../util/canvas.ts';
 import { mountLobby } from '../lobby/lobby_view.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
 import { canPlace } from '../../game/building.ts';
+import { addBuilding, addUnit } from '../../game/entity.ts';
+import { UNIT, type UnitType } from '../../data/unit.ts';
 import { initTerrain } from './render/terrain.ts';
 import { makeIcons } from './render/icon.ts';
 import { drawMinimap, initFog } from './render/minimap.ts';
@@ -28,7 +30,9 @@ import { initScene, setMood, renderScene, resizeScene, updateCamera, viewFootpri
 import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
+import { initBurning, updateBurning } from './render3d/burn3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
+import { updateAetherBeams } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
@@ -76,6 +80,7 @@ export function mountGameView(root: HTMLElement): void {
     initPortals3d();
     resetEntities3d();
     initFx3d();
+    initBurning();
   };
 
   G.reveal = q.has('reveal');
@@ -99,10 +104,13 @@ export function mountGameView(root: HTMLElement): void {
     const r = sidebar.getBoundingClientRect(), right = r.left > V.vw / 2;
     V.viewW = Math.max(1, Math.round(right ? r.left : V.vw));
     V.viewH = Math.max(1, Math.round(right ? V.vh : r.top));
+    if (V.viewW === overlay.width && V.viewH === overlay.height) return;
     resizeScene(V.viewW, V.viewH);
     overlay.width = V.viewW;
     overlay.height = V.viewH;
     clampCam();
+    // resizing clears the canvas, so draw again now rather than show a blank frame
+    try { updateCamera(); renderScene(); drawOverlay(og); } catch (err) { hooks.error(err); }
   };
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(sidebar);
@@ -113,7 +121,8 @@ export function mountGameView(root: HTMLElement): void {
   // ---- solo and AI vs AI ----
   const startSolo = (demo: boolean) => {
     closeModal(startModal);
-    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: [!demo, false] });
+    // spectators see the whole map, so they can follow and inspect every side
+    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: [!demo, false], reveal: G.reveal || demo });
     ais[0].on = demo;
     ais[1].on = true;
     V.team = 0;
@@ -237,7 +246,9 @@ export function mountGameView(root: HTMLElement): void {
       updateCamera();
       syncEntities(dt);
       updateFx3d();
+      updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);
+      updateAetherBeams();
       animateWater(dt);
       renderScene();
       drawOverlay(og);
@@ -252,16 +263,51 @@ export function mountGameView(root: HTMLElement): void {
 }
 
 /**
+ * Lay out one of every structure (and a row of every unit) for your side near the middle of the
+ * map, to look at the models: ?showcase, or ?showcase=units / ?showcase=buildings.
+ */
+function showcase(what: string): void {
+  ais.forEach((a) => { a.on = false; });
+  const free = (tx: number, ty: number, s: number) => {
+    for (let y = ty - 1; y <= ty + s; y++) for (let x = tx - 1; x <= tx + s; x++) if (x < 0 || y < 0 || x >= MW || y >= MH || G.blk[y * MW + x] || G.terr[y * MW + x] !== 0) return false;
+    return true;
+  };
+  let tx = 16, ty = 22;
+  if (what !== 'units')
+    for (const type of Object.keys(BUILDING) as BldType[]) {
+      const s = BUILDING[type].size;
+      for (let tries = 0; tries < 400 && !free(tx, ty, s); tries++) { tx += 1; if (tx > 48) { tx = 16; ty += 1; } }
+      if (!free(tx, ty, s)) continue;
+      addBuilding(type, V.team, tx, ty, false);
+      tx += s + 1;
+      if (tx > 46) { tx = 16; ty += 4; }
+    }
+  if (what === 'buildings') return;
+  ty += 4;
+  (Object.keys(UNIT) as UnitType[]).forEach((type, i) => {
+    const u = addUnit(type, V.team, (18 + (i % 12) * 1.5) * TS, (ty + Math.floor(i / 12) * 1.5) * TS);
+    u.face = u.tface = Math.PI / 2;
+  });
+}
+
+/**
  * URL options for testing: ?seed=N map seed, ?auto start a solo game, ?demo AI vs AI, ?online open
  * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?reveal no fog, ?cam=x,y center on a
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
- * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N.
+ * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
+ * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
+ * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
  */
 function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean) => void, openLobby: (quick: boolean, join?: string) => void): void {
   if (q.has('online') || q.has('join')) { openLobby(q.get('online') === 'quick', q.get('join') ?? undefined); return; }
   if (q.has('demo')) startSolo(true);
   else if (q.has('auto')) startSolo(false);
   if (q.has('era')) G.era[V.team] = Math.max(0, Math.min(LAST_ERA, Number(q.get('era')) || 0));
+  if (q.has('showcase')) showcase(q.get('showcase') ?? '');
+  const dmg = (q.get('damage') ?? '').split(',').map(Number).filter((f) => f > 0);
+  if (dmg.length) G.ents.filter((e) => e.kind === 'bld' && e.team === V.team).forEach((e, i) => { e.hp = e.maxhp * dmg[i % dmg.length]; });
+  const armor = Number(q.get('armor'));
+  if (armor > 0 && G.upg[V.team]) G.upg[V.team].infArmor = G.upg[V.team].vehArmor = Math.min(3, armor);
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
   const sim = Number(q.get('sim') ?? 0) / STEP;
   for (let i = 0; i < sim && !G.over; i++) update(STEP);

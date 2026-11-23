@@ -1,20 +1,21 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
-import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, type Ent, type Tile } from './state.ts';
-import { TECH, isTechType, type TechType } from '../data/era.ts';
+import { G, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { TECH, isTechType } from '../data/era.ts';
 import { TS } from './const.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
-import type { UnitType } from '../data/unit.ts';
+import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
-import { canPlace } from './building.ts';
-import { available, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
-import { oilNear, treesNear } from './economy.ts';
-import { orderMove, setStance } from './order.ts';
+import { canPlace, sell } from './building.ts';
+import { available, canAfford, cancel, costOf, enqueue, placeReady, priceOf, readyStructure } from './production.ts';
+import { oilLeft, oilNear, treesNear } from './economy.ts';
+import { orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 import { wildBeasts } from './creatures.ts';
 import { canAttack } from './combat.ts';
 import { CAPTURE_REACH } from '../data/creatures.ts';
+import { AETHER_BANK_REACH, AETHER_CARRY } from '../data/aether.ts';
 
 interface AiState {
   on: boolean;
@@ -24,14 +25,16 @@ interface AiState {
   foe: number;
   /** units kept home to guard an Aether crystal */
   guards: Set<number>;
+  /** ore set aside for the next structure, which must be paid for in full before it starts */
+  reserve: number;
   /** units sent to capture a wild creature, and the creature */
   hunters: Set<number>;
   prey: number | null;
 }
 
 export const ais: AiState[] = [
-  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), hunters: new Set(), prey: null },
-  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), hunters: new Set(), prey: null },
+  { on: false, attackAt: 8, attacking: false, foe: 1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
+  { on: true, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
 ];
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
@@ -48,8 +51,8 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
 export function resetAi(teams = 2): void {
-  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), hunters: new Set(), prey: null });
-  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.hunters.clear(); a.prey = null; a.foe = teams === 2 ? 1 - team : -1; });
+  while (ais.length < teams) ais.push({ on: true, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
+  ais.forEach((a, team) => { a.attackAt = 8; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -59,6 +62,11 @@ const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team
 /** Keep fighting the same side until it falls, then turn on the nearest one left. */
 function foeOf(team: number): number {
   const A = ais[team];
+  // everyone turns on a side with a bounty on it (see bounty.ts)
+  if (G.leader >= 0 && G.leader !== team && standing(G.leader)) {
+    if (A.foe !== G.leader) { A.foe = G.leader; A.attacking = false; }
+    return G.leader;
+  }
   if (A.foe >= 0 && A.foe !== team && standing(A.foe)) return A.foe;
   const home = homeOf(team) ?? G.ents.find((e) => !e.dead && e.team === team);
   let best = -1, bestD = Infinity;
@@ -92,8 +100,10 @@ function nextStructure(team: number): BldType | null {
   const aether = G.aether[team] ?? 0;
   if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
   if (can.includes('shrine') && countOf(team, 'shrine') < 1 && aether >= (BUILDING.shrine.aether ?? 0) + 40 && G.credits[team] > 1200) return 'shrine';
+  // short of wood with ore to spare: another mill, by fresh trees
+  if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
-  if (G.credits[team] > 2500 && countOf(team, 'turret') < 6 && can.includes('turret')) return 'turret';
+  if (G.credits[team] > 2500 && countOf(team, 'turret') < 4 && can.includes('turret')) return 'turret';
   return null;
 }
 
@@ -139,9 +149,10 @@ function construction(team: number): void {
     else cancel(team, ready);
     return;
   }
-  if (G.prod[team].structure.length) return;
+  if (G.prod[team].structure.length) { ais[team].reserve = 0; return; }
   const t = nextStructure(team);
-  if (t) enqueue(team, t);
+  // structures are paid for up front: save up for one rather than spend everything on troops
+  ais[team].reserve = t && !enqueue(team, t) ? costOf(t) : 0;
 }
 
 /**
@@ -154,21 +165,45 @@ function research(team: number): void {
   // healing is researched at the Hospital, alongside the yard
   const heal = available(team, 'hospital').filter(isTechType)[0];
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
-  if (heal && !G.prod[team].hospital.length && infantry >= 4 && credits > costOf(heal) * 0.6 + 300 && hasHalf(team, heal)) enqueue(team, heal);
+  if (heal && !G.prod[team].hospital.length && infantry >= 4 && credits > costOf(heal) + 300 && canAfford(team, heal)) enqueue(team, heal);
   if (G.prod[team].tech.length) return;
   const can = available(team, 'tech').filter(isTechType);
   const age = can.find((t) => TECH[t].age != null);
-  if (age && G.credits[team] > costOf(age) * 0.6 + 200 && hasHalf(team, age)) { enqueue(team, age); return; }
+  if (age && G.credits[team] > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); return; }
   const ward = can.find((t) => TECH[t].ward);
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
+}
+
+const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
+
+/** Mills and derricks worth sending a hauler to (a dry derrick with an empty store isn't). */
+const stores = (team: number): Ent[] => [...ownDone(team, 'mill'), ...ownDone(team, 'derrick').filter((d) => d.carry > 1 || oilLeft(d) > 0)];
+
+function workersWanted(team: number): number {
+  const ore = G.era[team] >= UNIT.harvester.era ? 0 : countOf(team, 'refinery') * 3;
+  return Math.min(14, ore + stores(team).length);
+}
+
+/** Keep one Worker hauling from every mill and derrick, taken off the ore if need be. */
+function assignHaulers(team: number): void {
+  const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
+  const hauling = (b: Ent) => workers.some((w) => w.order?.t === 'harvest' && w.order.src === b.id);
+  for (const b of stores(team)) {
+    if (hauling(b)) continue;
+    const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res));
+    // leave at least one on the ore while Workers are the only miners
+    if (G.era[team] < UNIT.harvester.era && free.filter((w) => w.order?.t === 'harvest').length <= 1 && free.every((w) => w.order)) return;
+    const w = free.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
+    if (!w) return;
+    orderHaul(w, b);
+  }
 }
 
 /** Workers and harvesters on the team. */
 const gatherers = (team: number): number => G.ents.filter((e) => !e.dead && e.team === team && isHarvester(e)).length;
 
 /** At least half the wood and oil a research needs is in the bank. */
-const hasHalf = (team: number, t: TechType): boolean => { const p = priceOf(t); return G.wood[team] >= p.wood * 0.5 && G.oil[team] >= p.oil * 0.5; };
 
 /**
  * Armory upgrades once there's an army to improve, favoring whichever side (troops or machines) the
@@ -198,9 +233,9 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  const prod = G.prod[team], credits = G.credits[team];
-  // leave money for the next structure while it's being built
-  const saving = prod.structure.length > 0 && credits < 500;
+  const prod = G.prod[team], credits = G.credits[team] - ais[team].reserve;
+  // saving up for the next structure
+  const saving = credits < 150;
   if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
     const refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
@@ -214,8 +249,8 @@ function training(team: number): void {
     const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2]]);
     if (t) enqueue(team, t);
   }
-  // before the Modern age, Workers gather the ore: about three per refinery
-  if (hasBuilding(team, 'barracks') && available(team, 'infantry').includes('worker') && countOf(team, 'worker') < Math.min(9, countOf(team, 'refinery') * 3) &&
+  // Workers: about three per refinery for ore before the Modern age, plus one per mill and derrick to haul
+  if (hasBuilding(team, 'barracks') && available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = credits > 2500 ? 4 : 2;
@@ -228,9 +263,17 @@ function training(team: number): void {
   }
 }
 
+/** What the computer sells first when it's broke and has nobody left to gather ore. */
+const SELL_FIRST: BldType[] = ['hospital', 'tower', 'turret', 'flak', 'airfield', 'mill', 'factory'];
+
 function upkeep(team: number): void {
   for (const b of G.ents)
     if (!b.dead && b.team === team && b.kind === 'bld' && b.hp < b.maxhp * 0.6 && G.credits[team] > 600) b.repairing = true;
+  // broke with no Workers or harvesters: sell something to pay for a Worker rather than stall for good
+  if (gatherers(team) === 0 && G.credits[team] < costOf('worker') && hasBuilding(team, 'refinery') && hasBuilding(team, 'barracks')) {
+    const b = SELL_FIRST.map((t) => G.ents.find((e) => !e.dead && e.team === team && e.type === t && e.done)).find((e) => !!e);
+    if (b) sell(b);
+  }
 }
 
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */
@@ -245,10 +288,14 @@ function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
     const free = army.filter((u) => !A.guards.has(u.id) && !u.order).sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y));
     for (const u of free.slice(0, GUARDS - A.guards.size)) A.guards.add(u.id);
   }
-  // guards drift back to the deposit whenever they're idle away from it
+  // guards drift back to the deposit whenever they're idle away from it, and carry Aether home when full
   for (const id of A.guards) {
     const g = G.byId.get(id);
-    if (g && !g.order && Math.hypot(g.x - target.x, g.y - target.y) > 1.5 * TS) orderMove(g, tileOf(target.x), tileOf(target.y) + 1);
+    if (!g || g.order) continue;
+    const atHome = Math.hypot(g.x - home.x, g.y - home.y) < (AETHER_BANK_REACH + 2) * TS;
+    if ((g.ae ?? 0) >= AETHER_CARRY - 0.5 && !atHome) orderMove(g, tileOf(home.x), tileOf(home.y) + 3);
+    else if ((g.ae ?? 0) > 0 && atHome) continue; // banking
+    else if (Math.hypot(g.x - target.x, g.y - target.y) > 1.5 * TS) orderMove(g, tileOf(target.x), tileOf(target.y) + 1);
   }
 }
 
@@ -282,6 +329,17 @@ function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
   }
 }
 
+/**
+ * Send a unit toward a tile, unless it is already fighting someone on the way there, or already
+ * heading close enough to it. Re-giving the same order every think would make it drop the fight
+ * (or its path) and pick it up again: attack, stop, attack, stop.
+ */
+function advance(u: Ent, tx: number, ty: number): void {
+  const o = u.order;
+  if (o?.t === 'move' && (valid(o.sub) || Math.max(Math.abs(o.gx - tx), Math.abs(o.gy - ty)) <= 3)) return;
+  orderMove(u, tx, ty);
+}
+
 function military(team: number): void {
   const A = ais[team], foe = foeOf(team);
   if (foe < 0) return;
@@ -297,7 +355,7 @@ function military(team: number): void {
     const threat = G.ents.find((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < 14 * TS);
     if (threat)
       for (const u of army)
-        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) orderMove(u, tileOf(threat.x), tileOf(threat.y));
+        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));
   }
   const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld');
   if (!targets.length) targets.push(...G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit'));
@@ -310,7 +368,7 @@ function military(team: number): void {
   if (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2)) {
     A.attacking = true;
     A.attackAt = Math.min(MAX_WAVE, A.attackAt + 3);
-    for (const u of army) if (!u.order || u.order.t === 'move') orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
+    for (const u of army) if (!u.order || u.order.t === 'move') advance(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
     for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   }
@@ -324,6 +382,8 @@ function military(team: number): void {
   // muster new troops in front of the base
   const a = Math.atan2(tgt.y - home.y, tgt.x - home.x);
   for (const u of idle) {
+    // idle troops carrying bounty loot take it home to bank it
+    if (u.loot) { orderMove(u, tileOf(home.x), tileOf(home.y) + 3); continue; }
     const d = Math.hypot(u.x - home.x, u.y - home.y);
     if (d > 9 * TS && (!A.attacking || d < 12 * TS)) orderMove(u, tileOf(home.x + Math.cos(a) * 6 * TS), tileOf(home.y + Math.sin(a) * 6 * TS));
   }
@@ -331,6 +391,7 @@ function military(team: number): void {
 
 export function aiThink(team: number): void {
   construction(team);
+  assignHaulers(team);
   research(team);
   armory(team);
   training(team);

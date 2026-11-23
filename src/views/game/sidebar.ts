@@ -3,11 +3,11 @@
 import { G } from '../../game/state.ts';
 import { isUnitType } from '../../data/unit.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { available, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
+import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
-import { V, ownSelected } from './view_state.ts';
+import { V, ownSelected, spectating } from './view_state.ts';
 import { hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
@@ -60,6 +60,7 @@ export function productionHotkey(key: string): boolean {
 
 /** Left click: start, resume, or pick up a finished structure for placement. */
 function activate(type: Buildable): void {
+  if (spectating()) return;
   const it = itemsOf(V.team, type)[0];
   if (it?.ready) { V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false }; return; }
   dispatch({ c: it?.hold ? 'hold' : 'build', type });
@@ -91,6 +92,8 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--ready', !!first?.ready);
     c.root.classList.toggle('build-cell--busy', line === 'structure' && !!head && head.type !== type);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
+    // orders are paid in full up front: dim what the bank can't cover yet
+    c.root.classList.toggle('build-cell--short', !first && !canAfford(V.team, type));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer);
   }
 }

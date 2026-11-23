@@ -12,17 +12,22 @@ body {
   background: #000;
   // no browser pinch or double-tap zoom; the game zooms its own camera. Scrolling panels still scroll.
   touch-action: pan-x pan-y;
+  // no grey flash over whatever is tapped on phones
+  -webkit-tap-highlight-color: transparent;
 }
 
-// Interface chrome isn't selectable; readable text is.
-body {
+// Nothing in the game selects as text, and a long press brings up no menu; only real text fields do.
+// touch-action: manipulation also stops double-tap zoom on every element, iOS Safari included.
+* {
+  -webkit-touch-callout: none;
   user-select: none;
+  touch-action: manipulation;
 }
 
-h1,
-h2,
-h3,
-p {
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-touch-callout: default;
   user-select: text;
 }
 

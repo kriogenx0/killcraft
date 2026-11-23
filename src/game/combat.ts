@@ -7,6 +7,7 @@ import { edgeDist } from './path.ts';
 import { angleDiff, approach, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
 import { dropSalvage } from './economy.ts';
+import { payBounty } from './bounty.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
@@ -41,11 +42,14 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
     }
   }
   if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
-  if (t.hp <= 0) { hooks.killedBy(t, src); kill(t); dropSalvage(t); return; }
+  if (t.hp <= 0) { hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
+  if (t.kind !== 'unit' || !src || src.dead || src.team === t.team || (src.team < 0 && !src.wild)) return;
+  // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
+  if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
   // idle units react: engaging ones fight back, passive ones run
-  if (t.kind === 'unit' && !t.order && src && !src.dead && src.team !== t.team) {
+  if (!t.order) {
     if (t.stance === 'passive') orderFlee(t, src);
-    else if (t.stance === 'engage' && src.kind === 'unit' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
+    else if (t.stance === 'engage' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
   }
 }
 
@@ -100,15 +104,37 @@ function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number): Ent[] {
   return out;
 }
 
+/** How long (s) a unit remembers who hit it. */
+const FOE_MEMORY = 4;
+
+/** The enemy that is attacking this unit, if it hit lately and can be fought back. */
+export function attacker(u: Ent): Ent | null {
+  const f = valid(u.foe);
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !canAttack(u, f) || cloakedFrom(f, u.team) || kneeling(f)) return null;
+  return f;
+}
+
+/**
+ * A better target than the current one, or null to keep it. Whoever is attacking the unit comes
+ * first; and nobody keeps hacking at something that can't fight back (a plain building, a
+ * harvester) while an armed enemy is within reach.
+ */
+export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number): Ent | null {
+  const a = attacker(u);
+  if (a && a !== cur && edgeDist(u, a) <= radiusTiles * TS) return a;
+  if (cur && !weaponOf(cur)) return acquire(u, radiusTiles, false, true);
+  return null;
+}
+
 /**
  * Best enemy within a radius (tiles): armed units first, then other units, then buildings. Wild
  * creatures (data/creatures.ts) are fair game too, after real enemies.
  */
-export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | null {
+export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false): Ent | null {
   const r = radiusTiles * TS;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
-    if (e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || cloakedFrom(e, s.team)) continue;
+    if (e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || !canAttack(s, e)) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 80 : weaponOf(e) ? 0 : 40);
@@ -120,7 +146,13 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false): Ent | n
 /** Rotate the weapon toward a target; returns true once it is aimed. */
 export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
   const want = Math.atan2(t.y - s.y, t.x - s.x);
-  if (!hasTurret) { s.face = s.tface = want; return true; }
+  if (!hasTurret) {
+    // on the move, shoot from the hip rather than steer off course; standing, turn the body to face
+    s.tface = want;
+    if (s.moving || weaponOf(s) === 'bomb') return true; // bombs just drop
+    s.face = turnToward(s.face, want, unitDef(s).turn * dt);
+    return angleDiff(s.face, want) < AIM_TOLERANCE;
+  }
   s.tface = turnToward(s.tface, want, TURRET_TURN * dt);
   return angleDiff(s.tface, want) < AIM_TOLERANCE;
 }
@@ -145,15 +177,15 @@ export function fireOnTheMove(u: Ent, dt: number): void {
   const w = WEAPON[d.weapon];
   let t = valid(u.shot);
   if (t && (edgeDist(u, t) > w.range * TS || cloakedFrom(t, u.team))) t = null;
-  if (!t) {
-    u.shot = null;
-    u.scan -= dt;
-    if (u.scan > 0) return;
+  u.scan -= dt;
+  if (!t) u.shot = null;
+  if (u.scan <= 0) {
     u.scan = 0.3;
-    t = acquire(u, w.range);
-    if (!t) return;
-    u.shot = t.id;
+    // shoot back at an attacker in range first, and prefer armed enemies over buildings
+    const b = betterTarget(u, t, w.range) ?? (t ? null : acquire(u, w.range));
+    if (b) { t = b; u.shot = b.id; }
   }
+  if (!t) return;
   if (aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
 }
 

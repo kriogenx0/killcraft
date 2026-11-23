@@ -21,15 +21,15 @@ export type EntRow = [number, number, number, number, number, number, number, nu
 /** fire: shooter, target, weapon · died: id · say: message · alert: x, y */
 export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number];
 
-const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8;
-/** a wild creature kneeling, waiting to be captured (above the stance bits) */
-const KNEELING = 64;
+const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8, DRAWING = 64;
+/** a wild creature kneeling, waiting to be captured */
+const KNEELING = 128;
 /** two bits above the flags: the stance of one of our own units (the HUD shows it) */
 const STANCE_SHIFT = 4;
 
 export function encodeEnt(e: Ent, own: boolean): EntRow {
   const stance = own && e.kind === 'unit' ? STANCES.indexOf(e.stance) << STANCE_SHIFT : 0;
-  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | (e.wild?.down ? KNEELING : 0) | stance;
+  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance;
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
     Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y)];
@@ -99,6 +99,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     e.repairing = (flags & REPAIRING) !== 0;
     e.stance = STANCES[(flags >> STANCE_SHIFT) & 3] ?? 'engage';
     if (flags & FIRING) e.atkT = Math.max(e.atkT, 0.05);
+    e.drawT = flags & DRAWING ? G.gameT + 0.4 : 0;
     // a unit with no side is a wild creature guarding its lair; captured ones join a side
     if (e.kind === 'unit') {
       e.team = team;

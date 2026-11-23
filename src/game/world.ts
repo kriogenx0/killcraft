@@ -13,11 +13,12 @@ import { updFx } from './fx.ts';
 import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
-import { drawAether, placeAether, shrineHeal, syncWaygates } from './aether.ts';
+import { bankAether, drawAether, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { captureBeasts, placeCreatures } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
+import { bankLoot, updLeader } from './bounty.ts';
 
 const FOG_INTERVAL = 0.2;
 const AI_INTERVAL = 1;
@@ -28,7 +29,7 @@ export function initWorld(seed: number, teams = 2): void {
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1,
-    alertT: each(() => -99), lastAlert: null, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     credits: each(() => START_CREDITS), wood: each(() => START_WOOD), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), upg: each(noUpgrades), prod: each(emptyProduction),
   });
   while (G.sight.length < n) G.sight.push(new Uint8Array(MW * MH));
@@ -84,7 +85,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   G.aiT -= dt;

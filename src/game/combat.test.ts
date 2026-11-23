@@ -94,6 +94,18 @@ describe('stances', () => {
     return { u, prey, gx };
   }
 
+  it('fights back against an attacker before a building or harvester that can’t', () => {
+    const [x, y] = openGround(10);
+    const u = addUnit('tank', 0, x + 4 * TS, y), prey = addUnit('harvester', 1, x + 7 * TS, y);
+    orderAttack(u, prey);
+    run(2);
+    expect(prey.hp).toBeLessThan(prey.maxhp);
+    const foe = addUnit('rifleman', 1, x + TS, y);
+    run(12);
+    expect(foe.dead).toBe(true);
+    expect(prey.dead).toBe(false);
+  });
+
   it('stop and attack (the default): a moving unit stops to fight what it meets', () => {
     const { u, prey, gx } = walkPast('tank', 'engage', 8);
     expect(prey.hp).toBeLessThan(prey.maxhp);
