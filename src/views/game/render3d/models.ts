@@ -11,7 +11,7 @@ import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
 import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { medievalBuilding } from './medieval.ts';
+import { medievalBuilding, smithy } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, flak, helicopter } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
@@ -1081,19 +1081,59 @@ function hospital(m: Model): Model {
   return m;
 }
 
-/** An Armory is a barracks-sized forge: an anvil on a stump out front and a shield with crossed swords. */
-function armory(m: Model, team: number): Model {
-  const iron = M.iron(), h = Math.max(0.7, m.height * 0.8);
-  m.root.add(mesh(cyl(0.1, 0.11, 0.16, 10), M.darkWood(), 0.62, 0.08, 0.8)); // stump
-  m.root.add(mesh(box(0.2, 0.07, 0.1), iron, 0.62, 0.19, 0.8)); // anvil
-  m.root.add(mesh(box(0.08, 0.04, 0.06), iron, 0.62, 0.135, 0.8));
-  m.root.add(mesh(cyl(0.025, 0.03, h, 6), M.darkWood(), 0.82, h / 2, 0.82));
-  m.root.add(group(0.82, h + 0.1, 0.82,
-    mesh(box(0.28, 0.24, 0.03), teamMat(team), 0, 0.02, 0),
-    rot(mesh(cone(0.14, 0.12, 4), teamMat(team), 0, -0.14, 0), Math.PI, Math.PI / 4, 0),
-    rot(mesh(box(0.035, 0.36, 0.04), M.steel(), 0, 0, 0), 0, 0, 0.7),
-    rot(mesh(box(0.035, 0.36, 0.04), M.steel(), 0, 0, 0), 0, 0, -0.7)));
-  return m;
+/**
+ * Armory, World War and Modern: an arsenal. A flat-roofed, windowless magazine with a stepped
+ * parapet, a tall square chimney from its foundry (the `flue0` part smokes), a roller door under the
+ * team's crossed-swords crest, and a yard of shell pyramids, ammunition crates and a gun barrel on
+ * trestles. Squared off and chimneyed, so it never reads as the Barracks' round hut.
+ */
+function arsenal(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  // the magazine: thick walls, a parapet, a team band, roof vents
+  root.add(mesh(box(1.5, 0.62, 0.86), M.concrete(), 0, 0.37, -0.45));
+  root.add(mesh(box(1.56, 0.08, 0.92), M.lightConcrete(), 0, 0.72, -0.45));
+  root.add(mesh(box(1.52, 0.06, 0.88), tm, 0, 0.6, -0.45));
+  root.add(mesh(box(0.7, 0.2, 0.6), M.concrete(), -0.3, 0.86, -0.5));
+  root.add(mesh(box(0.74, 0.04, 0.64), M.metalRoof(), -0.3, 0.98, -0.5));
+  for (const x of [0.25, 0.5]) {
+    root.add(mesh(cyl(0.05, 0.05, 0.1, 10), M.steel(), x, 0.81, -0.6));
+    root.add(mesh(cone(0.07, 0.05, 10), M.darkSteel(), x, 0.885, -0.6));
+  }
+  // buttresses along the front
+  for (const x of [-0.72, -0.2, 0.2, 0.72]) root.add(rot(mesh(box(0.08, 0.5, 0.14), M.lightConcrete(), x, 0.27, -0.0), -0.18, 0, 0));
+  // roller door with hazard stripes, and the crest over it
+  root.add(mesh(box(0.5, 0.42, 0.02), M.darkSteel(), -0.0, 0.27, -0.01));
+  for (let i = 0; i < 6; i++) root.add(mesh(box(0.5, 0.008, 0.024), M.gun(), 0, 0.1 + i * 0.065, -0.005));
+  for (let i = 0; i < 6; i++) root.add(rot(mesh(box(0.05, 0.05, 0.022), i % 2 ? M.dark() : M.hazard(), -0.22 + i * 0.088, 0.075, 0.0), 0, 0, Math.PI / 4));
+  root.add(group(0, 0.57, 0.0,
+    mesh(box(0.24, 0.2, 0.03), tm, 0, 0.02, 0),
+    rot(mesh(cone(0.12, 0.1, 4), tm, 0, -0.12, 0), Math.PI, Math.PI / 4, 0),
+    rot(mesh(box(0.03, 0.3, 0.04), M.steel(), 0, 0, 0.02), 0, 0, 0.7),
+    rot(mesh(box(0.03, 0.3, 0.04), M.steel(), 0, 0, 0.02), 0, 0, -0.7)));
+  // foundry chimney at the back corner
+  root.add(mesh(box(0.22, 1.5, 0.22), M.brick(), 0.62, 0.8, -0.72));
+  for (const y of [1.2, 1.4]) root.add(mesh(box(0.235, 0.05, 0.235), tm, 0.62, y, -0.72));
+  root.add(mesh(box(0.27, 0.05, 0.27), M.darkStone(), 0.62, 1.57, -0.72));
+  const flue = new THREE.Object3D();
+  flue.position.set(0.62, 1.6, -0.72);
+  root.add(flue);
+  parts.flue0 = flue;
+  // the yard: a pyramid of shells, ammunition crates, a gun barrel on trestles
+  for (let row = 0; row < 3; row++)
+    for (let i = 0; i < 3 - row; i++) {
+      const x = -0.75 + i * 0.09 + row * 0.045, y = 0.1 + row * 0.075;
+      root.add(along(mesh(cyl(0.035, 0.035, 0.22, 8), M.brass(), x, y, 0.45)));
+    }
+  for (const [x, z, h] of [[-0.42, 0.62, 0], [-0.42, 0.62, 1], [-0.25, 0.65, 0]] as const) {
+    root.add(mesh(box(0.16, 0.1, 0.12), M.olive(), x, 0.11 + h * 0.1, z));
+    root.add(mesh(box(0.165, 0.02, 0.125), tm, x, 0.11 + h * 0.1, z));
+  }
+  for (const x of [0.3, 0.7]) root.add(mesh(box(0.05, 0.14, 0.2), M.darkWood(), x, 0.13, 0.55));
+  root.add(along(mesh(cyl(0.05, 0.07, 0.7, 12), M.gun(), 0.5, 0.24, 0.55)));
+  root.add(along(mesh(cyl(0.065, 0.065, 0.06, 12), M.darkSteel(), 0.2, 0.24, 0.55)));
+  return { root, parts, height: 1.6 };
 }
 
 function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld | FixedLook>, team: number): Model {
@@ -1265,13 +1305,14 @@ export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length
   const lk = bldLook(type, era);
   if (isAetherBld(type)) return cached(`b:${type}:${team}`, () => aetherBuilding(type, team)); // timeless: the same in every age
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
-  if (type === 'hospital' || type === 'armory') {
-    // both are barracks-sized buildings told apart by what stands out front
+  if (type === 'armory') return cached(`b:${type}:${team}:${lk}`, () => (lk <= 1 ? smithy(team, lk === 1) : lk === 2 ? industrial(arsenal(team)) : arsenal(team)));
+  if (type === 'hospital') {
+    // a barracks-sized building told apart by the red cross out front
     const base = () => (lk === 0 ? medievalBuilding('barracks', team, 'wood')
       : lk === 1 ? medievalBuilding('barracks', team, 'stone')
         : lk === 2 ? industrial(makeBuilding('barracks', team))
           : makeBuilding('barracks', team));
-    return cached(`b:${type}:${team}:${lk}`, () => (type === 'hospital' ? hospital(base()) : armory(base(), team)));
+    return cached(`b:${type}:${team}:${lk}`, () => hospital(base()));
   }
   // the Town Hall is its own building in each age, not the Town Hall's block made over
   if (type === 'yard' && lk >= 2) return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? townHallBrick(team) : townHallModern(team)));

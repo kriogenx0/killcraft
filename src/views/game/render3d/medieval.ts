@@ -767,3 +767,57 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
     case 'derrick': case 'works': throw new Error(`${type} has no medieval look`);
   }
 }
+
+/** Weapons in a rack against a wall facing +z: swords, spears and a shield. */
+function weaponRack(root: THREE.Object3D, x: number, z: number, team: number): void {
+  for (const dx of [-0.16, 0.16]) root.add(mesh(box(0.025, 0.4, 0.025), M.timber(), x + dx, 0.25, z));
+  for (const y of [0.16, 0.38]) root.add(mesh(box(0.36, 0.025, 0.03), M.timber(), x, y, z));
+  for (let i = 0; i < 4; i++) {
+    const px = x - 0.11 + i * 0.075;
+    if (i % 2) root.add(rot(mesh(cyl(0.008, 0.008, 0.62, 4), M.wood(), px, 0.36, z + 0.03), -0.1, 0, 0), rot(mesh(cone(0.017, 0.07, 4), M.steel(), px, 0.7, z + 0.065), -0.1, 0, 0));
+    else root.add(mesh(box(0.025, 0.3, 0.008), M.steel(), px, 0.28, z + 0.03), mesh(box(0.07, 0.015, 0.02), M.brass(), px, 0.42, z + 0.03));
+  }
+  root.add(mesh(cyl(0.1, 0.1, 0.02, 12), teamMat(team), x + 0.24, 0.2, z + 0.05).rotateX(Math.PI / 2 - 0.2));
+  root.add(mesh(cyl(0.03, 0.03, 0.025, 8), M.iron(), x + 0.24, 0.2, z + 0.06).rotateX(Math.PI / 2 - 0.2));
+}
+
+/**
+ * Armory, Medieval: a smithy. A steep-roofed stone workshop with a tall forge chimney (the `flue0`
+ * part smokes), an open forge shed glowing with embers, an anvil, a quench barrel, a grindstone and
+ * racks of weapons. Unlike the Barracks' round hall, it is all gables and chimney.
+ */
+export function smithy(team: number, gun: boolean): Model {
+  const L = look(team, gun), root = new THREE.Group(), parts: Parts = {};
+  ground(root, 2, 57);
+  // the workshop
+  root.add(mesh(box(1.0, 0.55, 0.75), L.wall, -0.35, 0.3, -0.45));
+  root.add(mesh(prism(1.1, 0.9, 0.5), L.roof, -0.35, 0.575, -0.45));
+  door(root, -0.55, 0.05, -0.07, 0.2, 0.36);
+  win(root, L, -0.15, 0.35, -0.065);
+  banner(root, team, -0.72, 0.34, -0.065, 0.14, 0.22);
+  // forge chimney, taller than anything around it
+  root.add(mesh(box(0.26, 1.45, 0.26), L.wall, 0.55, 0.77, -0.5));
+  root.add(mesh(box(0.32, 0.06, 0.32), M.darkStone(), 0.55, 1.5, -0.5));
+  root.add(mesh(box(0.2, 0.04, 0.2), M.dark(), 0.55, 1.535, -0.5));
+  const flue = new THREE.Object3D();
+  flue.position.set(0.55, 1.56, -0.5);
+  root.add(flue);
+  parts.flue0 = flue;
+  // open forge shed on posts against the chimney, with the hearth glowing under it
+  for (const [x, z] of [[0.25, -0.05], [0.85, -0.05], [0.25, 0.4], [0.85, 0.4]]) root.add(mesh(box(0.04, 0.5, 0.04), M.timber(), x, 0.3, z));
+  root.add(rot(mesh(box(0.72, 0.03, 0.6), L.thatch, 0.55, 0.58, 0.17), -0.22, 0, 0));
+  root.add(mesh(box(0.4, 0.22, 0.3), M.darkStone(), 0.55, 0.16, -0.2));
+  root.add(mesh(box(0.3, 0.03, 0.2), M.ember(), 0.55, 0.28, -0.2));
+  root.add(mesh(box(0.12, 0.1, 0.1), M.leather(), 0.3, 0.18, -0.2)); // bellows
+  // anvil on its stump, a quench barrel and a grindstone
+  root.add(mesh(cyl(0.08, 0.09, 0.16, 8), M.log(), 0.45, 0.1, 0.62));
+  root.add(mesh(box(0.2, 0.06, 0.09), M.iron(), 0.45, 0.21, 0.62), mesh(box(0.08, 0.05, 0.06), M.iron(), 0.45, 0.165, 0.62));
+  root.add(rot(mesh(cone(0.04, 0.08, 6), M.iron(), 0.58, 0.215, 0.62), 0, 0, -Math.PI / 2));
+  root.add(mesh(cyl(0.09, 0.08, 0.2, 10), M.wood(), 0.82, 0.13, 0.65));
+  root.add(mesh(cyl(0.08, 0.08, 0.01, 10), M.glass(), 0.82, 0.225, 0.65));
+  root.add(across(mesh(cyl(0.11, 0.11, 0.04, 12), M.stone(), -0.05, 0.2, 0.6)));
+  for (const dz of [-0.04, 0.04]) root.add(mesh(box(0.03, 0.2, 0.02), M.timber(), -0.05, 0.12, 0.6 + dz));
+  weaponRack(root, -0.6, 0.55, team);
+  return { root, parts, height: 1.5 };
+}
+
