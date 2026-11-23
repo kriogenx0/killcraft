@@ -10,6 +10,9 @@ import { CHOP_RATE, CHOP_WORTH, MILL_RADIUS, WOOD_LOAD } from '../data/economy.t
 /** Where a Worker drops off wood. */
 export const WOOD_BANKS = ['mill', 'refinery', 'yard'] as const;
 
+/** How close (px, from the tree's edge) a Worker has to stand to chop: anywhere on a tile touching it, corners included. */
+const CHOP_REACH = TS * 0.75;
+
 /** Most wood a unit carries. */
 export const woodLoad = (_u: Ent): number => WOOD_LOAD;
 
@@ -86,8 +89,9 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
   }
   const tree = treeTarget(i);
   if (o.st === 'go') {
-    const r = approach(u, tree, 6, dt);
-    if (r === null) { giveUpOn(u, i); o.wait = 0.5; pickAnother(u, o); return; } // no way there: try another tree
+    const r = approach(u, tree, CHOP_REACH, dt);
+    // no way there (or the path ran out short of it): try another tree
+    if (r === null || (!r && u.path?.length === 0)) { giveUpOn(u, i); o.wait = 0.5; pickAnother(u, o); return; }
     if (r) o.st = 'gather';
     return;
   }

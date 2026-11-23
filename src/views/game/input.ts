@@ -65,7 +65,7 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     return;
   }
   if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
-  if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
+  if (harvesters.length && (hit?.type === 'refinery' || hit?.type === 'yard') && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   // Workers right-clicked on a tree chop wood there and carry it to the nearest Lumber Mill, Refinery or Yard
   if (workers.length && G.terr[ty * MW + tx] === TREE && G.vis[ty * MW + tx]) {
     dispatch({ c: 'harvest', ids: ids(workers), tx, ty });

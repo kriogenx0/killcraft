@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
-import { STEP, TS } from './const.ts';
+import { MW, STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
@@ -36,6 +36,25 @@ afterEach(() => {
 });
 
 describe('Workers', () => {
+  it('dig ore from the very start and bank it at the Town Hall, before there is a Refinery', () => {
+    // regression: the two starting Workers dug a load and then stood still, since only a Refinery took ore
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
+    if (!yard) throw new Error('no yard');
+    expect(G.ents.some((e) => e.team === 0 && e.type === 'refinery')).toBe(false);
+    const ws = G.ents.filter((e) => e.team === 0 && e.type === 'worker');
+    expect(ws).toHaveLength(2);
+    let ore = -1, bd = Infinity;
+    for (let i = 0; i < G.ore.length; i++) {
+      const d = Math.hypot((i % MW) - yard.tx, Math.floor(i / MW) - yard.ty);
+      if (G.ore[i] > 0 && d < bd) { bd = d; ore = i; }
+    }
+    const start = G.credits[0];
+    applyCommand(0, { c: 'harvest', ids: ws.map((w) => w.id), tx: ore % MW, ty: Math.floor(ore / MW) });
+    run(60);
+    expect(G.credits[0]).toBeGreaterThan(start + 600); // several loads banked
+    for (const w of ws) expect(w.order?.t).toBe('harvest');
+  });
+
   it('build sites: nothing goes up without one, and two build twice as fast', () => {
     addBuilding('power', 0, 12, 50, false);
     const helped = placeBuilding(0, 'barracks', 16, 50), alone = placeBuilding(0, 'barracks', 13, 46);

@@ -136,9 +136,9 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  // ore goes to a Refinery; wood to a Lumber Mill, Refinery or the Town Hall; oil to a Refinery or the Town Hall
+  // ore and oil go to a Refinery or the Town Hall; wood also to a Lumber Mill
   const cargo0 = u.cargo ?? 'ore';
-  const ref = bankAt(u, cargo0 === 'ore' ? ['refinery'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
+  const ref = bankAt(u, cargo0 === 'ore' ? ['refinery', 'yard'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {
     const r = approach(u, ref, NEAR, dt);
