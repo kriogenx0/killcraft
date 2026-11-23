@@ -47,11 +47,7 @@ function completed(b: Ent): void {
 
 function effects(b: Ent, dt: number): void {
   if (G.vis[tileOf(b.y) * MW + tileOf(b.x)] !== 2) return;
-  if (b.hp < b.maxhp * 0.6 && Math.random() < dt * (b.hp < b.maxhp * 0.3 ? 18 : 7)) {
-    const x = b.tx * TS + TS * 0.2 + Math.random() * (b.w - 0.4) * TS, y = b.ty * TS + Math.random() * b.h * TS * 0.6;
-    part('fire', x, y, { vz: 30 + Math.random() * 30, max: 0.5 + Math.random() * 0.4, size: 4 + Math.random() * 5 });
-    if (Math.random() < 0.5) part('smoke', x, y, { vz: 25 + Math.random() * 20, max: 2 + Math.random() * 1.5, size: 5 + Math.random() * 4, z: 10 });
-  }
+  // damaged buildings smoke and burn: drawn by the view (render3d/burn3d.ts)
   if (b.type === 'power' && Math.random() < dt * 5) {
     const cx = b.tx * TS + (Math.random() < 0.5 ? 20 : 46);
     part('smoke', cx, b.ty * TS - 18, { vz: 26, vx: 5, max: 2.2, size: 4, soft: true });
