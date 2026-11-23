@@ -21,6 +21,8 @@ import { hasBuilding, lowPower } from './entity.ts';
 import { updWild } from './creatures.ts';
 
 const AUTO_CHASE = 9 * TS;
+/** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
+export const TEND_RADIUS = 12;
 /** Idle Workers repair buildings on their own only while the bank holds more ore than this. */
 const AUTO_REPAIR_FLOOR = 200;
 const ORE_SEARCH = 24;
@@ -343,6 +345,7 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
+  if (t.kind === 'bld' && t.unpaid) return; // waits at the site until the side can pay for it
   u.atkT = 0.25; // hammers away: drawn like an attack
   if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * WORKER_BUILD * dt) / bldDef(t).t);
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
@@ -375,12 +378,12 @@ export function updUnit(u: Ent, dt: number): void {
     u.scan = 0.3 + Math.random() * 0.2;
     if (u.type === 'medic') {
       const t = woundedNear(u, d.sight * TS);
-      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y }); return; }
+      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
     }
     // an idle Worker mends what's near (a passive one only when no enemy is about), before going back to the ore
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
-      const t = mendNear(u, d.sight * TS);
-      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y }); return; }
+      const t = mendNear(u, (u.tending ? TEND_RADIUS : d.sight) * TS);
+      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
     }
     // a Worker only fights back, or an enemy that comes right up to it
     const foe = u.stance === 'passive' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
@@ -390,6 +393,7 @@ export function updUnit(u: Ent, dt: number): void {
     } else if (foe) {
       setOrder(u, { t: 'attack', tgt: foe.id, auto: true, ox: u.x, oy: u.y });
     } else if (isHarvester(u) && nearestOwn(u, 'refinery')) {
+      u.tending = false; // nothing left to fix: back to the ore
       u.scan = 1.5;
       if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
       else orderHarvest(u, tileOf(u.x), tileOf(u.y));

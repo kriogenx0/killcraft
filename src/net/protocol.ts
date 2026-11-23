@@ -82,7 +82,7 @@ export interface SnapMsg {
 export type ServerMsg =
   | { k: 'welcome'; id: string }
   | LobbyMsg
-  | { k: 'start'; team: number; seed: number; opponent: string }
+  | { k: 'start'; team: number; seed: number; opponent: string; /** the match's UUID */ game?: string }
   | SnapMsg
   | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned' }
   | { k: 'error'; msg: string }

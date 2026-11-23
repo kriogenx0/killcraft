@@ -4,7 +4,7 @@ import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, type Buildable } from '../../game/production.ts';
+import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -79,13 +79,14 @@ export function productionHotkey(key: string): boolean {
   return !!group; // inside a group, other letters do nothing (Esc closes it)
 }
 
-/** Left click: pick up a structure to place (it's paid for and built once placed), or start or resume an order. */
+/**
+ * Left click: pick up a structure to place (paid for once placed, or as soon as the side can), or
+ * queue or resume an order (it waits in the queue until the side can pay for it).
+ */
 function activate(type: Buildable): void {
   if (spectating()) return;
   if (lineOf(type) === 'structure') {
-    // can't afford it: the build command just reports what's short
-    if (canAfford(V.team, type)) V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false };
-    else dispatch({ c: 'build', type });
+    V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false };
     return;
   }
   const it = itemsOf(V.team, type)[0];
@@ -120,12 +121,16 @@ export function refreshSidebar(): void {
     const deg = Math.round(prog * 360);
     c.progress.style.background = items.length ? `conic-gradient(rgba(0,0,0,0) ${deg}deg, rgba(0,0,0,.6) 0)` : '';
     const placing = V.mode?.t === 'place' && V.mode.type === type;
-    const status = placing ? 'PLACE' : first?.hold ? 'ON HOLD' : '';
+    // an order (or a placed site) waiting until the side can pay for it
+    const unpaid = structure ? sites.some((e) => e.unpaid) && !sites.some((e) => !e.unpaid) : !!first && head === first && !first.paid;
+    const need = unpaid ? waitingFor(V.team, type) : null;
+    const status = placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : '';
     if (c.status.textContent !== status) c.status.textContent = status;
     const count = (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
     c.root.classList.toggle('build-cell--active', items.length > 0);
     c.root.classList.toggle('build-cell--ready', placing);
+    c.root.classList.toggle('build-cell--waiting', !!need);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
     c.root.classList.toggle('build-cell--short', !items.length && !canAfford(V.team, type));

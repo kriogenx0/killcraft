@@ -127,7 +127,12 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     gameList.replaceChildren(...games.map((g) => {
       const join = button('Join', 'lobby-join', () => { setStatus('Joining…', true); net.send({ k: 'join', game: g.id }); });
       join.disabled = waiting === 'host';
-      return row('lobby-game', span('lobby-row-name', `${g.host}'s game`), join);
+      const label = document.createElement('span');
+      label.className = 'lobby-row-label';
+      const id = span('lobby-row-status lobby-game-id', `Game ${g.id.slice(0, 8)}`);
+      id.title = `Game ID ${g.id}`;
+      label.append(span('lobby-row-name', `${g.host}'s game`), id);
+      return row('lobby-game', label, join);
     }));
     if (!games.length) gameList.append(empty('No open games. Create one or use Quick match.'));
 

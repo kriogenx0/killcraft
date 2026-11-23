@@ -15,6 +15,7 @@ export type Command =
   | { c: 'patrol'; ids: number[]; tx: number; ty: number }
   | { c: 'stance'; ids: number[]; stance: Stance }
   | { c: 'stop'; ids: number[] }
+  | { c: 'tend'; ids: number[] }
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
   | { c: 'haul'; ids: number[]; target: number }
@@ -47,6 +48,7 @@ export function parseCommand(raw: unknown): Command | null {
     case 'stance':
       return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
     case 'stop':
+    case 'tend':
     case 'return':
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
     case 'haul':
@@ -86,7 +88,13 @@ function ownBuilding(team: number, id: number): Ent | null {
 
 /** Carry out a command for a team. Silently ignores anything the team isn't allowed to do. */
 export function applyCommand(team: number, cmd: Command): void {
+  // any other order for a Worker ends "fix, then harvest"
+  if ('ids' in cmd && cmd.c !== 'tend') for (const u of ownUnits(team, cmd.ids)) u.tending = false;
   switch (cmd.c) {
+    case 'tend':
+      // Workers fix everything damaged nearby (buildings, sites, wounded units), then go back to harvesting
+      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker') { u.tending = true; orderStop(u); u.scan = 0; }
+      break;
     case 'move':
       groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty);
       break;
@@ -124,7 +132,7 @@ export function applyCommand(team: number, cmd: Command): void {
       break;
     }
     case 'build':
-      enqueue(team, cmd.type);
+      enqueue(team, cmd.type, true); // a player's order waits in the queue until it can be paid for
       break;
     case 'hold':
       toggleHold(team, cmd.type);
@@ -133,7 +141,7 @@ export function applyCommand(team: number, cmd: Command): void {
       cancel(team, cmd.type);
       break;
     case 'place':
-      startSite(team, cmd.type, cmd.tx, cmd.ty, cmd.ex, cmd.ey);
+      startSite(team, cmd.type, cmd.tx, cmd.ty, cmd.ex, cmd.ey, true);
       break;
     case 'repair': {
       const b = ownBuilding(team, cmd.id);

@@ -1,0 +1,97 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+
+.view-setup {
+  overflow-y: auto;
+  background: radial-gradient(ellipse at center, rgb(30 34 20 / 55%), rgb(0 0 0 / 95%));
+
+  &.ui-modal--open {
+    justify-content: safe center;
+  }
+
+  .setup-title {
+    font-size: $font-display;
+    color: var(--color-title);
+    text-shadow: 0 4px 0 #6a3a10, 0 0 20px #000;
+  }
+
+  .setup-form {
+    display: flex;
+    flex-direction: column;
+    gap: $space-3;
+    width: 100%;
+    max-width: 520px;
+    padding: $space-4;
+    background: rgb(0 0 0 / 35%);
+    border: 1px solid rgb(176 138 64 / 50%);
+    border-radius: $radius;
+  }
+
+  .setup-row {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: $space-3;
+    align-items: center;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    border: 0;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .setup-label {
+    float: left; // lets a legend sit in a grid cell
+    padding: 0;
+    color: #e8d8a8;
+  }
+
+  .setup-hint {
+    min-height: 1.4em;
+    margin: -$space-2 0 0 182px;
+    font-size: $font-sm;
+    color: #cfc093;
+    text-align: left;
+  }
+
+  .setup-map {
+    display: flex;
+    gap: $space-2;
+    align-items: center;
+
+    .setup-seed {
+      width: 120px;
+      min-height: 36px;
+      padding: $space-1 $space-2;
+      font: inherit;
+      color: var(--color-button-text);
+      background: var(--color-button-bottom);
+      border: 2px solid var(--color-rim);
+      border-radius: $radius;
+      outline: none;
+
+      &:focus {
+        border-color: var(--color-rim-hover);
+      }
+    }
+  }
+
+  .ui-modal-actions {
+    margin-top: 0;
+  }
+
+  @media (max-width: 560px) {
+    .setup-row {
+      grid-template-columns: 1fr;
+      gap: $space-1;
+    }
+
+    .setup-hint {
+      margin: -$space-2 0 0;
+    }
+  }
+}

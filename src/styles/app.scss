@@ -12,5 +12,7 @@
 @use '../components/key/key';
 @use '../components/text_field/text_field';
 @use '../components/spinner/spinner';
+@use '../components/segmented/segmented';
 @use '../views/game/game';
 @use '../views/lobby/lobby';
+@use '../views/setup/setup';
