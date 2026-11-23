@@ -2,8 +2,13 @@ import type { WeaponType } from './weapon.ts';
 import type { Producer } from './unit.ts';
 import { LAST_ERA } from './era.ts';
 
-export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'airfield' | 'flak'
+export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'works' | 'airfield' | 'flak' | 'hospital' | 'armory'
+  | 'shrine' | 'wardstone' | 'waygate'
   | 'palisade' | 'stonewall' | 'concretewall' | 'pillbox' | 'atturret' | 'bertha';
+
+/** Structures bought with Aether. */
+export type AetherBld = 'shrine' | 'wardstone' | 'waygate';
+export const isAetherBld = (t: string): t is AetherBld => t === 'shrine' || t === 'wardstone' || t === 'waygate';
 
 export interface BldDef {
   name: string;
@@ -16,6 +21,8 @@ export interface BldDef {
   cost: number;
   wood?: number;
   oil?: number;
+  /** Aether (data/aether.ts); structures that need it are hidden until the side first finds some */
+  aether?: number;
   /** build time in seconds at full power */
   t: number;
   /** the age (see data/era.ts) that unlocks this structure */
@@ -23,15 +30,19 @@ export interface BldDef {
   /** power produced (positive) or used (negative) */
   power: number;
   sight: number;
+  /** finishing this structure takes its side into this age (see data/era.ts) */
+  advances?: number;
   /** buildings that must exist before this one can be built */
   requires: BldType[];
   /** what this building produces, if anything */
-  produces?: Producer | 'structure';
+  produces?: Producer | 'structure' | 'hospital' | 'armory';
   weapon?: WeaponType;
   /** a wall segment: blocks movement, needs no power, is placed in lines and doesn't extend the base */
   wall?: boolean;
   /** false for buildings that can't be built from the sidebar */
   buildable: boolean;
+  /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
+  key?: string;
   desc: string;
 }
 
@@ -39,11 +50,15 @@ export const BUILDING: Record<BldType, BldDef> = {
   yard: { name: 'Construction Yard', size: 3, top: 40, hp: 1400, cost: 3000, t: 60, era: 0, power: 15, sight: 6, requires: [], produces: 'structure', buildable: false, desc: 'Builds every other structure.' },
   power: { name: 'Power Plant', size: 2, top: 38, hp: 400, cost: 300, wood: 50, t: 8, era: 0, power: 100, sight: 4, requires: [], buildable: true, desc: 'Provides 100 power.' },
   mill: { name: 'Lumber Mill', size: 2, top: 30, hp: 450, cost: 400, t: 10, era: 0, power: -10, sight: 5, requires: [], buildable: true, desc: 'Cuts wood from the trees around it. Place it next to woods: more trees, more wood. Cut trees slowly grow back.' },
-  refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, wood: 200, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Harvesters unload ore here. Comes with a free harvester.' },
+  refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, wood: 200, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Ore is unloaded here. Comes with two free Workers, or a Harvester in the Modern age.' },
   barracks: { name: 'Barracks', size: 2, top: 22, hp: 500, cost: 300, wood: 100, t: 8, era: 0, power: -20, sight: 5, requires: ['power'], produces: 'infantry', buildable: true, desc: 'Trains infantry.' },
   factory: { name: 'War Factory', size: 3, top: 34, hp: 1000, cost: 2000, wood: 300, t: 18, era: 0, power: -30, sight: 5, requires: ['refinery'], produces: 'vehicle', buildable: true, desc: 'Builds vehicles.' },
+  hospital: { name: 'Hospital', size: 2, top: 30, hp: 500, cost: 500, wood: 150, t: 12, era: 0, power: -20, sight: 5, requires: ['barracks'], produces: 'hospital', buildable: true, desc: 'Tends the wounded: your infantry and knights heal a little faster while you have one. Researches faster healing, and the Barracks can train Medics.' },
+  armory: { name: 'Armory', size: 2, top: 30, hp: 600, cost: 600, wood: 200, t: 14, era: 0, power: -20, sight: 5, requires: ['barracks'], produces: 'armory', buildable: true, desc: 'Forges better weapons and armor: researches damage and armor upgrades for troops and for vehicles and aircraft, one level per age.' },
   tower: { name: 'Watchtower', size: 1, top: 44, hp: 420, cost: 400, wood: 150, t: 9, era: 0, power: -10, sight: 7, requires: ['barracks'], weapon: 'ballista', buildable: true, desc: 'Stone tower with a ballista on top. Strong against infantry and cavalry.' },
-  turret: { name: 'Gun Turret', size: 1, top: 12, hp: 450, cost: 600, t: 10, era: 1, power: -20, sight: 7, requires: ['barracks'], weapon: 'turretcannon', buildable: true, desc: 'Defensive cannon. Strong against vehicles.' },
+  turret: { name: 'Gun Turret', size: 1, top: 12, hp: 450, cost: 700, t: 10, era: 1, power: -20, sight: 7, requires: ['barracks'], weapon: 'turretcannon', buildable: true, desc: 'Defensive cannon. Strong against vehicles.' },
+  derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 800, t: 16, era: 0, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
+  works: { name: 'Engine Works', size: 2, top: 40, hp: 700, cost: 1000, wood: 150, t: 35, era: 0, advances: 1, power: -20, sight: 5, requires: ['derrick'], buildable: true, desc: 'Turns your oil into engines and gunpowder. Finishing it takes your side into the World War age. Needs an Oil Derrick.' },
   // walls: one-tile segments placed by dragging a line: timber and stone in the Medieval age, concrete from WWI
   palisade: { name: 'Palisade', size: 1, top: 26, hp: 350, cost: 10, wood: 30, t: 2, era: 0, power: 0, sight: 1, requires: [], wall: true, buildable: true, desc: 'Sharpened log wall. Blocks the way until it is cut down. Drag to lay a line.' },
   stonewall: { name: 'Stone Wall', size: 1, top: 30, hp: 1000, cost: 60, t: 3, era: 0, power: 0, sight: 1, requires: [], wall: true, buildable: true, desc: 'Thick masonry wall. Holds off infantry; catapults and cannons break it. Drag to lay a line.' },
@@ -53,13 +68,19 @@ export const BUILDING: Record<BldType, BldDef> = {
   pillbox: { name: 'Pillbox', size: 1, top: 14, hp: 700, cost: 550, wood: 50, t: 11, era: 1, power: -10, sight: 7, requires: ['barracks'], weapon: 'pillboxmg', buildable: true, desc: 'Concrete bunker with a heavy machine gun. Shreds infantry; weak against tanks.' },
   atturret: { name: 'Missile Turret', size: 1, top: 18, hp: 550, cost: 900, oil: 150, t: 14, era: LAST_ERA, power: -30, sight: 8, requires: ['factory'], weapon: 'atmissile', buildable: true, desc: 'Guided anti-tank missiles with a long reach. Cracks heavy armor; poor against infantry.' },
   bertha: { name: 'Big Bertha', size: 2, top: 40, hp: 900, cost: 2800, wood: 100, t: 30, era: 1, power: -60, sight: 5, requires: ['factory'], weapon: 'bertha', buildable: true, desc: 'Huge siege howitzer that fires across a third of the map at anything your side can see. Shells take seconds to land, so moving targets can dodge.' },
-  derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 1200, t: 16, era: 1, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
   airfield: { name: 'Airfield', size: 3, top: 30, hp: 900, cost: 1200, wood: 300, t: 20, era: 1, power: -30, sight: 6, requires: ['refinery'], produces: 'air', buildable: true, desc: 'Builds aircraft: balloons, then biplanes and helicopters in later ages.' },
   flak: { name: 'Flak Cannon', size: 1, top: 14, hp: 420, cost: 700, t: 10, era: 1, power: -20, sight: 8, requires: ['barracks'], weapon: 'flak', buildable: true, desc: 'Anti-aircraft gun with a long reach. Only fires at aircraft.' },
+  // Aether structures, revealed once a side finds Aether (see data/aether.ts)
+  shrine: { name: 'Star Shrine', size: 2, top: 40, hp: 500, cost: 300, aether: 80, t: 20, era: 0, power: 0, sight: 5, requires: [], buildable: true, desc: 'A ring of standing stones around a fallen-star shard. Slowly heals your units nearby, machines included.' },
+  wardstone: { name: 'Ward Stone', size: 1, top: 36, hp: 300, cost: 150, aether: 40, t: 10, era: 0, power: 0, sight: 6, requires: [], buildable: true, desc: 'An obelisk with an Aether eye. Sees far and reveals cloaked enemies near it.' },
+  waygate: { name: 'Waygate', size: 2, top: 44, hp: 600, cost: 400, aether: 75, t: 18, era: 1, power: -10, sight: 4, requires: [], buildable: true, desc: 'Build two and they link: your units step through one and out of the other. Enemies can\'t use them.' },
 };
 
+/** Does a building train units (and so take a rally point)? */
+export const isUnitProducer = (p: BldDef['produces']): p is Producer => p === 'infantry' || p === 'vehicle' || p === 'air';
+
 /** Order the structures appear in the sidebar. */
-export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'factory', 'tower', 'turret', 'derrick', 'airfield', 'flak', 'pillbox', 'bertha', 'atturret', 'palisade', 'stonewall', 'concretewall'];
+export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'hospital', 'armory', 'factory', 'tower', 'turret', 'derrick', 'works', 'airfield', 'flak', 'pillbox', 'bertha', 'atturret', 'palisade', 'stonewall', 'concretewall', 'shrine', 'wardstone', 'waygate'];
 
 export const WALL_TYPES: BldType[] = ['palisade', 'stonewall', 'concretewall'];
 export const isWall = (t: string): boolean => !!BUILDING[t as BldType]?.wall;

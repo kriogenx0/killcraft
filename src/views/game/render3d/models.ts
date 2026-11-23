@@ -8,7 +8,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
-import type { BldType } from '../../../data/building.ts';
+import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
+import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
@@ -154,6 +155,20 @@ function gunner(team: number): Model {
     rod([0.2, -0.01, -0.015], [0.24, -0.13, -0.05], 0.005, M.gun(), 4));
   m.parts.gun = gun;
   m.root.add(gun);
+  return m;
+}
+
+/** Unarmed: a white smock with red crosses, a team-colored cap and a satchel of bandages. */
+function medic(team: number): Model {
+  const white = M.white(), red = mat('#c42a22', { rough: 0.7 });
+  const m = soldier({ torso: white, legs: teamMat(team, 'd'), arms: white, boots: M.leather() });
+  for (const x of [0.067, -0.067]) {
+    m.root.add(mesh(box(0.006, 0.09, 0.026), red, x, 0.33, 0));
+    m.root.add(mesh(box(0.006, 0.026, 0.09), red, x, 0.33, 0));
+  }
+  m.root.add(scl(mesh(sph(0.066, 12, 8), teamMat(team), 0, 0.49, 0), 1, 0.6, 1)); // cap
+  m.root.add(mesh(box(0.06, 0.08, 0.1), M.leather(), -0.04, 0.25, -0.1)); // satchel
+  m.root.add(rod([0.06, 0.4, 0.09], [-0.04, 0.27, -0.09], 0.008, M.leather(), 4)); // strap
   return m;
 }
 
@@ -486,6 +501,26 @@ function tank(team: number, heavy: boolean): Model {
   return { root, parts, height: 0.5 * k };
 }
 
+/** Medieval and World War: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
+function worker(team: number): Model {
+  const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
+  m.root.add(mesh(box(0.135, 0.06, 0.2), teamMat(team), 0, 0.27, 0)); // sash
+  m.root.add(mesh(dome(0.07), mat('#6a5a40'), 0, 0.49, 0)); // hood
+  // wicker basket on the back, heaped with ore as it fills
+  m.root.add(mesh(cyl(0.07, 0.055, 0.14, 10), M.wattle(), -0.1, 0.36, 0));
+  const heap = mesh(dome(0.065), M.ore(), -0.1, 0.43, 0);
+  m.parts.heap = heap;
+  m.root.add(heap);
+  // pick over the shoulder
+  m.parts.armR.rotation.z = 1.0;
+  const pick = group(0.08, 0.45, 0.12,
+    rot(mesh(box(0.02, 0.3, 0.02), M.wood(), 0, 0, 0), 0, 0, -0.6),
+    rot(mesh(box(0.16, 0.02, 0.02), M.iron(), 0.09, 0.12, 0), 0, 0, -0.6));
+  m.parts.gun = pick;
+  m.root.add(pick);
+  return m;
+}
+
 function harvester(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team), td = teamMat(team, 'd');
@@ -622,10 +657,12 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'swordsman': return swordsman(team);
     case 'crossbowman': return crossbowman(team);
     case 'knight': return knight(team);
+    case 'medic': return medic(team);
     case 'jeep': return jeep(team);
     case 'tank': return tank(team, false);
     case 'heavy': return tank(team, true);
     case 'harvester': return harvester(team);
+    case 'worker': return worker(team);
     case 'catapult': return catapult(team);
     case 'balloon': return balloon(team);
     case 'biplane': return biplane(team);
@@ -953,6 +990,32 @@ function turret(team: number): Model {
   return { root, parts, height: 0.6 };
 }
 
+/** Engine Works: a sheet-roofed machine hall with two smokestacks, a fuel tank and a team banner. */
+function engineWorks(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  // hall with a pitched sheet roof and big doors facing +z
+  root.add(mesh(box(1.3, 0.55, 1.0), M.concrete(), -0.2, 0.33, -0.15));
+  root.add(rot(mesh(box(1.34, 0.04, 0.58), M.metalRoof(), -0.2, 0.7, -0.38), 0.45, 0, 0));
+  root.add(rot(mesh(box(1.34, 0.04, 0.58), M.metalRoof(), -0.2, 0.7, 0.08), -0.45, 0, 0));
+  root.add(mesh(box(0.5, 0.4, 0.02), M.darkSteel(), -0.2, 0.26, 0.36));
+  root.add(mesh(box(1.3, 0.08, 0.02), tm, -0.2, 0.52, 0.36));
+  windows(root, -0.75, 0.35, 4, 0.45, 0.36);
+  // smokestacks
+  for (const x of [-0.65, -0.35]) {
+    root.add(mesh(cyl(0.07, 0.09, 0.9, 12), M.lightConcrete(), x, 0.95, -0.5));
+    root.add(mesh(cyl(0.08, 0.08, 0.05, 12), M.dark(), x, 1.41, -0.5));
+  }
+  // fuel tank and pipe to the hall
+  root.add(mesh(cyl(0.22, 0.22, 0.5, 16), M.steel(), 0.68, 0.31, -0.45));
+  root.add(mesh(cyl(0.23, 0.23, 0.06, 16), tm, 0.68, 0.42, -0.45));
+  root.add(rod([0.5, 0.15, -0.4], [0.45, 0.15, -0.2], 0.03, M.darkSteel(), 8));
+  // crates of parts by the door
+  for (const [x, z] of [[0.6, 0.45], [0.75, 0.3]]) root.add(mesh(box(0.16, 0.14, 0.16), M.wood(), x, 0.13, z));
+  return { root, parts, height: 1.45 };
+}
+
 /** Oil Derrick: a pump jack whose walking beam nods (the `pump` part), with a storage tank. */
 function derrick(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
@@ -987,7 +1050,33 @@ function derrick(team: number): Model {
   return { root, parts, height: 1.0 };
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | FixedLook>, team: number): Model {
+/** A Hospital is a barracks-sized ward with a red-cross sign out front. */
+function hospital(m: Model): Model {
+  const red = mat('#c42a22', { rough: 0.7 }), h = Math.max(0.7, m.height * 0.8);
+  m.root.add(mesh(cyl(0.025, 0.03, h, 6), M.darkWood(), 0.78, h / 2, 0.82));
+  m.root.add(group(0.78, h + 0.1, 0.82,
+    mesh(box(0.3, 0.3, 0.03), M.white(), 0, 0, 0),
+    mesh(box(0.07, 0.22, 0.04), red, 0, 0, 0),
+    mesh(box(0.22, 0.07, 0.04), red, 0, 0, 0)));
+  return m;
+}
+
+/** An Armory is a barracks-sized forge: an anvil on a stump out front and a shield with crossed swords. */
+function armory(m: Model, team: number): Model {
+  const iron = M.iron(), h = Math.max(0.7, m.height * 0.8);
+  m.root.add(mesh(cyl(0.1, 0.11, 0.16, 10), M.darkWood(), 0.62, 0.08, 0.8)); // stump
+  m.root.add(mesh(box(0.2, 0.07, 0.1), iron, 0.62, 0.19, 0.8)); // anvil
+  m.root.add(mesh(box(0.08, 0.04, 0.06), iron, 0.62, 0.135, 0.8));
+  m.root.add(mesh(cyl(0.025, 0.03, h, 6), M.darkWood(), 0.82, h / 2, 0.82));
+  m.root.add(group(0.82, h + 0.1, 0.82,
+    mesh(box(0.28, 0.24, 0.03), teamMat(team), 0, 0.02, 0),
+    rot(mesh(cone(0.14, 0.12, 4), teamMat(team), 0, -0.14, 0), Math.PI, Math.PI / 4, 0),
+    rot(mesh(box(0.035, 0.36, 0.04), M.steel(), 0, 0, 0), 0, 0, 0.7),
+    rot(mesh(box(0.035, 0.36, 0.04), M.steel(), 0, 0, 0), 0, 0, -0.7)));
+  return m;
+}
+
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld | FixedLook>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -997,6 +1086,7 @@ function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | FixedLook>, t
     case 'turret': return turret(team);
     case 'tower': case 'mill': return medievalBuilding(type, team, 'stone');
     case 'derrick': return derrick(team);
+    case 'works': return engineWorks(team);
   }
 }
 
@@ -1027,8 +1117,8 @@ function industrial(m: Model): Model {
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
  * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
- * Look 1, dressed stone, is what the Watchtower and Lumber Mill grow into after the Medieval age. The Watchtower and Lumber Mill stop at stone; the Gun Turret starts at stone,
- * and the Oil Derrick and Flak Cannon starts at brick and iron.
+ * The Watchtower and Lumber Mill grow into dressed stone (look 1) and stop there; the Oil Derrick,
+ * Engine Works and Flak Cannon are brick and iron until the Modern age, even in a Medieval town.
  */
 const ERA_LOOK = [0, 2, 3] as const;
 
@@ -1036,7 +1126,7 @@ export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
   if (isFixedLook(type)) return 3;
   if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
-  if (type === 'derrick' || type === 'flak') return e < 2 ? 2 : e;
+  if (type === 'derrick' || type === 'works' || type === 'flak') return e < 2 ? 2 : e;
   if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
   return e;
 }
@@ -1048,7 +1138,16 @@ export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length
     return cached(`b:${type}:${team}`, () => (type === 'pillbox' ? pillbox(team) : type === 'atturret' ? missileTurret(team) : bertha(team)));
   }
   const lk = bldLook(type, era);
+  if (isAetherBld(type)) return cached(`b:${type}:${team}`, () => aetherBuilding(type, team)); // timeless: the same in every age
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
+  if (type === 'hospital' || type === 'armory') {
+    // both are barracks-sized buildings told apart by what stands out front
+    const base = () => (lk === 0 ? medievalBuilding('barracks', team, 'wood')
+      : lk === 1 ? medievalBuilding('barracks', team, 'stone')
+        : lk === 2 ? industrial(makeBuilding('barracks', team))
+          : makeBuilding('barracks', team));
+    return cached(`b:${type}:${team}:${lk}`, () => (type === 'hospital' ? hospital(base()) : armory(base(), team)));
+  }
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
   return cached(`b:${type}:${team}:${lk}`, () =>
     lk === 0 ? medievalBuilding(type, team, 'wood')

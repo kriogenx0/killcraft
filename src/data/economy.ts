@@ -13,6 +13,13 @@ export const MILL_MAX_TREES = 24;
 export const TREE_WOOD = 150;
 export const TREE_REGROW = 0.1;
 
+/**
+ * Nothing is banked until a unit carries it home. A Lumber Mill and an Oil Derrick fill their own
+ * store, up to this much, and stop when it's full; Workers carry it to a Construction Yard or a Refinery.
+ */
+export const MILL_STORE = 300;
+export const DERRICK_STORE = 300;
+
 /** Oil per second an Oil Derrick pumps while its well has oil. */
 export const OIL_PER_DERRICK = 3;
 /** A derrick pumps from oil tiles under its footprint and this many tiles around it. */
@@ -23,3 +30,11 @@ export const OIL_WELL_RADIUS = 2;
 
 /** Share of a unit's or building's ore price left behind as ore when it's destroyed. */
 export const SALVAGE_SHARE = 0.3;
+
+/**
+ * Catch-up for a runaway leader. The side whose army and buildings are worth this many times the
+ * runner-up's is "in the lead", and whoever destroys its units or buildings is paid this share of
+ * their ore price.
+ */
+export const BOUNTY_LEAD = 1.3;
+export const BOUNTY_SHARE = 0.5;

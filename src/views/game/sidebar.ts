@@ -3,11 +3,12 @@
 import { G } from '../../game/state.ts';
 import { isUnitType } from '../../data/unit.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { available, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
+import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
-import { V } from './view_state.ts';
+import { V, ownSelected, spectating } from './view_state.ts';
+import { hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
 
@@ -27,7 +28,10 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   for (const t of [...structures, 'yard']) {
     if (t in BUILDING) ICON[t] = buildingIcon(t as BldType, V.team, eraOf(V.team)) ?? ICON[t];
   }
-  const html = (list: Buildable[]) => list.map((t) => buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], descOf(t))).join('');
+  const html = (list: Buildable[]) => list.map((t) => {
+    const p = producerOfType(t);
+    return buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], descOf(t), hotkeyOf(t), p ? BUILDING[p].name : '');
+  }).join('');
   structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Construction Yard</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';
   cells.clear();
@@ -37,8 +41,26 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   }
 }
 
+/** The selected building whose production hotkeys are live, if any. */
+export function selectedProducer(): BldType | null {
+  const b = ownSelected().find((e) => e.kind === 'bld' && e.done);
+  return b && b.kind === 'bld' ? (b.type as BldType) : null;
+}
+
+/**
+ * Production hotkey: with a producing building selected, its items' keys start them (or pick up a
+ * finished structure to place), just like clicking them in the sidebar.
+ */
+export function productionHotkey(key: string): boolean {
+  const b = selectedProducer(), type = b && itemForKey(b, key);
+  if (!type || !available(V.team, lineOf(type)).includes(type)) return false;
+  activate(type);
+  return true;
+}
+
 /** Left click: start, resume, or pick up a finished structure for placement. */
 function activate(type: Buildable): void {
+  if (spectating()) return;
   const it = itemsOf(V.team, type)[0];
   if (it?.ready) { V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false }; return; }
   dispatch({ c: it?.hold ? 'hold' : 'build', type });
@@ -53,9 +75,10 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
   const key = `${V.team}|${eraOf(V.team)}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
+  const producer = selectedProducer();
   for (const [type, c] of cells) {
     const items = itemsOf(V.team, type), first = items[0], line = lineOf(type), head = G.prod[V.team][line][0];
     const inProgress = head && head.type === type ? head : null;
@@ -68,7 +91,10 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--active', items.length > 0);
     c.root.classList.toggle('build-cell--ready', !!first?.ready);
     c.root.classList.toggle('build-cell--busy', line === 'structure' && !!head && head.type !== type);
-    c.root.classList.toggle('build-cell--tech', line === 'tech');
+    c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
+    // orders are paid in full up front: dim what the bank can't cover yet
+    c.root.classList.toggle('build-cell--short', !first && !canAfford(V.team, type));
+    c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer);
   }
 }
 

@@ -2,6 +2,8 @@
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SELL_REFUND, WALL_LINE_MAX, WALL_RADIUS, isWall, type BldType } from '../data/building.ts';
+import { ERA, LAST_ERA } from '../data/era.ts';
+import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
@@ -13,7 +15,9 @@ const RISE_TIME = 1.2;
 
 /** Free tile next to a building, nearest to `toward` (default: below the building, where doors are). */
 export function exitTile(b: Ent, toward?: Point): Tile {
-  const rx = toward ? toward.x : b.x, ry = toward ? toward.y : b.y + 400;
+  // without a rally point, units leave on the side facing the middle of the map, so no corner's
+  // troops start out walking toward the map edge
+  const rx = toward ? toward.x : (MW * TS) / 2, ry = toward ? toward.y : (MH * TS) / 2;
   let best: Tile | null = null, bd = 1e9;
   for (let y = b.ty - 1; y <= b.ty + b.h; y++)
     for (let x = b.tx - 1; x <= b.tx + b.w; x++) {
@@ -27,19 +31,23 @@ export function exitTile(b: Ent, toward?: Point): Tile {
 
 function completed(b: Ent): void {
   burst('dust', b.x, b.y + (b.h * TS) / 2, 14, 40, 100);
+  const to = bldDef(b).advances;
+  if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
+    G.era[b.team] = Math.min(LAST_ERA, to);
+    say(b.team, `${ERA[G.era[b.team]].name} age reached`);
+  }
   if (b.type !== 'refinery') return;
-  // every refinery comes with a harvester
-  const [x, y] = exitTile(b), u = addUnit('harvester', b.team, (x + 0.5) * TS, (y + 0.5) * TS);
-  orderHarvest(u, x, y);
+  // every refinery comes with two Workers, or a Harvester in the Modern age
+  const modern = (G.era[b.team] ?? 0) >= UNIT.harvester.era;
+  for (let i = 0; i < (modern ? 1 : 2); i++) {
+    const [x, y] = exitTile(b), u = addUnit(modern ? 'harvester' : 'worker', b.team, (x + 0.5 + i * 0.4) * TS, (y + 0.5) * TS);
+    orderHarvest(u, x, y);
+  }
 }
 
 function effects(b: Ent, dt: number): void {
   if (G.vis[tileOf(b.y) * MW + tileOf(b.x)] !== 2) return;
-  if (b.hp < b.maxhp * 0.6 && Math.random() < dt * (b.hp < b.maxhp * 0.3 ? 18 : 7)) {
-    const x = b.tx * TS + TS * 0.2 + Math.random() * (b.w - 0.4) * TS, y = b.ty * TS + Math.random() * b.h * TS * 0.6;
-    part('fire', x, y, { vz: 30 + Math.random() * 30, max: 0.5 + Math.random() * 0.4, size: 4 + Math.random() * 5 });
-    if (Math.random() < 0.5) part('smoke', x, y, { vz: 25 + Math.random() * 20, max: 2 + Math.random() * 1.5, size: 5 + Math.random() * 4, z: 10 });
-  }
+  // damaged buildings smoke and burn: drawn by the view (render3d/burn3d.ts)
   if (b.type === 'power' && Math.random() < dt * 5) {
     const cx = b.tx * TS + (Math.random() < 0.5 ? 20 : 46);
     part('smoke', cx, b.ty * TS - 18, { vz: 26, vx: 5, max: 2.2, size: 4, soft: true });
@@ -73,7 +81,7 @@ export function updBld(b: Ent, dt: number): void {
 export function tileFree(x: number, y: number, team: number): boolean {
   if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
   const i = y * MW + x;
-  if (G.blk[i] || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
+  if (G.blk[i] || G.terr[i] !== GRASS || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
   return !G.ents.some((e) => !e.dead && e.kind === 'unit' && tileOf(e.x) === x && tileOf(e.y) === y);
 }
 

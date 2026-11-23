@@ -9,11 +9,11 @@ import { addBuilding, addSource, addUnit, kill } from '../game/entity.ts';
 import { fire } from '../game/combat.ts';
 import { nearPortal, rebuildBlk } from '../game/map.ts';
 import { warpFx } from '../game/fx.ts';
-import { addAether, cloakedFrom } from '../game/aether.ts';
+import { addAether, cloakedFrom, syncWaygates } from '../game/aether.ts';
 import { AETHER_PER_DEPOSIT } from '../data/aether.ts';
 import { lerp } from '../util/math.ts';
 
-const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether',
+const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory',
   'palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
@@ -22,13 +22,13 @@ export type EntRow = [number, number, number, number, number, number, number, nu
 /** fire: shooter, target, weapon · died: id · say: message · alert: x, y */
 export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number];
 
-const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8;
+const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8, DRAWING = 64;
 /** two bits above the flags: the stance of one of our own units (the HUD shows it) */
 const STANCE_SHIFT = 4;
 
 export function encodeEnt(e: Ent, own: boolean): EntRow {
   const stance = own && e.kind === 'unit' ? STANCES.indexOf(e.stance) << STANCE_SHIFT : 0;
-  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | stance;
+  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | stance;
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
     Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y)];
@@ -98,6 +98,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     e.repairing = (flags & REPAIRING) !== 0;
     e.stance = STANCES[(flags >> STANCE_SHIFT) & 3] ?? 'engage';
     if (flags & FIRING) e.atkT = Math.max(e.atkT, 0.05);
+    e.drawT = flags & DRAWING ? G.gameT + 0.4 : 0;
     e.prog = prog / 100;
     e.rally = rx >= 0 ? { x: rx, y: ry } : null;
     targets.set(id, { x, y, face: face / 100, tface: tface / 100 });
@@ -117,6 +118,7 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
   for (const [id] of targets) if (!G.byId.get(id) || G.byId.get(id)?.dead) targets.delete(id);
   for (const [id, e] of G.byId) if (e.dead) G.byId.delete(id);
   if (structural) rebuildBlk();
+  syncWaygates(); // only for drawing: the server decides who walks through
 }
 
 const turn = (a: number, b: number, k: number) => {

@@ -3,7 +3,7 @@
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
-import type { TechType } from '../data/era.ts';
+import type { TechType, UpgradeTrack } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 
@@ -23,15 +23,20 @@ export type Stance = (typeof STANCES)[number];
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
-export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number }
-export type Order = MoveOrder | AttackOrder | HarvestOrder;
+/** What a unit is carrying home. */
+export type Cargo = 'ore' | 'wood' | 'oil';
+/** Gather ore from the ground, or (with `res`) haul wood or oil from the store of building `src`. */
+export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number; res?: 'wood' | 'oil'; src?: number }
+/** A medic tending a wounded ally; gives up if it strays too far from where it started (ox, oy). */
+export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number }
+export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
 
-export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech';
+export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech' | 'hospital' | 'armory';
 export interface ProductionItem {
   type: UnitType | BldType | TechType;
   /** 0..1 */
   prog: number;
-  /** ore paid so far (wood and oil are paid at the same pace, so they're prog × price) */
+  /** ore paid for it (the whole price is paid when the order starts) */
   spent: number;
   /** finished structure waiting to be placed */
   ready: boolean;
@@ -63,8 +68,16 @@ export interface Ent extends Target {
   face: number;
   /** turret / weapon facing */
   tface: number;
-  /** ore carried (harvesters) */
+  /** load carried by harvesters and Workers (see `cargo`), or what a mill or derrick holds in store */
   carry: number;
+  /** what `carry` is; ore if unset */
+  cargo?: Cargo;
+  /** Aether carried home from a deposit */
+  ae?: number;
+  /** game time until which this unit shows as drawing Aether from a deposit (a beam, like an attack) */
+  drawT?: number;
+  /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
+  loot?: number;
   scan: number;
   rep: number;
   px: number;
@@ -76,6 +89,9 @@ export interface Ent extends Target {
   stance: Stance;
   /** the enemy a skirmishing unit is shooting at without stopping */
   shot: number | null;
+  /** the enemy that started attacking this unit, and when it last hit */
+  foe: number | null;
+  foeT: number;
   // buildings
   done: boolean;
   /** 0..1 rise-up animation after placement */
@@ -110,6 +126,8 @@ export interface Particle {
 
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
+/** A linked pair of Waygates: like a portal, but only its team may use it. */
+export interface Waygate extends Portal { team: number }
 
 export interface Decal {
   kind: 'splat' | 'corpse' | 'rubble' | 'wreck' | 'scorch';
@@ -118,6 +136,8 @@ export interface Decal {
 
 export const G = {
   terr: new Uint8Array(MW * MH),
+  /** ground height at each tile's centre, in tiles (water sits at WATER_LEVEL) */
+  elev: new Float32Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
   /** oil left in the ground on each tile (never refills) */
@@ -129,12 +149,18 @@ export const G = {
   portals: [] as Portal[],
   /** for each tile, the tile index its portal leads to, or -1 */
   warp: new Int32Array(MW * MH).fill(-1),
+  /** linked Waygate pairs (see game/aether.ts) */
+  waygates: [] as Waygate[],
+  /** for each warp tile, the only team that may use it, or -1 for anyone (map portals) */
+  warpTeam: new Int8Array(MW * MH).fill(-1),
   /** fog per team: 0 unexplored, 1 explored, 2 visible */
   sight: [new Uint8Array(MW * MH), new Uint8Array(MW * MH)],
   /** fog of the team being viewed on this screen (an alias of sight[viewer]) */
   vis: new Uint8Array(MW * MH),
   /** the team this screen shows (the local player) */
   viewer: 0,
+  /** number of sides in the match (2, or 4 for a free-for-all) */
+  teams: 2,
   /** which teams are people (they only build on ground they've explored) */
   human: [true, false],
   /** running on the server: no visual effects */
@@ -154,12 +180,16 @@ export const G = {
   aether: [] as number[],
   /** each team has drawn Aether at least once, revealing its hidden units */
   aetherFound: [] as boolean[],
+  /** the side with a bounty on it for being far ahead (see bounty.ts), or -1 */
+  leader: -1,
   /** each team has researched the Aether Ward */
   ward: [] as boolean[],
   /** each team's age of technology (index into ERA) */
   era: [] as number[],
   /** each team's healing level (index into HEAL_RATE) */
   heal: [] as number[],
+  /** each team's Armory upgrade levels */
+  upg: [] as Record<UpgradeTrack, number>[],
   prod: [] as Production[],
   nextId: 1,
   seed: 0,
@@ -190,6 +220,12 @@ export const hooks = {
   fired: (_shooter: Ent, _weapon: string, _target: Ent): void => {},
   /** an entity was destroyed */
   killed: (_e: Ent): void => {},
+  /** damage from `by` (if known) destroyed an entity; called just before `killed` */
+  killedBy: (_e: Ent, _by: Ent | null): void => {},
+  /** a harvester unloaded `amount` ore */
+  income: (_team: number, _amount: number): void => {},
+  /** a side was paid a bounty for destroying something of the leader's */
+  bounty: (_team: number, _amount: number): void => {},
   error: (err: unknown): void => { console.error(err); },
 };
 
@@ -215,6 +251,10 @@ export function say(team: number, msg: string): void {
 export const unitDef = (e: Ent) => UNIT[e.type as UnitType];
 export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 /** Living units (infantry and knights) bleed and heal; vehicles don't. */
+/** Anything that gathers ore: Workers until the Modern age, Harvesters after. */
+export const isHarvester = (e: Ent): boolean => e.kind === 'unit' && !!unitDef(e).haul;
+/** Ore it carries per trip. */
+export const haulOf = (e: Ent): number => unitDef(e).haul ?? 0;
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
 /** Aircraft fly straight over everything and only some weapons can reach them. */

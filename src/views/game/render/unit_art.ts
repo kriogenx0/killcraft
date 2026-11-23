@@ -133,6 +133,23 @@ function tank(g: G2, T: TeamColors, p: UnitPose, heavy: boolean): void {
   g.restore();
 }
 
+/** A Worker: tunic, hood, a basket on the back and a pick over the shoulder. */
+function worker(g: G2, T: TeamColors, p: UnitPose): void {
+  const cs = Math.cos(p.f), sn = Math.sin(p.f), sw = Math.sin(p.walk * TAU) * 2.6;
+  blob(g, -sn * 2.4 + cs * sw, 1 + cs * 1.2, 2, 1.6, '#3a2a1a');
+  blob(g, sn * 2.4 - cs * sw, 1 - cs * 1.2, 2, 1.6, '#3a2a1a');
+  const by = -6 - Math.abs(sw) * 0.4;
+  blob(g, -cs * 4, by - 1 - sn * 2, 3.4, 3.8, '#a08050'); // basket
+  if (p.load > 0.05) blob(g, -cs * 4, by - 4 - sn * 2, 3, 1.6 + p.load * 1.6, '#e8b830');
+  blob(g, 0, by, 5, 6, shade(g, 0, by, 6, '#a89a72', '#6a5a3a'));
+  g.fillStyle = T.m;
+  g.fillRect(-4, by + 1, 8, 2.4);
+  blob(g, 0, by - 8, 3.6, 3.6, SKIN);
+  g.beginPath(); g.arc(0, by - 8.4, 4.2, Math.PI * 0.9, TAU + 0.1); g.fillStyle = '#6a5a40'; g.fill();
+  oline(g, cs * 2, by - 2, cs * 9 + sn * 2, by - 10, 1.6, '#6a4a28'); // pick handle
+  oline(g, cs * 9 + sn * 2 - 3, by - 12, cs * 9 + sn * 2 + 3, by - 8, 1.8, '#5a5e64'); // pick head
+}
+
 function harvester(g: G2, T: TeamColors, p: UnitPose): void {
   g.save();
   g.rotate(p.f);
@@ -174,6 +191,17 @@ function helmet(g: G2, T: TeamColors, hy: number, cs: number, back: boolean, plu
   blob(g, 0, hy, 4, 4, shade(g, 0, hy, 4, STEEL[0], STEEL[1]));
   if (!back) { g.fillStyle = '#16161c'; g.fillRect(-2.8 + cs * 1, hy - 0.4, 5.6, 1.3); }
   if (plume) blob(g, 0, hy - 4.5, 1.5, 2.6, T.m);
+}
+
+function medic(g: G2, T: TeamColors, p: UnitPose): void {
+  const by = feet(g, p, '#3a3a3a');
+  // satchel at the hip
+  blob(g, -Math.cos(p.f) * 4, by + 2, 2.6, 2.2, '#7a5a38');
+  blob(g, 0, by, 5, 6, shade(g, 0, by, 6, '#f4f0e6', '#a8a498'));
+  g.fillStyle = '#c42a22'; g.fillRect(-1, by - 3.5, 2, 7); g.fillRect(-3.5, by - 1, 7, 2);
+  blob(g, 0, by - 8, 3.6, 3.6, SKIN);
+  g.beginPath(); g.arc(0, by - 8.6, 4.2, Math.PI, TAU); g.fillStyle = T.m; g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 0.8; g.stroke();
 }
 
 function swordsman(g: G2, T: TeamColors, p: UnitPose): void {
@@ -364,9 +392,11 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'swordsman': swordsman(g, T, p); break;
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
+    case 'medic': medic(g, T, p); break;
     case 'catapult': catapult(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;
     case 'harvester': harvester(g, T, p); break;
+    case 'worker': worker(g, T, p); break;
     case 'balloon': balloon(g, T); break;
     case 'biplane': biplane(g, T, p); break;
     case 'helicopter': helicopter(g, T, p); break;

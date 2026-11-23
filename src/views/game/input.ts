@@ -1,12 +1,14 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, bldDef, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { G, bldDef, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { dispatch, ids } from './dispatch.ts';
-import { centerCam, clampCam, ownSelected, selectedUnits, V } from './view_state.ts';
+import { centerCam, clampCam, ownSelected, selectedUnits, spectating, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
-import { ROTATE_KEYS, SCROLL_KEYS, scrollVector, tracksKey } from './keyboard.ts';
+import { ROTATE_KEYS, SCROLL_KEYS, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
+import { productionHotkey } from './sidebar.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
 import { midHeight, pickEntity } from './render3d/entities3d.ts';
@@ -47,11 +49,12 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   const tx = tileOf(wx), ty = tileOf(wy);
   if (!units.length) {
     const b = own[0];
-    if (b.kind === 'bld' && b.done && bldDef(b).produces && bldDef(b).produces !== 'structure') { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
+    if (b.kind === 'bld' && b.done && isUnitProducer(bldDef(b).produces)) { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }
     return;
   }
-  const harvesters = units.filter((u) => u.type === 'harvester'), rest = units.filter((u) => u.type !== 'harvester');
+  const harvesters = units.filter(isHarvester), rest = units.filter((u) => !isHarvester(u));
   const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty });
+  if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && hit?.type === 'refinery' && hit.team === V.team) { dispatch({ c: 'return', ids: ids(harvesters) }); moveRest(); mark(wx, wy, '#ff5'); return; }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
   dispatch({ c: 'move', ids: ids(units), tx, ty });
@@ -74,10 +77,11 @@ function useMode(wx: number, wy: number, hit: Ent | null): void {
   refreshCommands(true);
 }
 
-/** Your units whose on-screen position passes a test. */
+/** Your units (any side's, when spectating) whose on-screen position passes a test. */
 function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
+  const anyTeam = spectating();
   return G.ents.filter((e) => {
-    if (e.dead || e.kind !== 'unit' || e.team !== V.team) return false;
+    if (e.dead || e.kind !== 'unit' || (!anyTeam && e.team !== V.team) || e.team < 0) return false;
     const p = worldToScreen(e.x, e.y, midHeight(e));
     return p.front && test(p.sx, p.sy);
   });
@@ -87,7 +91,7 @@ function boxSelect(x0: number, y0: number, x1: number, y1: number, add: boolean)
   const l = Math.min(x0, x1), r = Math.max(x0, x1), t = Math.min(y0, y1), b = Math.max(y0, y1);
   const us = unitsOnScreen((sx, sy) => sx >= l - 6 && sx <= r + 6 && sy >= t - 6 && sy <= b + 6);
   // prefer combat units over harvesters in a box
-  const army = us.filter((u) => u.type !== 'harvester'), pick = army.length ? army : us;
+  const army = us.filter((u) => !isHarvester(u)), pick = army.length ? army : us;
   if (pick.length) setSelection(add ? [...new Set([...selectedUnits(), ...pick])] : pick);
   else if (!add) setSelection([]);
 }
@@ -95,13 +99,15 @@ function boxSelect(x0: number, y0: number, x1: number, y1: number, add: boolean)
 let canvasRect = { left: 0, top: 0, right: 0, bottom: 0 };
 function selectSameType(e: Ent): void {
   const r = canvasRect;
-  setSelection(unitsOnScreen((sx, sy) => sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom).filter((u) => u.type === e.type));
+  setSelection(unitsOnScreen((sx, sy) => sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom).filter((u) => u.type === e.type && u.team === e.team));
 }
 
 function clickSelect(sx: number, sy: number, add: boolean): void {
   const e = pickEntity(sx, sy);
   if (!e) { if (!add) setSelection([]); return; }
-  if (add && e.kind === 'unit' && e.team === V.team && V.sel.every((s) => s.kind === 'unit' && s.team === V.team)) {
+  // shift adds units of one side: yours, or when spectating, the side of the first one picked
+  const side = spectating() ? (V.sel[0]?.team ?? e.team) : V.team;
+  if (add && e.kind === 'unit' && e.team === side && V.sel.every((s) => s.kind === 'unit' && s.team === side)) {
     setSelection(V.sel.includes(e) ? V.sel.filter((s) => s !== e) : [...V.sel, e]);
     return;
   }
@@ -109,11 +115,11 @@ function clickSelect(sx: number, sy: number, add: boolean): void {
 }
 
 let lastTap = { t: 0, id: 0 };
-/** Touch: tap selects your own things; with something selected, tapping elsewhere gives an order. */
+/** Touch: tap selects your own things (anything, when spectating); with something selected, tapping elsewhere gives an order. */
 function tap(sx: number, sy: number): void {
   const w = screenToWorld(sx, sy), e = pickEntity(sx, sy), now = performance.now();
   if (V.mode) { if (w) useMode(w.x, w.y, e); return; }
-  if (e && e.team === V.team) {
+  if (e && (e.team === V.team || spectating())) {
     if (lastTap.id === e.id && now - lastTap.t < DOUBLE_TAP && e.kind === 'unit') selectSameType(e);
     else setSelection([e]);
     lastTap = { t: now, id: e.id };
@@ -137,7 +143,7 @@ function orbit(dx: number, dy: number): void {
 
 export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): void {
   const touches = new Map<number, { x: number; y: number }>();
-  let panned = false, pinch: { d: number; a: number } | null = null, orbiting: { x: number; y: number } | null = null;
+  let panned = false, pinch: { d: number; a: number; mx: number; my: number } | null = null, orbiting: { x: number; y: number } | null = null;
   const refreshRect = () => { const r = canvas.getBoundingClientRect(); canvasRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
 
   canvas.addEventListener('pointerdown', (ev) => {
@@ -151,7 +157,7 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       return;
     }
     if (ev.button === 1) { ev.preventDefault(); orbiting = { x: ev.clientX, y: ev.clientY }; canvas.setPointerCapture(ev.pointerId); return; }
-    if (G.demo) return;
+    if (spectating() && ev.button !== 0) return; // spectators can select and inspect, never order
     const w = screenToWorld(ev.clientX, ev.clientY);
     if (ev.button === 2) {
       if (V.mode) { V.mode = null; refreshCommands(true); }
@@ -174,10 +180,20 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
       const prev = { ...t };
       t.x = ev.clientX; t.y = ev.clientY;
       if (touches.size >= 2) {
-        // two fingers: pinch to zoom, twist to turn
+        // two fingers: slide to pan, pinch to zoom, twist to turn; the map follows the fingers
         const [a, b] = [...touches.values()], d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
-        if (pinch) { V.cam.dist *= pinch.d / Math.max(1, d); V.cam.yaw -= ang - pinch.a; clampCam(); }
-        pinch = { d, a: ang };
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        if (pinch) {
+          const w0 = screenToWorld(pinch.mx, pinch.my), w1 = screenToWorld(mx, my);
+          if (w0 && w1) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; }
+          V.cam.dist *= pinch.d / Math.max(1, d);
+          // a clockwise twist (angle grows, screen y points down) turns the map clockwise with the fingers
+          let turn = ang - pinch.a;
+          if (turn > Math.PI) turn -= Math.PI * 2; else if (turn < -Math.PI) turn += Math.PI * 2;
+          V.cam.yaw += turn;
+          clampCam();
+        }
+        pinch = { d, a: ang, mx, my };
         panned = true;
         return;
       }
@@ -195,7 +211,7 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
     if (orbiting && ev.button === 1) { orbiting = null; return; }
     if (touches.has(ev.pointerId)) {
       touches.delete(ev.pointerId);
-      if (!touches.size && !panned && !G.demo) tap(ev.clientX, ev.clientY);
+      if (!touches.size && !panned) tap(ev.clientX, ev.clientY);
       if (touches.size < 2) pinch = null;
       return;
     }
@@ -231,10 +247,10 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
   }, { passive: false });
   document.addEventListener('pointerleave', () => { V.mouse.inside = false; });
   canvas.addEventListener('dblclick', (ev) => {
-    if (!V.started || G.demo) return;
+    if (!V.started) return;
     refreshRect();
     const e = pickEntity(ev.clientX, ev.clientY);
-    if (e?.kind === 'unit' && e.team === V.team) selectSameType(e);
+    if (e?.kind === 'unit' && (e.team === V.team || spectating())) selectSameType(e);
   });
   canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
   mini.addEventListener('contextmenu', (ev) => ev.preventDefault());
@@ -279,8 +295,10 @@ function onKey(ev: KeyboardEvent): void {
   if (k === '-' || k === '_') { V.speed = Math.max(0.5, V.speed / 2); return; }
   if (k === ' ') { ev.preventDefault(); if (G.lastAlert) centerCam(G.lastAlert.x, G.lastAlert.y); return; }
   if (k === 'home' || k === 'h') {
-    const y = G.ents.find((x) => !x.dead && x.team === V.team && x.kind === 'bld');
-    if (y) centerCam(y.x, y.y);
+    // select the Construction Yard (its keys build structures and research) and look at it
+    const own = G.ents.filter((x) => !x.dead && x.team === V.team && x.kind === 'bld');
+    const y = own.find((x) => x.type === 'yard' && x.done) ?? own[0];
+    if (y) { centerCam(y.x, y.y); if (y.type === 'yard') setSelection([y]); }
     return;
   }
   if (/^[1-9]$/.test(k)) {
@@ -297,7 +315,8 @@ function onKey(ev: KeyboardEvent): void {
     return;
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-  if (runHotkey(k)) ev.preventDefault();
+  const hk = normalizeKey(ev.key);
+  if (runHotkey(hk) || productionHotkey(hk)) ev.preventDefault();
 }
 
 /** Move the view by a screen offset (px), as if dragging the ground the other way. */

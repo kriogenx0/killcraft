@@ -1,7 +1,8 @@
 // A* on the tile grid (portals count as a one-step link between their two gates), then
 // string-pulled so units walk straight lines.
 import { G, blkAt, isAir, tileOf, type Ent, type Target, type Tile } from './state.ts';
-import { MW, MH, TS } from './const.ts';
+import { MW, MH, TS, SHALLOW } from './const.ts';
+import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
 
 export const DIRS: [number, number, number][] = [
@@ -33,8 +34,11 @@ export function nearestFree(gx: number, gy: number, maxr = 12): Tile | null {
   return null;
 }
 
-/** Tile path (excluding the start). If the goal can't be reached, ends at the closest reachable tile. */
-export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[] {
+/**
+ * Tile path (excluding the start). If the goal can't be reached, ends at the closest reachable tile.
+ * `team` may also step through its own Waygates; map portals are open to everyone.
+ */
+export function findPath(sx: number, sy: number, gx: number, gy: number, team = -1): Tile[] {
   sx = clamp(sx, 0, MW - 1); sy = clamp(sy, 0, MH - 1); gx = clamp(gx, 0, MW - 1); gy = clamp(gy, 0, MH - 1);
   if (G.blk[gy * MW + gx]) {
     const f = nearestFree(gx, gy);
@@ -76,7 +80,7 @@ export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[]
   // With portals the straight-line estimate can overshoot, so also consider "walk to a gate,
   // step through, then the best estimate from its exit" (settled over chains of gates).
   const gates: { x: number; y: number; rest: number }[] = [];
-  for (const p of G.portals)
+  for (const p of [...G.portals, ...G.waygates.filter((w) => w.team === team)])
     for (const [[x, y], [ex, ey]] of [[p.a, p.b], [p.b, p.a]] as const) gates.push({ x, y, rest: PORTAL_COST + oct(ex, ey, gx, gy) });
   for (let k = 0; k < gates.length; k++)
     for (const g of gates) {
@@ -104,13 +108,13 @@ export function findPath(sx: number, sy: number, gx: number, gy: number): Tile[]
       const ni = ny * MW + nx;
       if (blk[ni] || closedStamp[ni] === stamp) continue;
       if (dx && dy && (blk[y * MW + nx] || blk[ny * MW + x])) continue; // no corner cutting
-      const ng = gScore[i] + c;
+      const ng = gScore[i] + (G.terr[ni] === SHALLOW ? c / SHALLOW_SPEED : c); // wading is slow
       if (openStamp[ni] !== stamp || ng < gScore[ni]) {
         openStamp[ni] = stamp; gScore[ni] = ng; cameFrom[ni] = i; push(ni, ng + H(nx, ny));
       }
     }
     const wi = G.warp[i];
-    if (wi >= 0 && !blk[wi] && closedStamp[wi] !== stamp) {
+    if (wi >= 0 && !blk[wi] && closedStamp[wi] !== stamp && (G.warpTeam[i] < 0 || G.warpTeam[i] === team)) {
       const ng = gScore[i] + PORTAL_COST;
       if (openStamp[wi] !== stamp || ng < gScore[wi]) {
         openStamp[wi] = stamp; gScore[wi] = ng; cameFrom[wi] = i; push(wi, ng + H(wi % MW, (wi / MW) | 0));
@@ -136,6 +140,28 @@ export function los(x0: number, y0: number, x1: number, y1: number): boolean {
 
 const center = (t: Tile): [number, number] => [(t[0] + 0.5) * TS, (t[1] + 0.5) * TS];
 
+/** How many shallow-water tiles a straight walk crosses. */
+function wadeTiles(x0: number, y0: number, x1: number, y1: number): number {
+  const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 8);
+  let count = 0, last = -1;
+  for (let k = 0; k <= n; k++) {
+    const i = tileOf(y0 + ((y1 - y0) * k) / Math.max(1, n)) * MW + tileOf(x0 + ((x1 - x0) * k) / Math.max(1, n));
+    if (i !== last && G.terr[i] === SHALLOW) count++;
+    last = i;
+  }
+  return count;
+}
+
+/** A straight walk may replace path tiles i..j if it's clear and wades no more than they do. */
+function canSkip(cx: number, cy: number, path: Tile[], i: number, j: number): boolean {
+  if (!los(cx, cy, ...center(path[j]))) return false;
+  const wade = wadeTiles(cx, cy, ...center(path[j]));
+  if (!wade) return true;
+  let along = 0;
+  for (let k = i; k <= j; k++) if (G.terr[path[k][1] * MW + path[k][0]] === SHALLOW) along++;
+  return wade <= along + 1;
+}
+
 /** Consecutive path tiles that aren't neighbours: a step through a portal. */
 export const isJump = (a: Tile, b: Tile): boolean => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1])) > 1;
 
@@ -159,7 +185,7 @@ export function smoothPath(sx: number, sy: number, path: Tile[]): Tile[] {
     let end = i; // last tile before the next portal jump
     while (end + 1 < path.length && !isJump(path[end], path[end + 1])) end++;
     let j = Math.min(end, i + 12);
-    while (j > i && !los(cx, cy, ...center(path[j]))) j--;
+    while (j > i && !canSkip(cx, cy, path, i, j)) j--;
     out.push(path[j]);
     [cx, cy] = center(path[j]);
     i = j + 1;
@@ -176,28 +202,47 @@ export function smoothPath(sx: number, sy: number, path: Tile[]): Tile[] {
 export function pathFor(u: Ent, gx: number, gy: number): Tile[] {
   // aircraft fly straight there, over anything
   if (isAir(u)) return tileOf(u.x) === gx && tileOf(u.y) === gy && Math.hypot(u.x - (gx + 0.5) * TS, u.y - (gy + 0.5) * TS) < 2 ? [] : [[clamp(gx, 0, MW - 1), clamp(gy, 0, MH - 1)]];
-  return smoothPath(u.x, u.y, findPath(tileOf(u.x), tileOf(u.y), gx, gy));
+  return smoothPath(u.x, u.y, findPath(tileOf(u.x), tileOf(u.y), gx, gy, u.team));
 }
 
-/** A free tile touching a footprint, nearest to the unit (with jitter so crowds spread out). */
-export function adjTile(t: Target, u: { x: number; y: number }, jitter = true): Tile | null {
-  let best: Tile | null = null, bd = 1e9;
+/** Free tiles touching a footprint, nearest to the unit first (with jitter so crowds spread out). */
+export function adjTiles(t: Target, u: { x: number; y: number }, jitter = true): Tile[] {
+  const out: [Tile, number][] = [];
   for (let y = t.ty - 1; y <= t.ty + t.h; y++)
     for (let x = t.tx - 1; x <= t.tx + t.w; x++) {
       if (x >= t.tx && x < t.tx + t.w && y >= t.ty && y < t.ty + t.h) continue;
       if (x < 0 || y < 0 || x >= MW || y >= MH || G.blk[y * MW + x]) continue;
-      const d = Math.hypot((x + 0.5) * TS - u.x, (y + 0.5) * TS - u.y) + (jitter ? Math.random() * 30 : 0);
-      if (d < bd) { bd = d; best = [x, y]; }
+      out.push([[x, y], Math.hypot((x + 0.5) * TS - u.x, (y + 0.5) * TS - u.y) + (jitter ? Math.random() * 30 : 0)]);
     }
-  return best;
+  return out.sort((a, b) => a[1] - b[1]).map(([tile]) => tile);
 }
 
-/** Path toward a target, or null if nothing next to it is walkable. Sets the unit's goal. */
+/** The free tile touching a footprint nearest to the unit (with jitter so crowds spread out). */
+export function adjTile(t: Target, u: { x: number; y: number }, jitter = true): Tile | null {
+  return adjTiles(t, u, jitter)[0] ?? null;
+}
+
+/**
+ * Path toward a target, or null if nothing next to it is walkable. Sets the unit's goal. Beside a
+ * building, a nearby free tile can be walled off (a pocket between rock and the wall), so it tries
+ * the next nearest until one can actually be reached.
+ */
 export function pathTo(u: Ent, t: Target): Tile[] | null {
-  const g: Tile | null = t.w && !isAir(u) ? adjTile(t, u) : [tileOf(t.x), tileOf(t.y)];
-  if (!g) return null;
-  u.goal = g;
-  return pathFor(u, g[0], g[1]);
+  if (!t.w || isAir(u)) {
+    u.goal = [tileOf(t.x), tileOf(t.y)];
+    return pathFor(u, u.goal[0], u.goal[1]);
+  }
+  const tiles = adjTiles(t, u);
+  if (!tiles.length) return null;
+  const here = [tileOf(u.x), tileOf(u.y)];
+  let first: Tile[] | null = null;
+  for (const g of tiles.slice(0, 6)) {
+    const path = pathFor(u, g[0], g[1]), end = path[path.length - 1] ?? here;
+    if (end[0] === g[0] && end[1] === g[1]) { u.goal = g; return path; }
+    first ??= path;
+  }
+  u.goal = tiles[0];
+  return first;
 }
 
 /** Distance from a point to a target's edge (footprint edge, or a unit's 10px body). */
