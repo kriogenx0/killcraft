@@ -797,7 +797,13 @@ function powerPlant(team: number): Model {
   kerb(root, 2);
   // hyperbolic cooling towers with rims, stripes and ladders
   const tower: [number, number][] = [[0.42, 0], [0.36, 0.4], [0.3, 0.85], [0.29, 1.05], [0.31, 1.3]];
+  const parts: Parts = {};
   for (const x of [-0.45, 0.45]) {
+    // where the steam rises from (see burn3d.ts)
+    const vent = new THREE.Object3D();
+    vent.position.set(x, 1.36, -0.2);
+    root.add(vent);
+    parts[`vent${x < 0 ? 0 : 1}`] = vent;
     root.add(mesh(lathe(tower, 20), M.lightConcrete(), x, 0.06, -0.2));
     root.add(mesh(torus(0.31, 0.018, Math.PI * 2, 4, 20), M.concrete(), x, 1.36, -0.2).rotateX(Math.PI / 2));
     root.add(mesh(cyl(0.29, 0.29, 0.02, 20), M.dark(), x, 1.3, -0.2));
@@ -828,7 +834,7 @@ function powerPlant(team: number): Model {
   // chain-link fence posts along the front
   for (let i = 0; i < 6; i++) root.add(mesh(cyl(0.01, 0.01, 0.2, 4), M.steel(), -0.85 + i * 0.12, 0.15, 0.9));
   root.add(mesh(box(0.62, 0.006, 0.006), M.steel(), -0.55, 0.24, 0.9));
-  return { root, parts: {}, height: 1.45 };
+  return { root, parts, height: 1.45 };
 }
 
 function refinery(team: number): Model {
@@ -853,6 +859,9 @@ function refinery(team: number): Model {
   root.add(mesh(cyl(0.1, 0.13, 1.1, 12), M.brick(), -1.15, 1.4, -0.95));
   for (const y of [1.6, 1.85]) root.add(mesh(cyl(0.105, 0.105, 0.06, 12), tm, -1.15, y, -0.95));
   root.add(mesh(cyl(0.12, 0.1, 0.05, 12), M.dark(), -1.15, 1.97, -0.95));
+  const flue = new THREE.Object3D();
+  flue.position.set(-1.15, 2.0, -0.95);
+  root.add(flue);
   // storage silos with ladders and hoops
   root.add(mesh(cyl(0.33, 0.33, 1.15, 18), M.white(), 0.85, 0.64, -0.8));
   root.add(mesh(dome(0.33), M.white(), 0.85, 1.21, -0.8));
@@ -870,7 +879,7 @@ function refinery(team: number): Model {
   for (const x of [0.25, 0.55]) root.add(along(mesh(cyl(0.06, 0.06, 0.03, 8), M.darkSteel(), x, 0.6, -0.6)));
   root.add(rot(mesh(box(0.2, 0.06, 0.4), M.darkSteel(), 0.05, 0.5, 0.45), 0.5, 0, 0));
   root.add(mesh(box(0.22, 0.02, 0.42), M.hazard(), 0.05, 0.535, 0.43).rotateX(0.5));
-  return { root, parts: {}, height: 1.5 };
+  return { root, parts: { flue0: flue }, height: 1.5 };
 }
 
 function barracks(team: number): Model {
@@ -1013,6 +1022,10 @@ function engineWorks(team: number): Model {
   for (const x of [-0.65, -0.35]) {
     root.add(mesh(cyl(0.07, 0.09, 0.9, 12), M.lightConcrete(), x, 0.95, -0.5));
     root.add(mesh(cyl(0.08, 0.08, 0.05, 12), M.dark(), x, 1.41, -0.5));
+    const flue = new THREE.Object3D();
+    flue.position.set(x, 1.44, -0.5);
+    root.add(flue);
+    parts[`flue${x < -0.5 ? 0 : 1}`] = flue;
   }
   // fuel tank and pipe to the hall
   root.add(mesh(cyl(0.22, 0.22, 0.5, 16), M.steel(), 0.68, 0.31, -0.45));

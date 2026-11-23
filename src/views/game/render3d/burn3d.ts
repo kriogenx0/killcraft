@@ -7,7 +7,7 @@ import { seenAt } from '../../../game/fog.ts';
 import { hash } from '../../../util/math.ts';
 import { S } from './scene.ts';
 import { footprintY } from './heights.ts';
-import { modelHeight } from './entities3d.ts';
+import { modelHeight, ventsOf } from './entities3d.ts';
 
 export const SMOKE_AT = 0.6, FIRE_AT = 0.35, BLAZE_AT = 0.15;
 const CAP = 900;
@@ -47,7 +47,7 @@ function pool(additive: boolean, order: number): Pool {
   return { pts, pos, col, size, n: 0 };
 }
 
-// particle state, struct-of-arrays: position, velocity, age, lifetime, base size, kind (0 flame, 1 smoke, 2 black smoke)
+// particle state, struct-of-arrays: position, velocity, age, lifetime, base size, kind (0 flame, 1 smoke, 2 black smoke, 3 steam, 4 chimney smoke)
 const px = new Float32Array(CAP), py = new Float32Array(CAP), pz = new Float32Array(CAP);
 const vx = new Float32Array(CAP), vy = new Float32Array(CAP), vz = new Float32Array(CAP);
 const age = new Float32Array(CAP), life = new Float32Array(CAP), base = new Float32Array(CAP), kind = new Uint8Array(CAP);
@@ -65,6 +65,7 @@ function emit(k: number, x: number, y: number, z: number, s: number): void {
   vy[i] = k === 0 ? 0.7 + r() * 0.5 : 0.45 + r() * 0.3;
   age[i] = 0;
   life[i] = k === 0 ? 0.45 + r() * 0.35 : 2.2 + r() * 1.6;
+  if (k >= 3) { const j = k === 3 ? 0.2 : 0.05; px[i] = x + (r() - 0.5) * j; pz[i] = z + (r() - 0.5) * j; vy[i] = 0.55 + r() * 0.25; life[i] = 1.8 + r(); }
   base[i] = s * (0.7 + r() * 0.6);
   kind[i] = k;
 }
@@ -99,12 +100,28 @@ function ignite(e: Ent, dt: number): void {
   debt.set(e.id, Math.min(d, 0.25));
 }
 
+const steamDebt = new Map<number, number>(), at = new THREE.Vector3();
+
+/** Steam rising from the tops of cooling towers and chimneys (model parts named vent0, vent1...). */
+function vent(e: Ent, dt: number): void {
+  const vents = ventsOf(e);
+  if (!vents.length) return;
+  let d = (steamDebt.get(e.id) ?? 0) + dt;
+  const step = 1 / (5 * vents.length);
+  for (; d >= step; d -= step) {
+    const v = vents[(Math.random() * vents.length) | 0];
+    v.at.getWorldPosition(at);
+    emit(v.smoke ? 4 : 3, at.x, at.y, at.z, v.smoke ? 0.22 : 0.45);
+  }
+  steamDebt.set(e.id, Math.min(d, 0.25));
+}
+
 const color = new THREE.Color();
 
 /** Advance the fires by dt seconds (0 when paused: they freeze) and refresh the sprites. */
 export function updateBurning(dt: number): void {
   if (dt > 0) {
-    for (const e of G.ents) if (e.kind === 'bld' && e.done && e.hp > 0 && seenAt(e.x, e.y)) ignite(e, dt);
+    for (const e of G.ents) if (e.kind === 'bld' && e.done && e.hp > 0 && seenAt(e.x, e.y)) { ignite(e, dt); vent(e, dt); }
     for (let i = 0; i < count; i++) {
       age[i] += dt;
       if (age[i] >= life[i]) { // swap-remove
@@ -127,9 +144,9 @@ export function updateBurning(dt: number): void {
       color.setRGB(1, 0.8 - k * 0.6, 0.3 - k * 0.28, THREE.SRGBColorSpace); // yellow-orange to deep red
       a = (1 - k * k) * 0.85; s = base[i] * (1 - k * 0.6);
     } else {
-      const g = kind[i] === 2 ? 0.12 + k * 0.16 : 0.45 + k * 0.15;
-      color.setRGB(g, g * 0.97, g * 0.94, THREE.SRGBColorSpace);
-      a = Math.min(1, k * 6) * (1 - k) * (kind[i] === 2 ? 0.75 : 0.5); s = base[i] * (1 + k * 2.5);
+      const g = kind[i] === 3 ? 0.92 : kind[i] === 4 ? 0.55 + k * 0.2 : kind[i] === 2 ? 0.12 + k * 0.16 : 0.45 + k * 0.15;
+      color.setRGB(g, g * 0.98, g * 0.96, THREE.SRGBColorSpace);
+      a = Math.min(1, k * 6) * (1 - k) * (kind[i] === 2 ? 0.75 : kind[i] >= 3 ? 0.4 : 0.5); s = base[i] * (1 + k * 2.5);
     }
     p.col.set([color.r, color.g, color.b, a], n * 4);
     p.size[n] = s;
@@ -146,6 +163,7 @@ export function updateBurning(dt: number): void {
 export function initBurning(): void {
   count = 0;
   debt.clear();
+  steamDebt.clear();
   S.scene.remove(group);
   S.scene.add(group);
 }
