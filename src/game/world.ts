@@ -14,7 +14,7 @@ import { updFx } from './fx.ts';
 import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect } from './economy.ts';
-import { bankAether, drawAether, placeAether, shrineHeal, syncWaygates } from './aether.ts';
+import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { captureBeasts, placeCreatures } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { emptyProduction, updProduction } from './production.ts';
@@ -75,6 +75,7 @@ export function update(dt: number): void {
       e.path = null;
     }
   }
+  pickUpShards();
   for (let team = 0; team < G.teams; team++) updProduction(team, dt);
   updProjs(dt);
   separate();

@@ -6,7 +6,7 @@ import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
   AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
-  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
+  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
 import { edgeDist } from './path.ts';
@@ -227,4 +227,59 @@ export function syncWaygates(): void {
 export function waygateLinked(b: Ent): boolean {
   if (!G.waygates.some((w) => w.team === b.team)) return false;
   return G.ents.filter((e) => !e.dead && e.team === b.team && e.type === 'waygate' && e.done).sort((x, y) => x.id - y.id).slice(0, MAX_WAYGATES).includes(b);
+}
+
+// ---- dropped Aether ----
+
+/** Aether on the ground, dropped by a carrier that fell: a small glowing pickup that doesn't block. */
+export function addShard(x: number, y: number, amount: number): Ent {
+  const e: Ent = {
+    id: G.nextId++, kind: 'source', type: 'shard', team: -1, x, y, hp: amount, maxhp: AETHER_CARRY, dead: false, flash: 0,
+    tx: Math.floor(x / TS), ty: Math.floor(y / TS), w: 0, h: 0,
+    order: null, path: null, goal: null, cd: 0, face: Math.random() * Math.PI * 2, tface: 0, carry: 0,
+    scan: 0, rep: 0, px: x, py: y, stkT: 0, walk: 0, moving: false, atkT: 0, stance: 'engage', shot: null, breach: null, foe: null, foeT: -99,
+    done: true, prog: 1, repairing: false, rally: null,
+  };
+  G.ents.push(e);
+  G.byId.set(e.id, e);
+  return e;
+}
+
+/** A unit carrying Aether died: its Aether falls where it stood (merging into a shard already there). */
+export function dropAether(u: Ent): void {
+  const a = u.ae ?? 0;
+  u.ae = 0;
+  if (a <= 0.01 || G.visualOnly) return;
+  const near = G.ents.find((e) => !e.dead && e.type === 'shard' && Math.hypot(e.x - u.x, e.y - u.y) < TS * 0.6);
+  if (near) { near.hp += a; near.maxhp = Math.max(near.maxhp, near.hp); } else addShard(u.x, u.y, a).maxhp = Math.max(AETHER_CARRY, a);
+}
+
+export const shards = (): Ent[] => G.ents.filter((e) => !e.dead && e.type === 'shard');
+
+/** Any unit, of any side, that walks over dropped Aether picks up what it has room for. Call every step. */
+export function pickUpShards(): void {
+  if (G.visualOnly) return;
+  for (const s of G.ents) {
+    if (s.dead || s.type !== 'shard') continue;
+    for (const u of G.ents) {
+      if (u.dead || u.kind !== 'unit' || u.team < 0 || Math.hypot(u.x - s.x, u.y - s.y) > SHARD_PICKUP * TS) continue;
+      const a = Math.min(s.hp, AETHER_CARRY - (u.ae ?? 0));
+      if (a <= 0.01) continue;
+      u.ae = (u.ae ?? 0) + a;
+      s.hp -= a;
+      if (s.hp <= 0.01) { s.dead = true; hooks.killed(s); break; }
+    }
+  }
+}
+
+/** The nearest dropped Aether an idle Worker should fetch, if it has room. */
+export function shardFor(u: Ent): Ent | null {
+  if ((u.ae ?? 0) >= AETHER_CARRY - 0.5) return null;
+  let best: Ent | null = null, bd = SHARD_SEEK * TS;
+  for (const s of G.ents) {
+    if (s.dead || s.type !== 'shard') continue;
+    const d = Math.hypot(s.x - u.x, s.y - u.y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
 }
