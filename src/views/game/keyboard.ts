@@ -35,8 +35,17 @@ export function scrollVector(held: Iterable<string>): [number, number] {
  */
 export function tracksKey(ev: { ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: unknown }): boolean {
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return false;
-  const t = ev.target as { tagName?: string; isContentEditable?: boolean } | null;
-  return !(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable));
+  return !isTyping(ev.target);
+}
+
+/**
+ * Is a key going into a text field? Only a field you can see: the online lobby's name box keeps
+ * focus after its dialog closes, and must not swallow every key for the whole match.
+ */
+export function isTyping(target: unknown): boolean {
+  const t = target as { tagName?: string; isContentEditable?: boolean; getClientRects?: () => { length: number } } | null;
+  if (!t || !(t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return false;
+  return !t.getClientRects || t.getClientRects().length > 0;
 }
 
 /** Keys that work whatever is selected: P pauses, H selects the Town Hall and looks at it. */

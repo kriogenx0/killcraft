@@ -128,6 +128,7 @@ export function mountGameView(root: HTMLElement): void {
     V.team = 0;
     V.online = false;
     V.started = true;
+    (document.activeElement as HTMLElement | null)?.blur?.(); // keys go to the game, not a closed dialog's field
   };
 
   // ---- online ----
@@ -180,6 +181,7 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(m.team);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
+    (document.activeElement as HTMLElement | null)?.blur?.(); // the lobby's name box would swallow every key
     root.classList.add('view-game--online');
     resignBtn.hidden = false;
     speedBtn.hidden = pauseBtn.hidden = true;

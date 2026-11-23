@@ -9,7 +9,7 @@ import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
-import { groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
+import { hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
 
@@ -49,10 +49,10 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   }
 }
 
-/** The selected building whose production hotkeys are live, if any. */
+/** The building whose production hotkeys are live, if any (see hotkeyProducer). */
 export function selectedProducer(): BldType | null {
-  const b = ownSelected().find((e) => e.kind === 'bld' && e.done);
-  return b && b.kind === 'bld' ? (b.type as BldType) : null;
+  const hall = G.ents.some((e) => !e.dead && e.team === V.team && e.type === 'yard' && e.done);
+  return hotkeyProducer(ownSelected(), hall);
 }
 
 /**
