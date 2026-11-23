@@ -13,7 +13,7 @@ export const SCROLL_KEYS: Record<string, [number, number]> = {
 export const ROTATE_KEYS: Record<string, number> = { q: 1, e: -1 };
 
 /** Hotkeys for the commands of a selected unit. None of these may also move the camera. */
-export const COMMAND_KEYS = { move: 'M', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V' } as const;
+export const COMMAND_KEYS = { move: 'M', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V', tend: 'T' } as const;
 
 /** Hotkeys for a selected building. Production keys (see hotkeys.ts) fit around these. */
 export const BUILDING_KEYS = { repair: 'R', upgrade: 'U', scrap: 'Delete' } as const;
