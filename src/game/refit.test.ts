@@ -30,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  ais[0].on = false;
   ais[1].on = true;
   G.demo = false;
 });
@@ -65,6 +66,7 @@ describe('building upgrades', () => {
     run(refitTime(p) / 2 + 1);
     expect(p.upT).toBeUndefined();
     expect(p.lvl).toBe(1);
+    expect(UPGRADE_HP).toBe(0.4);
     expect(p.maxhp).toBe(Math.round(BUILDING.power.hp * (1 + UPGRADE_HP)));
     expect(p.hp).toBe(p.maxhp);
     expect(refitBonus(p)).toBeCloseTo(1 + UPGRADE_BONUS);
@@ -107,6 +109,30 @@ describe('building upgrades', () => {
     expect(row[13]).toBe(0);
     expect(row[14]).toBeGreaterThan(0);
     expect(encodeEnt(yard, false)[14]).toBe(-1); // the enemy doesn't see the progress
+  });
+
+  it("the computer upgrades a cheaper building while it can't yet afford the Construction Yard", () => {
+    const yard = yardOf(1);
+    const p = addBuilding('power', 1, yard.tx - 4, yard.ty, false);
+    G.era[1] = 1;
+    G.credits[1] = refitPrice(p).ore + 400; G.wood[1] = 500;
+    expect(G.credits[1]).toBeLessThan(refitPrice(yard).ore);
+    aiThink(1);
+    expect(p.upT).toBe(0);
+    expect(yard.upT).toBeUndefined();
+  });
+
+  it('the computer upgrades the buildings it had once it reaches a new age', () => {
+    ais[0].on = true; ais[1].on = true;
+    initWorld(99);
+    let t = 0;
+    while (t < 900 && !G.over && G.era.every((e) => !e)) { run(1); t++; }
+    const team = G.era.findIndex((e) => e > 0);
+    expect(team).toBeGreaterThanOrEqual(0);
+    const old = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && behind(e));
+    expect(old.length).toBeGreaterThan(0);
+    run(90);
+    expect(old.filter((e) => (e.lvl ?? 0) >= 1).length).toBeGreaterThan(0);
   });
 
   it('the computer upgrades its buildings once it has ore to spare', () => {

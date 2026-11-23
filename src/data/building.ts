@@ -112,5 +112,5 @@ export const UPGRADE_SHARE = 0.5;
 export const UPGRADE_TIME = 0.6;
 export const UPGRADE_MIN_TIME = 8;
 /** Each age a building is upgraded through: this much more health, and this much more of what it does. */
-export const UPGRADE_HP = 0.15;
-export const UPGRADE_BONUS = 0.1;
+export const UPGRADE_HP = 0.4;
+export const UPGRADE_BONUS = 0.4;
