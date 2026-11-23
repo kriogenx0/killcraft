@@ -1,6 +1,7 @@
 // Wood, oil and salvage. Lumber Mills cut wood from the trees around them, and cut trees slowly
 // grow back. Oil Derricks pump oil wells that never refill. Destroyed units and buildings leave
 // part of their ore behind for harvesters. Ore fields themselves are in ore.ts.
+import { refitBonus } from './refit.ts';
 import { G, hooks, type Ent } from './state.ts';
 import { MW, MH, TS, TREE, GRASS } from './const.ts';
 import { ORE_TILE_MAX } from '../data/ore.ts';
@@ -76,13 +77,13 @@ export function collect(dt: number): void {
       for (const i of millTrees(m.tx, m.ty, m.w)) {
         if (seen.has(i)) continue;
         seen.add(i);
-        const cut = Math.min(G.treeWood[i], WOOD_PER_TREE * dt, MILL_STORE - m.carry);
+        const cut = Math.min(G.treeWood[i], WOOD_PER_TREE * refitBonus(m) * dt, MILL_STORE - m.carry);
         if (cut <= 0) continue;
         G.treeWood[i] -= cut;
         m.carry += cut;
       }
     for (const d of working(team, 'derrick')) {
-      let want = Math.min(OIL_PER_DERRICK * dt, DERRICK_STORE - d.carry);
+      let want = Math.min(OIL_PER_DERRICK * refitBonus(d) * dt, DERRICK_STORE - d.carry);
       for (const i of wellTiles(d.tx, d.ty, d.w)) {
         if (want <= 0) break;
         const take = Math.min(want, G.oilField[i]);

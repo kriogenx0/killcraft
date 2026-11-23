@@ -5,7 +5,8 @@ import { dropSalvage } from './economy.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
-import { addBuilding, addUnit, kill } from './entity.ts';
+import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
+import { updRefit } from './refit.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
 import { nearPortal } from './map.ts';
@@ -75,6 +76,7 @@ export function updBld(b: Ent, dt: number): void {
   }
   effects(b, dt);
   repair(b, dt);
+  if (b.upT != null) updRefit(b, dt, lowPower(b.team));
   updTurret(b, dt);
 }
 

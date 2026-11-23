@@ -137,6 +137,15 @@ export function makeIcons(team = 0): void {
     g.beginPath(); g.arc(0, -8, 8, 0.6, Math.PI * 2 - 0.6 + Math.PI, false); g.fill(); g.stroke();
     g.fillStyle = '#1a1e18'; g.fillRect(-3, -18, 6, 10);
   });
+  ICON.upgrade = cmd((g) => {
+    // a raised arrow over a new course of bricks
+    g.strokeStyle = '#000'; g.lineWidth = 2;
+    for (const [x, y] of [[-14, 8], [-4, 8], [6, 8], [-9, 14], [1, 14]]) { g.fillStyle = '#b8643c'; g.fillRect(x, y, 9, 5); g.strokeRect(x, y, 9, 5); }
+    g.fillStyle = '#f0c040';
+    g.beginPath();
+    for (const [x, y] of [[0, -17], [11, -4], [4, -4], [4, 5], [-4, 5], [-4, -4], [-11, -4]]) g.lineTo(x, y);
+    g.closePath(); g.fill(); g.stroke();
+  });
   ICON.scrap = cmd((g) => {
     // a wrecking bar over a heap of rubble
     g.strokeStyle = '#000'; g.lineWidth = 2;

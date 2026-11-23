@@ -11,7 +11,7 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
   const w = g.canvas.width, h = g.canvas.height, r = S.canvas.getBoundingClientRect();
   g.clearRect(0, 0, w, h);
   for (const e of G.ents) {
-    if (e.dead || e.kind === 'source' || !shownToPlayer(e) || (e.hp >= e.maxhp && !V.sel.includes(e))) continue;
+    if (e.dead || e.kind === 'source' || !shownToPlayer(e) || (e.hp >= e.maxhp && !V.sel.includes(e) && e.upT == null)) continue;
     const p = worldToScreen(e.x, e.y, modelHeight(e) + 0.15);
     if (!p.front) continue;
     const x0 = p.sx - r.left, y0 = p.sy - r.top;
@@ -20,6 +20,8 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     const x = x0 - bw / 2;
     g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - 1, y0 - 1, bw + 2, 6);
     g.fillStyle = f > 0.6 ? '#3d3' : f > 0.3 ? '#ec3' : '#e33'; g.fillRect(x, y0, bw * f, 4);
+    // a building upgrade under way: a bar below the health
+    if (e.upT != null) { g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - 1, y0 + 5, bw + 2, 4); g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 6, bw * clamp(e.upT, 0, 1), 2); }
     if (isHarvester(e) && e.team === V.team) { g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 5, bw * Math.min(1, e.carry / haulOf(e)), 2); }
   }
   drawFloatText(g, r.left, r.top);
