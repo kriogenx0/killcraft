@@ -1,11 +1,11 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { STANCES, isHarvester, valid, type Ent, type Stance } from './state.ts';
-import { MW, MH, TS } from './const.ts';
+import { G, STANCES, isHarvester, valid, type Ent, type Stance } from './state.ts';
+import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
+import { groupMove, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
@@ -95,7 +95,8 @@ export function applyCommand(team: number, cmd: Command): void {
       ownUnits(team, cmd.ids).forEach(orderStop);
       break;
     case 'harvest':
-      for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHarvest(u, cmd.tx, cmd.ty);
+      // on a tree, Workers chop wood; elsewhere, harvesters and Workers dig ore
+      for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) (G.terr[cmd.ty * MW + cmd.tx] === TREE ? orderChop : orderHarvest)(u, cmd.tx, cmd.ty);
       break;
     case 'return':
       for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderReturn(u);

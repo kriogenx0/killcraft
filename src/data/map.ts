@@ -1,7 +1,7 @@
 // Fixed layout of the skirmish map; terrain between these points is generated from a seed.
 import type { Tile } from '../game/state.ts';
 
-/** Top-left tile of each team's Construction Yard (index = team). */
+/** Top-left tile of each team's Town Hall (index = team). */
 export const START_YARDS: Tile[] = [
   [6, 50],
   [55, 11],
@@ -75,7 +75,7 @@ export const layoutFor = (teams: number): MapLayout =>
 export const START_CREDITS = 3500;
 export const START_WOOD = 400;
 export const START_OIL = 0;
-/** Every side starts with its Construction Yard and two Workers to build with (Alex, 2026-11-23). */
+/** Every side starts with its Town Hall and two Workers to build with (Alex, 2026-11-23). */
 export const START_UNITS = ['worker', 'worker'] as const;
 
 // ---- terrain shape ----

@@ -1,5 +1,5 @@
 // Sidebar production: structures are placed first and then build on site (any number at once, see
-// startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Construction Yard,
+// startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Town Hall,
 // one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
 // The whole price (ore, wood, oil, Aether) is paid when an order starts; an order the side can't
@@ -80,7 +80,7 @@ export function nextUpgrades(team: number): TechType[] {
   }));
 }
 
-/** Infantry the Construction Yard trains while the side has no Barracks, so it can always get Workers back. */
+/** Infantry the Town Hall trains while the side has no Barracks, so it can always get Workers back. */
 const YARD_INFANTRY: readonly UnitType[] = ['worker'];
 
 export function producerOf(team: number, line: ProductionLine): Ent | null {
@@ -176,7 +176,9 @@ const freeToBuild = (w: Ent): boolean => !w.order || (w.order.t === 'harvest' &&
 export function sendBuilder(team: number, site: Ent): Ent | null {
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
   if (!workers.length) { say(team, 'Needs a Worker to build it'); return null; }
-  const free = workers.filter(freeToBuild);
+  // building comes before chopping wood: with nobody else free, take a chopper
+  let free = workers.filter(freeToBuild);
+  if (!free.length) free = workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
   const w = free.sort((a, c) => Math.hypot(a.x - site.x, a.y - site.y) - Math.hypot(c.x - site.x, c.y - site.y))[0];
   if (w) orderFix(w, site);
   else say(team, 'No Worker free: right-click the site with Workers selected');

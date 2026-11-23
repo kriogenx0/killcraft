@@ -39,7 +39,7 @@ afterEach(() => {
   G.reveal = false;
 });
 
-/** Walk a unit up to its own Construction Yard so it banks what it carries. */
+/** Walk a unit up to its own Town Hall so it banks what it carries. */
 function bringHome(u: Ent): void {
   const yard = G.ents.find((e) => !e.dead && e.team === u.team && e.type === 'yard');
   if (!yard) throw new Error('no yard');

@@ -47,7 +47,7 @@ export function payBounty(victim: Ent, by: Ent | null): void {
   else victim.carry += ore; // dropped with the victim's salvage
 }
 
-/** Loot counts once its carrier is near its own Construction Yard or a Refinery. */
+/** Loot counts once its carrier is near its own Town Hall or a Refinery. */
 export function bankLoot(): void {
   for (const u of G.ents) {
     if (u.dead || u.kind !== 'unit' || !u.loot) continue;
