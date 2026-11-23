@@ -116,7 +116,10 @@ function animateUnit(m: Model, e: Ent): void {
       P.heap.visible = load > 0.02;
       P.heap.scale.y = 0.2 + load * 0.8;
       // the pick: a fast strike, a moment's pause in the ground, then a slower pull back up
-      if (P.armR) P.armR.rotation.z = !e.moving && e.atkT > 0 ? pickSwing(G.gameT + e.id * 0.37) : 1.0 + swing * 0.2;
+      // walking, the pick hangs low at its side, head down and forward
+      const working = !e.moving && e.atkT > 0;
+      if (P.armR) P.armR.rotation.z = working ? pickSwing(G.gameT + e.id * 0.37) : e.moving ? 0.15 - swing * 0.35 : 1.0;
+      if (P.gun) P.gun.rotation.z = e.moving && !working ? -1.0 : 0;
       break;
     }
     case 'harvester': {
