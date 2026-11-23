@@ -8,6 +8,7 @@ import { TECH_TYPES } from '../data/era.ts';
 import { groupMove, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
+import { toggleRefit } from './refit.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
@@ -22,7 +23,8 @@ export type Command =
   | { c: 'cancel'; type: Buildable }
   | { c: 'place'; type: BldType; tx: number; ty: number; ex?: number; ey?: number }
   | { c: 'repair'; id: number }
-  | { c: 'scrap'; id: number };
+  | { c: 'scrap'; id: number }
+  | { c: 'upgrade'; id: number };
 
 const MAX_IDS = 200;
 const BUILDABLE = new Set<string>([...UNIT_TYPES, ...BLD_TYPES, ...TECH_TYPES]);
@@ -61,6 +63,7 @@ export function parseCommand(raw: unknown): Command | null {
       return { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number };
     case 'repair':
     case 'scrap':
+    case 'upgrade':
       return isInt(o.id) ? { c: o.c, id: o.id } : null;
     default:
       return null;
@@ -125,6 +128,11 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'scrap': {
       const b = ownBuilding(team, cmd.id);
       if (b) scrap(b);
+      break;
+    }
+    case 'upgrade': {
+      const b = ownBuilding(team, cmd.id);
+      if (b) toggleRefit(b);
       break;
     }
   }

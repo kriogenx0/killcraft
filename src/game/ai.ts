@@ -14,6 +14,7 @@ import { orderMove, setStance, orderHaul } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 import { wildBeasts } from './creatures.ts';
 import { canAttack } from './combat.ts';
+import { canRefit, refitPrice, toggleRefit } from './refit.ts';
 import { CAPTURE_REACH } from '../data/creatures.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY } from '../data/aether.ts';
 
@@ -241,6 +242,20 @@ function research(team: number): void {
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
 }
 
+/** Which buildings the computer upgrades to its age first: the base's heart, then its defenses. */
+const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'derrick', 'mill'];
+const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
+
+/** Upgrade one building at a time to the side's age, with ore to spare. */
+function refits(team: number): void {
+  const own = G.ents.filter((b) => !b.dead && b.team === team && b.kind === 'bld');
+  if (own.some((b) => b.upT != null)) return;
+  const b = own.filter(canRefit).sort((x, y) => refitRank(x) - refitRank(y))[0];
+  if (!b) return;
+  const p = refitPrice(b);
+  if (G.credits[team] >= p.ore + 800 && G.wood[team] >= p.wood) toggleRefit(b);
+}
+
 const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
 
 /** Mills and derricks worth sending a hauler to (a dry derrick with an empty store isn't). */
@@ -454,6 +469,7 @@ export function aiThink(team: number): void {
   construction(team);
   assignHaulers(team);
   research(team);
+  refits(team);
   armory(team);
   training(team);
   upkeep(team);

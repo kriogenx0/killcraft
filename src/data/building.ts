@@ -102,3 +102,15 @@ export const SCRAP_SHARE = 0.4;
 
 /** Repairs restore this much health per second and cost proportionally to the building's price. */
 export const REPAIR_RATE = 25;
+
+/**
+ * Buildings keep the look of the age they were built in. Each one is upgraded on its own to its
+ * side's next age, for this share of its ore and wood price and of its build time (at least
+ * UPGRADE_MIN_TIME seconds).
+ */
+export const UPGRADE_SHARE = 0.5;
+export const UPGRADE_TIME = 0.6;
+export const UPGRADE_MIN_TIME = 8;
+/** Each age a building is upgraded through: this much more health, and this much more of what it does. */
+export const UPGRADE_HP = 0.15;
+export const UPGRADE_BONUS = 0.1;

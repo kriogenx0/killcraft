@@ -1,4 +1,5 @@
 // Creating, destroying and counting entities (units, buildings, ore crystal rocks).
+import { bldHp, refitBonus } from './refit.ts';
 import { G, hooks, bldDef, isVehicle, type Ent, type EntKind, type EntType } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
@@ -34,7 +35,9 @@ function placeRect(e: Ent, tx: number, ty: number, size: number): Ent {
 
 /** A new building rises out of the ground for a moment before it works. */
 export function addBuilding(type: BldType, team: number, tx: number, ty: number, rising: boolean): Ent {
-  const e = baseEnt('bld', type, team, 0, 0, BUILDING[type].hp);
+  const lvl = team >= 0 ? G.era[team] ?? 0 : 0;
+  const e = baseEnt('bld', type, team, 0, 0, bldHp(type, lvl));
+  e.lvl = lvl;
   e.done = !rising;
   e.prog = rising ? 0 : 1;
   e.face = e.tface = Math.PI / 2;
@@ -72,7 +75,7 @@ export function power(team: number): { made: number; used: number } {
   for (const e of G.ents) {
     if (e.dead || e.team !== team || e.kind !== 'bld' || !e.done) continue;
     const p = bldDef(e).power;
-    if (p > 0) made += Math.round(p * Math.max(0.25, e.hp / e.maxhp));
+    if (p > 0) made += Math.round(p * refitBonus(e) * Math.max(0.25, e.hp / e.maxhp));
     else used -= p;
   }
   return { made, used };

@@ -1,5 +1,6 @@
 // Armory upgrades: better weapons and armor for troops on foot, and for vehicles and aircraft.
 import { G, type Ent } from './state.ts';
+import { refitBonus } from './refit.ts';
 import { ARMOR_BONUS, WEAPON_BONUS, type UpgradeTrack } from '../data/era.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 
@@ -14,7 +15,8 @@ const side = (e: Ent): 'inf' | 'veh' | null => (e.kind !== 'unit' ? null : UNIT[
 /** Damage multiplier for what this unit deals. */
 export function weaponFactor(e: Ent | null): number {
   const s = e && side(e);
-  return s ? 1 + WEAPON_BONUS * upgradeOf(e.team, `${s}Weapon`) : 1;
+  // a building's guns hit a little harder with each age it's upgraded through (refit.ts)
+  return s ? 1 + WEAPON_BONUS * upgradeOf(e.team, `${s}Weapon`) : refitBonus(e);
 }
 
 /** Damage multiplier for what this unit takes. */

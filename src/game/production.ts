@@ -4,6 +4,7 @@
 // and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
 // The whole price (ore, wood, oil, Aether) is paid when an order starts; an order the side can't
 // afford doesn't start, and cancelling refunds it in full. Production runs at half speed on low power.
+import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
@@ -234,8 +235,9 @@ export function updProduction(team: number, dt: number): void {
   for (const line of LINES) {
     const q = G.prod[team][line], it = q[0];
     if (!it || it.ready || it.hold) continue;
-    if (!producerOf(team, line)) { cancel(team, it.type); continue; }
-    it.prog += Math.min((speed * dt) / timeOf(it.type), 1 - it.prog);
+    const at = producerOf(team, line);
+    if (!at) { cancel(team, it.type); continue; }
+    it.prog += Math.min((speed * refitBonus(at) * dt) / timeOf(it.type), 1 - it.prog);
     if (it.prog < 1 - 1e-9) continue;
     if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }
     else { q.shift(); deliver(team, it.type as UnitType); }

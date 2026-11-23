@@ -97,6 +97,10 @@ export interface Ent extends Target {
   /** 0..1 rise-up animation after placement */
   prog: number;
   repairing: boolean;
+  /** the age a building's look and stats belong to: the one it was built in, plus upgrades (see refit.ts) */
+  lvl?: number;
+  /** 0..1 progress of an upgrade under way */
+  upT?: number;
   /** where newly built units go */
   rally: Point | null;
   /** game time until which a hexed unit moves at reduced speed */

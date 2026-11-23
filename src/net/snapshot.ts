@@ -4,6 +4,7 @@ import { G, STANCES, tileOf, valid, type Ent, type EntType } from '../game/state
 import { MW, TS } from '../game/const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
+import { bldHp } from '../game/refit.ts';
 import { WEAPON, type WeaponType } from '../data/weapon.ts';
 import { addBuilding, addSource, addUnit, kill } from '../game/entity.ts';
 import { fire } from '../game/combat.ts';
@@ -18,8 +19,8 @@ export const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'ba
   'shrine', 'wardstone', 'waygate'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
-/** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY] */
-export type EntRow = [number, number, number, number, number, number, number, number, number, number, number, number, number];
+/** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY, building age, upgrade*100 (-1: none)] */
+export type EntRow = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 /** fire: shooter, target, weapon · died: id · say: message · alert: x, y */
 export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number];
 
@@ -34,7 +35,7 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
   const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance;
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
-    Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y)];
+    Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y), e.lvl ?? 0, own && e.upT != null ? Math.floor(e.upT * 100) : -1];
 }
 
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
@@ -78,7 +79,7 @@ function create(type: EntType, team: number, x: number, y: number): Ent {
 export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: FxEvent) => void): void {
   const seen = new Set<number>();
   let structural = false;
-  for (const [id, ti, team, x, y, hp, face, tface, carry, flags, prog, rx, ry] of rows) {
+  for (const [id, ti, team, x, y, hp, face, tface, carry, flags, prog, rx, ry, lvl, up] of rows) {
     const type = TYPES[ti];
     if (!type) continue;
     seen.add(id);
@@ -94,7 +95,8 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     }
     if (hp < e.hp) e.flash = 0.1;
     e.hp = hp;
-    e.maxhp = isUnitType(type) ? UNIT[type as UnitType].hp : type === 'source' ? 1 : type === 'aether' ? AETHER_PER_DEPOSIT : BUILDING[type as BldType].hp;
+    e.maxhp = isUnitType(type) ? UNIT[type as UnitType].hp : type === 'source' ? 1 : type === 'aether' ? AETHER_PER_DEPOSIT : bldHp(type as BldType, lvl ?? 0);
+    if (e.kind === 'bld') { e.lvl = lvl ?? 0; e.upT = up != null && up >= 0 ? up / 100 : undefined; }
     e.carry = carry;
     e.moving = (flags & MOVING) !== 0;
     e.done = (flags & DONE) !== 0;

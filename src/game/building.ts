@@ -6,6 +6,7 @@ import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_R
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
+import { updRefit } from './refit.ts';
 import { burst, part } from './fx.ts';
 import { nearestFree } from './path.ts';
 import { nearPortal } from './map.ts';
@@ -84,6 +85,7 @@ export function updBld(b: Ent, dt: number): void {
   if (!b.done) { construct(b, dt); return; }
   effects(b, dt);
   repair(b, dt);
+  if (b.upT != null) updRefit(b, dt, lowPower(b.team));
   updTurret(b, dt);
 }
 

@@ -44,7 +44,7 @@ export function resetEntities3d(): void {
 }
 
 function create(e: Ent, wallMask: number): Model {
-  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, eraOf(e.team), wallMask);
+  const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, e.lvl ?? 0, wallMask);
   m.root.userData.id = e.id;
   if (e.kind === 'unit') {
     const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));
@@ -324,8 +324,8 @@ export function syncEntities(dt: number): void {
     seen.add(e.id);
     let o = objs.get(e.id);
     const mask = walls.size && e.kind === 'bld' && isWall(e.type) ? wallMask(e, walls) : 0;
-    // structures change their look as their side advances through the ages
-    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, eraOf(e.team))}|${mask}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
+    // each structure takes on a newer age's look once it's upgraded (game/refit.ts)
+    const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, e.lvl ?? 0)}|${mask}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
     if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
     if (!o) { o = { model: create(e, mask), key }; objs.set(e.id, o); }
     const r = o.model.root;

@@ -2,7 +2,7 @@
 import { G, STANCES, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
-import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
+import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
@@ -22,6 +22,7 @@ import { barHtml } from '../../components/bar/bar.ts';
 import { chipHtml } from '../../components/chip/chip.ts';
 import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
+import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, keyLabel } from './keyboard.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
@@ -68,6 +69,19 @@ const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
 
 const isStance = (id: string): id is Stance => (STANCES as readonly string[]).includes(id);
 
+/** Upgrading a building to its side's age, or cancelling one under way. */
+function upgradeCommand(b: Ent): Command | null {
+  const next = ERA[lvlOf(b) + 1]?.name;
+  if (!next || !(behind(b) || b.upT != null)) return null;
+  if (b.upT != null) return { id: 'upgrade', label: 'Cancel upgrade', hotkey: BUILDING_KEYS.upgrade, icon: ICON.cancel, tip: `Stop upgrading to the ${next} age and get the full price back` };
+  const p = refitPrice(b), pct = Math.round(UPGRADE_BONUS * 100), hp = Math.round(UPGRADE_HP * 100);
+  return {
+    id: 'upgrade', label: 'Upgrade', hotkey: BUILDING_KEYS.upgrade, icon: ICON.upgrade, cost: { g: p.ore, w: p.wood },
+    tip: `Rebuild in the ${next} style (${Math.round(refitTime(b))}s): +${hp}% health and +${pct}% to what it does`,
+    disabled: G.credits[V.team] < p.ore || G.wood[V.team] < p.wood,
+  };
+}
+
 export function commandList(): Command[] {
   if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: 'Cancel the current command' }];
   const s = ownSelected();
@@ -84,6 +98,8 @@ export function commandList(): Command[] {
     return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    const up = upgradeCommand(first);
+    if (up) list.push(up);
     // Delete, away from the letters, so scrapping is hard to hit by accident
     // sub-menus of production hotkeys, such as the yard's walls and defenses
     for (const [g, key] of first.done ? groupsOf(first.type as BldType) : []) {
@@ -107,6 +123,7 @@ export function runCommand(id: string): void {
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
+  else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });
   else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }
   refreshCommands(true);
 }
@@ -215,15 +232,16 @@ function buildingDetails(e: Ent): string {
   const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
   const rows: Row[] = [
     ['HP', hpText(e)],
-    ['Power', d.power > 0 ? `+${d.power}` : d.power < 0 ? String(d.power) : ''],
-    ['Damage', w ? String(w.dmg) : ''],
+    ['Age', ERA[lvlOf(e)]?.name + (lvlOf(e) > 0 ? ` · +${Math.round((refitBonus(e) - 1) * 100)}% output` : '')],
+    ['Power', d.power > 0 ? `+${Math.round(d.power * refitBonus(e))}` : d.power < 0 ? String(d.power) : ''],
+    ['Damage', w ? String(num(w.dmg * refitBonus(e))) : ''],
     ['Range', w ? String(w.range) : ''],
     ['Reload', w ? `${num(w.cd * slow)}s` : ''],
     ['Sight', String(d.sight)],
     ['Cost', costText(e.type)],
-    ['Status', !e.done ? 'Building' : e.repairing ? 'Repairing' : ''],
+    ['Status', !e.done ? 'Building' : e.upT != null ? `Upgrading to ${ERA[lvlOf(e) + 1]?.name} · ${Math.floor(e.upT * 100)}%` : e.repairing ? 'Repairing' : ''],
   ];
-  if (d.weapon && e.done) rows.push(['DPS', dpsRow(d.weapon, 1, slow) + (slow > 1 ? ' · low power' : ''), true]);
+  if (d.weapon && e.done) rows.push(['DPS', dpsRow(d.weapon, refitBonus(e), slow) + (slow > 1 ? ' · low power' : ''), true]);
   if (yieldText) rows.push(['Output', yieldText, true]);
   return `<h3>${d.name}${enemy}</h3>${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
