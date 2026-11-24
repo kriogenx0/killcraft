@@ -61,8 +61,12 @@
         <nav class="selection-commands" aria-label="Commands"></nav>
       </section>
       <section class="sidebar-build" aria-label="Production">
-        <div class="build-list build-list--structure" aria-label="Structures"></div>
-        <div class="build-list build-list--unit" aria-label="Units"></div>
+        <div class="build-tabs" role="tablist" aria-label="Production">
+          <button type="button" class="build-tab build-tab--structure" role="tab" aria-selected="true" aria-controls="build-list-structure" aria-label="Buildings" title="Buildings"><svg class="build-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V10l4-3v3l5-4 5 4V7l4 3v11h-7v-5h-4v5z" fill="currentColor"/><path d="M12 2v4" stroke="currentColor" stroke-width="1.6"/><path d="M12 2h4l-1 1.2 1 1.2h-4z" fill="currentColor"/></svg><i class="build-tab-busy" hidden></i></button>
+          <button type="button" class="build-tab build-tab--unit" role="tab" aria-selected="false" aria-controls="build-list-unit" aria-label="Units" title="Units"><svg class="build-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6.5" r="3.5" fill="currentColor"/><path d="M7.5 4.5C8 1.5 16 1.5 16.5 4.5z" fill="currentColor"/><path d="M5 21c0-5.5 3-9 7-9s7 3.5 7 9z" fill="currentColor"/></svg><i class="build-tab-busy" hidden></i></button>
+        </div>
+        <div class="build-list build-list--structure" id="build-list-structure" role="tabpanel" aria-label="Structures"></div>
+        <div class="build-list build-list--unit" id="build-list-unit" role="tabpanel" aria-label="Units"></div>
       </section>
     </aside>
 

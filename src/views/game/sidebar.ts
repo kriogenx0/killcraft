@@ -3,7 +3,7 @@
 import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
-import { BUILDING, type BldType } from '../../data/building.ts';
+import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
 import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
@@ -24,6 +24,19 @@ interface Cell {
 }
 
 let structureList: HTMLElement, unitList: HTMLElement;
+/** Phones show one list at a time, picked with the Buildings / Units tabs. */
+type Tab = 'structure' | 'unit';
+let tab: Tab = 'structure', lastProducer: BldType | null = null;
+let tabs: Record<Tab, { btn: HTMLElement; busy: HTMLElement }> | null = null;
+
+function showTab(t: Tab): void {
+  tab = t;
+  structureList.parentElement?.classList.toggle('sidebar-build--structure', t === 'structure');
+  structureList.parentElement?.classList.toggle('sidebar-build--unit', t === 'unit');
+  if (tabs) for (const k of ['structure', 'unit'] as const) tabs[k].btn.setAttribute('aria-selected', String(k === t));
+}
+
+const tabOf = (t: Buildable): Tab => (isUnitType(t) ? 'unit' : 'structure');
 const cells = new Map<Buildable, Cell>();
 let listKey = '';
 
@@ -85,6 +98,7 @@ export function productionHotkey(key: string): boolean {
  */
 function activate(type: Buildable): void {
   if (spectating()) return;
+  showTab(tabOf(type));
   if (lineOf(type) === 'structure') {
     V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false };
     return;
@@ -112,6 +126,12 @@ export function refreshSidebar(): void {
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
+  // selecting the Town Hall shows Buildings, a Barracks or Factory shows Units; the player can still switch
+  if (producer !== lastProducer) {
+    lastProducer = producer;
+    if (producer) showTab(isUnitProducer(BUILDING[producer].produces) ? 'unit' : 'structure');
+  }
+  const busy: Record<Tab, boolean> = { structure: false, unit: false };
   for (const [type, c] of cells) {
     const line = lineOf(type), structure = line === 'structure';
     // a structure's "items" are its sites going up on the map; the ring follows the one nearest done
@@ -129,12 +149,17 @@ export function refreshSidebar(): void {
     const count = (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
     c.root.classList.toggle('build-cell--active', items.length > 0);
+    if (items.length) busy[tabOf(type)] = true;
     c.root.classList.toggle('build-cell--ready', placing);
     c.root.classList.toggle('build-cell--waiting', !!need);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
     c.root.classList.toggle('build-cell--short', !items.length && !canAfford(V.team, type));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
+  }
+  if (tabs) for (const k of ['structure', 'unit'] as const) {
+    const hide = k === tab || !busy[k];
+    if (tabs[k].busy.hidden !== hide) tabs[k].busy.hidden = hide;
   }
 }
 
@@ -151,6 +176,13 @@ function tooltipHtml(t: Buildable): string {
 export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip: HTMLElement): void {
   structureList = structures;
   unitList = units;
+  const tab0 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--structure'), tab1 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--unit');
+  if (tab0 && tab1) {
+    tabs = { structure: { btn: tab0, busy: tab0.querySelector('.build-tab-busy') as HTMLElement }, unit: { btn: tab1, busy: tab1.querySelector('.build-tab-busy') as HTMLElement } };
+    tab0.addEventListener('click', () => showTab('structure'));
+    tab1.addEventListener('click', () => showTab('unit'));
+  }
+  showTab(tab);
   for (const list of [structures, units]) {
     list.addEventListener('mouseover', (ev) => {
       const cell = (ev.target as HTMLElement).closest<HTMLElement>('.build-cell');
