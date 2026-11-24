@@ -217,6 +217,14 @@ describe('production', () => {
     expect(Math.hypot(m.x - s.x, m.y - s.y)).toBeGreaterThan(2.5 * TS);
   });
 
+  it('a medic heals flying units too', () => {
+    const f = addUnit('griffin', 0, 22 * TS, 50 * TS), m = addUnit('medic', 0, 25 * TS, 50 * TS);
+    f.hp = 40;
+    run(8);
+    expect(f.hp).toBeGreaterThan(40 + 20);
+    expect(m.dead).toBe(false);
+  });
+
   it('stalls without credits instead of going into debt', () => {
     G.credits[0] = 50;
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');

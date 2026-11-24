@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
-import { G, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
+import { G, altOf, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
@@ -347,11 +347,14 @@ function regen(u: Ent, dt: number): void {
   u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
 }
 
-/** The most hurt organic ally (not the medic itself) within a radius, if any. */
+/** What a Medic can heal: foot soldiers and creatures, and anything that flies. */
+const medicCanHeal = (e: Ent): boolean => isOrganic(e) || isAir(e);
+
+/** The most hurt ally a Medic can heal (not the medic itself) within a radius, if any. */
 function woundedNear(u: Ent, r: number): Ent | null {
   let best: Ent | null = null;
   for (const e of G.ents) {
-    if (e === u || e.dead || e.team !== u.team || !isOrganic(e) || e.hp >= e.maxhp - 0.5) continue;
+    if (e === u || e.dead || e.team !== u.team || !medicCanHeal(e) || e.hp >= e.maxhp - 0.5) continue;
     if (Math.hypot(e.x - u.x, e.y - u.y) > r) continue;
     if (!best || e.hp / e.maxhp < best.hp / best.maxhp) best = e;
   }
@@ -360,7 +363,7 @@ function woundedNear(u: Ent, r: number): Ent | null {
 
 function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
-  if (!t || t.team !== u.team || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  if (!t || t.team !== u.team || !medicCanHeal(t) || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
   // heals from a distance: stops as soon as the patient is within reach, rather than walking up to it
   const r = approach(u, t, MEDIC_REACH, dt);
   if (r === null) { setOrder(u, null); return; }
@@ -369,7 +372,7 @@ function updMedic(u: Ent, o: HealOrder, dt: number): void {
   u.atkT = 0.25; // tends from afar: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
   // a soft green ray to the patient now and then, so you can see who is being healed
-  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: 0, max: 0.3, col: '#7dff9a', size: 2 });
+  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: '#7dff9a', size: 2 });
 }
 
 /** Something a Worker can mend: its side's site or damaged building (if the bank can pay), or a hurt unit on the ground. */
