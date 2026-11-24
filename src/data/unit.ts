@@ -170,6 +170,9 @@ export const WORKER_REPAIR = 10;
  */
 export const WORKER_BUILD = 1;
 
+/** Every unit sees this much further than its listed sight (fog of war only; how far it looks for a fight is unchanged). */
+export const UNIT_SIGHT_BOOST = 1.3;
+
 export const UNIT_TYPES = Object.keys(UNIT) as UnitType[];
 
 export const isUnitType = (t: string): t is UnitType => t in UNIT;
