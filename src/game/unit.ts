@@ -38,13 +38,23 @@ const ORE_SEARCH = 24;
 const SIDESTEP = 8;
 
 /**
+ * Every Worker and Harvester, kept until an entity is added or the dead are cleared out, so
+ * searching an ore field doesn't walk every entity on the map for each tile it looks at.
+ */
+let hvList: Ent[] = [], hvOf: Ent[] | null = null, hvLen = -1;
+function harvesters(): Ent[] {
+  if (hvOf !== G.ents || hvLen !== G.ents.length) { hvOf = G.ents; hvLen = G.ents.length; hvList = G.ents.filter(isHarvester); }
+  return hvList;
+}
+
+/**
  * Is this ore tile someone else's? Always: another harvester is scooping it, or one that claimed it
  * first (lower id) is heading there. When choosing a new tile (`choosing`), also skip any tile with
  * a harvester scooping right next to it, so they spread across the field.
  */
 function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
   const cx = ((i % MW) + 0.5) * TS, cy = (((i / MW) | 0) + 0.5) * TS;
-  for (const h of G.ents) {
+  for (const h of harvesters()) {
     if (h === u || h.dead || !isHarvester(h) || h.order?.t !== 'harvest') continue;
     const o = h.order;
     if (o.ty * MW + o.tx === i && (o.st === 'gather' || (o.st === 'go' && (choosing || h.id < u.id)))) return true;

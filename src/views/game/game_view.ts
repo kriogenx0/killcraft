@@ -48,6 +48,8 @@ import { initInput, scrollCamera, updatePlacement } from './input.ts';
 import { updateFollow } from './follow_cam.ts';
 import { initTouchBar, refreshTouchBar } from './touch_bar.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
+import { perfEnd, perfLap, perfStart } from './perf.ts';
+import { stageBattle } from '../../sim/stage.ts';
 
 const MAX_STEPS_PER_FRAME = 16;
 const MESSAGE_TIME = 2600;
@@ -481,6 +483,7 @@ export function mountGameView(root: HTMLElement): void {
   let last = performance.now(), acc = 0, fogT = 0, oreT = 0, savedAt = performance.now();
   const frame = (t: number) => {
     requestAnimationFrame(frame);
+    perfStart();
     const dt = Math.min(0.1, (t - last) / 1000 || 0);
     last = t;
     if (V.online) {
@@ -498,6 +501,7 @@ export function mountGameView(root: HTMLElement): void {
       while (acc >= STEP && n < MAX_STEPS_PER_FRAME) { update(STEP); acc -= STEP; n++; }
       if (n >= MAX_STEPS_PER_FRAME) acc = 0;
       ageMarkers(dt * V.speed);
+      perfLap('sim', n);
     }
     const showPaused = V.started && V.paused && !G.over && !V.online && !setupEl.classList.contains('ui-modal--open');
     if (pausedBox.hidden === showPaused) pausedBox.hidden = !showPaused;
@@ -532,15 +536,19 @@ export function mountGameView(root: HTMLElement): void {
       updateAetherBeams();
       updateAetherGlows();
       animateWater(dt);
+      perfLap('scene');
       renderScene();
+      perfLap('draw');
       drawOverlay(og);
       drawMinimap(mg, viewFootprint());
       refreshHud();
       refreshSidebar();
       refreshTouchBar();
+      perfLap('ui');
     } catch (err) {
       hooks.error(err);
     }
+    perfEnd();
   };
   requestAnimationFrame(frame);
 }
@@ -575,7 +583,7 @@ function showcase(what: string): void {
 
 /**
  * URL options for testing: ?seed=N map seed, ?auto start a solo game, ?demo AI vs AI, ?online open
- * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?reveal no fog, ?cam=x,y center on a
+ * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?stress=N give every side N more last-age troops marching on the middle, ?perf record frame timings on window.__perf, ?reveal no fog, ?cam=x,y center on a
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
@@ -608,6 +616,8 @@ function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean, s?: Gam
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
   const sim = Number(q.get('sim') ?? 0) / STEP;
   for (let i = 0; i < sim && !G.over; i++) update(STEP);
+  // ?stress=N: every side gets N more troops in the last age, marching on the middle (performance tests)
+  if (Number(q.get('stress')) > 0) stageBattle(Number(q.get('stress')));
   const cam = q.get('cam');
   if (cam) {
     const [x, y] = cam.split(',').map(Number);

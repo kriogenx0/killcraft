@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "sim": "node src/sim/run.ts",
-    "duel": "node src/sim/duel.ts"
+    "duel": "node src/sim/duel.ts",
+    "bench": "node src/sim/bench.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
