@@ -97,6 +97,45 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  // top right of the map while our connection to an online game is down (the computer plays our side meanwhile)
+  .game-offline {
+    position: absolute;
+    top: 32px + $space-1;
+    right: $sidebar-width + $gutter;
+    z-index: 6;
+    display: flex;
+    gap: $space-1;
+    align-items: center;
+    padding: 2px $space-2;
+    font-size: $font-sm;
+    font-weight: 700;
+    color: var(--color-danger);
+    pointer-events: none;
+    background: var(--color-tooltip);
+    border: 1px solid var(--color-danger);
+    border-radius: 4px;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .army-bar:not([hidden]) ~ .game-offline {
+    top: 32px + 18px + 2 * $space-1;
+  }
+
+  .game-offline-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--color-danger);
+    border-radius: 50%;
+    animation: game-offline-blink 1.2s ease-in-out infinite;
+  }
+
+  @keyframes game-offline-blink {
+    50% { opacity: 0.25; }
+  }
+
   // shown while a solo game is paused, with the game's ID
   .game-paused {
     position: absolute;
@@ -276,6 +315,14 @@ $sidebar-width: 248px;
 
     .game-message {
       top: 60px;
+    }
+
+    .game-offline {
+      top: 48px + $space-1;
+    }
+
+    .army-bar:not([hidden]) ~ .game-offline {
+      top: 48px + 18px + 2 * $space-1;
     }
 
     .army-bar {
@@ -640,6 +687,15 @@ $sidebar-width: 248px;
       top: 48px + $space-1;
       right: $space-2;
       left: $space-2;
+    }
+
+    .game-offline {
+      top: 48px + $space-1;
+      right: $space-2;
+    }
+
+    .army-bar:not([hidden]) ~ .game-offline {
+      top: 48px + 18px + 2 * $space-1;
     }
 
     .game-paused {

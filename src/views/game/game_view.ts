@@ -94,6 +94,9 @@ export function mountGameView(root: HTMLElement): void {
   const minimap = must<HTMLCanvasElement>(root, '.sidebar-minimap'), mg = ctx2d(minimap);
   const sidebar = must<HTMLElement>(root, '.sidebar'), topbar = must<HTMLElement>(root, '.topbar');
   const message = must<HTMLElement>(root, '.game-message');
+  /** "Disconnected", in the corner while our connection to an online game is down */
+  const offline = must<HTMLElement>(root, '.game-offline');
+  const setOffline = (on: boolean) => { offline.hidden = !on; };
   const startModal = must<HTMLElement>(root, '.game-start'), endModal = must<HTMLElement>(root, '.game-end');
   const speedBtn = must<HTMLButtonElement>(root, '.topbar-speed'), pauseBtn = must<HTMLButtonElement>(root, '.topbar-pause');
   const resignBtn = must<HTMLButtonElement>(root, '.topbar-resign'), againBtn = must<HTMLButtonElement>(root, '.game-end-again');
@@ -168,6 +171,7 @@ export function mountGameView(root: HTMLElement): void {
   // ---- solo and AI vs AI ----
   /** Start a game against the computer (or, with `demo`, a computer-only match to watch) with these settings. */
   const startSolo = (demo: boolean, s: GameSetup = DEFAULT_SETUP) => {
+    setOffline(false);
     closeModal(startModal);
     const teams = s.foes === 3 ? 4 : 2;
     // no map number: play on the map already showing behind the menu
@@ -252,6 +256,7 @@ export function mountGameView(root: HTMLElement): void {
   };
 
   const onGameMessage = (m: ServerMsg) => {
+    setOffline(false); // hearing from the server: we're connected
     if (m.k === 'nogame') { rejoinFailed('That game has ended.'); return; }
     if (!V.online) return;
     if (m.k === 'notice' && V.started) show(m.msg);
@@ -268,6 +273,7 @@ export function mountGameView(root: HTMLElement): void {
   };
   net.onMessage(onGameMessage);
   net.onClose(() => {
+    if (V.online && V.started && !G.over) setOffline(true);
     // the computer plays our side on the server until we're back: keep trying to get back in
     // (a failed reconnect closes too: that try already lined up the next)
     if (V.online && V.started && !G.over && !rejoinPending) {
@@ -308,6 +314,7 @@ export function mountGameView(root: HTMLElement): void {
   };
   const rejoinFailed = (why: string) => {
     clearTimeout(rejoining);
+    setOffline(false);
     rejoinPending = false;
     const id = root.dataset.gameId ?? gameIdFromUrl();
     if (id) void forgetGame(id).catch(() => {});
