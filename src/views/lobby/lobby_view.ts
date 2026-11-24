@@ -1,11 +1,12 @@
 // The online lobby: pick a name, see who's online, then quick match, host/join a public game,
 // or challenge a specific player.
 import { net } from '../../net/client.ts';
-import { MAX_NAME, cleanName, type LobbyMsg, type OnlinePlayer, type ServerMsg } from '../../net/protocol.ts';
+import { MAX_NAME, cleanName, type LiveGame, type LobbyMsg, type OnlinePlayer, type ServerMsg } from '../../net/protocol.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { gameIdFromUrl, leaveGameUrl } from '../game/resume.ts';
 
 type StartMsg = Extract<ServerMsg, { k: 'start' }>;
+type SpectateMsg = Extract<ServerMsg, { k: 'spectate' }>;
 
 const NAME_KEY = 'killcraft.name';
 /** the game this tab is hosting, so a refresh lists it again under the same id and its invite link keeps working */
@@ -49,6 +50,8 @@ const MARKUP = `
     <section class="lobby-section lobby-games" aria-label="Open games">
       <h3>Open games</h3>
       <ul class="lobby-list lobby-game-list"></ul>
+      <h3 class="lobby-live-title">Games in progress</h3>
+      <ul class="lobby-list lobby-live-list" aria-label="Games in progress"></ul>
     </section>
     <section class="lobby-section lobby-players" aria-label="Players online">
       <h3 class="lobby-online">Players online</h3>
@@ -68,6 +71,8 @@ function storeName(name: string): void {
 
 export interface LobbyOptions {
   onStart: (msg: StartMsg) => void;
+  /** started watching a match under way */
+  onSpectate: (msg: SpectateMsg) => void;
   onBack: () => void;
 }
 
@@ -76,10 +81,20 @@ const STATUS_TEXT: Record<OnlinePlayer['status'], string> = {
   quick: 'Looking for a match',
   host: 'Hosting a game',
   playing: 'In a match',
+  watching: 'Watching a match',
 };
 
 function statusText(p: OnlinePlayer): string {
-  return p.status === 'playing' && p.opponent ? `Playing ${p.opponent}` : STATUS_TEXT[p.status];
+  if (p.status === 'playing' && p.opponent) return `Playing ${p.opponent}`;
+  if (p.status === 'watching' && p.opponent) return `Watching ${p.opponent}`;
+  return STATUS_TEXT[p.status];
+}
+
+/** "Alice vs Bob", and how long it's been going and who's watching. */
+export function liveText(g: LiveGame, now = Date.now(), at = now): { name: string; detail: string } {
+  const mins = Math.floor((g.secs + (now - at) / 1000) / 60);
+  const since = mins < 1 ? 'Just started' : `${mins} min in`;
+  return { name: g.players.join(' vs '), detail: g.watchers ? `${since} · ${g.watchers} watching` : since };
 }
 
 function button(label: string, cls: string, onClick: () => void, secondary = false): HTMLButtonElement {
@@ -109,10 +124,10 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   root.innerHTML = MARKUP;
   const $ = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
   const name = $<HTMLInputElement>('.lobby-name'), status = $('.lobby-status'), online = $('.lobby-online');
-  const gameList = $('.lobby-game-list'), playerList = $('.lobby-player-list'), inviteList = $('.lobby-invites');
+  const gameList = $('.lobby-game-list'), liveList = $('.lobby-live-list'), playerList = $('.lobby-player-list'), inviteList = $('.lobby-invites');
   const quick = $<HTMLButtonElement>('.lobby-quick'), create = $<HTMLButtonElement>('.lobby-create'), cancel = $<HTMLButtonElement>('.lobby-cancel');
   let waiting: 'quick' | 'host' | 'invite' | null = null, connectedAs = '';
-  let last: LobbyMsg | null = null;
+  let last: LobbyMsg | null = null, lastAt = 0;
   const link = $('.lobby-invite-box'), linkUrl = $<HTMLInputElement>('.lobby-link-url'), copy = $<HTMLButtonElement>('.lobby-copy');
   const share = $<HTMLButtonElement>('.lobby-share');
   share.hidden = typeof navigator.share !== 'function';
@@ -145,8 +160,11 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
 
   const empty = (text: string) => row('lobby-empty', text);
 
+  const watchButton = (game: string) => button('Watch', 'lobby-watch', () => { setStatus('Opening the game…', true); net.send({ k: 'watch', game }); }, true);
+
   const render = (m: LobbyMsg) => {
     last = m;
+    lastAt = Date.now();
     showLink(m.hosting);
     const byId = new Map(m.players.map((p) => [p.id, p]));
 
@@ -168,6 +186,16 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
       return row('lobby-game', label, join);
     }));
     if (!games.length) gameList.append(empty('No open games. Create one or use Quick match.'));
+
+    liveList.replaceChildren(...(m.live ?? []).map((g) => {
+      const t = liveText(g, Date.now(), lastAt);
+      const label = document.createElement('span');
+      label.className = 'lobby-row-label';
+      label.append(span('lobby-row-name', t.name), span('lobby-row-status lobby-live-detail', t.detail));
+      label.title = `Game ID ${g.id}`;
+      return row('lobby-live', label, watchButton(g.id));
+    }));
+    if (!m.live?.length) liveList.append(empty('No games being played right now.'));
 
     playerList.replaceChildren(...m.players.map((p) => {
       const you = p.id === m.you;
@@ -212,9 +240,18 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
       render(m);
     }
     else if (m.k === 'error') {
+      // a link to a game that has started: offer to watch it
+      if (m.live) {
+        const game = m.live.id;
+        joiningLink = false;
+        setStatus(m.msg);
+        status.append(' ', watchButton(game));
+        return;
+      }
       setStatus(m.msg, false, true);
       if (joiningLink) { joiningLink = false; if (gameIdFromUrl()) leaveGameUrl(); }
     }
+    else if (m.k === 'spectate') { joiningLink = false; closeModal(root); opts.onSpectate(m); }
     else if (m.k === 'notice') setStatus(m.msg);
     else if (m.k === 'start') { joiningLink = false; lastHosted = null; setHostedGame(null); closeModal(root); opts.onStart(m); }
   });
@@ -273,14 +310,15 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   return {
     /**
      * Show the lobby. `quick` starts looking for a match right away; `join` joins that game (an invite link);
-     * `host` lists the game this tab was hosting before a refresh again, under the same id.
+     * `watch` watches that match (a refresh while watching); `host` lists the game this tab was hosting before a refresh again, under the same id.
      */
-    open(o: { quick?: boolean; join?: string; host?: string } = {}): void {
+    open(o: { quick?: boolean; join?: string; host?: string; watch?: string } = {}): void {
       name.value = storedName();
       setWaiting(null);
       openModal(root);
-      joiningLink = !!o.join;
-      if (o.join) { const game = o.join; void ensure(() => { setStatus("Joining your friend's game…", true); net.send({ k: 'join', game }); }); }
+      joiningLink = !!(o.join || o.watch);
+      if (o.watch) { const game = o.watch; void ensure(() => { setStatus('Opening the game…', true); net.send({ k: 'watch', game }); }); }
+      else if (o.join) { const game = o.join; void ensure(() => { setStatus("Joining your friend's game…", true); net.send({ k: 'join', game }); }); }
       else if (o.host) { const game = o.host; void ensure(() => net.send({ k: 'create', game })); }
       else void ensure(o.quick ? () => net.send({ k: 'quick' }) : undefined);
     },

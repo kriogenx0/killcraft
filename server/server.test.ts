@@ -139,4 +139,44 @@ describe('game server', () => {
     a.ws.close();
     b.ws.close();
   }, 20000);
+
+  it('lists matches under way and lets anyone watch one, seeing both sides', async () => {
+    const a = await connect('Eve'), b = await connect('Fay'), w = await connect('Gus');
+    await a.next('welcome');
+    a.ws.send(JSON.stringify({ k: 'create' }));
+    const hosting = await a.next('lobby', (m) => m.k === 'lobby' && !!m.hosting);
+    if (hosting.k !== 'lobby' || !hosting.hosting) throw new Error('expected hosting');
+    const game = hosting.hosting;
+    b.ws.send(JSON.stringify({ k: 'join', game }));
+    await a.next('start');
+    await b.next('start');
+    const listed = await w.next('lobby', (m) => m.k === 'lobby' && m.live.some((g) => g.id === game));
+    if (listed.k !== 'lobby') throw new Error('expected lobby');
+    expect(listed.live.find((g) => g.id === game)).toMatchObject({ players: ['Eve', 'Fay'], watchers: 0 });
+
+    // the invite link of a started game offers to watch it
+    w.ws.send(JSON.stringify({ k: 'join', game }));
+    expect(await w.next('error')).toMatchObject({ live: { id: game, players: ['Eve', 'Fay'] } });
+
+    w.ws.send(JSON.stringify({ k: 'watch', game }));
+    expect(await w.next('spectate')).toMatchObject({ k: 'spectate', game, players: ['Eve', 'Fay'] });
+    const snap = (await w.next('snap')) as SnapMsg;
+    // everything on the map, both bases, and both sides' stock
+    expect(snap.ents.some((r) => r[2] === 0)).toBe(true);
+    expect(snap.ents.some((r) => r[2] === 1)).toBe(true);
+    expect(snap.sides).toHaveLength(2);
+    expect(snap.sides?.[1].credits).toBe(START_CREDITS);
+    // a spectator can't give orders
+    w.ws.send(JSON.stringify({ k: 'cmd', cmd: { c: 'place', type: 'power', tx: 10, ty: 10 } }));
+
+    // the lobby shows the watcher, and the match ending reaches them
+    const c = await connect('Hal');
+    await c.next('lobby', (m) => m.k === 'lobby' && m.live.some((g) => g.id === game && g.watchers === 1) && m.players.some((p) => p.name === 'Gus' && p.status === 'watching'));
+    a.ws.send(JSON.stringify({ k: 'resign' }));
+    expect(await w.next('end')).toMatchObject({ winner: 1, reason: 'resigned' });
+    await c.next('lobby', (m) => m.k === 'lobby' && !m.live.some((g) => g.id === game));
+    w.ws.send(JSON.stringify({ k: 'watch', game }));
+    expect(await w.next('error', (m) => m.k === 'error' && !m.live)).toMatchObject({ msg: 'That game has ended.' });
+    for (const x of [a, b, w, c]) x.ws.close();
+  }, 20000);
 });

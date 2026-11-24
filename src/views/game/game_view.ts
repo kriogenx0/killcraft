@@ -15,7 +15,7 @@ import { updFx } from '../../game/fx.ts';
 import { updProjs } from '../../game/combat.ts';
 import { applyCommand } from '../../game/command.ts';
 import { net } from '../../net/client.ts';
-import type { ServerMsg, SnapMsg } from '../../net/protocol.ts';
+import type { ServerMsg, SideStock, SnapMsg } from '../../net/protocol.ts';
 import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net/snapshot.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
@@ -58,6 +58,16 @@ const SAVE_INTERVAL = 2;
 /** tries, and seconds apart, at getting back into an online match after the connection drops */
 const REJOIN_TRIES = 6;
 const REJOIN_WAIT = 3;
+/** the online game this tab is watching, so a refresh keeps watching it */
+const WATCHING_KEY = 'killcraft.watching';
+
+function watchedGame(): string | null {
+  try { return sessionStorage.getItem(WATCHING_KEY); } catch { return null; }
+}
+
+function setWatchedGame(game: string | null): void {
+  try { if (game) sessionStorage.setItem(WATCHING_KEY, game); else sessionStorage.removeItem(WATCHING_KEY); } catch { /* ignore */ }
+}
 
 /** A random UUID (crypto.randomUUID needs a secure context, so fall back to random bytes). */
 function newGameId(): string {
@@ -209,19 +219,26 @@ export function mountGameView(root: HTMLElement): void {
   };
 
   // ---- online ----
+  /** the players' names while watching an online match (team order), else null */
+  let watchingNames: string[] | null = null;
+  const setStock = (team: number, s: SideStock) => {
+    G.credits[team] = s.credits;
+    G.wood[team] = s.wood ?? 0;
+    G.oil[team] = s.oil ?? 0;
+    G.aether[team] = s.aether ?? 0;
+    G.aetherFound[team] = !!s.aetherFound;
+    G.tamed[team] = s.tamed ?? [];
+    G.ward[team] = !!s.ward;
+    G.era[team] = s.era ?? 0;
+    G.heal[team] = s.heal ?? 0;
+    G.upg[team] = { ...noUpgrades(), ...s.upg };
+    G.prod[team] = s.prod;
+  };
   const onSnapshot = (s: SnapMsg) => {
     G.gameT = s.t;
-    G.credits[V.team] = s.credits;
-    G.wood[V.team] = s.wood ?? 0;
-    G.oil[V.team] = s.oil ?? 0;
-    G.aether[V.team] = s.aether ?? 0;
-    G.aetherFound[V.team] = !!s.aetherFound;
-    G.tamed[V.team] = s.tamed ?? [];
-    G.ward[V.team] = !!s.ward;
-    G.era[V.team] = s.era ?? 0;
-    G.heal[V.team] = s.heal ?? 0;
-    G.upg[V.team] = { ...noUpgrades(), ...s.upg };
-    G.prod[V.team] = s.prod;
+    // someone watching gets every side's stock; a player only their own
+    if (s.sides) s.sides.forEach((side, team) => { if (team < G.teams) setStock(team, side); });
+    else setStock(V.team, s);
     if (s.ore) decodeOre(s.ore);
     applySnapshot(s.ents, s.ev, (ev) => {
       if (ev[0] === 'm') show(ev[1]);
@@ -237,15 +254,33 @@ export function mountGameView(root: HTMLElement): void {
     else if (m.k === 'end' && !G.over) {
       G.over = true;
       G.winner = m.winner;
-      endReason = m.reason === 'left' ? (m.winner === V.team ? 'Your opponent left the game.' : 'You left the game.')
+      setWatchedGame(null);
+      const loser = watchingNames?.[1 - m.winner] ?? 'A player';
+      if (watchingNames) endReason = m.reason === 'left' ? `${loser} left the game.` : m.reason === 'resigned' ? `${loser} surrendered.` : '';
+      else endReason = m.reason === 'left' ? (m.winner === V.team ? 'Your opponent left the game.' : 'You left the game.')
         : m.reason === 'resigned' ? (m.winner === V.team ? 'Your opponent surrendered.' : 'You surrendered.') : '';
     }
   };
   net.onMessage(onGameMessage);
   net.onClose(() => {
     // the server holds our side for a while: try to get back in before giving up
-    if (V.online && V.started && !G.over) rejoin(root.dataset.gameId ?? '', REJOIN_TRIES);
+    if (V.online && V.started && !G.over) {
+      if (watchingNames) rewatch(root.dataset.gameId ?? '', REJOIN_TRIES);
+      else rejoin(root.dataset.gameId ?? '', REJOIN_TRIES);
+    }
   });
+
+  /** Lost the connection while watching: connect again and carry on watching. */
+  const rewatch = (id: string, tries: number) => {
+    show('Connection lost. Reconnecting…');
+    const attempt = rejoining = window.setTimeout(() => {
+      net.connect(storedName()).then(() => net.send({ k: 'watch', game: id }), () => {
+        if (attempt !== rejoining) return;
+        if (tries > 1) rewatch(id, tries - 1);
+        else rejoinFailed('Lost connection to the game server.');
+      });
+    }, REJOIN_WAIT * 1000);
+  };
 
   /** Get back into an online match (after a refresh or a dropped connection) with the key the server gave us. */
   let rejoining = 0;
@@ -273,6 +308,8 @@ export function mountGameView(root: HTMLElement): void {
 
   const startOnline = (m: Extract<ServerMsg, { k: 'start' }>) => {
     closeModal(startModal);
+    watchingNames = null;
+    setWatchedGame(null);
     V.online = true;
     V.team = m.team;
     for (const a of ais) a.on = false;
@@ -301,7 +338,43 @@ export function mountGameView(root: HTMLElement): void {
     show(m.resumed ? `Back in your game vs ${m.opponent}` : `Match found: you vs ${m.opponent}`);
   };
 
-  const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onBack: () => openModal(startModal) });
+  /** Watch an online match under way: the whole map, every side's stock, and nothing to order. */
+  const startSpectate = (m: Extract<ServerMsg, { k: 'spectate' }>) => {
+    const again = V.online && V.started && watchingNames && root.dataset.gameId === m.game;
+    watchingNames = m.players;
+    setWatchedGame(m.game);
+    if (again) { show('Back to watching'); return; } // reconnected: snapshots carry on
+    closeModal(startModal);
+    V.online = true;
+    V.team = 0;
+    for (const a of ais) a.on = false;
+    initWorld(m.seed);
+    setGameId(m.game);
+    enterGameUrl(m.game);
+    Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: true, reveal: true, visualOnly: true, viewer: 0, human: [false, false] });
+    G.byId.clear();
+    rebuildBlk();
+    resetSnapshots();
+    updFog();
+    setupWorldView();
+    makeIcons(0);
+    Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
+    autoFullscreen();
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    root.classList.add('view-game--online', 'view-game--watching');
+    resignBtn.hidden = false;
+    resignBtn.textContent = 'Leave';
+    resignBtn.title = 'Stop watching and go back to the lobby';
+    speedBtn.hidden = pauseBtn.hidden = true;
+    againBtn.textContent = 'Back to lobby';
+    // between the two bases, pulled back
+    const [a, b] = layoutFor(G.teams).yards;
+    centerCam(((a[0] + b[0]) / 2 + 1.5) * TS, ((a[1] + b[1]) / 2 + 1.5) * TS);
+    setSelection([]);
+    show(`Watching ${m.players.map((p, t) => `${p} (${teamColors(t).name})`).join(' vs ')}`);
+  };
+
+  const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onSpectate: startSpectate, onBack: () => openModal(startModal) });
 
   const setupEl = must<HTMLElement>(root, '.view-setup');
   const setup = mountSetup(setupEl, {
@@ -362,6 +435,7 @@ export function mountGameView(root: HTMLElement): void {
   speedBtn.addEventListener('click', () => { V.speed = V.speed >= 4 ? 0.5 : V.speed * 2; });
   let resignArmed = 0;
   resignBtn.addEventListener('click', () => {
+    if (watchingNames) { net.send({ k: 'unwatch' }); setWatchedGame(null); location.href = '/?online'; return; }
     // two clicks so a stray tap doesn't end the game
     if (Date.now() - resignArmed < RESIGN_CONFIRM) { net.send({ k: 'resign' }); return; }
     resignArmed = Date.now();
@@ -376,6 +450,7 @@ export function mountGameView(root: HTMLElement): void {
     closeModal(startModal);
     root.dataset.gameId = resumeId;
     if (onlineKey(resumeId)) rejoin(resumeId, 1);
+    else if (watchedGame() === resumeId) lobby.open({ watch: resumeId });
     else {
       loadGame(resumeId).then(
         (g) => { if (!g) openGameLink(resumeId); else if (!resumeSolo(g)) rejoinFailed('That game has ended.'); },
@@ -414,7 +489,7 @@ export function mountGameView(root: HTMLElement): void {
     if (G.over && !shownEnd) {
       shownEnd = true;
       if (root.dataset.gameId) void forgetGame(root.dataset.gameId).catch(() => {});
-      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
+      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${watchingNames?.[G.winner] ?? teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       resignBtn.hidden = true;
       openModal(endModal);

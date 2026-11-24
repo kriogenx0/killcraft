@@ -8,15 +8,26 @@ export const MAX_NAME = 20;
 
 export interface OpenGame { id: string; host: string }
 
-/** Where a player is: in the lobby, waiting for a quick match, hosting a game, or in a match. */
-export type PlayerStatus = 'idle' | 'quick' | 'host' | 'playing';
+/** A match under way that anyone can watch. */
+export interface LiveGame {
+  id: string;
+  /** the players' names, team 0 first */
+  players: string[];
+  /** seconds since it started */
+  secs: number;
+  /** how many people are watching */
+  watchers: number;
+}
+
+/** Where a player is: in the lobby, waiting for a quick match, hosting a game, in a match, or watching one. */
+export type PlayerStatus = 'idle' | 'quick' | 'host' | 'playing' | 'watching';
 
 /** Someone connected to the server, as the lobby shows them. */
 export interface OnlinePlayer {
   id: string;
   name: string;
   status: PlayerStatus;
-  /** who they're playing, while in a match */
+  /** who they're playing, while in a match; who's playing, while watching */
   opponent?: string;
 }
 
@@ -24,6 +35,8 @@ export interface OnlinePlayer {
 export interface LobbyMsg {
   k: 'lobby';
   games: OpenGame[];
+  /** matches under way, to watch */
+  live: LiveGame[];
   /** everyone connected, including players in a match */
   online: number;
   /** the players list (capped; you first, then who's free, then who's playing) */
@@ -51,6 +64,10 @@ export type ClientMsg =
   | { k: 'decline'; from: string }
   | { k: 'cmd'; cmd: Command }
   | { k: 'resign' }
+  /** watch a match under way */
+  | { k: 'watch'; game: string }
+  /** stop watching */
+  | { k: 'unwatch' }
   /** come back to a match after a refresh or a dropped connection, with the key its start message gave */
   | { k: 'rejoin'; game: string; key: string };
 
@@ -80,6 +97,23 @@ export interface SnapMsg {
   ev: FxEvent[];
   /** whole ore map, base64 Int16, sent about once a second */
   ore?: string;
+  /** every side's stock, for someone watching (the fields above are then side 0's) */
+  sides?: SideStock[];
+}
+
+/** One side's stock, sent to people watching (players only get their own, in the snapshot itself). */
+export interface SideStock {
+  credits: number;
+  wood: number;
+  oil: number;
+  aether: number;
+  aetherFound: boolean;
+  ward: boolean;
+  tamed: string[];
+  era: number;
+  heal: number;
+  upg?: Record<UpgradeTrack, number>;
+  prod: Production;
 }
 
 export type ServerMsg =
@@ -87,8 +121,11 @@ export type ServerMsg =
   | LobbyMsg
   | { k: 'start'; team: number; seed: number; opponent: string; /** the match's UUID */ game?: string; /** secret this player sends to rejoin the match (see rejoin) */ key?: string; /** a rejoin: the match is already under way */ resumed?: boolean }
   | SnapMsg
+  /** you're now watching this match (sent again on a reconnect) */
+  | { k: 'spectate'; game: string; seed: number; players: string[] }
   | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned' }
-  | { k: 'error'; msg: string }
+  /** `live`: the game asked for is a match under way, which can be watched instead */
+  | { k: 'error'; msg: string; live?: LiveGame }
   | { k: 'notice'; msg: string }
   /** a rejoin found no such match: it has ended, or the key was wrong */
   | { k: 'nogame' };

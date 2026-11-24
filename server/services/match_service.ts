@@ -1,12 +1,14 @@
 // Running matches: one worker thread per match, routing commands in and snapshots out.
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import type { ServerMsg } from '../../src/net/protocol.ts';
+import type { LiveGame, ServerMsg } from '../../src/net/protocol.ts';
 import type { Player } from './lobby_service.ts';
 import type { WorkerOut } from '../workers/match_worker.ts';
 
 export interface MatchEvents {
   send: (playerId: string, msg: ServerMsg) => void;
+  /** send an already-encoded message (one spectator snapshot goes to many people) */
+  sendRaw: (playerId: string, json: string) => void;
   /** a player's match ended (they return to the lobby) */
   finished: (playerId: string) => void;
 }
@@ -25,11 +27,19 @@ interface Match {
   keys: [string, string];
   away: [NodeJS.Timeout | null, NodeJS.Timeout | null];
   over: boolean;
+  /** when it started (ms) */
+  started: number;
+  /** people watching, by player id */
+  watchers: Set<string>;
 }
+
+/** How many people can watch one match. */
+export const MAX_WATCHERS = 50;
 
 export class MatchService {
   private matches = new Map<string, Match>();
   private byPlayer = new Map<string, Match>();
+  private byWatcher = new Map<string, Match>();
 
   private events: MatchEvents;
   private grace: number;
@@ -57,7 +67,7 @@ export class MatchService {
     }
     const seed = Math.floor(Math.random() * 1e6);
     const worker = new Worker(new URL('../workers/match_worker.ts', import.meta.url), { workerData: { seed } });
-    const m: Match = { id, players: [a, b], worker, seed, keys: [randomUUID(), randomUUID()], away: [null, null], over: false };
+    const m: Match = { id, players: [a, b], worker, seed, keys: [randomUUID(), randomUUID()], away: [null, null], over: false, started: Date.now(), watchers: new Set() };
     this.matches.set(m.id, m);
     this.byPlayer.set(a.id, m);
     this.byPlayer.set(b.id, m);
@@ -97,6 +107,43 @@ export class MatchService {
     return opponent;
   }
 
+  /** Matches under way, newest first, for the lobby's list of games to watch. */
+  live(): LiveGame[] {
+    const now = Date.now();
+    return [...this.matches.values()].filter((m) => !m.over).sort((a, b) => b.started - a.started)
+      .map((m) => ({ id: m.id, players: m.players.map((p) => p.name), secs: Math.floor((now - m.started) / 1000), watchers: m.watchers.size }));
+  }
+
+  /** The players' names in a match under way, or null. */
+  playersOf(game: string): string[] | null {
+    const m = this.matches.get(game);
+    return m && !m.over ? m.players.map((p) => p.name) : null;
+  }
+
+  /** Start watching a match under way: everything on the map, every side's stock, no orders. Returns its players' names, or null. */
+  watch(playerId: string, game: string): string[] | null {
+    const m = this.matches.get(game);
+    if (!m || m.over || this.byPlayer.get(playerId) === m) return null;
+    if (m.watchers.size >= MAX_WATCHERS && !m.watchers.has(playerId)) return null;
+    this.unwatch(playerId);
+    m.watchers.add(playerId);
+    this.byWatcher.set(playerId, m);
+    m.worker.postMessage({ k: 'watchers', n: m.watchers.size });
+    const players = m.players.map((p) => p.name);
+    this.events.send(playerId, { k: 'spectate', game: m.id, seed: m.seed, players });
+    return players;
+  }
+
+  /** Stop watching (left, or lost connection). Returns true if they were watching. */
+  unwatch(playerId: string): boolean {
+    const m = this.byWatcher.get(playerId);
+    if (!m) return false;
+    this.byWatcher.delete(playerId);
+    m.watchers.delete(playerId);
+    if (!m.over) m.worker.postMessage({ k: 'watchers', n: m.watchers.size });
+    return true;
+  }
+
   command(playerId: string, cmd: unknown): void {
     const m = this.byPlayer.get(playerId);
     if (!m || m.over) return;
@@ -114,11 +161,15 @@ export class MatchService {
     for (const m of this.matches.values()) { void m.worker.terminate(); for (const t of m.away) if (t) clearTimeout(t); }
     this.matches.clear();
     this.byPlayer.clear();
+    this.byWatcher.clear();
   }
 
   private fromWorker(m: Match, msg: WorkerOut): void {
     // ignore anything else (node --watch posts its own messages from worker threads)
-    if (msg?.k === 'snap') this.events.send(m.players[msg.team].id, msg.snap);
+    if (msg?.k === 'snap') {
+      if (msg.team < 0) { if (m.watchers.size) { const json = JSON.stringify(msg.snap); for (const w of m.watchers) this.events.sendRaw(w, json); } }
+      else this.events.send(m.players[msg.team].id, msg.snap);
+    }
     else if (msg?.k === 'end') this.end(m, msg.winner, 'destroyed');
     else if (msg?.k === 'error') console.error('match error:', msg.msg);
   }
@@ -134,5 +185,11 @@ export class MatchService {
       this.events.send(p.id, { k: 'end', winner, reason });
       this.events.finished(p.id);
     }
+    for (const w of m.watchers) {
+      this.byWatcher.delete(w);
+      this.events.send(w, { k: 'end', winner, reason });
+      this.events.finished(w);
+    }
+    m.watchers.clear();
   }
 }

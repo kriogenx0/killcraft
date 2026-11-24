@@ -1,7 +1,7 @@
 // Who is online, who is looking for a game, and pairing players into matches.
 // Knows nothing about sockets or game simulation.
 import { randomUUID } from 'node:crypto';
-import type { LobbyMsg, OnlinePlayer, OpenGame, PlayerStatus } from '../../src/net/protocol.ts';
+import type { LiveGame, LobbyMsg, OnlinePlayer, OpenGame, PlayerStatus } from '../../src/net/protocol.ts';
 
 export type { PlayerStatus };
 
@@ -20,6 +20,8 @@ export interface LobbyEvents {
   paired: (a: Player, b: Player, game?: string) => void;
   /** the list of open games or someone's status changed */
   changed: () => void;
+  /** matches under way, to list for watching */
+  live?: () => LiveGame[];
 }
 
 /** The players list sent to each client is capped so a busy server doesn't send huge lobby updates. */
@@ -27,7 +29,7 @@ export const MAX_LISTED = 50;
 
 const GAME_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-const ORDER: Record<PlayerStatus, number> = { idle: 0, host: 1, quick: 2, playing: 3 };
+const ORDER: Record<PlayerStatus, number> = { idle: 0, host: 1, quick: 2, playing: 3, watching: 4 };
 
 export class LobbyService {
   readonly players = new Map<string, Player>();
@@ -58,7 +60,7 @@ export class LobbyService {
   /** Pair with someone already waiting for a quick match, or start waiting. */
   quick(id: string): void {
     const p = this.players.get(id);
-    if (!p || p.status === 'playing') return;
+    if (!p || p.status === 'playing' || p.status === 'watching') return;
     this.leave(id);
     const other = this.quickQueue.map((q) => this.players.get(q)).find((q) => q && q.id !== id);
     if (other) { this.pair(other, p); return; }
@@ -73,7 +75,7 @@ export class LobbyService {
    */
   create(id: string, game?: string): string | null {
     const p = this.players.get(id);
-    if (!p || p.status === 'playing') return null;
+    if (!p || p.status === 'playing' || p.status === 'watching') return null;
     this.leave(id);
     p.status = 'host';
     const gid = game && GAME_ID.test(game) && !this.open.has(game) ? game : randomUUID();
@@ -89,7 +91,7 @@ export class LobbyService {
 
   join(id: string, game: string): boolean {
     const p = this.players.get(id), host = this.players.get(this.open.get(game) ?? '');
-    if (!p || !host || host.id === id || p.status === 'playing') return false;
+    if (!p || !host || host.id === id || p.status === 'playing' || p.status === 'watching') return false;
     this.leave(id);
     this.pair(host, p, game);
     return true;
@@ -98,7 +100,7 @@ export class LobbyService {
   /** Challenge a specific player. Replaces any challenge, quick match or hosted game you had. */
   invite(id: string, to: string): boolean {
     const p = this.players.get(id), target = this.players.get(to);
-    if (!p || !target || target.id === id || p.status === 'playing' || target.status === 'playing') return false;
+    if (!p || !target || target.id === id || p.status === 'playing' || p.status === 'watching' || target.status === 'playing' || target.status === 'watching') return false;
     this.leave(id);
     p.inviting = to;
     this.events.changed();
@@ -108,7 +110,7 @@ export class LobbyService {
   /** Accept a challenge: both players go straight into a match, the challenger as team 0. */
   accept(id: string, from: string): boolean {
     const p = this.players.get(id), challenger = this.players.get(from);
-    if (!p || !challenger || challenger.inviting !== id || p.status === 'playing' || challenger.status === 'playing') return false;
+    if (!p || !challenger || challenger.inviting !== id || p.status === 'playing' || p.status === 'watching' || challenger.status === 'playing' || challenger.status === 'watching') return false;
     this.pair(challenger, p);
     return true;
   }
@@ -128,7 +130,7 @@ export class LobbyService {
     for (const [g, host] of this.open) if (host === id) this.open.delete(g);
     const p = this.players.get(id);
     if (p) p.inviting = undefined;
-    if (p && p.status !== 'playing') p.status = 'idle';
+    if (p && p.status !== 'playing' && p.status !== 'watching') p.status = 'idle';
   }
 
   /** A player rejoined a match already under way (after a refresh). */
@@ -142,7 +144,18 @@ export class LobbyService {
     this.events.changed();
   }
 
-  /** A player's match is over; they're back in the lobby. */
+  /** A player is watching a match (`players`: who's in it, for the lobby to show). */
+  watching(id: string, players: string): void {
+    const p = this.players.get(id);
+    if (!p || p.status === 'playing') return;
+    this.leave(id);
+    this.dropInvitesTo(id);
+    p.status = 'watching';
+    p.opponent = players;
+    this.events.changed();
+  }
+
+  /** A player's match is over (or they stopped watching); they're back in the lobby. */
   finished(id: string): void {
     const p = this.players.get(id);
     if (p) { p.status = 'idle'; p.opponent = undefined; }
@@ -159,10 +172,11 @@ export class LobbyService {
     if (!me) return null;
     const others = [...this.players.values()].filter((p) => p.id !== id).sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.name.localeCompare(b.name));
     const players: OnlinePlayer[] = [me, ...others].slice(0, MAX_LISTED).map((p) => ({ id: p.id, name: p.name, status: p.status, ...(p.opponent ? { opponent: p.opponent } : {}) }));
-    const invites = [...this.players.values()].filter((p) => p.inviting === id && p.status !== 'playing').map((p) => ({ id: p.id, name: p.name }));
+    const invites = [...this.players.values()].filter((p) => p.inviting === id && p.status !== 'playing' && p.status !== 'watching').map((p) => ({ id: p.id, name: p.name }));
     return {
       k: 'lobby',
       games: this.games(),
+      live: this.events.live?.() ?? [],
       online: this.players.size,
       players,
       you: id,

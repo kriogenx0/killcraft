@@ -24,10 +24,15 @@ export class SocketController {
     if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
   }
 
-  /** Tell everyone in the lobby (not in a match) who is online, open games and their challenges. */
+  sendRaw(playerId: string, json: string): void {
+    const ws = this.sockets.get(playerId);
+    if (ws && ws.readyState === ws.OPEN) ws.send(json);
+  }
+
+  /** Tell everyone in the lobby (not in a match or watching one) who is online, open games and their challenges. */
   broadcastLobby(): void {
     for (const p of this.lobby.players.values()) {
-      if (p.status === 'playing') continue;
+      if (p.status === 'playing' || p.status === 'watching') continue;
       const view = this.lobby.view(p.id);
       if (view) this.send(p.id, view);
     }
@@ -62,13 +67,23 @@ export class SocketController {
         case 'join': {
           const game = String(msg.game);
           if (this.lobby.join(id, game)) break;
-          const why = this.matches.has(game) ? 'That game has already started.'
-            : this.lobby.hostOf(game) === id ? "That's your own game. Send the link to a friend."
+          // a match already under way can be watched instead
+          const live = this.matches.live().find((g) => g.id === game);
+          if (live) { this.send(id, { k: 'error', msg: `That game has already started: ${live.players.join(' vs ')}.`, live }); break; }
+          const why = this.lobby.hostOf(game) === id ? "That's your own game. Send the link to a friend."
             : this.lobby.hostOf(game) ? "Couldn't join that game right now."
             : 'That game is no longer open. Ask your friend for a new link, or create your own game.';
           this.send(id, { k: 'error', msg: why });
           break;
         }
+        case 'watch': {
+          const me = this.lobby.players.get(id);
+          const players = me && me.status !== 'playing' ? this.matches.watch(id, String(msg.game)) : null;
+          if (players) this.lobby.watching(id, players.join(' vs '));
+          else this.send(id, { k: 'error', msg: 'That game has ended.' });
+          break;
+        }
+        case 'unwatch': if (this.matches.unwatch(id)) this.lobby.finished(id); break;
         case 'leave': this.lobby.leave(id); this.broadcastLobby(); break;
         case 'invite': if (!this.lobby.invite(id, String(msg.to))) this.send(id, { k: 'error', msg: "That player isn't available right now." }); break;
         case 'accept': if (!this.lobby.accept(id, String(msg.from))) this.send(id, { k: 'error', msg: 'That challenge is no longer open.' }); break;
@@ -94,6 +109,7 @@ export class SocketController {
       if (!joined) return;
       // a dropped connection mid-match (usually a refresh) gets a while to rejoin before it counts as leaving
       this.matches.away(id);
+      this.matches.unwatch(id);
       this.lobby.remove(id);
     });
   }

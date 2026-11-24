@@ -7,9 +7,11 @@ import { ais } from '../../src/game/ai.ts';
 import { initWorld, update } from '../../src/game/world.ts';
 import { applyCommand, parseCommand } from '../../src/game/command.ts';
 import { encodeEnt, encodeOre, visibleTo, weaponIndex, type FxEvent } from '../../src/net/snapshot.ts';
-import type { SnapMsg } from '../../src/net/protocol.ts';
+import type { SideStock, SnapMsg } from '../../src/net/protocol.ts';
 
-export type WorkerIn = { team: number; cmd: unknown };
+/** a player's command, or how many people are watching (spectator snapshots are made only while someone is) */
+export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: number };
+/** team -1: the snapshot for people watching, which shows everything */
 export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number } | { k: 'error'; msg: string };
 
 const SNAP_EVERY = 6; // steps (10 snapshots a second)
@@ -25,13 +27,23 @@ for (const a of ais) a.on = false;
 initWorld(Number(workerData?.seed ?? 1));
 
 const pending: FxEvent[][] = TEAMS.map(() => []);
+/** events for people watching: every shot and death (no side's messages or alerts) */
+const watched: FxEvent[] = [];
+let watchers = 0;
 hooks.notify = (team, msg) => pending[team]?.push(['m', msg]);
 hooks.alert = (team, x, y) => pending[team]?.push(['a', Math.round(x), Math.round(y)]);
-hooks.fired = (s, w, t) => { for (const team of TEAMS) if (visibleTo(s, team) || visibleTo(t, team)) pending[team].push(['f', s.id, t.id, weaponIndex(w)]); };
-hooks.killed = (e) => { for (const team of TEAMS) if (visibleTo(e, team)) pending[team].push(['d', e.id]); };
+hooks.fired = (s, w, t) => {
+  for (const team of TEAMS) if (visibleTo(s, team) || visibleTo(t, team)) pending[team].push(['f', s.id, t.id, weaponIndex(w)]);
+  if (watchers) watched.push(['f', s.id, t.id, weaponIndex(w)]);
+};
+hooks.killed = (e) => {
+  for (const team of TEAMS) if (visibleTo(e, team)) pending[team].push(['d', e.id]);
+  if (watchers) watched.push(['d', e.id]);
+};
 hooks.error = (err) => port.postMessage({ k: 'error', msg: String(err) } satisfies WorkerOut);
 
 port.on('message', (m: WorkerIn) => {
+  if (m && 'k' in m) { if (m.k === 'watchers') watchers = Math.max(0, Number(m.n) || 0); return; }
   const cmd = parseCommand(m?.cmd);
   if (cmd && TEAMS.includes(m.team)) applyCommand(m.team, cmd);
 });
@@ -54,14 +66,27 @@ const timer = setInterval(() => {
   }
 }, 1000 / 60);
 
+function stock(team: number): SideStock {
+  return {
+    credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team],
+    tamed: G.tamed[team] ?? [], era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
+  };
+}
+
 function sendSnapshots(): void {
   const ore = snaps++ % ORE_EVERY === 0 ? encodeOre() : undefined;
+  const t = Math.round(G.gameT * 10) / 10;
   for (const team of TEAMS) {
     const snap: SnapMsg = {
-      k: 'snap', t: Math.round(G.gameT * 10) / 10, credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team], tamed: G.tamed[team] ?? [], era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
+      k: 'snap', t, ...stock(team),
       ents: G.ents.filter((e) => !e.dead && visibleTo(e, team)).map((e) => encodeEnt(e, e.team === team)),
       ev: pending[team].splice(0), ore,
     };
     port?.postMessage({ k: 'snap', team, snap } satisfies WorkerOut);
   }
+  if (!watchers) { watched.length = 0; return; }
+  // people watching see everything, with every side's details, as a player sees their own
+  const sides = TEAMS.map(stock);
+  const snap: SnapMsg = { k: 'snap', t, ...sides[0], sides, ents: G.ents.filter((e) => !e.dead).map((e) => encodeEnt(e, true)), ev: watched.splice(0), ore };
+  port?.postMessage({ k: 'snap', team: -1, snap } satisfies WorkerOut);
 }

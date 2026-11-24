@@ -21,11 +21,13 @@ export function startServer(config: Config): Promise<RunningServer> {
   let sockets: SocketController | null = null;
   const matches = new MatchService({
     send: (id, msg) => sockets?.send(id, msg),
+    sendRaw: (id, json) => sockets?.sendRaw(id, json),
     finished: (id) => lobby.finished(id),
   }, config.rejoinGrace);
   const lobby = new LobbyService({
     paired: (a, b, game) => matches.start(a, b, game),
     changed: () => sockets?.broadcastLobby(),
+    live: () => matches.live(),
   });
   sockets = new SocketController(lobby, matches);
 
