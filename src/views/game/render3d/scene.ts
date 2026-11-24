@@ -28,7 +28,7 @@ const SKY = '#000000'; // everything past the map's edges is black
 export function initScene(canvas: HTMLCanvasElement): void {
   S.canvas = canvas;
   const r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  r.setPixelRatio(Math.min(window.devicePixelRatio, QUALITY[0].ratio));
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
   r.toneMapping = THREE.ACESFilmicToneMapping;
@@ -71,6 +71,7 @@ export function resizeScene(w: number, h: number): void {
   S.camera.aspect = w / Math.max(1, h);
   S.camera.updateProjectionMatrix();
   resizeComposer(w, h);
+  if (!qualitySet) { qualitySet = true; initQuality(); }
 }
 
 let camY = 0;
@@ -162,7 +163,7 @@ export function viewFootprint(): [number, number][] {
 // ---- ambient occlusion: soft shading in corners, under eaves, and where things meet the ground ----
 
 let composer: EffectComposer | null = null, ao: GTAOPass | null = null;
-let aoMode: 'auto' | 'on' | 'off' = 'auto', slowFrames = 0, lastFrame = 0, frameMs = 16;
+let aoMode: 'auto' | 'on' | 'off' = 'auto', lastFrame = 0, frameMs = 16;
 
 function initComposer(w: number, h: number): void {
   const q = new URLSearchParams(location.search).get('ao');
@@ -181,10 +182,75 @@ function initComposer(w: number, h: number): void {
   composer.addPass(new OutputPass());
 }
 
+let viewW = 1, viewH = 1, qualitySet = false;
 function resizeComposer(w: number, h: number): void {
+  viewW = w; viewH = h;
   if (!composer && aoMode !== 'off') initComposer(w, h);
   composer?.setPixelRatio(S.renderer.getPixelRatio());
   composer?.setSize(w, h);
+}
+
+// ---- graphics quality: lowered step by step while frames are slow (a big battle, a weak phone), raised again once they recover ----
+
+interface Quality { ratio: number; ao: boolean; shadowMap: number; shadowEvery: number }
+/** From best to cheapest: sharpness (pixel ratio), ambient occlusion, shadow detail and how often shadows are redrawn. */
+const QUALITY: Quality[] = [
+  { ratio: 2, ao: true, shadowMap: 2048, shadowEvery: 1 },
+  { ratio: 1.5, ao: false, shadowMap: 2048, shadowEvery: 1 },
+  { ratio: 1, ao: false, shadowMap: 1024, shadowEvery: 1 },
+  { ratio: 0.75, ao: false, shadowMap: 512, shadowEvery: 2 },
+];
+/** ms per frame (smoothed) above which quality steps down (under ~38 fps), and below which it may step back up (over ~55 fps) */
+const SLOW_MS = 26, FAST_MS = 18;
+/** seconds frames must stay slow before stepping down */
+const DOWN_AFTER = 1.5;
+let quality = 0, pinned = false, slowFor = 0, fastFor = 0, upAfter = 6, lastUp = -1e9, shadowFrame = 0;
+
+/** The current quality level (0 best), for effects that thin out with it. */
+export const qualityLevel = (): number => quality;
+
+function setQuality(q: number): void {
+  quality = Math.max(0, Math.min(QUALITY.length - 1, q));
+  const Q = QUALITY[quality], r = S.renderer;
+  const ratio = Math.min(window.devicePixelRatio, Q.ratio);
+  if (r.getPixelRatio() !== ratio) {
+    r.setPixelRatio(ratio);
+    r.setSize(viewW, viewH, false);
+    composer?.setPixelRatio(ratio);
+    composer?.setSize(viewW, viewH);
+  }
+  const sh = S.sun.shadow;
+  if (sh.mapSize.x !== Q.shadowMap) {
+    sh.mapSize.set(Q.shadowMap, Q.shadowMap);
+    sh.map?.dispose();
+    sh.map = null;
+  }
+  r.shadowMap.autoUpdate = Q.shadowEvery === 1;
+  r.shadowMap.needsUpdate = true;
+}
+
+/** Step quality down while frames stay slow, and back up once they've been quick for a while. */
+function adaptQuality(now: number, dt: number): void {
+  if (pinned) return;
+  slowFor = frameMs > SLOW_MS ? slowFor + dt : 0;
+  fastFor = frameMs < FAST_MS ? fastFor + dt : 0;
+  if (slowFor > DOWN_AFTER && quality < QUALITY.length - 1) {
+    // falling back soon after stepping up: that level is too much, so wait longer before trying it again
+    if (now - lastUp < 15000) upAfter = Math.min(120, upAfter * 2);
+    setQuality(quality + 1);
+    slowFor = fastFor = 0;
+    frameMs = (SLOW_MS + FAST_MS) / 2; // judge the new level on its own frames
+  } else if (fastFor > upAfter && quality > 0) {
+    setQuality(quality - 1);
+    slowFor = fastFor = 0; lastUp = now;
+  }
+}
+
+/** ?quality=0..3 holds the graphics at one level (0 best) instead of adapting. */
+export function initQuality(): void {
+  const q = new URLSearchParams(location.search).get('quality');
+  pinned = q !== null && q !== '';
+  setQuality(pinned ? Number(q) || 0 : 0);
 }
 
 /** Smoothed time per frame (ms), for effects that thin out on slow devices. */
@@ -195,21 +261,20 @@ const beforeDraw: (() => void)[] = [];
 export const onBeforeDraw = (f: () => void): void => { beforeDraw.push(f); };
 
 export function renderScene(): void {
-  const now = performance.now();
-  if (lastFrame) frameMs = frameMs * 0.95 + Math.min(100, now - lastFrame) * 0.05;
+  const now = performance.now(), dt = lastFrame ? Math.min(100, now - lastFrame) : 16;
+  if (lastFrame) frameMs = frameMs * 0.95 + dt * 0.05;
   lastFrame = now;
-  // on a slow machine, drop the ambient occlusion rather than the frame rate
-  if (composer && aoMode === 'auto') {
-    slowFrames = frameMs > 26 ? slowFrames + 1 : 0;
-    if (slowFrames > 120) { composer = null; console.info('Ambient occlusion off: frames too slow'); }
-  }
+  adaptQuality(now, dt / 1000);
+  const Q = QUALITY[quality];
+  if (Q.shadowEvery > 1 && ++shadowFrame % Q.shadowEvery === 0) S.renderer.shadowMap.needsUpdate = true;
   // world matrices once per frame, here, rather than again in every pass (shadows, ambient occlusion)
   S.scene.matrixWorldAutoUpdate = false;
   S.scene.updateMatrixWorld();
   S.camera.updateMatrixWorld();
   S.camera.matrixWorldInverse.copy(S.camera.matrixWorld).invert();
   for (const f of beforeDraw) f();
-  if (composer) composer.render();
+  // ambient occlusion only at the best level (or when asked for with ?ao=1)
+  if (composer && (aoMode === 'on' || Q.ao)) composer.render();
   else S.renderer.render(S.scene, S.camera);
 }
 

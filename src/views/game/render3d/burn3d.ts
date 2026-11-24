@@ -15,7 +15,7 @@ import { seenAt } from '../../../game/fog.ts';
 import { burning } from '../../../game/spells.ts';
 import { WEAPON } from '../../../data/weapon.ts';
 import { hash } from '../../../util/math.ts';
-import { S, frameTime } from './scene.ts';
+import { S, frameTime, qualityLevel } from './scene.ts';
 import { footprintY, groundY, surfaceY } from './heights.ts';
 import { modelHeight, ventsOf } from './entities3d.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -301,7 +301,8 @@ const color = new THREE.Color();
 /** Advance the fires by dt seconds (0 when paused: they freeze) and refresh the sprites. */
 export function updateBurning(dt: number): void {
   const ms = frameTime();
-  budget = (touch ? 0.7 : 1) * (ms > 45 ? 0.35 : ms > 30 ? 0.6 : 1);
+  // fewer flames and less smoke at the lower graphics levels too (scene.ts), so they don't climb straight back
+  budget = (touch ? 0.7 : 1) * (ms > 45 ? 0.35 : ms > 30 ? 0.6 : 1) * [1, 0.85, 0.65, 0.45][qualityLevel()];
   if (dt > 0) {
     uTime.value += dt;
     for (const e of G.ents) {
