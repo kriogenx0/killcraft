@@ -1,6 +1,10 @@
 // Running matches: one worker thread per match, routing commands in and snapshots out.
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { deserialize, serialize } from 'node:v8';
+import type { SavedWorld } from '../../src/game/save.ts';
 import type { LiveGame, ServerMsg } from '../../src/net/protocol.ts';
 import type { Player } from './lobby_service.ts';
 import type { WorkerIn, WorkerOut } from '../workers/match_worker.ts';
@@ -40,6 +44,21 @@ interface Match {
   watchers: Set<string>;
 }
 
+/**
+ * A deploy restarts the server. Running matches are written to disk as it shuts down, and the new
+ * server picks each one up when a player comes back with their key. A saved match nobody returns to
+ * within this long is thrown away.
+ */
+export const KEEP_SAVED = 15 * 60_000;
+/** How long a match's thread gets to hand over its state at shutdown. */
+const SAVE_WAIT = 3000;
+const SAVED_EXT = '.match';
+/** match ids are UUIDs; anything else never names a file */
+const MATCH_ID = /^[0-9a-f-]{8,64}$/i;
+
+/** What a saved match file holds. */
+interface SavedMatch { id: string; seed: number; keys: [string, string]; names: [string, string]; started: number; savedAt: number; world: SavedWorld }
+
 /** How many people can watch one match. */
 export const MAX_WATCHERS = 50;
 
@@ -50,10 +69,13 @@ export class MatchService {
 
   private events: MatchEvents;
   private abandonAfter: number;
+  /** where matches are kept through a restart (none: they end with the server) */
+  private dataDir: string | undefined;
 
-  constructor(events: MatchEvents, abandonAfter = ABANDON_AFTER) {
+  constructor(events: MatchEvents, abandonAfter = ABANDON_AFTER, dataDir?: string) {
     this.events = events;
     this.abandonAfter = abandonAfter;
+    this.dataDir = dataDir;
   }
 
   get count(): number {
@@ -73,14 +95,76 @@ export class MatchService {
       return;
     }
     const seed = Math.floor(Math.random() * 1e6);
-    const worker = new Worker(new URL('../workers/match_worker.ts', import.meta.url), { workerData: { seed } });
-    const m: Match = { id, players: [a, b], worker, seed, keys: [randomUUID(), randomUUID()], away: [false, false], abandon: null, over: false, started: Date.now(), watchers: new Set() };
-    this.matches.set(m.id, m);
+    const m = this.run(id, [a, b], seed, [randomUUID(), randomUUID()], Date.now());
     this.byPlayer.set(a.id, m);
     this.byPlayer.set(b.id, m);
+    m.players.forEach((p, team) => this.events.send(p.id, { k: 'start', team, seed, game: m.id, key: m.keys[team], opponent: m.players[1 - team].name }));
+  }
+
+  /** Start a match's thread (with the saved world, for a match carried through a restart). */
+  private run(id: string, players: [Player, Player], seed: number, keys: [string, string], started: number, saved?: SavedWorld): Match {
+    const worker = new Worker(new URL('../workers/match_worker.ts', import.meta.url), { workerData: { seed, saved } });
+    const m: Match = { id, players, worker, seed, keys, away: [false, false], abandon: null, over: false, started, watchers: new Set() };
+    this.matches.set(m.id, m);
     worker.on('message', (msg: WorkerOut) => this.fromWorker(m, msg));
     worker.on('error', (err) => { console.error('match worker failed', err); this.end(m, -1, 'left', ['The game server hit an error and stopped the match.']); });
-    m.players.forEach((p, team) => this.events.send(p.id, { k: 'start', team, seed, game: m.id, key: m.keys[team], opponent: m.players[1 - team].name }));
+    return m;
+  }
+
+  /**
+   * The server is shutting down (a deploy): write every running match to disk so the next server can
+   * carry it on. Returns how many were saved.
+   */
+  async saveAll(): Promise<number> {
+    const dir = this.dataDir;
+    if (!dir) return 0;
+    await mkdir(dir, { recursive: true });
+    const running = [...this.matches.values()].filter((m) => !m.over);
+    const saved = await Promise.all(running.map(async (m) => {
+      const world = await new Promise<SavedWorld | null>((done) => {
+        const timer = setTimeout(() => done(null), SAVE_WAIT);
+        const on = (msg: WorkerOut) => { if (msg?.k === 'saved') { clearTimeout(timer); m.worker.off('message', on); done(msg.world); } };
+        m.worker.on('message', on);
+        m.worker.postMessage({ k: 'save' } satisfies WorkerIn);
+      });
+      if (!world) return false;
+      const file: SavedMatch = { id: m.id, seed: m.seed, keys: m.keys, names: [m.players[0].name, m.players[1].name], started: m.started, savedAt: Date.now(), world };
+      try { await writeFile(join(dir, m.id + SAVED_EXT), serialize(file)); return true; } catch (err) { console.error(`could not save match ${m.id}`, err); return false; }
+    }));
+    const n = saved.filter(Boolean).length;
+    console.info(`saved ${n} of ${running.length} running matches for the next server`);
+    return n;
+  }
+
+  /** Pick up a match the last server saved, if there is one (it starts with the computer playing both sides). */
+  private async restore(game: string): Promise<Match | null> {
+    const dir = this.dataDir;
+    if (!dir || !MATCH_ID.test(game)) return null;
+    const path = join(dir, game + SAVED_EXT);
+    let s: SavedMatch;
+    try {
+      s = deserialize(await readFile(path)) as SavedMatch;
+    } catch { return null; }
+    await rm(path, { force: true });
+    if (this.matches.has(game)) return this.matches.get(game) ?? null; // another rejoin got there first
+    if (s.id !== game || Date.now() - s.savedAt > KEEP_SAVED) return null;
+    const placeholder = (name: string): Player => ({ id: `saved-${randomUUID()}`, name, status: 'playing' });
+    const m = this.run(s.id, [placeholder(s.names[0]), placeholder(s.names[1])], s.seed, s.keys, s.started, s.world);
+    for (const team of [0, 1]) { m.away[team] = true; m.worker.postMessage({ k: 'ai', team, on: true } satisfies WorkerIn); }
+    m.abandon = setTimeout(() => this.end(m, -1, 'left', ['Both players were away too long.']), this.abandonAfter);
+    console.info(`match ${s.id} picked up after a restart`);
+    return m;
+  }
+
+  /** Throw away saved matches too old for anyone to come back to. */
+  async pruneSaved(): Promise<void> {
+    const dir = this.dataDir;
+    if (!dir) return;
+    const names = await readdir(dir).catch(() => [] as string[]);
+    for (const f of names.filter((n) => n.endsWith(SAVED_EXT))) {
+      const p = join(dir, f), st = await stat(p).catch(() => null);
+      if (st && Date.now() - st.mtimeMs > KEEP_SAVED) await rm(p, { force: true });
+    }
   }
 
   /** The player's connection dropped (often a page refresh): the computer plays their side until they rejoin. Returns false if they weren't playing. */
@@ -97,8 +181,8 @@ export class MatchService {
   }
 
   /** A player came back (with the key their start message gave them): they take their side again. */
-  rejoin(player: Player, game: string, key: string): Player | null {
-    const m = this.matches.get(game);
+  async rejoin(player: Player, game: string, key: string): Promise<Player | null> {
+    const m = this.matches.get(game) ?? await this.restore(game);
     if (!m || m.over) return null;
     const team = m.keys.indexOf(key);
     if (team < 0) return null;

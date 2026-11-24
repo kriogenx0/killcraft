@@ -7,15 +7,18 @@ import { ais } from '../../src/game/ai.ts';
 import { AI_LEVEL, type Difficulty } from '../../src/data/setup.ts';
 import { updFog } from '../../src/game/fog.ts';
 import { initWorld, outReasons, update } from '../../src/game/world.ts';
+import { captureWorld, restoreWorld, type SavedWorld } from '../../src/game/save.ts';
 import { applyCommand, parseCommand } from '../../src/game/command.ts';
 import { encodeEnt, encodeOre, visibleTo, weaponIndex, type FxEvent } from '../../src/net/snapshot.ts';
 import type { SideStock, SnapMsg } from '../../src/net/protocol.ts';
 
 /** a player's command, how many people are watching (spectator snapshots are made only while someone is),
  * or the computer taking over (or handing back) a side whose player dropped out */
-export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: number } | { k: 'ai'; team: number; on: boolean };
+export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: number } | { k: 'ai'; team: number; on: boolean } | { k: 'save' };
 /** team -1: the snapshot for people watching, which shows everything */
-export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number; detail: string[] } | { k: 'error'; msg: string };
+export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number; detail: string[] } | { k: 'error'; msg: string }
+  /** the whole match as it stands, for the server to keep through a restart */
+  | { k: 'saved'; world: SavedWorld };
 
 const SNAP_EVERY = 6; // steps (10 snapshots a second)
 const ORE_EVERY = 10; // snapshots
@@ -28,6 +31,8 @@ G.headless = true;
 G.human = [true, true];
 for (const a of ais) a.on = false;
 initWorld(Number(workerData?.seed ?? 1));
+// a match the server saved when it last shut down carries on where it was
+if (workerData?.saved && !restoreWorld(workerData.saved as SavedWorld)) throw new Error('saved match could not be restored');
 
 const pending: FxEvent[][] = TEAMS.map(() => []);
 /** events for people watching: every shot and death (no side's messages or alerts) */
@@ -66,6 +71,7 @@ port.on('message', (m: WorkerIn) => {
   if (m && 'k' in m) {
     if (m.k === 'watchers') watchers = Math.max(0, Number(m.n) || 0);
     else if (m.k === 'ai') standIn(m.team, !!m.on);
+    else if (m.k === 'save') port.postMessage({ k: 'saved', world: captureWorld() } satisfies WorkerOut);
     return;
   }
   const cmd = parseCommand(m?.cmd);

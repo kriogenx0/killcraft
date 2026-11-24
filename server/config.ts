@@ -11,6 +11,8 @@ export interface Config {
   redirectHosts?: string[];
   /** where redirectHosts send people, e.g. https://killcraft.games */
   canonicalOrigin?: string;
+  /** a folder that outlives a deploy, where running matches are kept through a restart (none: they end with the server) */
+  matchDir?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -19,5 +21,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     staticDir: env.STATIC_DIR ?? fileURLToPath(new URL('../dist', import.meta.url)),
     redirectHosts: (env.REDIRECT_HOSTS ?? '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean),
     canonicalOrigin: env.CANONICAL_ORIGIN?.replace(/\/+$/, '') || undefined,
+    matchDir: env.MATCH_DIR || undefined,
   };
 }

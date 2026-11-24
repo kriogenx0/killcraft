@@ -16,6 +16,8 @@ export interface RunningServer {
   close: () => Promise<void>;
   /** matches running right now */
   matches: () => number;
+  /** write running matches to disk for the next server (see MatchService.saveAll) */
+  saveMatches: () => Promise<number>;
 }
 
 export function startServer(config: Config): Promise<RunningServer> {
@@ -25,7 +27,8 @@ export function startServer(config: Config): Promise<RunningServer> {
     send: (id, msg) => sockets?.send(id, msg),
     sendRaw: (id, json) => sockets?.sendRaw(id, json),
     finished: (id) => lobby.finished(id),
-  }, config.abandonAfter);
+  }, config.abandonAfter, config.matchDir);
+  void matches.pruneSaved();
   const lobby = new LobbyService({
     paired: (a, b, game) => matches.start(a, b, game),
     changed: () => sockets?.broadcastLobby(),
@@ -45,6 +48,7 @@ export function startServer(config: Config): Promise<RunningServer> {
         server,
         port,
         matches: () => matches.count,
+        saveMatches: () => matches.saveAll(),
         close: () => new Promise<void>((done) => {
           matches.stopAll();
           for (const c of wss.clients) c.terminate();
@@ -58,5 +62,19 @@ export function startServer(config: Config): Promise<RunningServer> {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const config = loadConfig();
-  startServer(config).then(({ port }) => console.log(`Killcraft server on http://localhost:${port} (serving ${config.staticDir})`));
+  startServer(config).then((running) => {
+    console.log(`Killcraft server on http://localhost:${running.port} (serving ${config.staticDir})`);
+    // a deploy stops this server: keep the matches under way for the next one, then go
+    let stopping = false;
+    const stop = (signal: string) => {
+      if (stopping) return;
+      stopping = true;
+      console.info(`${signal}: saving matches and shutting down`);
+      running.saveMatches().catch((err) => console.error('saving matches failed', err))
+        .then(() => running.close()).finally(() => process.exit(0));
+      setTimeout(() => process.exit(0), 8000).unref(); // Docker stops us for good after 10 seconds
+    };
+    process.on('SIGTERM', () => stop('SIGTERM'));
+    process.on('SIGINT', () => stop('SIGINT'));
+  });
 }

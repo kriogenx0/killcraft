@@ -96,9 +96,11 @@ export class SocketController {
         case 'resign': this.matches.quit(id, 'resigned'); break;
         case 'rejoin': {
           const me = this.lobby.players.get(id);
-          const opponent = me && me.status !== 'playing' ? this.matches.rejoin(me, String(msg.game), String(msg.key)) : null;
-          if (opponent) this.lobby.playing(id, opponent.name);
-          else this.send(id, { k: 'nogame' });
+          if (!me || me.status === 'playing') { this.send(id, { k: 'nogame' }); break; }
+          void this.matches.rejoin(me, String(msg.game), String(msg.key)).then((opponent) => {
+            if (opponent) this.lobby.playing(id, opponent.name);
+            else this.send(id, { k: 'nogame' });
+          });
           break;
         }
       }

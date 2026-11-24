@@ -23,6 +23,9 @@ RUN npm ci --omit=dev
 COPY src ./src
 COPY server ./server
 COPY --from=build /app/dist ./dist
+# running matches are kept here through a deploy; Coolify mounts a persistent volume on it
+ENV MATCH_DIR=/app/data
+RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD node -e "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
