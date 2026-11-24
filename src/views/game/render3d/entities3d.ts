@@ -1,7 +1,8 @@
 // Keeps a 3D model for every entity the player can see, animates them, and draws the selection
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import * as THREE from 'three';
-import { G, allied, haulOf, valid, type Ent } from '../../../game/state.ts';
+import { G, allied, haulOf, valid, type Cargo, type Ent } from '../../../game/state.ts';
+import { WOOD_LOAD } from '../../../data/economy.ts';
 import { MH, MW, TS } from '../../../game/const.ts';
 import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
@@ -16,7 +17,7 @@ import { S, onBeforeDraw, raycastObjects, worldToScreen } from './scene.ts';
 import { borrowMaterial, instanceModels, resetInstances, returnMaterial, SHADOW_ONLY_LAYER } from './instancer.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { shardModel, aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
-import { M, teamMat } from './materials.ts';
+import { M, mat, teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
 import { animateArcane } from './arcane3d.ts';
 import { animateGiant } from './giant3d.ts';
@@ -136,6 +137,9 @@ export function pickSwing(t: number): number {
   return lerp(PICK_DOWN, PICK_UP, r * r * (3 - 2 * r)); // pull back, easing in and out
 }
 
+/** What a Worker's basket looks like holding each resource (shared, cached materials). */
+const CARGO_MAT: Record<Cargo, () => THREE.Material> = { ore: M.ore, wood: M.log, oil: () => mat('#141210', { rough: 0.15, metal: 0.3 }) };
+
 function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
@@ -173,9 +177,14 @@ function animateUnit(m: Model, e: Ent): void {
       recoil(P.gun, atk > 0 ? (1 - atk) * 0.08 : 0);
       break;
     case 'worker': {
-      const load = Math.min(1, e.carry / haulOf(e));
+      // the basket shows what's in it: gold ore, logs, or black oil, filling to a full load of that
+      const cargo = e.cargo ?? 'ore', load = Math.min(1, e.carry / (cargo === 'wood' ? WOOD_LOAD : haulOf(e)));
       P.heap.visible = load > 0.02;
       P.heap.scale.y = 0.2 + load * 0.8;
+      if (P.heap instanceof THREE.Mesh && !m.root.userData.hit) {
+        const want = CARGO_MAT[cargo]();
+        if (P.heap.material !== want) P.heap.material = want;
+      }
       // the pick: a fast strike, a moment's pause in the ground, then a slower pull back up
       // walking, the pick hangs low at its side, head down and forward
       const working = !e.moving && e.atkT > 0;
