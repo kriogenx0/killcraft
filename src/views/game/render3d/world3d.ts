@@ -16,6 +16,7 @@ import { M } from './materials.ts';
 import { surface } from './surfaces.ts';
 import { animateTrees, initTrees, refreshTrees } from './trees3d.ts';
 import { initCows3d } from './cows3d.ts';
+import { initBuildZone } from './build_zone3d.ts';
 
 const ORE_PER_TILE = 5;
 const layer = new THREE.Group();
@@ -26,7 +27,7 @@ let fogTex: THREE.CanvasTexture | null = null;
 const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
 
 /** A map-sized sheet following the ground (or the water, where it's higher), raised by `lift`. */
-function shapedPlane(lift: number, overWater = false): THREE.BufferGeometry {
+export function shapedPlane(lift: number, overWater = false): THREE.BufferGeometry {
   const g = new THREE.PlaneGeometry(MW, MH, VW - 1, VH - 1).rotateX(-Math.PI / 2).translate(MW / 2, 0, MH / 2);
   const pos = g.attributes.position as THREE.BufferAttribute;
   for (let k = 0; k < pos.count; k++) {
@@ -182,6 +183,7 @@ export function initWorld3d(): void {
   const fog = new THREE.Mesh(shapedPlane(0.05, true), new THREE.MeshBasicMaterial({ map: fogTex, transparent: true, depthWrite: false, fog: false }));
   fog.renderOrder = 2;
   layer.add(fog);
+  initBuildZone(layer);
   // a black frame past the map's edges, so no sliver of ground shows at the border
   const B = 40, black = new THREE.MeshBasicMaterial({ color: 0x000000, fog: false });
   for (const [w, h, x, z] of [[MW + 2 * B, B, MW / 2, -B / 2], [MW + 2 * B, B, MW / 2, MH + B / 2], [B, MH, -B / 2, MH / 2], [B, MH, MW + B / 2, MH / 2]]) {

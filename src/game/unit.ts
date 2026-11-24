@@ -16,10 +16,14 @@ import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, autoGather, rethink } from './autogather.ts';
+import { IDLE_GRACE, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
+/** The kind of order each unit last had, to tell a Worker the player walked somewhere from one that finished a job. */
+const lastOrder = new WeakMap<Ent, string>();
+/** Units that had an order last tick. */
+const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
@@ -182,7 +186,11 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     // back out to the ore nearest the base, which may not be where the last load came from
     if (!o.res) { const t = pickOre(u); if (t) [o.tx, o.ty] = t; }
     // one that picked its own job looks round for anything to fix before setting out again
-    if (!(o.auto && u.type === 'worker' && fixNext(u))) rethink(u, o);
+    if (o.auto && u.type === 'worker') {
+      const job = { ...o };
+      if (fixNext(u)) { keepResume(u, job); return; }
+    }
+    rethink(u, o);
   }
 }
 
@@ -368,11 +376,28 @@ function mendable(u: Ent, t: Ent | null, slack = 0): t is Ent {
   return t.kind === 'unit' && !isAir(t) && !t.wild && t.hp < t.maxhp - slack;
 }
 
+/** Idle Workers patch up troops below this share of their health (leave scratches to heal). */
+const UNIT_FIX_BELOW = 0.75;
+/** Most Workers that go to a site on their own; one repairs a building or patches up a unit. */
+const SITE_CREW = 2;
+/** Seconds after last being hit that a unit still counts as in a fight. */
+const UNDER_FIRE = 6;
+
+/** How many of the side's other Workers are building, repairing or patching up `t`. */
+function menders(t: Ent, u: Ent): number {
+  let n = 0;
+  for (const w of G.ents) if (w !== u && !w.dead && w.team === t.team && w.type === 'worker' && w.order?.t === 'heal' && w.order.tgt === t.id) n++;
+  return n;
+}
+
 /** The nearest site or damaged building within a radius, else the most hurt unit there. */
 function mendNear(u: Ent, r: number): Ent | null {
   let bld: Ent | null = null, bd = Infinity, unit: Ent | null = null;
   for (const e of G.ents) {
-    if (!mendable(u, e, 0.5)) continue; // not for a scratch
+    if (!mendable(u, e, 0.5)) continue;
+    if (e.kind === 'unit' && e.hp > e.maxhp * UNIT_FIX_BELOW) continue; // not for a scratch
+    if (e.kind === 'unit' && (e.moving || G.gameT - e.foeT < UNDER_FIRE)) continue; // not one on the move or under fire: that's chasing a fight
+    if (menders(e, u) >= (e.kind === 'bld' && !e.done ? SITE_CREW : 1)) continue; // enough hands on it already
     // left to themselves, Workers don't spend the last of the bank on repairs
     if (e.kind === 'bld' && e.done && G.credits[u.team] < AUTO_REPAIR_FLOOR) continue;
     const d = Math.hypot(e.x - u.x, e.y - u.y) - (e.w ? (e.w * TS) / 2 : 0);
@@ -388,11 +413,11 @@ function mendNear(u: Ent, r: number): Ent | null {
  * up within TEND_RADIUS, unless an enemy is about and it's on "Don't attack". Returns true if it went.
  */
 export function fixNext(u: Ent): boolean {
-  if (u.stance === 'passive' && nearestThreat(u, Math.min(unitDef(u).sight, 7))) return false;
+  if (u.stance !== 'tend' || nearestThreat(u, Math.min(unitDef(u).sight, 7))) return false;
   const t = mendNear(u, TEND_RADIUS * TS);
   if (!t) return false;
   // a building it'll stay on however far; a wounded unit it gives up if it strays (it may be off fighting)
-  setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending || t.kind === 'bld' });
+  setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: t.kind === 'bld' });
   return true;
 }
 
@@ -439,12 +464,13 @@ export function updUnit(u: Ent, dt: number): void {
   if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {
     if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); return; } // holds its ground and shoots what's in range
+    if (busy.delete(u)) u.scan = 0; // just finished something: look for the next thing straight away
     u.scan -= dt;
     if (u.scan > 0) return;
     u.scan = 0.3 + Math.random() * 0.2;
     if (u.type === 'medic') {
       const t = woundedNear(u, d.sight * TS);
-      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
+      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: false }); return; }
     }
     // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
@@ -457,7 +483,7 @@ export function updUnit(u: Ent, dt: number): void {
     // (a passive one only when no enemy is about), and only then goes back to gathering
     if (u.type === 'worker' && fixNext(u)) return;
     // a Worker only fights back, or an enemy that comes right up to it
-    const foe = u.stance === 'passive' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
+    const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
     // a passive unit runs from enemies, but a gatherer sticks to its work with them about
     const threat = u.stance === 'passive' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
     if (threat) orderFlee(u, threat);
@@ -465,22 +491,27 @@ export function updUnit(u: Ent, dt: number): void {
       setOrder(u, { t: 'attack', tgt: foe.id, auto: true, ox: u.x, oy: u.y });
     } else if (isHarvester(u)) {
       // nothing left to fix: after a moment's pause, go and gather what the side needs most
-      const since = idleSince.get(u);
-      if (since === undefined) idleSince.set(u, G.gameT);
-      else if (G.gameT - since >= IDLE_GRACE) {
-        u.tending = false;
+      // only a Worker the player just walked somewhere pauses first (they may have plans for it)
+      const since = idleSince.get(u), grace = lastOrder.get(u) === 'move' ? IDLE_GRACE : 0;
+      if (since === undefined && grace > 0) idleSince.set(u, G.gameT);
+      else if (G.gameT - (since ?? G.gameT) >= grace) {
         u.scan = 1.5;
         idleSince.delete(u);
-        if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
+        lastOrder.delete(u);
+        const job = takeResume(u);
+        if (job) setOrder(u, { ...job, st: u.carry > 0 && (u.cargo ?? 'ore') !== (job.res ?? 'ore') ? 'ret' : 'go', wait: 0 }); // back to what it was doing before it stopped to fix something
+        else if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
         else autoGather(u);
       }
     }
     return;
   }
   idleSince.delete(u);
+  lastOrder.set(u, o.t);
+  busy.add(u);
   switch (o.t) {
     case 'move': {
-      if (u.stance === 'skirmish' || u.stance === 'passive' || !d.weapon) {
+      if (u.stance === 'skirmish' || u.stance === 'passive' || u.stance === 'tend' || !d.weapon) {
         // keep going; a skirmisher shoots along the way
         if (followPath(u, dt)) arrive(u);
         if (u.stance === 'skirmish') fireOnTheMove(u, dt);

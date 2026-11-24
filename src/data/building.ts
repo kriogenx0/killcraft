@@ -91,8 +91,11 @@ export const WALL_RADIUS = 8;
 /** Most segments in one dragged wall line. The first is built at the yard; the rest are paid for as they're laid. */
 export const WALL_LINE_MAX = 16;
 
-/** New structures must be placed within this many tiles of an existing one. */
-export const BUILD_RADIUS = 3;
+/**
+ * New structures must be placed within this many tiles of an existing one (it was 3; Alex asked for
+ * 30% more room, and 4 is the nearest whole tile). The game shows this zone while placing.
+ */
+export const BUILD_RADIUS = 4;
 
 /**
  * Scrapping a building leaves this share of its ore price (times its remaining health) on the ground

@@ -10,6 +10,7 @@ import { cancel, enqueue, startSite, toggleHold, type Buildable } from './produc
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
+import { forgetResume } from './autogather.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
@@ -94,11 +95,13 @@ function ownBuilding(team: number, id: number): Ent | null {
 /** Carry out a command for a team. Silently ignores anything the team isn't allowed to do. */
 export function applyCommand(team: number, cmd: Command): void {
   // any other order for a Worker ends "fix, then harvest"
-  if ('ids' in cmd && cmd.c !== 'tend') for (const u of ownUnits(team, cmd.ids)) u.tending = false;
+  // a new order replaces the job a Worker meant to go back to (a change of stance doesn't)
+  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance') for (const u of ownUnits(team, cmd.ids)) forgetResume(u);
   switch (cmd.c) {
     case 'tend':
       // Workers fix everything damaged nearby (buildings, sites, wounded units), then go back to harvesting
-      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker') { u.tending = true; orderStop(u); u.scan = 0; }
+      // the Fix, then harvest stance (sent by older clients as its own command)
+      for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker') { setStance(u, 'tend'); u.scan = 0; }
       break;
     case 'move':
       groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty);

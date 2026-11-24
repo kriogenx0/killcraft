@@ -57,6 +57,7 @@ export const orderStop = (u: Ent): void => setOrder(u, null);
 
 /** Change how a unit fights. A unit that stops attacking drops the fight it was in. */
 export function setStance(u: Ent, stance: Stance): void {
+  if (stance === 'tend' && u.type !== 'worker') return; // only Workers fix things
   u.stance = stance;
   u.shot = null;
   if (stance !== 'engage' && u.order?.t === 'attack') orderStop(u);

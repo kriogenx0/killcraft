@@ -2,6 +2,7 @@
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { dropSalvage, oilNear } from './economy.ts';
+import { DERRICK_REACH } from '../data/economy.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
@@ -136,6 +137,33 @@ export const onWell = (type: BldType): boolean => type === 'derrick';
  */
 export function inReach(tx: number, ty: number, s: number, team: number, wall = false, well = false): boolean {
   return well ? oilNear(tx, ty, s) > 0 : nearBase(tx, ty, s, team, wall);
+}
+
+/**
+ * The ground where a structure of this type may go, for drawing while it's being placed. Fills
+ * `out` (MW * MH) with 0 (out of reach or unexplored), 1 (in reach, but the tile itself can't be
+ * built on) or 2 (in reach and open). A site is allowed when its footprint touches the zone
+ * (nearBase / inReach) and every tile under it is open. Units standing about aren't counted here.
+ */
+export function buildZone(type: BldType, team: number, out: Uint8Array): Uint8Array {
+  out.fill(0);
+  const seen = (i: number) => !G.human[team] || G.reveal || G.sight[team][i] !== 0;
+  const stamp = (x0: number, y0: number, x1: number, y1: number) => {
+    for (let y = Math.max(0, y0); y < Math.min(MH, y1); y++) for (let x = Math.max(0, x0); x < Math.min(MW, x1); x++) out[y * MW + x] = 1;
+  };
+  if (onWell(type)) {
+    // any tile that reaches a well (DERRICK_REACH) counts, as oilNear sees it
+    for (let i = 0; i < MW * MH; i++) if (G.oilField[i] > 0) { const x = i % MW, y = (i / MW) | 0; stamp(x - DERRICK_REACH, y - DERRICK_REACH, x + 1 + DERRICK_REACH, y + 1 + DERRICK_REACH); }
+  } else {
+    const R = isWall(type) ? WALL_RADIUS : BUILD_RADIUS;
+    for (const e of G.ents) if (!e.dead && e.team === team && e.kind === 'bld' && !isWall(e.type)) stamp(e.tx - R, e.ty - R, e.tx + e.w + R, e.ty + e.h + R);
+  }
+  for (let i = 0; i < MW * MH; i++) {
+    if (!out[i]) continue;
+    if (!seen(i)) { out[i] = 0; continue; }
+    if (!G.blk[i] && G.terr[i] === GRASS && !nearPortal(i % MW, (i / MW) | 0)) out[i] = 2;
+  }
+  return out;
 }
 
 /** Can this type of structure go here? */

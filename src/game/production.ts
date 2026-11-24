@@ -20,6 +20,7 @@ import { MAX_WAYGATES } from '../data/aether.ts';
 import { cancelSite, canPlaceType, exitTile, placeBuilding, wallLine } from './building.ts';
 import { orderFix, orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
+import { keepResume } from './autogather.ts';
 
 export type Buildable = UnitType | BldType | TechType;
 
@@ -255,7 +256,10 @@ export function sendBuilder(team: number, site: Ent): Ent | null {
   let free = workers.filter(freeToBuild);
   if (!free.length) free = workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
   const w = free.sort((a, c) => Math.hypot(a.x - site.x, a.y - site.y) - Math.hypot(c.x - site.x, c.y - site.y))[0];
-  if (w) orderFix(w, site);
+  if (w) {
+    if (w.order?.t === 'harvest') keepResume(w, { ...w.order }); // back to it once the site is up
+    orderFix(w, site);
+  }
   else say(team, 'No Worker free: right-click the site with Workers selected');
   return w ?? null;
 }

@@ -9,6 +9,9 @@ import { orderHaul, orderMove } from './order.ts';
 import { applyCommand } from './command.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
+import { startSite } from './production.ts';
+import { canPlace } from './building.ts';
+import { BUILDING } from '../data/building.ts';
 import { IDLE_GRACE, jobOf, pickResource } from './autogather.ts';
 import { OIL_WELLS } from '../data/map.ts';
 import { mulberry32 } from '../util/math.ts';
@@ -49,11 +52,11 @@ afterEach(() => {
 const workers = (n: number): Ent[] => Array.from({ length: n }, (_, i) => addUnit('worker', 0, yard.x + (i - n / 2) * TS * 0.6, yard.y + 3 * TS));
 
 describe('idle Workers', () => {
-  it('go and gather on their own after a moment, bringing it home', () => {
+  it('go and gather on their own straight away, bringing it home', () => {
     const ws = workers(2);
     G.credits[0] = 1000; G.wood[0] = 1000;
-    run(IDLE_GRACE * 0.5);
-    expect(ws.every((w) => !w.order)).toBe(true); // a short pause first, in case the player has plans
+    run(1);
+    expect(ws.every((w) => jobOf(w))).toBe(true);
     const ore = G.credits[0], wood = G.wood[0];
     run(60);
     expect(ws.every((w) => jobOf(w))).toBe(true);
@@ -215,5 +218,54 @@ describe('idle Workers', () => {
     let fixing = false;
     for (let i = 0; i < 60 / STEP && !fixing; i++) { update(STEP); fixing = w.order?.t === 'heal' && w.order.tgt === yard.id; }
     expect(fixing).toBe(true);
+  });
+
+  describe("don't wander", () => {
+    /** Lay out a Power Plant site at the first free spot near the Town Hall. */
+    const site = (): Ent => {
+      const n = BUILDING.power.size;
+      for (let r = 3; r < 14; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const tx = yard.tx + dx, ty = yard.ty + dy;
+        if (!canPlace(tx, ty, n, 0, true)) continue;
+        const b = startSite(0, 'power', tx, ty);
+        if (b) return b;
+      }
+      throw new Error('no site');
+    };
+
+    it('only two go and build a new site; the rest keep gathering', () => {
+      const ws = workers(6);
+      G.credits[0] = 5000; G.wood[0] = 5000;
+      run(5);
+      const b = site();
+      let most = 0;
+      for (let i = 0; i < 30 / STEP; i++) { update(STEP); most = Math.max(most, ws.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length); }
+      expect(most).toBeLessThanOrEqual(2);
+    });
+
+    it('after building a site, go straight back to the job they left', () => {
+      const ws = workers(3);
+      G.credits[0] = 5000; G.wood[0] = 5000;
+      run(5);
+      const was = new Map(ws.map((w) => [w, jobOf(w)]));
+      const b = site();
+      const builders = ws.filter((w) => w.order?.t === 'heal');
+      expect(builders.length).toBeGreaterThan(0);
+      let idle = 0;
+      for (let i = 0; i < 60 / STEP && !(b.done && builders.every((w) => w.order?.t === 'harvest')); i++) { update(STEP); if (builders.some((w) => !w.order)) idle += STEP; }
+      expect(b.done).toBe(true);
+      for (const w of builders) expect(jobOf(w)).toBe(was.get(w));
+      expect(idle).toBeLessThan(0.5); // no standing about in between
+    });
+
+    it("don't run after a wounded unit that's in a fight", () => {
+      const [w] = workers(1);
+      G.credits[0] = 5000; G.wood[0] = 5000;
+      const s = addUnit('swordsman', 0, w.x + 4 * TS, w.y);
+      s.hp = s.maxhp * 0.3;
+      s.foeT = G.gameT; // just hit
+      run(1);
+      expect(w.order?.t === 'heal' && w.order.tgt === s.id).toBe(false);
+    });
   });
 });

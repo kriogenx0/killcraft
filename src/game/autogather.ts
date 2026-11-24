@@ -158,7 +158,21 @@ export function autoGather(u: Ent): boolean {
 export function rethink(u: Ent, o: HarvestOrder): void {
   if (!o.auto || u.type !== 'worker' || computer(u.team)) return;
   // a Worker sticks to its resource: it only moves over when the side is short of another and not of this one
-  const now = o.res ?? 'ore', r = pickResource(u);
+  const now = o.res ?? 'ore', can = options(u), r = pickResource(u, can);
+  // a derrick pumps slowly: rather than shuttle back and forth with a few drops each time, do
+  // something else until it has a load waiting again
+  if (now === 'oil' && !can.includes('oil')) { if (r) gather(u, r); return; }
   if (!r || r === now || shortfall(u.team, now) > 0 || shortfall(u.team, r) <= 0) return;
   gather(u, r);
 }
+
+/** The gathering job each Worker set aside to go and fix something, to take up again after. */
+const resume = new WeakMap<Ent, HarvestOrder>();
+export const keepResume = (u: Ent, o: HarvestOrder): void => { resume.set(u, o); };
+export function takeResume(u: Ent): HarvestOrder | null {
+  const o = resume.get(u);
+  resume.delete(u);
+  return o ?? null;
+}
+/** A player's order replaces whatever the Worker meant to go back to. */
+export const forgetResume = (u: Ent): void => { resume.delete(u); };
