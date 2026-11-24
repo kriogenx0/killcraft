@@ -37,6 +37,59 @@ export function nearestFree(gx: number, gy: number, maxr = 12): Tile | null {
 /** Did the last findPath get all the way to its goal (or the free tile standing in for a blocked one)? */
 export let pathReached = true;
 
+// the open list: a binary heap of (f, tile), kept between searches so none allocates
+let heapF = new Float64Array(1 << 15), heapI = new Int32Array(1 << 15), heapN = 0;
+function heapPush(i: number, f: number): void {
+  if (heapN === heapF.length) {
+    const f2 = new Float64Array(heapN * 2), i2 = new Int32Array(heapN * 2);
+    f2.set(heapF); i2.set(heapI);
+    heapF = f2; heapI = i2;
+  }
+  let k = heapN++;
+  while (k > 0) {
+    const p = (k - 1) >> 1;
+    if (heapF[p] <= f) break;
+    heapF[k] = heapF[p]; heapI[k] = heapI[p]; k = p;
+  }
+  heapF[k] = f; heapI[k] = i;
+}
+function heapPop(): number {
+  const top = heapI[0], n = --heapN, lf = heapF[n], li = heapI[n];
+  if (n) {
+    let k = 0;
+    for (;;) {
+      let c = 2 * k + 1;
+      if (c >= n) break;
+      if (c + 1 < n && heapF[c + 1] < heapF[c]) c++;
+      if (heapF[c] >= lf) break;
+      heapF[k] = heapF[c]; heapI[k] = heapI[c]; k = c;
+    }
+    heapF[k] = lf; heapI[k] = li;
+  }
+  return top;
+}
+
+// the eight steps, in DIRS order
+const STEP_X = DIRS.map((d) => d[0]), STEP_Y = DIRS.map((d) => d[1]), STEP_COST = DIRS.map((d) => d[2]);
+
+const oct = (x: number, y: number, tx: number, ty: number): number => {
+  const dx = Math.abs(x - tx), dy = Math.abs(y - ty);
+  return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
+};
+
+/** The last search that found no way to its goal: having closed every tile it could reach, it says what else can't be reached. */
+let lastFail = { sx: -1, sy: -1, team: -2, stamp: -1, map: 0 };
+
+/** A fingerprint of what decides where units can walk: blocked tiles and portal links. */
+function mapPrint(): number {
+  let h = 2166136261;
+  for (const a of [G.blk, G.warp, G.warpTeam]) {
+    const w = new Uint32Array(a.buffer, a.byteOffset, a.byteLength >> 2);
+    for (let i = 0; i < w.length; i++) h = Math.imul(h ^ w[i], 16777619);
+  }
+  return h;
+}
+
 /**
  * Tile path (excluding the start). If the goal can't be reached, ends at the closest reachable tile.
  * `team` may also step through its own Waygates; map portals are open to everyone.
@@ -52,84 +105,70 @@ export function findPath(sx: number, sy: number, gx: number, gy: number, team = 
   pathReached = sx === gx && sy === gy;
   if (pathReached) return [];
   stamp++;
-  const hf: number[] = [], hi: number[] = [];
-  const push = (i: number, f: number) => {
-    let k = hf.length;
-    hf.push(f); hi.push(i);
-    while (k > 0) {
-      const p = (k - 1) >> 1;
-      if (hf[p] <= f) break;
-      hf[k] = hf[p]; hi[k] = hi[p]; k = p;
-    }
-    hf[k] = f; hi[k] = i;
-  };
-  const pop = () => {
-    const top = hi[0], lf = hf.pop() as number, li = hi.pop() as number, n = hf.length;
-    if (n) {
-      let k = 0;
-      for (;;) {
-        let c = 2 * k + 1;
-        if (c >= n) break;
-        if (c + 1 < n && hf[c + 1] < hf[c]) c++;
-        if (hf[c] >= lf) break;
-        hf[k] = hf[c]; hi[k] = hi[c]; k = c;
-      }
-      hf[k] = lf; hi[k] = li;
-    }
-    return top;
-  };
-  const oct = (x: number, y: number, tx: number, ty: number) => {
-    const dx = Math.abs(x - tx), dy = Math.abs(y - ty);
-    return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
-  };
+  heapN = 0;
   // With portals the straight-line estimate can overshoot, so also consider "walk to a gate,
   // step through, then the best estimate from its exit" (settled over chains of gates).
   const gates: { x: number; y: number; rest: number }[] = [];
-  for (const p of [...G.portals, ...G.waygates.filter((w) => w.team === team)])
-    for (const [[x, y], [ex, ey]] of [[p.a, p.b], [p.b, p.a]] as const) gates.push({ x, y, rest: PORTAL_COST + oct(ex, ey, gx, gy) });
+  for (const p of G.portals) for (const [[x, y], [ex, ey]] of [[p.a, p.b], [p.b, p.a]] as const) gates.push({ x, y, rest: PORTAL_COST + oct(ex, ey, gx, gy) });
+  for (const p of G.waygates) if (p.team === team) for (const [[x, y], [ex, ey]] of [[p.a, p.b], [p.b, p.a]] as const) gates.push({ x, y, rest: PORTAL_COST + oct(ex, ey, gx, gy) });
   for (let k = 0; k < gates.length; k++)
     for (const g of gates) {
       const exit = G.warp[g.y * MW + g.x], ex = exit % MW, ey = (exit / MW) | 0;
       for (const h of gates) g.rest = Math.min(g.rest, PORTAL_COST + oct(ex, ey, h.x, h.y) + h.rest);
     }
-  const H = (x: number, y: number) => {
-    let h = oct(x, y, gx, gy);
-    for (const g of gates) h = Math.min(h, oct(x, y, g.x, g.y) + g.rest);
-    return h;
-  };
-  const si = sy * MW + sx, gi = gy * MW + gx, blk = G.blk;
-  openStamp[si] = stamp; gScore[si] = 0; cameFrom[si] = -1; push(si, H(sx, sy));
+  const H = gates.length
+    ? (x: number, y: number) => {
+      let h = oct(x, y, gx, gy);
+      for (const g of gates) h = Math.min(h, oct(x, y, g.x, g.y) + g.rest);
+      return h;
+    }
+    : (x: number, y: number) => oct(x, y, gx, gy);
+  const si = sy * MW + sx, gi = gy * MW + gx, blk = G.blk, terr = G.terr, warp = G.warp, warpTeam = G.warpTeam;
+  openStamp[si] = stamp; gScore[si] = 0; cameFrom[si] = -1; heapPush(si, H(sx, sy));
   let best = si, bh = H(sx, sy);
-  while (hf.length) {
-    const i = pop();
+  while (heapN) {
+    const i = heapPop();
     if (closedStamp[i] === stamp) continue;
     closedStamp[i] = stamp;
     if (i === gi) { best = i; break; }
     const x = i % MW, y = (i / MW) | 0, hh = H(x, y);
     if (hh < bh) { bh = hh; best = i; }
-    for (const [dx, dy, c] of DIRS) {
-      const nx = x + dx, ny = y + dy;
+    for (let d = 0; d < 8; d++) {
+      const dx = STEP_X[d], dy = STEP_Y[d], nx = x + dx, ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= MW || ny >= MH) continue;
       const ni = ny * MW + nx;
       if (blk[ni] || closedStamp[ni] === stamp) continue;
       if (dx && dy && (blk[y * MW + nx] || blk[ny * MW + x])) continue; // no corner cutting
-      const ng = gScore[i] + (G.terr[ni] === SHALLOW ? c / SHALLOW_SPEED : c); // wading is slow
+      const c = STEP_COST[d], ng = gScore[i] + (terr[ni] === SHALLOW ? c / SHALLOW_SPEED : c); // wading is slow
       if (openStamp[ni] !== stamp || ng < gScore[ni]) {
-        openStamp[ni] = stamp; gScore[ni] = ng; cameFrom[ni] = i; push(ni, ng + H(nx, ny));
+        openStamp[ni] = stamp; gScore[ni] = ng; cameFrom[ni] = i; heapPush(ni, ng + H(nx, ny));
       }
     }
-    const wi = G.warp[i];
-    if (wi >= 0 && !blk[wi] && closedStamp[wi] !== stamp && (G.warpTeam[i] < 0 || G.warpTeam[i] === team)) {
+    const wi = warp[i];
+    if (wi >= 0 && !blk[wi] && closedStamp[wi] !== stamp && (warpTeam[i] < 0 || warpTeam[i] === team)) {
       const ng = gScore[i] + PORTAL_COST;
       if (openStamp[wi] !== stamp || ng < gScore[wi]) {
-        openStamp[wi] = stamp; gScore[wi] = ng; cameFrom[wi] = i; push(wi, ng + H(wi % MW, (wi / MW) | 0));
+        openStamp[wi] = stamp; gScore[wi] = ng; cameFrom[wi] = i; heapPush(wi, ng + H(wi % MW, (wi / MW) | 0));
       }
     }
   }
   pathReached = best === gi;
+  lastFail = pathReached ? { sx: -1, sy: -1, team: -2, stamp: -1, map: 0 } : { sx, sy, team, stamp, map: mapPrint() };
   const path: Tile[] = [];
   for (let c = best; c !== si && c !== -1; c = cameFrom[c]) path.push([c % MW, (c / MW) | 0]);
   return path.reverse();
+}
+
+/**
+ * Sure to fail: the last search started from this tile for this team, found no way to its goal,
+ * and so closed every tile it could reach, and this goal (a free tile) wasn't one of them. Checked
+ * against a fingerprint of the map, so nothing built or knocked down since makes it wrong.
+ */
+export function knownUnreachable(sx: number, sy: number, gx: number, gy: number, team: number): boolean {
+  if (lastFail.stamp !== stamp || lastFail.sx !== sx || lastFail.sy !== sy || lastFail.team !== team) return false;
+  if (gx < 0 || gy < 0 || gx >= MW || gy >= MH) return false;
+  const gi = gy * MW + gx;
+  return !G.blk[gi] && closedStamp[gi] !== stamp && lastFail.map === mapPrint();
 }
 
 /** Can a unit (7px half-width) walk straight from one point to another? */
@@ -243,6 +282,8 @@ export function pathTo(u: Ent, t: Target): Tile[] | null {
   const here = [tileOf(u.x), tileOf(u.y)];
   let first: Tile[] | null = null;
   for (const g of tiles.slice(0, 6)) {
+    // once one search has found no way there, a tile it never reached is no better: skip the search
+    if (first && knownUnreachable(here[0], here[1], g[0], g[1], u.team)) continue;
     const path = pathFor(u, g[0], g[1]), end = path[path.length - 1] ?? here;
     if (end[0] === g[0] && end[1] === g[1]) { u.goal = g; return path; }
     first ??= path;

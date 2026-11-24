@@ -40,6 +40,35 @@ function cached(key: string, make: () => Model): Model {
 
 const ATTRS = ['position', 'normal', 'uv'];
 
+/**
+ * Baked geometry, by content: the same part of a model built for another team (or another model)
+ * comes out the same, and sharing it lets them all be drawn together (instancer.ts).
+ */
+const bakedGeos = new Map<string, THREE.BufferGeometry>();
+function shared(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  let h = 2166136261;
+  for (const a of ATTRS) {
+    const arr = g.getAttribute(a)?.array as Float32Array | undefined;
+    if (!arr) continue;
+    const words = new Uint32Array(arr.buffer, arr.byteOffset, arr.length);
+    for (let i = 0; i < words.length; i++) h = Math.imul(h ^ words[i], 16777619);
+  }
+  const key = `${(h >>> 0).toString(36)}|${g.getAttribute('position').count}`;
+  const had = bakedGeos.get(key);
+  if (had && sameData(had, g)) { g.dispose(); return had; }
+  if (!had) bakedGeos.set(key, g);
+  return g;
+}
+function sameData(a: THREE.BufferGeometry, b: THREE.BufferGeometry): boolean {
+  return ATTRS.every((n) => {
+    const x = a.getAttribute(n)?.array, y = b.getAttribute(n)?.array;
+    if (!x || !y) return x === y;
+    if (x.length !== y.length) return false;
+    for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+    return true;
+  });
+}
+
 /** Merge the static meshes directly under each group into one mesh per material. */
 function bake(m: Model): void {
   const keep = new Set<THREE.Object3D>();
@@ -69,7 +98,7 @@ function bake(m: Model): void {
       const merged = mergeGeometries(geos);
       if (!merged) continue;
       g.remove(...list);
-      g.add(mesh(merged, material));
+      g.add(mesh(shared(merged), material));
     }
   }
 }

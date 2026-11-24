@@ -16,6 +16,12 @@ export default defineConfig({
     proxy: { '/ws': { target: `ws://localhost:${process.env.SERVER_PORT ?? 8081}`, ws: true } },
   },
   preview: { port: Number(process.env.PORT ?? 8000), strictPort: true },
-  build: { sourcemap: true },
+  build: {
+    sourcemap: true,
+    // three.js in a chunk of its own: it only changes when three is upgraded, so browsers keep it
+    // cached across deploys and fetch just the game's own code again
+    rolldownOptions: { output: { codeSplitting: { groups: [{ name: 'three', test: /node_modules[\\/]three[\\/]/ }] } } },
+    chunkSizeWarningLimit: 700,
+  },
   test: { environment: 'node', include: ['src/**/*.test.ts', 'server/**/*.test.ts'] },
 });

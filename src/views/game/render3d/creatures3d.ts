@@ -209,9 +209,8 @@ function cyclops(team: number): Model {
   root.add(scl(mesh(sph(0.12, 12, 8), skin, 0.02, top + 0.1, 0), 1, 1.1, 1));
   root.add(mesh(sph(0.045, 10, 8), C.eye(), 0.11, top + 0.13, 0)); // the one eye
   root.add(mesh(sph(0.022, 8, 6), C.iris(), 0.15, top + 0.135, 0));
-  root.add(mesh(box(0.02, 0.02, 0.12), mat('#5a3a20', { rough: 0.9 }), 0.12, top + 0.19, 0)); // brow
+  root.add(mesh(box(0.025, 0.025, 0.13), skin, 0.115, top + 0.19, 0)); // a heavy, hairless brow ridge
   root.add(mesh(box(0.03, 0.02, 0.08), M.dark(), 0.12, top + 0.04, 0)); // mouth
-  root.add(scl(mesh(sph(0.12, 10, 6), mat('#4a3018', { rough: 0.9 }), -0.01, top + 0.15, 0), 1, 0.6, 1.02)); // hair
   // a boulder in the right hand, ready to throw
   const rock = mesh(sph(0.1, 7, 5), C.stone(), 0, -0.44, 0);
   rock.name = 'rock';
@@ -297,12 +296,32 @@ function medusa(team: number): Model {
   }
   root.add(mesh(sph(0.06, 10, 8), skin, 0.06, 0.65, 0));
   for (const z of [-0.02, 0.02]) root.add(mesh(sph(0.012, 6, 4), C.gaze(), 0.115, 0.665, z)); // the deadly eyes
-  // a crown of living snakes
-  const hair = group(0.05, 0.68, 0);
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2, x = Math.cos(a) * 0.05, z = Math.sin(a) * 0.05;
-    hair.add(rod([x, 0, z], [x * 2.2 - 0.02, 0.07, z * 2.2], 0.011, sc, 4));
-    hair.add(mesh(sph(0.016, 6, 4), sc, x * 2.2 - 0.02, 0.075, z * 2.2));
+  // a crown of living snakes: each one a tapering, S-curved body rising from her scalp, with a
+  // flat wedge of a head, glowing eyes and a forked red tongue, all writhing (see animateCreature)
+  const hair = group(0.05, 0.68, 0), belly = C.belly(), tongue = mat('#d02020', { rough: 0.6 }), eye = C.gaze();
+  const SNAKES = 11;
+  for (let i = 0; i < SNAKES; i++) {
+    const a = (i / SNAKES) * Math.PI * 2 + 0.3, snake = group(Math.cos(a) * 0.045, 0.01, Math.sin(a) * 0.045);
+    snake.rotation.y = -a; // its local +x points away from her head
+    const len = i % 3 === 0 ? 1.15 : i % 3 === 1 ? 1 : 0.85;
+    // an S-curve out and up, thinning toward the head
+    const pts: [number, number, number][] = [[0, 0, 0], [0.035, 0.02, 0.01], [0.065, 0.05, -0.01], [0.08, 0.085, 0.008], [0.075, 0.115, -0.004]]
+      .map(([x, y, z]) => [x * len, y * len, z * len]);
+    for (let k = 0; k < pts.length - 1; k++) {
+      const r = 0.012 - k * 0.0018;
+      snake.add(rod(pts[k], pts[k + 1], r, k % 2 ? sc : C.gorgon(), 6));
+      snake.add(mesh(sph(r, 6, 4), sc, ...pts[k + 1])); // round the joints
+    }
+    // the head: a flattened wedge looking outward, eyes either side, tongue flicking out
+    const [hx, hy, hz] = pts[pts.length - 1], head = group(hx, hy, hz);
+    head.add(scl(mesh(sph(0.016, 8, 6), sc, 0.012, 0, 0), 1.6, 0.7, 1.1));
+    head.add(scl(mesh(sph(0.011, 6, 4), belly, 0.014, -0.006, 0), 1.5, 0.4, 0.9)); // pale jaw
+    for (const z of [-0.009, 0.009]) head.add(mesh(sph(0.0045, 5, 4), eye, 0.02, 0.005, z));
+    for (const z of [-0.003, 0.003]) head.add(rot(mesh(box(0.016, 0.002, 0.002), tongue, 0.04, -0.003, z), 0, z * 60, 0));
+    head.rotation.z = -0.25;
+    snake.add(head);
+    parts[`snake${i}`] = snake;
+    hair.add(snake);
   }
   parts.hair = hair;
   root.add(hair);
@@ -318,7 +337,18 @@ function nemean(team: number): Model {
   root.add(mesh(sph(0.04, 8, 6), mane, -0.57, 0.6, 0));
   // great shaggy mane round a broad head
   root.add(scl(mesh(sph(0.17, 12, 10), mane, 0.24, 0.58, 0), 0.9, 1.05, 1.15));
-  root.add(mesh(cyl(0.15, 0.16, 0.05, 14), colour(team), 0.17, 0.52, 0)); // collar
+  // its side's colours: a broad blanket over the back with gold trim and hanging tassels, and a
+  // thick collar in front of the mane where it shows from every angle
+  const team_ = colour(team);
+  root.add(scl(mesh(sph(0.2, 14, 8), team_, -0.06, 0.5, 0), 1.05, 0.5, 0.78));
+  root.add(mesh(box(0.3, 0.015, 0.33), M.gold(), -0.06, 0.555, 0));
+  for (const z of [-1, 1]) {
+    root.add(mesh(box(0.3, 0.16, 0.012), team_, -0.06, 0.45, z * 0.155)); // the blanket hangs down its flanks
+    root.add(mesh(box(0.3, 0.02, 0.014), M.gold(), -0.06, 0.37, z * 0.156));
+    for (const x of [-0.17, -0.06, 0.05]) root.add(mesh(cone(0.012, 0.04, 5), M.gold(), x, 0.345, z * 0.157));
+  }
+  root.add(rot(mesh(torus(0.11, 0.025, Math.PI * 2, 6, 16), team_, 0.31, 0.56, 0), 0, Math.PI / 2, 0.5)); // collar
+  root.add(mesh(sph(0.025, 8, 6), M.gold(), 0.38, 0.5, 0)); // its medallion
   root.add(scl(mesh(sph(0.1, 12, 8), hide, 0.34, 0.6, 0), 1.1, 1, 0.95));
   root.add(mesh(box(0.08, 0.07, 0.09), hide, 0.43, 0.56, 0)); // muzzle
   root.add(mesh(box(0.025, 0.025, 0.04), M.dark(), 0.475, 0.585, 0)); // nose
@@ -492,6 +522,45 @@ function dragon(team: number): Model {
   return { root, parts, height: 0.8 };
 }
 
+/** The colours of the rainbow, red on the outside, glowing a little so they read at any hour. */
+const RAINBOW = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '#9a60ff'].map((c) => mat(c, { rough: 0.5, emissive: c, emissiveIntensity: 0.45 }));
+
+function unicorn(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, coat = C.white(), pink = mat('#ffb0d8', { rough: 0.6 });
+  // a white horse with a rainbow mane, a rainbow tail and a spiral golden horn
+  root.add(scl(mesh(sph(0.2, 14, 10), coat, 0, 0.48, 0), 1.6, 0.68, 0.62));
+  root.add(scl(mesh(sph(0.14, 12, 8), coat, 0.2, 0.5, 0), 1, 1.05, 0.88));
+  root.add(scl(mesh(sph(0.14, 12, 8), coat, -0.22, 0.5, 0), 1.05, 1, 0.92));
+  horseHead(root, coat, coat);
+  fourLegs(root, parts, 0.22, 0.08, 0.38, 0.36, 0.06, coat, M.gold());
+  RAINBOW.forEach((m, i) => {
+    root.add(rot(mesh(box(0.05, 0.05, 0.03), m, 0.31 - i * 0.025, 0.86 - i * 0.04, (i % 2 ? 1 : -1) * 0.03), 0, 0, -0.55)); // mane locks down the neck
+    root.add(rot(mesh(box(0.035, 0.16, 0.022), m, -0.37 - i * 0.012, 0.47 - i * 0.012, (i - 2.5) * 0.018), 0, 0, 0.45 + i * 0.08)); // tail
+  });
+  const horn = group(0.47, 0.84, 0);
+  horn.rotation.z = -0.75;
+  horn.add(mesh(cone(0.022, 0.2, 8), M.gold(), 0, 0.1, 0));
+  for (let k = 0; k < 4; k++) horn.add(mesh(torus(0.017 - k * 0.0035, 0.004, Math.PI * 2, 4, 10), M.gold(), 0, 0.03 + k * 0.04, 0)).rotation.x = Math.PI / 2 + 0.3;
+  root.add(horn);
+  // a happy face: big shiny eyes, pink cheeks and a smile
+  for (const z of [-0.045, 0.045]) {
+    root.add(mesh(sph(0.018, 8, 6), M.dark(), 0.46, 0.8, z));
+    root.add(mesh(sph(0.006, 5, 4), M.white(), 0.474, 0.807, z * 0.9));
+    root.add(mesh(sph(0.014, 6, 4), pink, 0.52, 0.745, z * 0.95));
+  }
+  root.add(rot(mesh(torus(0.022, 0.004, Math.PI, 4, 8), M.dark(), 0.592, 0.7, 0), 0, Math.PI / 2, Math.PI)); // smile
+  // saddle blanket in the side's colour, with a heart
+  root.add(mesh(box(0.22, 0.03, 0.27), colour(team), 0, 0.62, 0));
+  for (const z of [-0.136, 0.136]) root.add(mesh(sph(0.025, 8, 6), pink, 0, 0.58, z));
+  // a rainbow that arcs out behind it as it gallops
+  const arc = group(-0.62, 0.12, 0);
+  RAINBOW.forEach((m, i) => arc.add(mesh(torus(0.46 - i * 0.03, 0.016, Math.PI, 4, 24), m, 0, 0, 0)));
+  arc.visible = false;
+  parts.rainbow = arc;
+  root.add(arc);
+  return { root, parts, height: 1.0 };
+}
+
 /** A creature's model, or null if the type isn't one. */
 export function creatureModel(type: UnitType, team: number): Model | null {
   switch (type) {
@@ -510,6 +579,7 @@ export function creatureModel(type: UnitType, team: number): Model | null {
     case 'chimera': return chimera(team);
     case 'phoenix': return phoenix(team);
     case 'dragon': return dragon(team);
+    case 'unicorn': return unicorn(team);
     default: return null;
   }
 }
@@ -544,6 +614,12 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
     case 'medusa':
       if (P.tail) P.tail.rotation.y = Math.sin(t * 1.6) * 0.35;
       if (P.hair) P.hair.rotation.y = Math.sin(t * 3) * 0.15;
+      // each snake writhes on its own rhythm, and they all rear up as she gazes
+      for (let i = 0; P[`snake${i}`]; i++) {
+        const sn = P[`snake${i}`];
+        sn.rotation.x = Math.sin(t * 4.5 + i * 1.7) * 0.25;
+        sn.rotation.z = Math.sin(t * 3.1 + i * 2.3) * 0.18 + strike * 0.5;
+      }
       // she lifts her head and fixes her stare as she gazes
       m.root.position.y += strike * 0.04;
       if (P.armR) P.armR.rotation.z = strike * 1.4;
@@ -559,6 +635,11 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
       m.root.rotation.x = Math.sin(t * 3) * 0.05;
       break;
     }
+    case 'unicorn':
+      // it prances, head high, and leaves a rainbow behind it at a gallop
+      if (P.rainbow) { P.rainbow.visible = e.moving; P.rainbow.scale.setScalar(0.9 + Math.sin(t * 5) * 0.05); }
+      m.root.position.y += e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.05 : 0;
+      break;
     case 'phoenix':
       if (P.tail) P.tail.rotation.y = Math.sin(t * 4) * 0.2;
       break;

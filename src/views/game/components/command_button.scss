@@ -40,6 +40,21 @@
     filter: grayscale(0.8) brightness(0.6);
   }
 
+  // line icon, where the background picture would sit
+  .command-button-glyph {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  &--active .command-button-glyph {
+    color: var(--color-gold);
+  }
+
   .command-button-key {
     position: absolute;
     top: 1px;

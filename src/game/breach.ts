@@ -4,7 +4,7 @@ import { G, isAir, tileOf, unitDef, type Ent } from './state.ts';
 import { MW } from './const.ts';
 import { isWall } from '../data/building.ts';
 import { WEAPON } from '../data/weapon.ts';
-import { findPath, pathReached } from './path.ts';
+import { findPath, knownUnreachable, pathReached } from './path.ts';
 
 /** Can this unit knock down a wall at all? */
 export function canBreach(u: Ent): boolean {
@@ -25,8 +25,11 @@ export function enemyWallAt(team: number, tx: number, ty: number): Ent | null {
 export function wallInWay(u: Ent, gx: number, gy: number): Ent | null {
   const walls = G.ents.filter((e) => !e.dead && e.kind === 'bld' && e.team !== u.team && e.team >= 0 && isWall(e.type));
   if (!walls.length) return null;
-  findPath(tileOf(u.x), tileOf(u.y), gx, gy, u.team);
-  if (pathReached) return null; // there's a way round
+  // (often the unit's search for a path just found none: no need to look again)
+  if (!knownUnreachable(tileOf(u.x), tileOf(u.y), gx, gy, u.team)) {
+    findPath(tileOf(u.x), tileOf(u.y), gx, gy, u.team);
+    if (pathReached) return null; // there's a way round
+  }
   const at = new Map<number, Ent>();
   for (const w of walls) { at.set(w.ty * MW + w.tx, w); G.blk[w.ty * MW + w.tx] = 0; }
   let path;

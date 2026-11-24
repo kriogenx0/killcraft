@@ -12,7 +12,8 @@ import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
-import { S, raycastObjects, worldToScreen } from './scene.ts';
+import { S, onBeforeDraw, raycastObjects, worldToScreen } from './scene.ts';
+import { borrowMaterial, instanceModels, resetInstances, returnMaterial, SHADOW_ONLY_LAYER } from './instancer.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { shardModel, aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
 import { M, teamMat } from './materials.ts';
@@ -29,14 +30,28 @@ interface Obj { model: Model; key: string }
 
 /** Units are drawn larger than life so they read clearly next to buildings. */
 const UNIT_SCALE = 1.4;
+/** creatures of myth stand half as big again as everyone else, so they read as monsters on the field */
+const CREATURE_SCALE = 1.5;
 
 const holder = new THREE.Group();
 const overlays = new THREE.Group();
+/** the instanced copies of everything in `holder` (instancer.ts) */
+const batched = new THREE.Group();
 const objs = new Map<number, Obj>();
+
+// picking still hits the models' own meshes, which the batches stand in for on screen
+S.raycaster.layers.enableAll();
+S.sun.shadow.camera.layers.enable(SHADOW_ONLY_LAYER);
+onBeforeDraw(() => {
+  S.sun.target.updateMatrixWorld();
+  S.sun.shadow.updateMatrices(S.sun);
+  instanceModels(holder, batched, S.camera, S.sun.castShadow ? S.sun.shadow.camera : null, (r) => (r.userData.reach as number | undefined) ?? 3);
+});
 
 export function resetEntities3d(): void {
   holder.clear();
-  for (const f of fallen) for (const m of f.mats) m.dispose();
+  resetInstances(batched);
+  for (const f of fallen) for (const m of f.mats) returnMaterial(m);
   fallen.length = 0;
   overlays.clear();
   objs.clear();
@@ -44,7 +59,7 @@ export function resetEntities3d(): void {
   markerPool.length = 0;
   ghost = null;
   rally = null;
-  S.scene.add(holder, overlays);
+  S.scene.add(holder, overlays, batched);
 }
 
 /** How far a foundation reaches below the lowest ground under it, so no gap shows at its foot. */
@@ -90,10 +105,14 @@ function create(e: Ent, wallMask: number): Model {
     const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));
     if (kit) { m.root.add(kit.root); if (kit.turret) (m.parts.turret ?? m.root).add(kit.turret); }
   }
-  if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
+  if (e.kind === 'unit') { const k = UNIT_SCALE * (UNIT[e.type as UnitType]?.beast ? CREATURE_SCALE : 1); m.root.scale.setScalar(k); m.height *= k; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
   const foot = e.kind === 'bld' ? foundation(e) : null;
   if (foot) { m.root.add(foot); m.parts.foundation = foot; }
+  // how far the model reaches from its origin, to tell when it's out of view (instancer.ts)
+  m.root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(m.root);
+  m.root.userData.reach = Math.max(box.min.length(), box.max.length()) + 0.5;
   holder.add(m.root);
   return m;
 }
@@ -435,19 +454,20 @@ export function syncEntities(dt: number): void {
 
 const HIT_RED = new THREE.Color('#ff2010'), HIT_GLOW = 0.3, HIT_FADE = 280; // peak share of red; fade in ms
 type Lit = THREE.Material & { emissive: THREE.Color; emissiveIntensity: number };
-interface HitState { mats: { m: Lit; e: THREE.Color; i: number }[]; at: number; on: boolean }
+interface HitState { mats: { m: Lit; e: THREE.Color; i: number }[]; at: number; on: boolean; orig: [THREE.Mesh, THREE.Material | THREE.Material[]][] }
 
 /** The model's own copies of its lit materials, made the first time it's hit (the originals are shared). */
 function hitState(m: Model): HitState {
   let h = m.root.userData.hit as HitState | undefined;
   if (h) return h;
-  h = { mats: [], at: -1e9, on: false };
+  h = { mats: [], at: -1e9, on: false, orig: [] };
   const st = h;
   m.root.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
+    st.orig.push([o, o.material]);
     const own = (mt: THREE.Material): THREE.Material => {
       if (!('emissive' in mt)) return mt;
-      const c = mt.clone() as Lit;
+      const c = borrowMaterial(mt) as Lit;
       st.mats.push({ m: c, e: c.emissive.clone(), i: c.emissiveIntensity });
       return c;
     };
@@ -468,7 +488,11 @@ function hitFlash(m: Model, e: Ent): void {
   if (tint) h = hitState(m);
   if (!h) return;
   const k = Math.max(0, 1 - (now - h.at) / HIT_FADE);
-  if (k <= 0 && !h.on && !tint) return;
+  if (k <= 0 && !h.on && !tint) {
+    // the flash is over: back to the shared materials, so it's drawn with the rest of its kind again
+    if (!m.root.userData.stone) dropHit(m);
+    return;
+  }
   for (const { m: mt, e: e0, i } of h.mats) {
     mt.emissive.copy(e0);
     if (tint) mt.emissive.lerp(tint[0], tint[1]);
@@ -505,10 +529,13 @@ function stoneLook(m: Model, e: Ent): void {
   if (on) for (const k of ['legL', 'legR', 'legFL', 'legFR', 'legBL', 'legBR', 'wingL', 'wingR']) if (m.parts[k]) m.parts[k].rotation.set(0, 0, 0);
 }
 
-/** Free a model's flash materials when it goes. */
+/** Give a model back its shared materials, and hand its flash copies back. */
 function dropHit(m: Model): void {
   const h = m.root.userData.hit as HitState | undefined;
-  if (h) for (const { m: mt } of h.mats) mt.dispose();
+  if (h) {
+    for (const [o, mt] of h.orig) o.material = mt;
+    for (const { m: mt } of h.mats) returnMaterial(mt);
+  }
   m.root.userData.hit = undefined;
 }
 
@@ -522,13 +549,13 @@ interface Fallen { model: Model; t0: number; wreck: boolean; sinkT: number; y0: 
 const fallen: Fallen[] = [];
 
 function fall(m: Model, wreck: boolean): void {
-  const r = m.root, mats: THREE.Material[] = [], hit = r.userData.hit as HitState | undefined;
-  if (hit) for (const { m: mt, e, i } of hit.mats) { mt.emissive.copy(e); mt.emissiveIntensity = i; }
+  const r = m.root, mats: THREE.Material[] = [];
+  dropHit(m);
   // grey, on its own copies of the materials (the originals are shared by every model of its kind)
   r.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const tint = (mt: THREE.Material): THREE.Material => {
-      const c = mt.clone() as THREE.Material & { color?: THREE.Color; emissive?: THREE.Color; emissiveIntensity?: number };
+      const c = borrowMaterial(mt) as THREE.Material & { color?: THREE.Color; emissive?: THREE.Color; emissiveIntensity?: number };
       if (c.color) { const g = (0.3 * c.color.r + 0.59 * c.color.g + 0.11 * c.color.b) * DEAD_DARK; c.color.setRGB(g, g, g); }
       if (c.emissive) c.emissiveIntensity = 0;
       mats.push(c);
@@ -536,7 +563,6 @@ function fall(m: Model, wreck: boolean): void {
     };
     o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material);
   });
-  dropHit(m);
   const x = r.position.x, z = r.position.z;
   fallen.push({ model: m, t0: G.gameT, wreck, sinkT: wreck ? Infinity : G.gameT + LIE, y0: heightAt(x, z), fly: r.position.y - heightAt(x, z), tip: wreck ? 0 : (r.rotation.z || 0), mats });
 }
@@ -559,7 +585,7 @@ function updateFallen(): void {
     const sink = Math.max(0, (now - f.sinkT) / SINK);
     if (sink >= 1 || now < f.t0) {
       holder.remove(r);
-      for (const m of f.mats) m.dispose();
+      for (const m of f.mats) returnMaterial(m);
       fallen.splice(i, 1);
       continue;
     }

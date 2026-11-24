@@ -16,7 +16,7 @@ import { regrowOre } from './ore.ts';
 import { collect, dropSalvage } from './economy.ts';
 import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { initCows } from './cows.ts';
-import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
+import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong, unicornCleanse } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { available, emptyProduction, priceOf, updProduction, type Price } from './production.ts';
 import { refitPrice } from './refit.ts';
@@ -41,7 +41,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const share = start.share ?? 1, units = start.units ?? START_UNITS;
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
-    ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1,
+    ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [],
     alertT: each(() => -99), lastAlert: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -111,10 +111,23 @@ function fall(team: number): boolean {
   const left = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (!left.length) return false;
   const why = `no Town Hall, no units and ${available(team, 'infantry').includes('worker') ? 'no ore for a Worker' : 'nothing that trains Workers'}`;
+  knockOut(team, `its base blew up: ${why}`);
   for (const e of left) { kill(e); dropSalvage(e); }
   for (let t = 0; t < G.teams; t++) say(t, t === team ? `Your base is lost: ${why}` : `${teamColors(team).name}'s base has fallen: ${why}`);
   return true;
 }
+
+/** Note the first time a side is out of the game, and why. */
+function knockOut(team: number, why: string): void {
+  if (!G.outLog) G.outLog = []; // a game saved before the log existed
+  if (!G.outLog.some((o) => o.team === team)) G.outLog.push({ team, t: G.gameT, why });
+}
+
+const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+/** How each side that went out of the game went out, in order: for the end screen and server logs. */
+export const outReasons = (name: (team: number) => string = (t) => teamColors(t).name): string[] =>
+  (G.outLog ?? []).map((o) => `${name(o.team)} was knocked out at ${clock(o.t)}: ${o.why}.`);
 
 export function update(dt: number): void {
   G.gameT += dt;
@@ -142,7 +155,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); unicornCleanse(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows
@@ -161,6 +174,7 @@ export function update(dt: number): void {
     for (let t = 0; t < G.teams; t++) if (stranded(t) && fall(t)) fell = true;
     if (fell) { G.endT = FALL_SECONDS; return; }
     const left = Array.from({ length: G.teams }, (_, t) => t).filter(alive);
+    for (let t = 0; t < G.teams; t++) if (!left.includes(t)) knockOut(t, 'no buildings and no fighting units left');
     if (left.length <= 1) { G.over = true; G.winner = left[0] ?? -1; }
   }
 }

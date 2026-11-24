@@ -31,7 +31,7 @@ const MARKUP = `
   <h2 class="lobby-title">Play online</h2>
   <label class="ui-text-field">
     <span class="ui-text-field-label">Your name</span>
-    <input class="ui-text-field-input lobby-name" maxlength="${MAX_NAME}" autocomplete="nickname" spellcheck="false">
+    <input class="ui-text-field-input lobby-name" maxlength="${MAX_NAME}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
   </label>
   <div class="ui-modal-actions lobby-actions">
     <button type="button" class="ui-button lobby-quick">Quick match</button>
@@ -40,7 +40,7 @@ const MARKUP = `
   <p class="lobby-status" role="status" aria-live="polite"></p>
   <div class="lobby-invite-box" hidden>
     <div class="lobby-link">
-      <input class="ui-text-field-input lobby-link-url" readonly aria-label="Invite link">
+      <input class="ui-text-field-input lobby-link-url" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Invite link">
       <button type="button" class="ui-button ui-button--small lobby-copy">Copy invite link</button>
       <button type="button" class="ui-button ui-button--small ui-button--secondary lobby-share" hidden>Share</button>
     </div>

@@ -122,7 +122,7 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')].sort((a, b) => Number(b === 'worker') - Number(a === 'worker')); // Worker always first
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
@@ -154,7 +154,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--waiting', !!need);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
-    c.root.classList.toggle('build-cell--short', !items.length && (!canAfford(V.team, type) || atLimit(V.team, type)));
+    c.root.classList.toggle('build-cell--short', !canAfford(V.team, type) || (!items.length && atLimit(V.team, type)));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
   }
   if (tabs) for (const k of ['structure', 'unit'] as const) {

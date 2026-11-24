@@ -26,15 +26,16 @@ Each match runs on the server, which sends each player only what their side can 
 
 To let people outside your network play, deploy the Docker image (`deploy/`) to any host that runs containers and keeps WebSockets open, such as Coolify, Fly.io or a VPS. It serves the game and the lobby on one port (8080 in the container), with `/health` and `/status` checks.
 
-### Production: killcraft.kriogenx.com (Coolify)
+### Production: killcraft.games (Coolify)
 
 The live game runs on Coolify from this repo's `main` branch:
 
 - **Build pack:** Dockerfile, base directory `/`, Dockerfile location `/deploy/Dockerfile`
-- **Port:** `8080` (exposed). No environment variables are required; the image sets `SERVER_PORT=8080` and `STATIC_DIR`.
-- **Domain:** `https://killcraft.kriogenx.com` (Coolify's proxy issues the certificate and passes WebSockets on `/ws` through)
+- **Port:** `8080` (exposed). No environment variables are required; the image sets `SERVER_PORT=8080`, `STATIC_DIR`, and the old-domain redirect below.
+- **Domains:** `https://killcraft.games`, `https://www.killcraft.games` and the old `https://killcraft.kriogenx.com` (Coolify's proxy issues the certificates and passes WebSockets on `/ws` through)
+- **Redirect:** the server answers pages on any host in `REDIRECT_HOSTS` (`killcraft.kriogenx.com,www.killcraft.games`) with a 301 to `CANONICAL_ORIGIN` (`https://killcraft.games`), keeping path and query, so old `/game/<id>` links still work
 - **Health check:** `GET /health`
-- **DNS:** an `A` record for `killcraft` on kriogenx.com pointing at the Coolify server's IP.
+- **DNS:** killcraft.games is registered at Namecheap with DigitalOcean nameservers; its DigitalOcean zone has an `A` record for `@` at the Coolify server's IP and `www` as a CNAME. kriogenx.com keeps its `killcraft` `A` record for the redirect.
 
 ## How to play
 
@@ -60,7 +61,7 @@ The live game runs on Coolify from this repo's `main` branch:
 
 - **Bounty on the leader:** a side whose army and buildings are worth 30% more than anyone else's is in the lead. Everyone is told, and computer players turn on it. A unit that destroys one of its units or buildings picks up half that price in ore as loot, which counts once the unit brings it near its own Town Hall or a Refinery. If the carrier dies, the loot is left on the ground as ore.
 - **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (World War) fires shells that beat vehicles; the Flak Cannon (World War) only shoots at aircraft, from long range.
-- **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. You start with your Town Hall and two Workers, and no army. The Town Hall trains Workers until you have a Barracks.
+- **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. Each one is paid for in full the moment you queue it (if you can't afford it, it isn't queued), and cancelling refunds it in full. You start with your Town Hall and two Workers, and no army. The Town Hall trains Workers until you have a Barracks.
 - **Workers mend things:** a Worker with nothing to carry looks after what's near it. It builds sites, repairs damaged buildings (paying ore at the same rate as the Repair button), and patches up wounded troops and vehicles at half a Medic's pace. Select Workers and right-click one of your damaged buildings, building sites or wounded units to send them to it. Press `T` (Fix, then harvest) with Workers selected to have them fix everything damaged within 12 tiles, then go back to the ore. A Worker swings its pick at an enemy that attacks it or comes right up to it, but it's no soldier. On the passive stance it runs from enemies instead, and mends only when none are about. The computer sends Workers to its sites and badly damaged buildings too.
   - Barracks: swords and bows first, then guns, then rockets: Swordsman (plate armor, beats riflemen up close), Crossbowman (armor-piercing bolts), Knight (fast armored lancer), then Rifleman, Machine Gunner (belt-fed gun, mows down infantry but moves slowly) and Rocket Soldier.
   - War Factory: Catapult (lobs boulders from long range, crushes buildings) and Harvester, then Scout Jeep, Battle Tank and Heavy Tank.

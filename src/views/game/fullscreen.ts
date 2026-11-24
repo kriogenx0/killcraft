@@ -1,5 +1,4 @@
-// Full screen: tried when a game starts (browsers allow it only right after a tap, click or key, so
-// if the first try is refused it waits for the next one), and a topbar button to toggle it.
+// Full screen, only when the player asks for it with the topbar button (never automatically).
 // Browsers without it (iPhone Safari) just don't show the button.
 
 type FsDoc = Document & { webkitFullscreenElement?: Element | null; webkitFullscreenEnabled?: boolean; webkitExitFullscreen?: () => Promise<void> | void };
@@ -41,26 +40,6 @@ export function toggleFullscreen(): void {
   void (isFullscreen() ? exitFullscreen() : enterFullscreen());
 }
 
-let waiting: (() => void) | null = null;
-
-/** A game is starting: go full screen now if the browser allows it, else on the next tap, click or key. */
-export function autoFullscreen(): void {
-  if (!fullscreenSupported() || isFullscreen() || waiting) return;
-  void enterFullscreen().then((ok) => {
-    if (ok || waiting) return;
-    // pointerup and keydown are the events that count as a user gesture for full screen
-    const tryAgain = () => { stop(); void enterFullscreen(); };
-    const stop = () => {
-      window.removeEventListener('pointerup', tryAgain, true);
-      window.removeEventListener('keydown', tryAgain, true);
-      waiting = null;
-    };
-    waiting = stop;
-    window.addEventListener('pointerup', tryAgain, true);
-    window.addEventListener('keydown', tryAgain, true);
-  });
-}
-
 /** Wire a toggle button: hidden where full screen isn't available, icon follows the state. */
 export function mountFullscreenButton(btn: HTMLButtonElement): void {
   if (!fullscreenSupported()) { btn.hidden = true; return; }
@@ -71,7 +50,7 @@ export function mountFullscreenButton(btn: HTMLButtonElement): void {
     btn.title = on ? 'Exit full screen (F11)' : 'Full screen';
   };
   show();
-  btn.addEventListener('click', () => { waiting?.(); toggleFullscreen(); });
+  btn.addEventListener('click', toggleFullscreen);
   document.addEventListener('fullscreenchange', show);
   document.addEventListener('webkitfullscreenchange', show);
 }

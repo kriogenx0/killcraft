@@ -29,6 +29,11 @@ export class SocketController {
     if (ws && ws.readyState === ws.OPEN) ws.send(json);
   }
 
+  /** Tell everyone connected that the server is restarting (a deploy). */
+  broadcastRestart(): void {
+    for (const id of this.sockets.keys()) this.send(id, { k: 'restarting' });
+  }
+
   /** Tell everyone in the lobby (not in a match or watching one) who is online, open games and their challenges. */
   broadcastLobby(): void {
     for (const p of this.lobby.players.values()) {
@@ -96,9 +101,11 @@ export class SocketController {
         case 'resign': this.matches.quit(id, 'resigned'); break;
         case 'rejoin': {
           const me = this.lobby.players.get(id);
-          const opponent = me && me.status !== 'playing' ? this.matches.rejoin(me, String(msg.game), String(msg.key)) : null;
-          if (opponent) this.lobby.playing(id, opponent.name);
-          else this.send(id, { k: 'nogame' });
+          if (!me || me.status === 'playing') { this.send(id, { k: 'nogame' }); break; }
+          void this.matches.rejoin(me, String(msg.game), String(msg.key)).then((opponent) => {
+            if (opponent) this.lobby.playing(id, opponent.name);
+            else this.send(id, { k: 'nogame' });
+          });
           break;
         }
       }

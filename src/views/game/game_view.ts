@@ -6,7 +6,7 @@ import { layoutFor } from '../../data/map.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, type GameSetup } from '../../data/setup.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
-import { initWorld, update } from '../../game/world.ts';
+import { initWorld, outReasons, update } from '../../game/world.ts';
 import { ais, setAiLevel } from '../../game/ai.ts';
 import { noUpgrades } from '../../game/upgrade.ts';
 import { rebuildBlk } from '../../game/map.ts';
@@ -24,7 +24,7 @@ import { hostedGame, mountLobby, storedName } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
 import { mountSetup } from '../setup/setup_view.ts';
-import { autoFullscreen, mountFullscreenButton } from './fullscreen.ts';
+import { mountFullscreenButton } from './fullscreen.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
 import { canPlaceType } from '../../game/building.ts';
 import { addBuilding, addUnit } from '../../game/entity.ts';
@@ -48,6 +48,8 @@ import { initInput, scrollCamera, updatePlacement } from './input.ts';
 import { updateFollow } from './follow_cam.ts';
 import { initTouchBar, refreshTouchBar } from './touch_bar.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
+import { perfEnd, perfLap, perfStart } from './perf.ts';
+import { stageBattle } from '../../sim/stage.ts';
 
 const MAX_STEPS_PER_FRAME = 16;
 const MESSAGE_TIME = 2600;
@@ -62,6 +64,11 @@ const REJOIN_WAIT = 2;
 const REJOIN_WAIT_MAX = 15;
 /** tries at getting back to watching a game after the connection drops */
 const REJOIN_TRIES = 6;
+/**
+ * After the server restarts (a deploy) or drops us mid-match, keep trying to get back into the game this
+ * long: the new server picks a saved match up when its players return (it keeps them 15 minutes).
+ */
+const RESTART_WAIT_MS = 14 * 60_000;
 /** the online game this tab is watching, so a refresh keeps watching it */
 const WATCHING_KEY = 'killcraft.watching';
 
@@ -94,12 +101,17 @@ export function mountGameView(root: HTMLElement): void {
   const minimap = must<HTMLCanvasElement>(root, '.sidebar-minimap'), mg = ctx2d(minimap);
   const sidebar = must<HTMLElement>(root, '.sidebar'), topbar = must<HTMLElement>(root, '.topbar');
   const message = must<HTMLElement>(root, '.game-message');
+  /** "Disconnected", in the corner while our connection to an online game is down */
+  const offline = must<HTMLElement>(root, '.game-offline');
+  const setOffline = (on: boolean) => { offline.hidden = !on; };
   const startModal = must<HTMLElement>(root, '.game-start'), endModal = must<HTMLElement>(root, '.game-end');
   const speedBtn = must<HTMLButtonElement>(root, '.topbar-speed'), pauseBtn = must<HTMLButtonElement>(root, '.topbar-pause');
   const resignBtn = must<HTMLButtonElement>(root, '.topbar-resign'), againBtn = must<HTMLButtonElement>(root, '.game-end-again');
   const q = new URLSearchParams(location.search);
 
   let errors = 0, messageTimer = 0, endReason = '', shownEnd = false, quitting = false;
+  /** the server said it's restarting, or dropped us mid-match: if the game is then lost, say so rather than "Game over" */
+  let serverRestarting = false, droppedMidGame = false, restartEnd = false, lostAt = 0;
   const pausedBox = must<HTMLElement>(root, '.game-paused'), timeEl = must<HTMLElement>(root, '.topbar-time');
   /** Every game gets a UUID when it starts (online games use the server's match id). */
   const setGameId = (id: string) => {
@@ -168,6 +180,7 @@ export function mountGameView(root: HTMLElement): void {
   // ---- solo and AI vs AI ----
   /** Start a game against the computer (or, with `demo`, a computer-only match to watch) with these settings. */
   const startSolo = (demo: boolean, s: GameSetup = DEFAULT_SETUP) => {
+    setOffline(false);
     closeModal(startModal);
     const teams = s.foes === 3 ? 4 : 2;
     // no map number: play on the map already showing behind the menu
@@ -186,7 +199,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(0);
     Object.assign(V, { team: 0, online: false, sel: [], mode: null, markers: [], pings: [], paused: false, speed: s.speed, started: true });
-    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.(); // keys go to the game, not a closed dialog's field
     home(0);
     setSelection([]);
@@ -216,7 +228,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(g.view.team);
     Object.assign(V, { team: g.view.team, online: false, sel: [], mode: null, markers: [], pings: [], paused: g.view.paused, speed: g.view.speed, started: true });
-    autoFullscreen();
     Object.assign(V.cam, g.view.cam);
     clampCam();
     setSelection([]);
@@ -252,6 +263,8 @@ export function mountGameView(root: HTMLElement): void {
   };
 
   const onGameMessage = (m: ServerMsg) => {
+    setOffline(false); // hearing from the server: we're connected
+    if (m.k === 'restarting') { serverRestarting = true; lostAt = Date.now(); if (V.online && V.started && !G.over) show('The server is restarting for an update. Reconnecting…'); return; }
     if (m.k === 'nogame') { rejoinFailed('That game has ended.'); return; }
     if (!V.online) return;
     if (m.k === 'notice' && V.started) show(m.msg);
@@ -264,10 +277,13 @@ export function mountGameView(root: HTMLElement): void {
       if (watchingNames) endReason = m.reason === 'left' ? `${loser} left the game.` : m.reason === 'resigned' ? `${loser} surrendered.` : '';
       else endReason = m.reason === 'left' ? (m.winner === V.team ? 'Your opponent left the game.' : 'You left the game.')
         : m.reason === 'resigned' ? (m.winner === V.team ? 'Your opponent surrendered.' : 'You surrendered.') : '';
+      if (m.detail?.length) endReason = m.detail.join(' '); // the server knows best why it ended
     }
   };
   net.onMessage(onGameMessage);
   net.onClose(() => {
+    // a game the server loses after dropping us mid-match went down with a server restart (a deploy)
+    if (V.online && V.started && !G.over) { setOffline(true); if (!droppedMidGame) lostAt = Date.now(); droppedMidGame = true; }
     // the computer plays our side on the server until we're back: keep trying to get back in
     // (a failed reconnect closes too: that try already lined up the next)
     if (V.online && V.started && !G.over && !rejoinPending) {
@@ -310,8 +326,23 @@ export function mountGameView(root: HTMLElement): void {
     clearTimeout(rejoining);
     rejoinPending = false;
     const id = root.dataset.gameId ?? gameIdFromUrl();
-    if (id) void forgetGame(id).catch(() => {});
-    if (V.online && V.started && !G.over) { G.over = true; G.winner = -1; endReason = why; return; }
+    // a restart or a dropped connection never ends the game here: keep trying to get back in
+    if (V.online && V.started && !G.over && !watchingNames && (serverRestarting || droppedMidGame) && Date.now() - lostAt < RESTART_WAIT_MS) {
+      show('The server is restarting. Reconnecting to your game…');
+      rejoin(id ?? '', 0, REJOIN_WAIT_MAX);
+      return;
+    }
+    setOffline(false);
+    const restarted = V.online && V.started && !G.over && !watchingNames && (serverRestarting || droppedMidGame);
+    if (id && !restarted) void forgetGame(id).catch(() => {}); // keep the key, so Reconnect can try again
+    if (V.online && V.started && !G.over) {
+      G.over = true;
+      G.winner = -1;
+      restartEnd = serverRestarting || droppedMidGame;
+      endReason = restartEnd ? 'The game server restarted for an update and could not get this game back. Reconnect to try again.' : why;
+      if (restartEnd) againBtn.textContent = 'Reconnect';
+      return;
+    }
     leaveGameUrl();
     openModal(startModal);
     show(why);
@@ -319,6 +350,7 @@ export function mountGameView(root: HTMLElement): void {
 
   const startOnline = (m: Extract<ServerMsg, { k: 'start' }>) => {
     closeModal(startModal);
+    serverRestarting = droppedMidGame = restartEnd = false; // in (or back in) a running match
     watchingNames = null;
     setWatchedGame(null);
     V.online = true;
@@ -338,7 +370,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(m.team);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
-    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.(); // the lobby's name box would swallow every key
     root.classList.add('view-game--online');
     resignBtn.hidden = false;
@@ -370,7 +401,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(0);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
-    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.();
     root.classList.add('view-game--online', 'view-game--watching');
     resignBtn.hidden = false;
@@ -438,7 +468,8 @@ export function mountGameView(root: HTMLElement): void {
     delete root.dataset.gameId;
     lobby.open(hostedGame() === id ? { host: id } : { join: id });
   };
-  againBtn.addEventListener('click', () => { location.href = V.online ? '/?online' : '/'; });
+  // after a restart, reloading the game's page tries to rejoin it once more
+  againBtn.addEventListener('click', () => { if (restartEnd) location.reload(); else location.href = V.online ? '/?online' : '/'; });
   // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
   window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });
   pauseBtn.addEventListener('click', () => { V.paused = !V.paused; });
@@ -473,6 +504,7 @@ export function mountGameView(root: HTMLElement): void {
   let last = performance.now(), acc = 0, fogT = 0, oreT = 0, savedAt = performance.now();
   const frame = (t: number) => {
     requestAnimationFrame(frame);
+    perfStart();
     const dt = Math.min(0.1, (t - last) / 1000 || 0);
     last = t;
     if (V.online) {
@@ -490,6 +522,7 @@ export function mountGameView(root: HTMLElement): void {
       while (acc >= STEP && n < MAX_STEPS_PER_FRAME) { update(STEP); acc -= STEP; n++; }
       if (n >= MAX_STEPS_PER_FRAME) acc = 0;
       ageMarkers(dt * V.speed);
+      perfLap('sim', n);
     }
     const showPaused = V.started && V.paused && !G.over && !V.online && !setupEl.classList.contains('ui-modal--open');
     if (pausedBox.hidden === showPaused) pausedBox.hidden = !showPaused;
@@ -499,8 +532,10 @@ export function mountGameView(root: HTMLElement): void {
     }
     if (G.over && !shownEnd) {
       shownEnd = true;
-      if (root.dataset.gameId) void forgetGame(root.dataset.gameId).catch(() => {});
-      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${watchingNames?.[G.winner] ?? teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
+      // a game this screen ran: say who was knocked out, when and why
+      if (!endReason && !V.online) endReason = outReasons((t) => `${watchingNames?.[t] ?? teamColors(t).name}${t === V.team && !G.demo ? ' (you)' : ''}`).join(' ');
+      if (root.dataset.gameId && !restartEnd) void forgetGame(root.dataset.gameId).catch(() => {});
+      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${watchingNames?.[G.winner] ?? teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? (restartEnd ? 'Restarting Server' : 'Game over') : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       resignBtn.hidden = true;
       openModal(endModal);
@@ -522,15 +557,19 @@ export function mountGameView(root: HTMLElement): void {
       updateAetherBeams();
       updateAetherGlows();
       animateWater(dt);
+      perfLap('scene');
       renderScene();
+      perfLap('draw');
       drawOverlay(og);
       drawMinimap(mg, viewFootprint());
       refreshHud();
       refreshSidebar();
       refreshTouchBar();
+      perfLap('ui');
     } catch (err) {
       hooks.error(err);
     }
+    perfEnd();
   };
   requestAnimationFrame(frame);
 }
@@ -565,7 +604,7 @@ function showcase(what: string): void {
 
 /**
  * URL options for testing: ?seed=N map seed, ?auto start a solo game, ?demo AI vs AI, ?online open
- * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?reveal no fog, ?cam=x,y center on a
+ * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?stress=N give every side N more last-age troops marching on the middle, ?perf record frame timings on window.__perf, ?reveal no fog, ?cam=x,y center on a
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
@@ -598,6 +637,8 @@ function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean, s?: Gam
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
   const sim = Number(q.get('sim') ?? 0) / STEP;
   for (let i = 0; i < sim && !G.over; i++) update(STEP);
+  // ?stress=N: every side gets N more troops in the last age, marching on the middle (performance tests)
+  if (Number(q.get('stress')) > 0) stageBattle(Number(q.get('stress')));
   const cam = q.get('cam');
   if (cam) {
     const [x, y] = cam.split(',').map(Number);

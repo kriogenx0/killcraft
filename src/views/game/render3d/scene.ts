@@ -190,6 +190,10 @@ function resizeComposer(w: number, h: number): void {
 /** Smoothed time per frame (ms), for effects that thin out on slow devices. */
 export const frameTime = (): number => frameMs;
 
+/** Run just before each draw, once the scene's world matrices are up to date. */
+const beforeDraw: (() => void)[] = [];
+export const onBeforeDraw = (f: () => void): void => { beforeDraw.push(f); };
+
 export function renderScene(): void {
   const now = performance.now();
   if (lastFrame) frameMs = frameMs * 0.95 + Math.min(100, now - lastFrame) * 0.05;
@@ -199,6 +203,12 @@ export function renderScene(): void {
     slowFrames = frameMs > 26 ? slowFrames + 1 : 0;
     if (slowFrames > 120) { composer = null; console.info('Ambient occlusion off: frames too slow'); }
   }
+  // world matrices once per frame, here, rather than again in every pass (shadows, ambient occlusion)
+  S.scene.matrixWorldAutoUpdate = false;
+  S.scene.updateMatrixWorld();
+  S.camera.updateMatrixWorld();
+  S.camera.matrixWorldInverse.copy(S.camera.matrixWorld).invert();
+  for (const f of beforeDraw) f();
   if (composer) composer.render();
   else S.renderer.render(S.scene, S.camera);
 }

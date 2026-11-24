@@ -4,6 +4,9 @@
 
 .build-cell {
   position: relative;
+  // the dark strips above and below the picture
+  background: #1a1e18;
+  border-radius: $radius;
 
   // researching the next age
   &--tech .build-cell-main {
@@ -15,12 +18,15 @@
     display: block;
     width: 100%;
     aspect-ratio: 4 / 3;
-    padding: 0;
+    // a strip on top (price, hotkey) and one below (name) so no text sits on the picture
+    padding: 15px 0;
     overflow: hidden;
     font: inherit;
     color: #fff;
     cursor: pointer;
     background: #1a1e18 center / cover no-repeat;
+    background-clip: content-box;
+    background-origin: content-box;
     border: 2px solid var(--color-rim);
     border-radius: $radius;
     transition: filter $duration, border-color $duration;
@@ -118,7 +124,7 @@
 
   .build-cell-count {
     position: absolute;
-    top: 14px;
+    top: 15px;
     right: 0;
     padding: 0 $space-1;
     font-size: $font-sm;

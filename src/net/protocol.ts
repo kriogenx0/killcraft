@@ -123,12 +123,14 @@ export type ServerMsg =
   | SnapMsg
   /** you're now watching this match (sent again on a reconnect) */
   | { k: 'spectate'; game: string; seed: number; players: string[] }
-  | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned' }
+  | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned'; /** how each side was knocked out */ detail?: string[] }
   /** `live`: the game asked for is a match under way, which can be watched instead */
   | { k: 'error'; msg: string; live?: LiveGame }
   | { k: 'notice'; msg: string }
   /** a rejoin found no such match: it has ended, or the key was wrong */
-  | { k: 'nogame' };
+  | { k: 'nogame' }
+  /** the server is going down for an update (a deploy) and will be back shortly */
+  | { k: 'restarting' };
 
 /** Trim and clean a player name. */
 export function cleanName(raw: unknown): string {
