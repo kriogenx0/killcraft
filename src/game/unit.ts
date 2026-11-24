@@ -14,7 +14,6 @@ import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { nearestOre, takeOre } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
-import { oilLeft } from './economy.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { IDLE_GRACE, autoGather, rethink } from './autogather.ts';
@@ -198,10 +197,13 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
     u.cargo = o.res;
     u.atkT = 0.2;
   }
-  // full, or the store is empty: take what we have home; with nothing, wait for more
-  const refills = oilLeft(src) > 0;
-  if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0 && (u.carry >= Math.min(haulOf(u), 60) || !refills))) o.st = 'ret';
-  else if (src.carry <= 0.01) o.wait = 1;
+  // full, or the store is empty: take what we have home rather than stand by a slow pump holding it
+  if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0)) o.st = 'ret';
+  else if (src.carry <= 0.01) {
+    // nothing to carry: a Worker that picked this job itself finds another; one sent here waits for more
+    if (o.auto) u.order = null;
+    else o.wait = 1;
+  }
 }
 
 /** A walking ground unit touching u, in front of it and heading back toward it. */

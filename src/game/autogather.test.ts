@@ -7,8 +7,9 @@ import { ais } from './ai.ts';
 import { rebuildBlk } from './map.ts';
 import { orderMove } from './order.ts';
 import { initWorld, update } from './world.ts';
-import { addUnit, kill } from './entity.ts';
+import { addBuilding, addUnit, kill } from './entity.ts';
 import { IDLE_GRACE, jobOf, pickResource } from './autogather.ts';
+import { OIL_WELLS } from '../data/map.ts';
 import { mulberry32 } from '../util/math.ts';
 
 function run(seconds: number): void {
@@ -101,5 +102,39 @@ describe('idle Workers', () => {
     run(40);
     expect(jobOf(digger)).toBe('ore'); // short of wood, but the player put it on the ore
     expect(digger.order?.t === 'harvest' && digger.order.auto).toBeFalsy();
+  });
+
+  it('holding a load, take it home first and then carry on gathering', () => {
+    const [w] = workers(1);
+    G.credits[0] = 5000; G.wood[0] = 0;
+    w.carry = 100; w.cargo = 'ore'; // stopped halfway through digging
+    const ore = G.credits[0];
+    run(IDLE_GRACE + 30);
+    expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 100);
+    expect(jobOf(w)).toBe('wood');
+  });
+
+  it("don't crowd a slow Oil Derrick: one Worker hauls from it, and never stands there holding oil", () => {
+    const [wx, wy] = OIL_WELLS[0];
+    const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
+    d.carry = 300;
+    const ws = workers(4);
+    G.credits[0] = 5000; G.wood[0] = 5000; G.oil[0] = 0;
+    run(IDLE_GRACE + 1);
+    expect(ws.filter((w) => jobOf(w) === 'oil')).toHaveLength(1);
+    // watch the Workers: nobody holding oil stays put at the derrick
+    const still = new Map<Ent, number>();
+    let worst = 0;
+    for (let i = 0; i < 120 / STEP; i++) {
+      update(STEP);
+      for (const w of ws) {
+        const near = Math.hypot(w.x - d.x, w.y - d.y) < 3 * TS;
+        const t = near && w.carry > 0 && w.cargo === 'oil' ? (still.get(w) ?? 0) + STEP : 0;
+        still.set(w, t);
+        worst = Math.max(worst, t);
+      }
+    }
+    expect(worst).toBeLessThan(5);
+    expect(G.oil[0]).toBeGreaterThan(250);
   });
 });

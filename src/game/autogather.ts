@@ -7,7 +7,6 @@ import { MH, MW, TREE } from './const.ts';
 import { CHOP_WORTH } from '../data/economy.ts';
 import { bankAt } from './haul.ts';
 import { WOOD_BANKS } from './chop.ts';
-import { oilLeft } from './economy.ts';
 import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
 import { ais } from './ai.ts';
@@ -64,15 +63,20 @@ export function options(u: Ent): Res[] {
   return out;
 }
 
-/** The side's Oil Derrick with oil to haul that has the fewest Workers on it (nearest on a tie). */
+/** Oil a derrick must hold before an idle Worker walks out for it: less isn't worth the trip. */
+export const OIL_TRIP = 60;
+
+/**
+ * The side's nearest Oil Derrick with a load waiting and no Worker on it. A derrick pumps slowly,
+ * so one Worker keeps up with it; a second would only stand there holding a few drops.
+ */
 function derrickFor(u: Ent): Ent | null {
-  let best: Ent | null = null, bs = Infinity;
+  let best: Ent | null = null, bd = Infinity;
   for (const d of G.ents) {
-    if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || (d.carry <= 1 && oilLeft(d) <= 0)) continue;
-    let crew = 0;
-    for (const w of G.ents) if (w !== u && !w.dead && w.team === u.team && w.order?.t === 'harvest' && w.order.src === d.id) crew++;
-    const s = crew * 1e6 + Math.hypot(d.x - u.x, d.y - u.y);
-    if (s < bs) { bs = s; best = d; }
+    if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || d.carry < OIL_TRIP) continue;
+    if (G.ents.some((w) => w !== u && !w.dead && w.team === u.team && w.order?.t === 'harvest' && w.order.src === d.id)) continue;
+    const dist = Math.hypot(d.x - u.x, d.y - u.y);
+    if (dist < bd) { bd = dist; best = d; }
   }
   return best;
 }
@@ -129,8 +133,9 @@ export function autoGather(u: Ent): boolean {
     return true;
   }
   const r = pickResource(u);
-  if (!r) return false;
-  gather(u, r);
+  if (r) gather(u, r);
+  // nothing worth gathering close by: take any load home and dig ore wherever it's left, rather than stand about
+  if (!u.order && bankAt(u, ['refinery', 'yard'])) setOrder(u, { t: 'harvest', st: u.carry > 0 ? 'ret' : 'go', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, auto: true });
   return !!u.order;
 }
 
