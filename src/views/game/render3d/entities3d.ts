@@ -35,6 +35,8 @@ const objs = new Map<number, Obj>();
 
 export function resetEntities3d(): void {
   holder.clear();
+  for (const f of fallen) for (const m of f.mats) m.dispose();
+  fallen.length = 0;
   overlays.clear();
   objs.clear();
   ringPool.length = 0;
@@ -361,11 +363,78 @@ export function syncEntities(dt: number): void {
       animateBuilding(o.model, e, dt);
     } else r.position.set(x, heightAt(x, z), z);
   }
-  for (const [id, o] of objs) if (!seen.has(id)) { holder.remove(o.model.root); objs.delete(id); }
+  let killed: Map<number, string> | null = null;
+  for (const [id, o] of objs) {
+    if (seen.has(id)) continue;
+    objs.delete(id);
+    // a unit that just died leaves its body (or wreck) behind; anything else simply goes
+    killed ??= new Map(G.decals.filter((d) => d.kind === 'corpse' || d.kind === 'wreck').map((d) => [d.seed, d.kind]));
+    const kind = killed.get(id);
+    if (kind && o.model.root.visible) fall(o.model, kind === 'wreck');
+    else holder.remove(o.model.root);
+  }
+  updateFallen();
   updateRings();
   updateMarkers();
   updateRally();
   updateGhost();
+}
+
+// ---- the fallen: dead units lie on the ground tinted red, then sink out of sight ----
+
+/** Seconds a body lies on the ground before it starts to sink, and how long sinking takes. */
+const LIE = 3, SINK = 5, TOPPLE = 0.35;
+const RED = new THREE.Color('#9c1010');
+interface Fallen { model: Model; t0: number; wreck: boolean; sinkT: number; y0: number; fly: number; tip: number; mats: THREE.Material[] }
+const fallen: Fallen[] = [];
+
+function fall(m: Model, wreck: boolean): void {
+  const r = m.root, mats: THREE.Material[] = [];
+  // red, on its own copies of the materials (the originals are shared by every model of its kind)
+  r.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const tint = (mt: THREE.Material): THREE.Material => {
+      const c = mt.clone() as THREE.Material & { color?: THREE.Color; emissive?: THREE.Color; emissiveIntensity?: number };
+      if (c.color) c.color.lerp(RED, 0.8);
+      if (c.emissive) c.emissiveIntensity = 0;
+      mats.push(c);
+      return c;
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material);
+  });
+  const x = r.position.x, z = r.position.z;
+  fallen.push({ model: m, t0: G.gameT, wreck, sinkT: wreck ? Infinity : G.gameT + LIE, y0: heightAt(x, z), fly: r.position.y - heightAt(x, z), tip: wreck ? 0 : (r.rotation.z || 0), mats });
+}
+
+/** Scrap (ore) still lying where a wreck stands: the wreck stays until it has been carried off. */
+function scrapLeft(x: number, z: number): boolean {
+  const cx = Math.floor(x), cz = Math.floor(z);
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+    const tx = cx + dx, tz = cz + dz;
+    if (tx >= 0 && tz >= 0 && tx < MW && tz < MH && G.ore[tz * MW + tx] > 0) return true;
+  }
+  return false;
+}
+
+function updateFallen(): void {
+  const now = G.gameT;
+  for (let i = fallen.length - 1; i >= 0; i--) {
+    const f = fallen[i], r = f.model.root, x = r.position.x, z = r.position.z, age = now - f.t0;
+    if (f.wreck && f.sinkT === Infinity && age > LIE && !scrapLeft(x, z)) f.sinkT = now;
+    const sink = Math.max(0, (now - f.sinkT) / SINK);
+    if (sink >= 1 || now < f.t0) {
+      holder.remove(r);
+      for (const m of f.mats) m.dispose();
+      fallen.splice(i, 1);
+      continue;
+    }
+    // infantry topple onto their backs; anything in the air drops to the ground
+    const k = Math.min(1, age / TOPPLE);
+    if (!f.wreck) r.rotation.z = lerp(f.tip, Math.PI / 2, k * k);
+    const lie = f.wreck ? 0 : 0.06 * UNIT_SCALE * k;
+    r.position.y = f.y0 + f.fly * (1 - k) ** 2 + lie - sink * (f.model.height + 0.2);
+    r.visible = !!G.vis[Math.floor(z) * MW + Math.floor(x)];
+  }
 }
 
 /** How high an aircraft flies (tiles). */

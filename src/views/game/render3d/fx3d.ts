@@ -121,7 +121,7 @@ const projMat = {
 };
 const projPools: Record<string, THREE.Mesh[]> = { shell: [], rocket: [], bolt: [], boulder: [], orb: [] };
 
-// ground marks: one instanced disc per kind, plus stones and wrecks
+// ground marks: one instanced disc per kind, plus rubble stones (dead units' own models lie on the ground: entities3d.ts)
 const discGeo = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2);
 function marks(color: string, opacity: number): THREE.InstancedMesh {
   const im = new THREE.InstancedMesh(discGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }), 420);
@@ -129,16 +129,15 @@ function marks(color: string, opacity: number): THREE.InstancedMesh {
   im.frustumCulled = false;
   return im;
 }
-const decal = { scorch: marks('#141210', 0.45), splat: marks('#4a0505', 0.75), corpse: marks('#3a0606', 0.6), rubble: marks('#1a1612', 0.55) };
+const decal = { scorch: marks('#141210', 0.45), splat: marks('#4a0505', 0.75), rubble: marks('#1a1612', 0.55) };
 const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.1), M.rock(), 1200);
-const wrecks = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.5, 0.7), mat('#1e1c1a', { rough: 1 }), 120);
-const bodies = new THREE.InstancedMesh(new THREE.BoxGeometry(0.28, 0.07, 0.13), mat('#4e5430'), 420);
-for (const im of [stones, wrecks, bodies]) { im.frustumCulled = false; im.castShadow = true; }
+stones.frustumCulled = false;
+stones.castShadow = true;
 
 export function initFx3d(): void {
   S.scene.remove(layer);
   layer.clear();
-  layer.add(...Object.values(clouds).map((c) => c.pts), beams, slashes, atkLines, ...Object.values(decal), stones, wrecks, bodies);
+  layer.add(...Object.values(clouds).map((c) => c.pts), beams, slashes, atkLines, ...Object.values(decal), stones);
   for (const pool of Object.values(projPools)) pool.length = 0;
   S.scene.add(layer);
 }
@@ -273,28 +272,17 @@ function lie(x: number, z: number): void {
 const surface = (x: number, y: number): number => surfaceY(x / TS, y / TS);
 
 function updateDecals(): void {
-  const n: Record<string, number> = { scorch: 0, splat: 0, corpse: 0, rubble: 0 };
-  let ns = 0, nw = 0, nb = 0;
+  const n: Record<string, number> = { scorch: 0, splat: 0, rubble: 0 };
+  let ns = 0;
   for (const d of G.decals) {
+    if (d.kind === 'corpse' || d.kind === 'wreck') continue;
     if (!G.vis[Math.floor(d.y / TS) * 64 + Math.floor(d.x / TS)]) continue;
     const fade = Math.min(1, (d.max - d.t) / (d.max * 0.3)), x = d.x / TS, z = d.y / TS, gy = heightAt(x, z);
     lie(x, z);
-    if (d.kind === 'wreck') {
-      if (nw >= 120) continue;
-      const s = (d.r / TS) * 1.7 * fade;
-      q.setFromAxisAngle(up, -d.a);
-      wrecks.setMatrixAt(nw++, m4.compose(v.set(x, gy + 0.12 * fade, z), q.premultiply(flat), sc.set(s, s * 0.6, s)));
-      if (n.scorch < 420) decal.scorch.setMatrixAt(n.scorch++, m4.compose(v.set(x, gy + 0.03, z), flat, sc.setScalar((d.r / TS) * 1.4 * fade)));
-      continue;
-    }
     const im = decal[d.kind];
     if (n[d.kind] >= 420) continue;
-    const r = d.kind === 'splat' ? d.r / TS : d.kind === 'corpse' ? 0.28 : d.kind === 'rubble' ? d.w * 0.6 : d.r / TS;
+    const r = d.kind === 'splat' ? d.r / TS : d.kind === 'rubble' ? d.w * 0.6 : d.r / TS;
     im.setMatrixAt(n[d.kind]++, m4.compose(v.set(x, gy + 0.025 + n[d.kind] * 0.00001, z), flat, sc.setScalar(Math.max(0.01, r * fade))));
-    if (d.kind === 'corpse' && nb < 420 && d.t < d.max * 0.6) {
-      q.setFromAxisAngle(up, -d.a);
-      bodies.setMatrixAt(nb++, m4.compose(v.set(x, gy + 0.04, z), q.premultiply(flat), sc.set(1, 1, 1)));
-    }
     if (d.kind === 'rubble') {
       const rnd = mulberry32(d.seed);
       for (let i = 0; i < d.w * 6 && ns < 1200; i++) {
@@ -306,8 +294,8 @@ function updateDecals(): void {
     }
   }
   for (const [k, im] of Object.entries(decal)) { im.count = n[k]; im.instanceMatrix.needsUpdate = true; }
-  stones.count = ns; wrecks.count = nw; bodies.count = nb;
-  for (const im of [stones, wrecks, bodies]) im.instanceMatrix.needsUpdate = true;
+  stones.count = ns;
+  stones.instanceMatrix.needsUpdate = true;
 }
 
 export function updateFx3d(): void {

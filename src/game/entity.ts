@@ -1,6 +1,6 @@
 // Creating, destroying and counting entities (units, buildings, ore crystal rocks).
 import { bldHp, refitBonus } from './refit.ts';
-import { G, hooks, bldDef, isVehicle, type Ent, type EntKind, type EntType } from './state.ts';
+import { G, hooks, bldDef, isOrganic, unitDef, type Ent, type EntKind, type EntType } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -57,13 +57,15 @@ export function kill(e: Ent): void {
   if (e.w) setBlk(e, false);
   if (e.kind === 'source') return; // crystals and Aether just vanish: no rubble
   const base = { t: 0, team: e.team, seed: e.id, w: e.w, r: 0, a: e.face };
-  if (e.kind === 'unit' && !isVehicle(e)) {
+  // living things fall as bodies; machines blow up and leave a wreck (no scorch mark)
+  const machine = e.kind === 'unit' && !isOrganic(e) && !unitDef(e).beast;
+  if (e.kind === 'unit' && !machine) {
     G.decals.push({ kind: 'corpse', x: e.x, y: e.y, max: 40, ...base });
     burst('blood', e.x, e.y - 4, 8, 50, 120);
     return;
   }
   if (e.kind === 'unit') {
-    explosion(e.x, e.y, UNIT[e.type as UnitType].radius * 1.3);
+    explosion(e.x, e.y, UNIT[e.type as UnitType].radius * 1.3, false);
     G.decals.push({ kind: 'wreck', x: e.x, y: e.y, max: 60, ...base, r: UNIT[e.type as UnitType].radius });
     return;
   }

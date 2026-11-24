@@ -29,10 +29,10 @@ export function burst(kind: FxKind, x: number, y: number, n: number, v0: number,
   }
 }
 
-/** Fireball, smoke, flying debris and a scorch mark. `size` is roughly the blast radius in px. */
-export function explosion(x: number, y: number, size: number): void {
+/** Fireball, smoke, flying debris and (unless `mark` is false) a scorch mark. `size` is roughly the blast radius in px. */
+export function explosion(x: number, y: number, size: number, mark = true): void {
   if (G.headless) return;
-  G.decals.push({ kind: 'scorch', x, y, t: 0, max: 30, team: -1, seed: 0, w: 0, r: size * 0.8, a: 0 });
+  if (mark) G.decals.push({ kind: 'scorch', x, y, t: 0, max: 30, team: -1, seed: 0, w: 0, r: size * 0.8, a: 0 });
   if (!visible(x, y)) return;
   part('flash', x, y, { max: 0.15, size: size * 2.2 });
   const n = Math.round(4 + size / 3);
