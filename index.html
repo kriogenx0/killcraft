@@ -96,14 +96,30 @@
       </div>
       <details class="game-controls">
         <summary class="ui-button ui-button--secondary game-controls-toggle">Controls</summary>
+        <p class="game-intro game-controls-note">Plays on phones and tablets too: tap, drag and pinch, with a touch bar for selecting.</p>
         <div class="game-controls-grid">
         <table class="game-controls-table">
-          <caption>Mouse &amp; touch</caption>
+          <caption>Mouse</caption>
           <tbody>
             <tr><th scope="row">Left-click / drag</th><td>Select</td></tr>
             <tr><th scope="row">Right-click</th><td>Move, attack, harvest or set rally point</td></tr>
-            <tr><th scope="row">Tap / drag</th><td>Select or order / scroll (touch)</td></tr>
             <tr><th scope="row">Sidebar item</th><td>Build; click again when READY to place it</td></tr>
+          </tbody>
+        </table>
+        <table class="game-controls-table game-controls-touch">
+          <caption>Phone &amp; tablet</caption>
+          <tbody>
+            <tr><th scope="row">Tap</th><td>Select, or give the selected units an order</td></tr>
+            <tr><th scope="row">Long-press a unit</th><td>Select all of that type on screen</td></tr>
+            <tr><th scope="row">Hold, then drag</th><td>Draw a selection box</td></tr>
+            <tr><th scope="row">Drag</th><td>Pan the map</td></tr>
+            <tr><th scope="row">Two fingers</th><td>Pinch to zoom, twist to turn</td></tr>
+            <tr><th scope="row">Sidebar tabs</th><td>Switch between Buildings and Units</td></tr>
+            <tr><th scope="row"><svg class="game-controls-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><path d="M10 9l8 4-3.4 1.2L16.5 18l-1.6.8-1.9-3.8L10 17z" fill="currentColor"/></svg> Select</th><td>Drag draws a box; tap adds or removes units</td></tr>
+            <tr><th scope="row"><svg class="game-controls-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3l9.5 9.5M20 3l-9.5 9.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M6.5 13.5l4 4M17.5 13.5l-4 4M8.5 15.5L4 20M15.5 15.5L20 20" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg> Army</th><td>Select all your fighting units</td></tr>
+            <tr><th scope="row"><svg class="game-controls-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="7" r="3" fill="currentColor"/><path d="M2.5 20c0-4 2.2-7 5-7s5 3 5 7z" fill="currentColor"/><circle cx="16.5" cy="7" r="3" fill="currentColor"/><path d="M11.5 20c0-4 2.2-7 5-7s5 3 5 7z" fill="currentColor"/></svg> Same</th><td>Select every on-screen unit of the selected types</td></tr>
+            <tr><th scope="row"><svg class="game-controls-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.6-4.4 6-6.5 10-6.5s7.4 2.1 10 6.5c-2.6 4.4-6 6.5-10 6.5S4.6 16.4 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg> Follow</th><td>Camera follows the selected unit; drag to let go</td></tr>
+            <tr><th scope="row"><svg class="game-controls-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg> Clear</th><td>Select nothing</td></tr>
           </tbody>
         </table>
         <table class="game-controls-table">
@@ -124,6 +140,7 @@
             <tr><th scope="row"><kbd class="ui-key">X</kbd></th><td>Stop</td></tr>
             <tr><th scope="row"><kbd class="ui-key">G</kbd> <kbd class="ui-key">F</kbd> <kbd class="ui-key">V</kbd></th><td>Stance</td></tr>
             <tr><th scope="row"><kbd class="ui-key">Ctrl</kbd>+<kbd class="ui-key">1-9</kbd></th><td>Set group</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Shift</kbd>+<kbd class="ui-key">F</kbd></th><td>Follow with camera</td></tr>
           </tbody>
         </table>
         <table class="game-controls-table">

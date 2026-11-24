@@ -618,6 +618,23 @@ $sidebar-width: 248px;
     }
   }
 
+  .game-controls-note {
+    margin: $space-3 auto 0;
+    font-size: $font-sm;
+  }
+
+  .game-controls-icon {
+    width: 18px;
+    height: 18px;
+    margin-right: $space-1;
+    vertical-align: middle;
+  }
+
+  // phones and tablets see their own table first
+  :root.touch-ui & .game-controls-touch {
+    order: -1;
+  }
+
   .game-controls-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -633,7 +650,7 @@ $sidebar-width: 248px;
     text-align: left;
     table-layout: fixed;
     border-collapse: collapse;
-    background: rgb(0 0 0 / 70%);
+    background: rgb(0 0 0 / 85%);
 
     caption {
       padding: $space-1 $space-2;
