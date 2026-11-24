@@ -1,4 +1,5 @@
 // Creating, destroying and counting entities (units, buildings, ore crystal rocks).
+import { initMana } from './spells.ts';
 import { bldHp, refitBonus } from './refit.ts';
 import { G, hooks, bldDef, isOrganic, unitDef, type Ent, type EntKind, type EntType } from './state.ts';
 import { TS } from './const.ts';
@@ -25,7 +26,9 @@ function register(e: Ent): Ent {
 }
 
 export function addUnit(type: UnitType, team: number, x: number, y: number): Ent {
-  return register(baseEnt('unit', type, team, x, y, UNIT[type].hp));
+  const u = register(baseEnt('unit', type, team, x, y, UNIT[type].hp));
+  initMana(u);
+  return u;
 }
 
 function placeRect(e: Ent, tx: number, ty: number, size: number): Ent {

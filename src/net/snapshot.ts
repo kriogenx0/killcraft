@@ -12,7 +12,8 @@ import { nearPortal, rebuildBlk } from '../game/map.ts';
 import { warpFx } from '../game/fx.ts';
 import { addAether, addShard, cloakedFrom, syncWaygates } from '../game/aether.ts';
 import { AETHER_CARRY, AETHER_PER_DEPOSIT } from '../data/aether.ts';
-import { lerp } from '../util/math.ts';
+import { clamp, lerp } from '../util/math.ts';
+import { maxMana } from '../game/spells.ts';
 
 export const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory',
   'palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha',
@@ -31,10 +32,23 @@ const KNEELING = 128;
 const STANCE_SHIFT = 4;
 /** Aether a unit carries, in the bits above the flags (it glows, and drops it if it falls) */
 const AE_SHIFT = 8;
+/** spells and elements on a unit, one bit each above the Aether (game/spells.ts) */
+const STATUS_SHIFT = 16;
+const STATUS = ['burnT', 'poisonT', 'wetT', 'sludgeT', 'frozenT', 'lustT', 'curseT'] as const;
+/** one of our own casters' mana, as a share of its most in 7 bits, above those */
+const MANA_SHIFT = 23;
+
+function statusBits(e: Ent): number {
+  if (e.kind !== 'unit') return 0;
+  let b = 0;
+  STATUS.forEach((k, i) => { if ((e[k] ?? 0) > G.gameT) b |= 1 << i; });
+  return b << STATUS_SHIFT;
+}
 
 export function encodeEnt(e: Ent, own: boolean): EntRow {
   const stance = own && e.kind === 'unit' ? STANCES.indexOf(e.stance) << STANCE_SHIFT : 0;
-  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance | (e.kind === 'unit' ? Math.min(255, Math.ceil(e.ae ?? 0)) << AE_SHIFT : 0);
+  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance | (e.kind === 'unit' ? Math.min(255, Math.ceil(e.ae ?? 0)) << AE_SHIFT : 0)
+    | statusBits(e) | (own && maxMana(e) ? Math.round(clamp((e.mana ?? 0) / maxMana(e), 0, 1) * 127) << MANA_SHIFT : 0);
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
     Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y), e.lvl ?? 0, own && e.upT != null ? Math.floor(e.upT * 100) : -1];
@@ -107,7 +121,12 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     e.stance = STANCES[(flags >> STANCE_SHIFT) & 3] ?? 'engage';
     if (flags & FIRING) e.atkT = Math.max(e.atkT, 0.05);
     e.drawT = flags & DRAWING ? G.gameT + 0.4 : 0;
-    if (e.kind === 'unit') e.ae = (flags >> AE_SHIFT) & 255;
+    if (e.kind === 'unit') {
+      e.ae = (flags >> AE_SHIFT) & 255;
+      const st = (flags >> STATUS_SHIFT) & 127;
+      STATUS.forEach((k, i) => { e[k] = st & (1 << i) ? G.gameT + 0.6 : 0; });
+      if (maxMana(e)) e.mana = (((flags >> MANA_SHIFT) & 127) / 127) * maxMana(e);
+    }
     // a unit with no side is a wild creature guarding its lair; captured ones join a side
     if (e.kind === 'unit') {
       e.team = team;

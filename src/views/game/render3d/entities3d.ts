@@ -19,6 +19,7 @@ import { teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
 import { animateArcane } from './arcane3d.ts';
 import { animateGiant } from './giant3d.ts';
+import { statusFx, statusTint } from './status3d.ts';
 import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
@@ -356,6 +357,7 @@ export function syncEntities(dt: number): void {
       r.rotation.set(0, -e.face, 0, 'YXZ');
       animateUnit(o.model, e);
       hitFlash(o.model, e);
+      statusFx(o.model, e, dt);
       const air = !!UNIT[e.type as UnitType]?.alt;
       // ground units stand on the ground (wading in shallows); aircraft keep their height over water
       r.position.y += air ? surfaceY(x, z) : heightAt(x, z);
@@ -370,6 +372,8 @@ export function syncEntities(dt: number): void {
   for (const [id, o] of objs) {
     if (seen.has(id)) continue;
     objs.delete(id);
+    const ice = o.model.root.userData.ice as THREE.Object3D | undefined;
+    if (ice) { o.model.root.remove(ice); o.model.root.userData.ice = undefined; }
     // a unit that just died leaves its body (or wreck) behind; anything else simply goes
     killed ??= new Map(G.decals.filter((d) => d.kind === 'corpse' || d.kind === 'wreck').map((d) => [d.seed, d.kind]));
     const kind = killed.get(id);
@@ -415,14 +419,19 @@ function hitFlash(m: Model, e: Ent): void {
   // any drop in health is a hit (works the same online, where health arrives in snapshots)
   if (e.hp < (m.root.userData.hp ?? e.hp)) { h = hitState(m); h.at = now; }
   m.root.userData.hp = e.hp;
+  // a spell or element on the unit tints it too (frozen, burning, poisoned...: status3d.ts)
+  const tint = statusTint(e);
+  if (tint) h = hitState(m);
   if (!h) return;
   const k = Math.max(0, 1 - (now - h.at) / HIT_FADE);
-  if (k <= 0 && !h.on) return;
+  if (k <= 0 && !h.on && !tint) return;
   for (const { m: mt, e: e0, i } of h.mats) {
-    mt.emissive.copy(e0).lerp(HIT_RED, HIT_GLOW * k);
-    mt.emissiveIntensity = lerp(i, Math.max(i, 1), k);
+    mt.emissive.copy(e0);
+    if (tint) mt.emissive.lerp(tint[0], tint[1]);
+    mt.emissive.lerp(HIT_RED, HIT_GLOW * k);
+    mt.emissiveIntensity = lerp(i, Math.max(i, 1), Math.max(k, tint ? tint[1] : 0));
   }
-  h.on = k > 0;
+  h.on = k > 0 || !!tint;
 }
 
 /** Free a model's flash materials when it goes. */

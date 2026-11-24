@@ -11,6 +11,7 @@ import { V } from '../view_state.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { midHeight } from './entities3d.ts';
 import { groundY, heightAt, surfaceY } from './heights.ts';
+import { ORB_COL } from '../../../game/combat.ts';
 
 const CAP = 1600;
 const layer = new THREE.Group();
@@ -65,7 +66,7 @@ function colorOf(p: Particle, k: number): THREE.Color {
     case 'fire': return tmp.setRGB(1, 0.85 - k * 0.5, 0.45 - k * 0.4).multiplyScalar(1 - k);
     case 'flash': return (p.col ? tmp.set(p.col) : tmp.setRGB(1, 1, 0.8)).multiplyScalar(1 - k);
     case 'spark': return (p.col ? tmp.set(p.col) : tmp.setRGB(1, 0.85, 0.4)).multiplyScalar(1 - k);
-    case 'smoke': return p.soft ? tmp.setRGB(0.85, 0.85, 0.85) : tmp.setRGB(0.16, 0.15, 0.14);
+    case 'smoke': return p.col ? tmp.set(p.col) : p.soft ? tmp.setRGB(0.85, 0.85, 0.85) : tmp.setRGB(0.16, 0.15, 0.14);
     case 'trail': return tmp.setRGB(0.8, 0.8, 0.78);
     case 'dust': return tmp.setRGB(0.74, 0.66, 0.5);
     case 'blood': return tmp.setRGB(0.45, 0.02, 0.02);
@@ -120,6 +121,15 @@ const projMat = {
   orb: mat('#fff0c0', { emissive: '#ff9a30', emissiveIntensity: 2.4 }),
 };
 const projPools: Record<string, THREE.Mesh[]> = { shell: [], rocket: [], bolt: [], boulder: [], orb: [] };
+/** spell orbs take their element's colour (ORB_COL in combat.ts): water blue, poison green, sludge brown */
+const orbMats = new Map<string, THREE.Material>();
+function orbMat(weapon: string): THREE.Material {
+  const col = weapon === 'fireball' || weapon === 'meteor' ? null : ORB_COL[weapon];
+  if (!col) return projMat.orb;
+  let m = orbMats.get(col);
+  if (!m) { m = mat(col, { emissive: col, emissiveIntensity: weapon === 'tar' ? 0.5 : 2 }); orbMats.set(col, m); }
+  return m;
+}
 
 // rubble stones where buildings fell (no dark discs on the ground; dead units' own models lie there: entities3d.ts)
 const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.1), M.rock(), 1200);
@@ -229,28 +239,30 @@ function updateProjectiles(): void {
   const used: Record<string, number> = { shell: 0, rocket: 0, bolt: 0, boulder: 0, orb: 0 };
   for (const p of G.projs) {
     if (p.kind === 'melee' || !seenAt(p.x, p.y)) continue;
-    const pool = projPools[p.kind];
-    let me = pool[used[p.kind]];
+    const key = p.kind === 'orb' ? `orb|${p.weapon}` : p.kind;
+    const pool = (projPools[key] ??= []);
+    used[key] ??= 0;
+    let me = pool[used[key]];
     if (!me) {
-      me = new THREE.Mesh(projGeo[p.kind], projMat[p.kind]);
+      me = new THREE.Mesh(projGeo[p.kind], p.kind === 'orb' ? orbMat(p.weapon) : projMat[p.kind]);
       me.castShadow = true;
       pool.push(me);
       layer.add(me);
     }
-    used[p.kind]++;
+    used[key]++;
     me.visible = true;
     const x = p.x / TS, y = surface(p.x, p.y) + p.z / TS + 0.1, z = p.y / TS;
     me.position.set(x, y, z);
     me.rotation.set(0, -p.a, 0);
-    const g = PROJ_GLOW[p.kind];
-    if (g) addPoint(clouds.glow, x, y, z, bc.setRGB(g[0], g[1], g[2]));
+    const g = PROJ_GLOW[p.kind], oc = p.kind === 'orb' && p.weapon !== 'fireball' && p.weapon !== 'meteor' ? ORB_COL[p.weapon] : null;
+    if (g) addPoint(clouds.glow, x, y, z, oc ? bc.set(oc) : bc.setRGB(g[0], g[1], g[2]));
     const [len, w, r, gr, b] = STREAK[p.kind];
-    if (len) beam(x - Math.cos(p.a) * len, y, z - Math.sin(p.a) * len, x, y, z, w, bc.setRGB(r, gr, b));
+    if (len) beam(x - Math.cos(p.a) * len, y, z - Math.sin(p.a) * len, x, y, z, w, oc ? bc.set(oc) : bc.setRGB(r, gr, b));
     if (p.kind === 'boulder') me.rotation.x = p.tr * 0.05;
     // a meteor is a burning star: bigger, and it tumbles as it falls
     if (p.kind === 'orb') { me.scale.setScalar(p.weapon === 'meteor' ? 2.4 : 1); me.rotation.x = p.tr * 0.08; }
   }
-  for (const [kind, pool] of Object.entries(projPools)) for (let i = used[kind]; i < pool.length; i++) pool[i].visible = false;
+  for (const [kind, pool] of Object.entries(projPools)) for (let i = used[kind] ?? 0; i < pool.length; i++) pool[i].visible = false;
 }
 
 /** Height (tiles) of the ground, or the water where it's deeper, under a world point (px). */

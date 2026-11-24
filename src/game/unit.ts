@@ -21,6 +21,7 @@ import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { updWild } from './creatures.ts';
+import { frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
@@ -379,10 +380,14 @@ function sentToWall(u: Ent, gx: number, gy: number, sight: number): Ent | null {
 export function updUnit(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
-  u.cd = Math.max(0, u.cd - dt);
+  u.cd = Math.max(0, u.cd - dt * reloadRate(u));
   u.flash = Math.max(0, u.flash - dt);
   u.atkT = Math.max(0, u.atkT - dt);
   u.moving = false;
+  tickStatus(u, dt);
+  if (u.dead) return;
+  if (frozen(u)) return; // locked in ice: no moving, turning, fighting or casting
+  if (d.spells) updCaster(u, dt);
   unstick(u, dt);
   // vehicle turrets drift back to the hull's heading when idle
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
