@@ -2,6 +2,7 @@
 // views subscribe to engine events through `hooks`.
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
+import type { SpellType } from '../data/spells.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import type { TechType, UpgradeTrack } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
@@ -121,6 +122,24 @@ export interface Ent extends Target {
   stoneT?: number;
   /** a Phoenix that has already risen from its ashes once this life */
   reborn?: boolean;
+  /** a spellcaster's mana (data/spells.ts) */
+  mana?: number;
+  /** game time each of a caster's spells is ready again */
+  spellCd?: Partial<Record<SpellType, number>>;
+  /** lasting effects of spells and elements (game/spells.ts): game time each wears off */
+  burnT?: number;
+  poisonT?: number;
+  wetT?: number;
+  sludgeT?: number;
+  frozenT?: number;
+  lustT?: number;
+  /** the Slow spell: reloads take longer too (slowT covers the walking) */
+  curseT?: number;
+  /** who set it burning or poisoned it, for the kill */
+  burnBy?: number;
+  poisonBy?: number;
+  /** seconds toward the next tick of burning or poison */
+  dotT?: number;
   /** game time until which a cloaked unit shows after firing */
   shownT?: number;
   /** a wild creature guarding its lair (data/creatures.ts); dropped once a side captures it */

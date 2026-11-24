@@ -8,6 +8,7 @@ import { warpFx } from './fx.ts';
 import { PORTAL_RADIUS } from '../data/map.ts';
 import { isMapPortal } from './map.ts';
 import { slowFactor } from './aether.ts';
+import { spellSpeed } from './spells.ts';
 import { canBreach, wallInWay } from './breach.ts';
 import { isWall } from '../data/building.ts';
 
@@ -153,7 +154,7 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
 }
 
 /** How far a unit may move this step, in px. */
-const stepOf = (u: Ent, dt: number): number => unitDef(u).spd * slowFactor(u) * terrainSpeed(u) * TS * dt;
+const stepOf = (u: Ent, dt: number): number => unitDef(u).spd * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
 
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {

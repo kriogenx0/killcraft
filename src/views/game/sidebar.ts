@@ -4,7 +4,7 @@ import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
-import { available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { atLimit, available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -144,7 +144,7 @@ export function refreshSidebar(): void {
     // an order (or a placed site) waiting until the side can pay for it
     const unpaid = structure ? sites.some((e) => e.unpaid) && !sites.some((e) => !e.unpaid) : !!first && head === first && !first.paid;
     const need = unpaid ? waitingFor(V.team, type) : null;
-    const status = placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : '';
+    const status = placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : '';
     if (c.status.textContent !== status) c.status.textContent = status;
     const count = (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
@@ -154,7 +154,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--waiting', !!need);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
-    c.root.classList.toggle('build-cell--short', !items.length && !canAfford(V.team, type));
+    c.root.classList.toggle('build-cell--short', !items.length && (!canAfford(V.team, type) || atLimit(V.team, type)));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
   }
   if (tabs) for (const k of ['structure', 'unit'] as const) {

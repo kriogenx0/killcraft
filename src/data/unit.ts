@@ -1,10 +1,11 @@
 import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
+import type { SpellType } from './spells.ts';
 
 export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
-  | 'mage' | 'stormcaller' | 'archmage' | 'juggernaut' | 'titan'
+  | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
   | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
@@ -53,8 +54,19 @@ export interface UnitDef {
    * Aether, so it stays hidden until its side first finds some, but it is no copy of a regular unit.
    */
   magic?: boolean;
+  /** a spellcaster's spells, cast on their own when a fight calls for them (data/spells.ts, game/spells.ts) */
+  spells?: SpellType[];
+  /** most mana it can hold */
+  mana?: number;
   /** a hulking walker of flesh and steel (render3d/arcane3d.ts): it strides on two legs and twists its torso to aim */
   cyborg?: boolean;
+  /**
+   * a towering giant of myth (render3d/giant3d.ts), several times the height of anything else on the
+   * field. Rendered and animated on its own.
+   */
+  giant?: boolean;
+  /** a side may have at most this many alive or in training at once */
+  limit?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
   look?: UnitType;
   /** build time in seconds at full power */
@@ -111,13 +123,21 @@ export const UNIT: Record<UnitType, UnitDef> = {
   starfall: { name: 'Starfall Tank', cls: 'vehicle', armor: 'heavy', hp: 410, spd: 2.8, turn: 2.5, weapon: 'starbeam', cost: 700, oil: 150, aether: 70, t: 16, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 13, look: 'tank', desc: 'Battle tank with a beam of starlight. Slow to fire, but tears through buildings.' },
   // spellcasters: they draw on Aether, so they stay hidden until their side finds some. One per age,
   // each a little stronger and stranger than the last. Robes don't stop bullets.
-  mage: { name: 'Battle Mage', cls: 'infantry', armor: 'none', hp: 90, spd: 2.0, turn: 6.5, weapon: 'fireball', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, desc: 'Hurls fireballs that burst over a crowd. Deadly to massed infantry, fragile up close.' },
-  stormcaller: { name: 'Storm Caller', cls: 'infantry', armor: 'none', hp: 110, spd: 2.0, turn: 6.5, weapon: 'lightning', cost: 400, aether: 50, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, desc: 'Calls down lightning that leaps from its target to two more foes nearby. Strikes aircraft too.' },
-  archmage: { name: 'Archmage', cls: 'infantry', armor: 'light', hp: 160, spd: 1.8, turn: 6, weapon: 'meteor', cost: 600, aether: 90, t: 16, era: 2, sight: 8, producer: 'infantry', turret: false, radius: 7, magic: true, desc: 'Pulls a burning star down on a spot far away. Slow to cast, and the meteor lands where the foe stood, but it wrecks bases.' },
+  mage: { name: 'Battle Mage', cls: 'infantry', armor: 'none', hp: 90, spd: 2.0, turn: 6.5, weapon: 'fireball', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 100, spells: ['bloodlust'], desc: 'Hurls fireballs that burst over a crowd and set it burning. Casts Bloodlust on troops in a fight.' },
+  stormcaller: { name: 'Storm Caller', cls: 'infantry', armor: 'none', hp: 110, spd: 2.0, turn: 6.5, weapon: 'lightning', cost: 400, aether: 50, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 120, spells: ['bloodlust', 'slow'], desc: 'Calls down lightning that leaps from its target to two more foes nearby, and hits wet foes far harder. Strikes aircraft too. Casts Bloodlust and Slow.' },
+  archmage: { name: 'Archmage', cls: 'infantry', armor: 'light', hp: 160, spd: 1.8, turn: 6, weapon: 'meteor', cost: 600, aether: 90, t: 16, era: 2, sight: 8, producer: 'infantry', turret: false, radius: 7, magic: true, mana: 200, spells: ['bloodlust', 'slow', 'freeze'], desc: 'Pulls a burning star down on a spot far away. Slow to cast, and the meteor lands where the foe stood, but it wrecks bases. Casts Bloodlust and Slow, and saves its mana to Freeze a strong enemy.' },
+  // elemental casters: one water, one poison, one sludge
+  tidecaller: { name: 'Tide Caller', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'tidal', cost: 275, aether: 35, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 150, spells: ['douse', 'freeze'], desc: 'Hurls waves that put out fire and poison and wash off sludge, but leave foes wet for lightning. Douses burning or poisoned friends, and saves its mana to Freeze a strong enemy.' },
+  plaguewitch: { name: 'Plague Witch', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'plague', cost: 350, aether: 45, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 120, spells: ['slow'], desc: 'Throws flasks of green poison gas. Poison eats through armor but only harms living things, not vehicles or machines. Casts Slow.' },
+  sludgewarlock: { name: 'Sludge Warlock', cls: 'infantry', armor: 'light', hp: 150, spd: 1.8, turn: 6, weapon: 'tar', cost: 500, aether: 60, t: 13, era: 2, sight: 6, producer: 'infantry', turret: false, radius: 7, magic: true, mana: 120, spells: ['bloodlust'], desc: 'Splashes a crowd with black sludge that slows it down and makes it burn hotter. Pair it with fire. Casts Bloodlust.' },
   // cyborgs: Modern-age giants, half soldier, half war machine, built at the War Factory. Huge,
   // slow and costly, they wade through small-arms fire; rockets and anti-tank missiles bring them down.
   juggernaut: { name: 'Cyborg Juggernaut', key: 'J', cls: 'vehicle', armor: 'heavy', hp: 900, spd: 2.2, turn: 3, weapon: 'minigun', cost: 1200, oil: 150, t: 20, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, cyborg: true, desc: 'A towering cyborg with a rotary cannon for an arm. Mows down infantry and shrugs off bullets.' },
-  titan: { name: 'Cyborg Titan', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2200, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft.' },
+  titan: { name: 'Cyborg Colossus', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2200, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft.' },
+  // the Titan: one per side, the largest thing in the game. An elder giant of bronze and stone, woken
+  // with Aether. It smashes everything around it with a broken temple column; only aircraft are
+  // safe from it, and massed rockets and anti-tank fire are the way to bring it down.
+  giant: { name: 'Titan', cls: 'infantry', armor: 'heavy', hp: 3200, spd: 1.5, turn: 2.2, weapon: 'quake', cost: 2800, wood: 400, aether: 150, t: 50, era: 1, sight: 8, producer: 'infantry', turret: false, radius: 24, giant: true, limit: 1, group: 'Magic', desc: 'An elder giant of bronze and stone, woken with Aether. Its column smashes everything around the blow and crushes buildings. Only one at a time. Can\'t hit aircraft.' },
   // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 220, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 350, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 11, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry.' },

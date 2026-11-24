@@ -28,6 +28,8 @@ import { commandButtonHtml, type Command } from './components/command_button.ts'
 import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
+import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
+import { ELEMENT_DESC, ELEMENT_NAME, SPELL } from '../../data/spells.ts';
 
 export interface HudEls {
   credits: HTMLElement;
@@ -234,8 +236,21 @@ function unitDetails(e: Ent): string {
   if (insight(e)) rows.push(['Doing', `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
   if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
   if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
+  if (d.weapon && WEAPON[d.weapon].element) { const el = WEAPON[d.weapon].element!; rows.push(['Element', `${ELEMENT_NAME[el]}: ${ELEMENT_DESC[el]}`, true]); }
+  if (d.spells?.length) {
+    if (insight(e)) rows.push(['Mana', `${Math.floor(e.mana ?? 0)} / ${d.mana}`]);
+    rows.push(['Spells', d.spells.map((s) => `<b>${SPELL[s].name}</b> (${SPELL[s].mana}): ${SPELL[s].desc}`).join('<br>'), true]);
+  }
+  const fx = effectsOf(e);
+  if (fx) rows.push(['Effects', fx, true]);
   if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Town Hall or a Refinery`, true]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
+}
+
+/** The spells and elements on a unit right now, e.g. "Burning · Wet". */
+function effectsOf(e: Ent): string {
+  const on: [boolean, string][] = [[frozen(e), 'Frozen'], [burning(e), 'Burning'], [poisoned(e), 'Poisoned'], [lusting(e), 'Bloodlust'], [cursed(e), 'Slowed'], [sludged(e), 'Sludged'], [wet(e), 'Wet']];
+  return on.filter(([b]) => b).map(([, n]) => n).join(' · ');
 }
 
 /** What it does in game, in a sentence or two, under the selected thing's name. */
