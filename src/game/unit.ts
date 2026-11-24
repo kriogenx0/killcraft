@@ -360,7 +360,9 @@ function mendNear(u: Ent, r: number): Ent | null {
 function updMend(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
   if (!mendable(u, t) || (!o.sent && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE)) { setOrder(u, null); return; }
-  const r = approach(u, t, MEDIC_RANGE, dt);
+  // a wall segment hemmed in by others can only be reached from a tile off its corner, so a Worker
+  // builds and repairs from a little further off than it patches up a soldier
+  const r = approach(u, t, t.kind === 'bld' ? MEDIC_RANGE + TS : MEDIC_RANGE, dt);
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
