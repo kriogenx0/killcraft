@@ -445,19 +445,32 @@ function dragon(team: number): Model {
   // a long armored body with a pale plated belly and a row of spines down the back
   root.add(scl(mesh(sph(0.16, 14, 10), sc, 0, 0.46, 0), 1.9, 0.75, 0.75));
   root.add(scl(mesh(sph(0.13, 12, 8), belly, 0.02, 0.41, 0), 1.9, 0.6, 0.7));
-  for (let i = 0; i < 6; i++) root.add(rot(mesh(cone(0.025, 0.08, 4), horn, 0.18 - i * 0.07, 0.56 - Math.abs(i - 2) * 0.005, 0), 0, 0, 0.3));
+  // a ridge of tall spines down the back, with smaller ones flaring out along the flanks
+  for (let i = 0; i < 9; i++) root.add(rot(mesh(cone(0.03, 0.13 - Math.abs(i - 3) * 0.01, 4), horn, 0.22 - i * 0.055, 0.55 - Math.abs(i - 3) * 0.004, 0), 0, 0, 0.35));
+  for (let i = 0; i < 5; i++) for (const z of [-1, 1]) root.add(rot(mesh(cone(0.016, 0.06, 4), horn, 0.14 - i * 0.08, 0.5, z * 0.1), z * 0.9, 0, 0.4));
   root.add(mesh(cyl(0.085, 0.1, 0.04, 12), colour(team), 0.25, 0.5, 0)); // collar where the neck meets the body
-  // a snaking neck and a horned head with a glowing, smouldering maw
+  // a snaking neck, spined, and a big horned head: heavy brows over burning eyes, a snarling maw full of fangs
   const head = group(0.26, 0.5, 0);
-  head.add(rod([0, 0, 0], [0.12, 0.12, 0], 0.05, sc, 7));
-  head.add(rod([0.12, 0.12, 0], [0.2, 0.16, 0], 0.042, sc, 7));
-  head.add(scl(mesh(sph(0.065, 10, 8), sc, 0.23, 0.17, 0), 1.4, 0.8, 0.85));
-  head.add(mesh(box(0.1, 0.035, 0.07), sc, 0.31, 0.15, 0)); // snout
-  head.add(mesh(box(0.08, 0.012, 0.055), fire, 0.31, 0.128, 0)); // fire between the jaws
-  for (const z of [-0.03, 0.03]) {
-    head.add(mesh(sph(0.011, 6, 4), mat('#ffe060', { emissive: '#ffb000', emissiveIntensity: 1.4 }), 0.27, 0.195, z));
-    head.add(rod([0.2, 0.2, z], [0.1, 0.27, z * 2], 0.012, horn, 5));
+  head.add(rod([0, 0, 0], [0.12, 0.12, 0], 0.055, sc, 7));
+  head.add(rod([0.12, 0.12, 0], [0.2, 0.17, 0], 0.048, sc, 7));
+  for (let i = 0; i < 3; i++) head.add(rot(mesh(cone(0.02, 0.07, 4), horn, 0.05 + i * 0.065, 0.1 + i * 0.045, 0), 0, 0, 0.6));
+  head.add(scl(mesh(sph(0.095, 12, 8), sc, 0.25, 0.19, 0), 1.35, 0.85, 0.95)); // skull
+  head.add(mesh(box(0.15, 0.05, 0.1), sc, 0.36, 0.18, 0)); // upper jaw and snout
+  head.add(rot(mesh(box(0.13, 0.03, 0.085), sc, 0.34, 0.12, 0), 0, 0, -0.3)); // lower jaw, hanging open
+  head.add(rot(mesh(box(0.11, 0.025, 0.07), fire, 0.34, 0.145, 0), 0, 0, -0.15)); // fire in the throat
+  for (const z of [-0.035, -0.012, 0.012, 0.035]) {
+    head.add(rot(mesh(cone(0.008, 0.035, 4), C.white(), 0.41, 0.145, z), 0, 0, Math.PI)); // upper fangs
+    head.add(mesh(cone(0.007, 0.025, 4), C.white(), 0.38, 0.13, z * 0.9)); // lower fangs
   }
+  for (const z of [-1, 1]) {
+    head.add(mesh(sph(0.016, 6, 4), mat('#ffe060', { emissive: '#ff8000', emissiveIntensity: 2 }), 0.33, 0.225, z * 0.042)); // eyes
+    head.add(rot(mesh(box(0.08, 0.022, 0.03), sc, 0.33, 0.25, z * 0.045), z * 0.25, 0, -0.45)); // a scowling brow, low at the front
+    head.add(rod([0.24, 0.26, z * 0.04], [0.09, 0.36, z * 0.1], 0.02, horn, 5)); // swept-back horns
+    head.add(rod([0.22, 0.22, z * 0.06], [0.12, 0.27, z * 0.14], 0.012, horn, 5));
+    for (let i = 0; i < 3; i++) head.add(rot(mesh(cone(0.012, 0.05, 4), horn, 0.2 - i * 0.03, 0.16, z * (0.08 + i * 0.01)), z * 1.3, 0, 0.5)); // cheek spikes
+    head.add(mesh(cone(0.008, 0.03, 4), horn, 0.4, 0.21, z * 0.02)); // nose horns
+  }
+  head.scale.setScalar(1.3);
   parts.head0 = head;
   root.add(head);
   // a long tail ending in a spade of bone
@@ -466,12 +479,16 @@ function dragon(team: number): Model {
   tail.add(rod([-0.18, -0.02, 0], [-0.36, 0.03, 0], 0.03, sc, 6));
   tail.add(rod([-0.36, 0.03, 0], [-0.5, 0.1, 0], 0.018, sc, 6));
   tail.add(rot(mesh(cone(0.04, 0.08, 4), horn, -0.53, 0.12, 0), 0, 0, 1.2));
+  for (let i = 0; i < 6; i++) tail.add(rot(mesh(cone(0.018, 0.06 - i * 0.006, 4), horn, -0.05 - i * 0.08, 0.04 + (i > 3 ? (i - 3) * 0.03 : 0), 0), 0, 0, 0.4));
   parts.tail = tail;
   root.add(tail);
-  // clawed legs tucked up beneath it in flight
-  fourLegs(root, parts, 0.15, 0.08, 0.38, 0.16, 0.05, sc, C.talon());
+  // clawed feet tucked up under the belly in flight (no hanging legs: they read as a slab from above)
+  for (const [x, z] of [[0.14, 0.07], [0.14, -0.07], [-0.16, 0.08], [-0.16, -0.08]]) {
+    root.add(scl(mesh(sph(0.04, 8, 6), sc, x, 0.36, z), 1.3, 0.8, 1));
+    for (const a of [-0.4, 0, 0.4]) root.add(rot(mesh(cone(0.008, 0.035, 4), C.talon(), x + 0.04, 0.34, z + a * 0.03), 0, a, -1.9));
+  }
   // great bat wings of red membrane on spars of bone
-  wings(root, parts, 0.04, 0.56, 0.9, 0.3, membrane, sc);
+  wings(root, parts, 0.04, 0.56, 0.78, 0.26, membrane, sc);
   return { root, parts, height: 0.8 };
 }
 
