@@ -3,6 +3,7 @@
 import { net } from '../../net/client.ts';
 import { MAX_NAME, cleanName, type LobbyMsg, type OnlinePlayer, type ServerMsg } from '../../net/protocol.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
+import { copyButton } from '../../components/copy_button/copy_button.ts';
 import { gameIdFromUrl, leaveGameUrl } from '../game/resume.ts';
 
 type StartMsg = Extract<ServerMsg, { k: 'start' }>;
@@ -164,6 +165,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
       label.className = 'lobby-row-label';
       const id = span('lobby-row-status lobby-game-id', `Game ${g.id.slice(0, 8)}`);
       id.title = `Game ID ${g.id}`;
+      id.append(copyButton(() => inviteUrl(g.id), 'Copy invite link'));
       label.append(span('lobby-row-name', `${g.host}'s game`), id);
       return row('lobby-game', label, join);
     }));
