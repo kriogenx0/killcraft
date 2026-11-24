@@ -4,13 +4,16 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { G, hooks } from '../../src/game/state.ts';
 import { STEP } from '../../src/game/const.ts';
 import { ais } from '../../src/game/ai.ts';
+import { AI_LEVEL, type Difficulty } from '../../src/data/setup.ts';
+import { updFog } from '../../src/game/fog.ts';
 import { initWorld, update } from '../../src/game/world.ts';
 import { applyCommand, parseCommand } from '../../src/game/command.ts';
 import { encodeEnt, encodeOre, visibleTo, weaponIndex, type FxEvent } from '../../src/net/snapshot.ts';
 import type { SideStock, SnapMsg } from '../../src/net/protocol.ts';
 
-/** a player's command, or how many people are watching (spectator snapshots are made only while someone is) */
-export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: number };
+/** a player's command, how many people are watching (spectator snapshots are made only while someone is),
+ * or the computer taking over (or handing back) a side whose player dropped out */
+export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: number } | { k: 'ai'; team: number; on: boolean };
 /** team -1: the snapshot for people watching, which shows everything */
 export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number } | { k: 'error'; msg: string };
 
@@ -42,8 +45,29 @@ hooks.killed = (e) => {
 };
 hooks.error = (err) => port.postMessage({ k: 'error', msg: String(err) } satisfies WorkerOut);
 
+/** The level the computer plays a dropped player's side at: full speed, so the side isn't held back while they're away. */
+const STAND_IN: Difficulty = 'hard';
+
+/** Hand a side to the computer while its player is away, and back when they return. */
+function standIn(team: number, on: boolean): void {
+  const a = ais[team];
+  if (!a || !TEAMS.includes(team) || a.on === on) return;
+  a.on = on;
+  G.human[team] = !on;
+  if (on) {
+    Object.assign(a, { level: STAND_IN, thinkT: 0, attacking: false, reserve: 0, reserveWood: 0, refitSave: 0, big: null, prey: null, foe: 1 - team });
+    a.attackAt = AI_LEVEL[STAND_IN].firstWave;
+    a.guards.clear();
+    a.hunters.clear();
+  } else updFog(); // the computer doesn't keep fog: give the returning player what their side sees now
+}
+
 port.on('message', (m: WorkerIn) => {
-  if (m && 'k' in m) { if (m.k === 'watchers') watchers = Math.max(0, Number(m.n) || 0); return; }
+  if (m && 'k' in m) {
+    if (m.k === 'watchers') watchers = Math.max(0, Number(m.n) || 0);
+    else if (m.k === 'ai') standIn(m.team, !!m.on);
+    return;
+  }
   const cmd = parseCommand(m?.cmd);
   if (cmd && TEAMS.includes(m.team)) applyCommand(m.team, cmd);
 });

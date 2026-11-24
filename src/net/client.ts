@@ -14,12 +14,17 @@ export class NetClient {
   connect(name: string): Promise<void> {
     if (this.connected) { this.send({ k: 'hello', name }); return Promise.resolve(); }
     const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+    this.close(); // still connecting under another name: drop that socket
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       this.ws = ws;
       ws.onopen = () => { this.send({ k: 'hello', name }); resolve(); };
       ws.onerror = () => reject(new Error("Can't reach the game server. Check your connection and try again."));
-      ws.onclose = () => { this.ws = null; for (const h of this.closeHandlers) h(); };
+      ws.onclose = () => {
+        if (this.ws !== ws) return; // an old socket we replaced (a name change): not a lost connection
+        this.ws = null;
+        for (const h of this.closeHandlers) h();
+      };
       ws.onmessage = (ev) => {
         let msg: ServerMsg;
         try { msg = JSON.parse(String(ev.data)); } catch { return; }
@@ -42,9 +47,11 @@ export class NetClient {
     return () => this.closeHandlers.delete(h);
   }
 
+  /** Close on purpose: this isn't a lost connection, so the close handlers don't run. */
   close(): void {
-    this.ws?.close();
+    const ws = this.ws;
     this.ws = null;
+    ws?.close();
   }
 }
 

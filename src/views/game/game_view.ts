@@ -56,9 +56,12 @@ const RESIGN_CONFIRM = 3000;
 const ORE_REFRESH = 0.5;
 /** seconds between saves of a solo game (it's also saved when the page is hidden or closed) */
 const SAVE_INTERVAL = 2;
-/** tries, and seconds apart, at getting back into an online match after the connection drops */
+/** seconds between tries at getting back into an online match after the connection drops: the computer
+ * plays our side meanwhile, so keep trying (backing off to REJOIN_WAIT_MAX) for as long as the match runs */
+const REJOIN_WAIT = 2;
+const REJOIN_WAIT_MAX = 15;
+/** tries at getting back to watching a game after the connection drops */
 const REJOIN_TRIES = 6;
-const REJOIN_WAIT = 3;
 /** the online game this tab is watching, so a refresh keeps watching it */
 const WATCHING_KEY = 'killcraft.watching';
 
@@ -265,10 +268,11 @@ export function mountGameView(root: HTMLElement): void {
   };
   net.onMessage(onGameMessage);
   net.onClose(() => {
-    // the server holds our side for a while: try to get back in before giving up
-    if (V.online && V.started && !G.over) {
+    // the computer plays our side on the server until we're back: keep trying to get back in
+    // (a failed reconnect closes too: that try already lined up the next)
+    if (V.online && V.started && !G.over && !rejoinPending) {
       if (watchingNames) rewatch(root.dataset.gameId ?? '', REJOIN_TRIES);
-      else rejoin(root.dataset.gameId ?? '', REJOIN_TRIES);
+      else rejoin(root.dataset.gameId ?? '', 0);
     }
   });
 
@@ -284,22 +288,27 @@ export function mountGameView(root: HTMLElement): void {
     }, REJOIN_WAIT * 1000);
   };
 
-  /** Get back into an online match (after a refresh or a dropped connection) with the key the server gave us. */
-  let rejoining = 0;
-  const rejoin = (id: string, tries: number) => {
+  /**
+   * Get back into an online match (after a refresh or a dropped connection) with the key the server gave
+   * us. A refresh tries once (`tries` 1); a drop mid-game keeps trying (`tries` 0) until the server answers.
+   */
+  let rejoining = 0, rejoinPending = false;
+  const rejoin = (id: string, tries: number, wait = REJOIN_WAIT) => {
     const key = onlineKey(id);
     if (!key) { rejoinFailed('Lost connection to the game server.'); return; }
-    show(V.started ? 'Connection lost. Reconnecting…' : 'Rejoining your game…');
+    show(V.started ? 'Connection lost. The computer is playing for you while we reconnect…' : 'Rejoining your game…');
+    rejoinPending = true;
     const attempt = rejoining = window.setTimeout(() => {
-      net.connect(storedName()).then(() => net.send({ k: 'rejoin', game: id, key }), () => {
-        if (attempt !== rejoining) return;
-        if (tries > 1) rejoin(id, tries - 1);
+      net.connect(storedName()).then(() => { rejoinPending = false; net.send({ k: 'rejoin', game: id, key }); }, () => {
+        if (attempt !== rejoining || G.over) { rejoinPending = false; return; }
+        if (tries !== 1) rejoin(id, Math.max(0, tries - 1), Math.min(REJOIN_WAIT_MAX, wait * 1.5));
         else rejoinFailed('Lost connection to the game server.');
       });
-    }, V.started ? REJOIN_WAIT * 1000 : 0);
+    }, V.started ? wait * 1000 : 0);
   };
   const rejoinFailed = (why: string) => {
     clearTimeout(rejoining);
+    rejoinPending = false;
     const id = root.dataset.gameId ?? gameIdFromUrl();
     if (id) void forgetGame(id).catch(() => {});
     if (V.online && V.started && !G.over) { G.over = true; G.winner = -1; endReason = why; return; }

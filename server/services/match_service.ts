@@ -3,7 +3,7 @@ import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
 import type { LiveGame, ServerMsg } from '../../src/net/protocol.ts';
 import type { Player } from './lobby_service.ts';
-import type { WorkerOut } from '../workers/match_worker.ts';
+import type { WorkerIn, WorkerOut } from '../workers/match_worker.ts';
 
 export interface MatchEvents {
   send: (playerId: string, msg: ServerMsg) => void;
@@ -15,17 +15,24 @@ export interface MatchEvents {
 
 /** Each match runs a thread; this keeps a small server from being overloaded. */
 const MAX_MATCHES = 40;
-/** How long a player who lost their connection (or refreshed the page) has to come back before the opponent wins. */
-export const REJOIN_GRACE = 60_000;
+/**
+ * A player who loses their connection (or refreshes the page) doesn't lose the match: the computer plays
+ * their side until they come back with their key. Only when nobody at all is connected does the match
+ * wind down, after this long, so an abandoned match doesn't hold a thread forever.
+ */
+export const ABANDON_AFTER = 2 * 60_000;
 
 interface Match {
   id: string;
   players: [Player, Player];
   worker: Worker;
   seed: number;
-  /** each player's secret for rejoining, and the timer running while they're away */
+  /** each player's secret for rejoining */
   keys: [string, string];
-  away: [NodeJS.Timeout | null, NodeJS.Timeout | null];
+  /** which sides the computer is playing because their player dropped out */
+  away: [boolean, boolean];
+  /** running while both players are away: ends the abandoned match */
+  abandon: NodeJS.Timeout | null;
   over: boolean;
   /** when it started (ms) */
   started: number;
@@ -42,11 +49,11 @@ export class MatchService {
   private byWatcher = new Map<string, Match>();
 
   private events: MatchEvents;
-  private grace: number;
+  private abandonAfter: number;
 
-  constructor(events: MatchEvents, grace = REJOIN_GRACE) {
+  constructor(events: MatchEvents, abandonAfter = ABANDON_AFTER) {
     this.events = events;
-    this.grace = grace;
+    this.abandonAfter = abandonAfter;
   }
 
   get count(): number {
@@ -67,7 +74,7 @@ export class MatchService {
     }
     const seed = Math.floor(Math.random() * 1e6);
     const worker = new Worker(new URL('../workers/match_worker.ts', import.meta.url), { workerData: { seed } });
-    const m: Match = { id, players: [a, b], worker, seed, keys: [randomUUID(), randomUUID()], away: [null, null], over: false, started: Date.now(), watchers: new Set() };
+    const m: Match = { id, players: [a, b], worker, seed, keys: [randomUUID(), randomUUID()], away: [false, false], abandon: null, over: false, started: Date.now(), watchers: new Set() };
     this.matches.set(m.id, m);
     this.byPlayer.set(a.id, m);
     this.byPlayer.set(b.id, m);
@@ -76,16 +83,16 @@ export class MatchService {
     m.players.forEach((p, team) => this.events.send(p.id, { k: 'start', team, seed, game: m.id, key: m.keys[team], opponent: m.players[1 - team].name }));
   }
 
-  /** The player's connection dropped (often a page refresh): give them REJOIN_GRACE to come back. Returns false if they weren't playing. */
+  /** The player's connection dropped (often a page refresh): the computer plays their side until they rejoin. Returns false if they weren't playing. */
   away(playerId: string): boolean {
-    const grace = this.grace;
     const m = this.byPlayer.get(playerId);
     if (!m || m.over) return false;
     const team = m.players.findIndex((p) => p.id === playerId);
     this.byPlayer.delete(playerId);
-    if (m.away[team]) clearTimeout(m.away[team]);
-    m.away[team] = setTimeout(() => this.end(m, 1 - team, 'left'), grace);
-    this.events.send(m.players[1 - team].id, { k: 'notice', msg: `${m.players[team].name} lost connection. Waiting ${Math.round(grace / 1000)} seconds for them to come back…` });
+    m.away[team] = true;
+    m.worker.postMessage({ k: 'ai', team, on: true } satisfies WorkerIn);
+    if (m.away.every(Boolean)) m.abandon ??= setTimeout(() => this.end(m, -1, 'left'), this.abandonAfter);
+    else this.events.send(m.players[1 - team].id, { k: 'notice', msg: `${m.players[team].name} lost connection. The computer is playing for them until they're back.` });
     return true;
   }
 
@@ -97,13 +104,17 @@ export class MatchService {
     if (team < 0) return null;
     const old = m.players[team];
     if (this.byPlayer.get(old.id) === m) this.byPlayer.delete(old.id);
-    if (m.away[team]) { clearTimeout(m.away[team]); m.away[team] = null; }
+    if (m.abandon) { clearTimeout(m.abandon); m.abandon = null; }
+    const wasAway = m.away[team];
+    m.away[team] = false;
+    if (wasAway) m.worker.postMessage({ k: 'ai', team, on: false } satisfies WorkerIn);
     player.name = old.name;
     m.players[team] = player;
     this.byPlayer.set(player.id, m);
     const opponent = m.players[1 - team];
     this.events.send(player.id, { k: 'start', team, seed: m.seed, game: m.id, key, opponent: opponent.name, resumed: true });
-    this.events.send(opponent.id, { k: 'notice', msg: `${player.name} is back.` });
+    if (wasAway) this.events.send(player.id, { k: 'notice', msg: 'Welcome back. The computer played your side while you were away.' });
+    if (!m.away[1 - team]) this.events.send(opponent.id, { k: 'notice', msg: `${player.name} is back.` });
     return opponent;
   }
 
@@ -147,7 +158,7 @@ export class MatchService {
   command(playerId: string, cmd: unknown): void {
     const m = this.byPlayer.get(playerId);
     if (!m || m.over) return;
-    m.worker.postMessage({ team: m.players.findIndex((p) => p.id === playerId), cmd });
+    m.worker.postMessage({ team: m.players.findIndex((p) => p.id === playerId), cmd } satisfies WorkerIn);
   }
 
   /** The player resigned or disconnected: the opponent wins. */
@@ -158,7 +169,7 @@ export class MatchService {
   }
 
   stopAll(): void {
-    for (const m of this.matches.values()) { void m.worker.terminate(); for (const t of m.away) if (t) clearTimeout(t); }
+    for (const m of this.matches.values()) { void m.worker.terminate(); if (m.abandon) clearTimeout(m.abandon); }
     this.matches.clear();
     this.byPlayer.clear();
     this.byWatcher.clear();
@@ -177,7 +188,7 @@ export class MatchService {
   private end(m: Match, winner: number, reason: 'destroyed' | 'left' | 'resigned'): void {
     if (m.over) return;
     m.over = true;
-    for (const t of m.away) if (t) clearTimeout(t);
+    if (m.abandon) clearTimeout(m.abandon);
     void m.worker.terminate();
     this.matches.delete(m.id);
     for (const p of m.players) {

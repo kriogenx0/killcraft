@@ -11,7 +11,7 @@ import type { ServerMsg, SnapMsg } from '../src/net/protocol.ts';
 let srv: RunningServer;
 
 beforeAll(async () => {
-  srv = await startServer({ port: 0, staticDir: '/nonexistent', rejoinGrace: 1500 });
+  srv = await startServer({ port: 0, staticDir: '/nonexistent', abandonAfter: 1500 });
 });
 afterAll(async () => {
   await srv.close();
@@ -46,7 +46,7 @@ describe('game server', () => {
     expect((await status.json()).lobby).toBe('ok');
   });
 
-  it('matches two players, runs their commands, and ends when one leaves', async () => {
+  it('matches two players, runs their commands, and the computer plays a side whose player dropped', async () => {
     const a = await connect('Alice'), b = await connect('<b>Bob</b>');
     await a.next('welcome');
     a.ws.send(JSON.stringify({ k: 'quick' }));
@@ -79,11 +79,39 @@ describe('game server', () => {
     expect(sites.every((r) => r[10] < 100)).toBe(true); // still going up
 
     b.ws.close();
-    // a dropped player gets a while to come back (a refresh) before the opponent wins
-    expect(await a.next('notice')).toMatchObject({ msg: expect.stringContaining('lost connection') });
-    const end = await a.next('end');
-    expect(end).toMatchObject({ k: 'end', winner: startA.team, reason: 'left' });
+    // a dropped player doesn't lose: the computer takes their side and the match goes on
+    expect(await a.next('notice')).toMatchObject({ msg: expect.stringContaining('computer is playing') });
+    const t0 = ((await a.next('snap')) as SnapMsg).t;
+    await new Promise((r) => setTimeout(r, 3000)); // longer than abandonAfter: someone is still here
+    expect(a.msgs.some((m) => m.k === 'end')).toBe(false);
+    a.msgs.length = 0;
+    const t1 = ((await a.next('snap')) as SnapMsg).t;
+    expect(t1).toBeGreaterThan(t0 + 2);
+    // only a surrender (or a destroyed base) ends it
+    a.ws.send(JSON.stringify({ k: 'resign' }));
+    expect(await a.next('end')).toMatchObject({ k: 'end', winner: startB.team, reason: 'resigned' });
     a.ws.close();
+  }, 20000);
+
+  it('drops a match once nobody at all is connected', async () => {
+    const a = await connect('Eve'), b = await connect('Fay');
+    await a.next('welcome');
+    a.ws.send(JSON.stringify({ k: 'quick' }));
+    await a.next('lobby', (m) => m.k === 'lobby' && m.waiting === 'quick');
+    b.ws.send(JSON.stringify({ k: 'quick' }));
+    const startA = await a.next('start');
+    if (startA.k !== 'start') throw new Error('expected start');
+    await a.next('snap');
+    const before = srv.matches();
+    a.ws.close();
+    b.ws.close();
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(srv.matches()).toBe(before - 1);
+    const a2 = await connect('Eve');
+    await a2.next('welcome');
+    a2.ws.send(JSON.stringify({ k: 'rejoin', game: startA.game, key: startA.key }));
+    expect(await a2.next('nogame')).toMatchObject({ k: 'nogame' });
+    a2.ws.close();
   }, 20000);
 
   it('lets a player who refreshed rejoin their match with its key', async () => {
@@ -95,10 +123,13 @@ describe('game server', () => {
     const startA = await a.next('start'), startB = await b.next('start');
     if (startA.k !== 'start' || startB.k !== 'start') throw new Error('expected start');
     expect(startB.key).toBeTruthy();
-    await b.next('snap');
+    const before = (await b.next('snap')) as SnapMsg;
+    const mine = (s: SnapMsg) => s.ents.filter((r) => r[2] === startB.team).length;
 
     b.ws.close();
     await a.next('notice', (m) => m.k === 'notice' && m.msg.includes('lost connection'));
+    // Dan never gave an order: whatever his side does now, the computer did
+    await new Promise((r) => setTimeout(r, 4000));
     const b2 = await connect('Dan');
     await b2.next('welcome');
     // a wrong key gets nothing
@@ -107,14 +138,17 @@ describe('game server', () => {
     b2.ws.send(JSON.stringify({ k: 'rejoin', game: startB.game, key: startB.key }));
     expect(await b2.next('start')).toMatchObject({ team: startB.team, seed: startB.seed, game: startB.game, opponent: 'Cat', resumed: true });
     expect(await a.next('notice', (m) => m.k === 'notice' && m.msg.endsWith('is back.'))).toMatchObject({ msg: 'Dan is back.' });
+    expect(await b2.next('notice')).toMatchObject({ msg: expect.stringContaining('computer played your side') });
     const snap = (await b2.next('snap')) as SnapMsg;
     expect(snap.ents.some((r) => r[2] === startB.team)).toBe(true);
+    expect(snap.credits !== before.credits || mine(snap) > mine(before)).toBe(true);
     // well past the grace period, the match is still on
     await new Promise((r) => setTimeout(r, 2000));
     expect(a.msgs.some((m) => m.k === 'end')).toBe(false);
 
+    b2.ws.send(JSON.stringify({ k: 'resign' }));
+    expect(await a.next('end')).toMatchObject({ winner: startA.team, reason: 'resigned' });
     a.ws.close();
-    await b2.next('end');
     b2.ws.close();
   }, 20000);
 

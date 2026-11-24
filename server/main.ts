@@ -14,6 +14,8 @@ export interface RunningServer {
   server: Server;
   port: number;
   close: () => Promise<void>;
+  /** matches running right now */
+  matches: () => number;
 }
 
 export function startServer(config: Config): Promise<RunningServer> {
@@ -23,7 +25,7 @@ export function startServer(config: Config): Promise<RunningServer> {
     send: (id, msg) => sockets?.send(id, msg),
     sendRaw: (id, json) => sockets?.sendRaw(id, json),
     finished: (id) => lobby.finished(id),
-  }, config.rejoinGrace);
+  }, config.abandonAfter);
   const lobby = new LobbyService({
     paired: (a, b, game) => matches.start(a, b, game),
     changed: () => sockets?.broadcastLobby(),
@@ -41,6 +43,7 @@ export function startServer(config: Config): Promise<RunningServer> {
       resolve({
         server,
         port,
+        matches: () => matches.count,
         close: () => new Promise<void>((done) => {
           matches.stopAll();
           for (const c of wss.clients) c.terminate();
