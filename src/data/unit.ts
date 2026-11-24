@@ -5,7 +5,8 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'juggernaut' | 'titan'
-  | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus';
+  | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
+  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -39,6 +40,14 @@ export interface UnitDef {
   beast?: boolean;
   /** fraction of max health regained each second, whatever the side's healing research (the Hydra) */
   regen?: number;
+  /** damage taken from arrows, bolts and bullets is multiplied by this (the Nemean Lion's hide); blades, blasts and boulders hurt in full */
+  hide?: number;
+  /** falls in flame and rises again from its ashes once per life (the Phoenix; see REBIRTH_HP in data/creatures.ts) */
+  rebirth?: boolean;
+  /** sees through enemy cloaks within this many tiles (the Sphinx) */
+  detect?: number;
+  /** heals every friendly foot soldier and creature within SONG_RANGE by this share of its health a second (the Satyr's pipes) */
+  song?: number;
   /**
    * a spellcaster with its own robes and staff (render3d/arcane3d.ts). Like the hidden units it costs
    * Aether, so it stays hidden until its side first finds some, but it is no copy of a regular unit.
@@ -119,6 +128,12 @@ export const UNIT: Record<UnitType, UnitDef> = {
   harpy: { name: 'Harpy', cls: 'air', armor: 'air', hp: 105, spd: 6.0, turn: 5, weapon: 'talons', cost: 250, aether: 25, t: 8, era: 0, sight: 8, producer: 'air', turret: false, radius: 9, alt: 1.4, beast: true, desc: 'Shrieking winged hag. Swoops on harvesters and infantry; easy prey for archers.' },
   pegasus: { name: 'Pegasus', cls: 'air', armor: 'air', hp: 190, spd: 6.5, turn: 4, weapon: 'hoof', cost: 400, aether: 45, t: 11, era: 0, sight: 10, producer: 'air', turret: false, radius: 12, alt: 1.6, beast: true, desc: 'Winged horse. The fastest thing in the sky, it charges down on foes and sees far.' },
   griffin: { name: 'Griffin', cls: 'air', armor: 'air', hp: 230, spd: 4.8, turn: 3.5, weapon: 'griffclaw', cost: 500, aether: 55, t: 13, era: 0, sight: 8, producer: 'air', turret: false, radius: 13, alt: 1.5, beast: true, desc: 'Eagle-lion that dives on vehicles and tears aircraft out of the sky.' },
+  medusa: { name: 'Medusa', cls: 'infantry', armor: 'light', hp: 210, spd: 2.0, turn: 5, weapon: 'gaze', cost: 450, aether: 50, t: 12, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 10, beast: true, desc: 'Snake-haired gorgon. Her gaze turns one foe to stone for a few seconds: it can\'t move or fight. Stops a charging tank or giant cold.' },
+  nemean: { name: 'Nemean Lion', cls: 'infantry', armor: 'light', hp: 420, spd: 3.2, turn: 5, weapon: 'lionclaw', cost: 500, aether: 50, t: 13, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 12, beast: true, hide: 0.3, desc: 'Its golden hide turns arrows and bullets. Walks through archers, gunners and towers; only blades, claws, shells and blasts really hurt it.' },
+  sphinx: { name: 'Sphinx', cls: 'infantry', armor: 'light', hp: 320, spd: 2.6, turn: 4.5, weapon: 'sphinxclaw', cost: 400, aether: 40, t: 12, era: 0, sight: 9, producer: 'infantry', turret: false, radius: 12, beast: true, detect: 7, desc: 'Winged lion with a woman\'s face. Nothing hides from her: she sees cloaked units within 7 tiles, and sees far. Guards a base or leads a hunt for hidden foes.' },
+  satyr: { name: 'Satyr', cls: 'infantry', armor: 'none', hp: 130, spd: 3.2, turn: 6, weapon: 'thyrsus', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 7, beast: true, song: 0.012, desc: 'Goat-legged piper. His tune heals every friendly foot soldier and creature around him. Weak in a fight: keep him behind the line.' },
+  chimera: { name: 'Chimera', cls: 'infantry', armor: 'light', hp: 360, spd: 3.0, turn: 4.5, weapon: 'chimerafire', cost: 500, aether: 50, t: 13, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 13, beast: true, desc: 'Lion, goat and serpent in one. Its fire breath reaches up into the sky: the creature that burns flyers down.' },
+  phoenix: { name: 'Phoenix', cls: 'air', armor: 'air', hp: 200, spd: 5.0, turn: 4, weapon: 'phoenixfire', cost: 450, aether: 60, t: 12, era: 0, sight: 8, producer: 'air', turret: false, radius: 11, alt: 1.5, beast: true, rebirth: true, desc: 'Firebird. Showers flame on the ground below, and when it falls it bursts alight and rises again from its ashes, once.' },
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */

@@ -6,9 +6,12 @@ import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { available } from './production.ts';
 import { acquire, dealDamage, fire } from './combat.ts';
-import { addBeast, captorOf, wildBeasts } from './creatures.ts';
+import { addBeast, captorOf, satyrSong, stone, wildBeasts } from './creatures.ts';
 import { START_YARDS } from '../data/map.ts';
-import { BEASTS, CAPTURE_TIME, RESPAWN_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
+import { BEASTS, CAPTURE_TIME, PETRIFY_IMMUNE, RESPAWN_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
+import { WEAPON } from '../data/weapon.ts';
+import { orderMove } from './order.ts';
+import { cloakedFrom } from './aether.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 
 function run(seconds: number): void {
@@ -179,6 +182,72 @@ describe('creatures of myth', () => {
     fire(h, 'hydrabite', foes[0]);
     for (let i = 0; i < 0.6 / STEP; i++) update(STEP); // the bites land as the jaws close
     expect(foes.filter((f) => f.hp < f.maxhp).length).toBe(3);
+  });
+
+  it("turns a foe to stone with a Medusa's gaze: it can't move or fight, and can't be held in stone forever", () => {
+    const m = addUnit('medusa', 1, MID.x, MID.y);
+    const tank = addUnit('tank', 0, MID.x + 3 * TS, MID.y);
+    tank.stance = 'passive'; // it just drives on
+    orderMove(tank, Math.floor(MID.x / TS) + 12, Math.floor(MID.y / TS));
+    fire(m, 'gaze', tank);
+    const x0 = tank.x, y0 = tank.y, secs = WEAPON.gaze.petrify ?? 0;
+    expect(stone(tank)).toBe(true);
+    run(secs - 0.3);
+    expect([tank.x, tank.y]).toEqual([x0, y0]);
+    run(0.5);
+    expect(stone(tank)).toBe(false);
+    // straight after, another gaze doesn't take
+    fire(m, 'gaze', tank);
+    expect(stone(tank)).toBe(false);
+    run(3);
+    expect(Math.hypot(tank.x - x0, tank.y - y0)).toBeGreaterThan(TS * 0.5); // free again, it drives on
+    run(PETRIFY_IMMUNE);
+    fire(m, 'gaze', tank);
+    expect(stone(tank)).toBe(true);
+  });
+
+  it("lets arrows and bullets glance off the Nemean Lion's hide, but not blades", () => {
+    const lion = addUnit('nemean', 1, MID.x, MID.y), cat = addUnit('cerberus', 1, MID.x, MID.y + 3 * TS);
+    const r = addUnit('rifleman', 0, MID.x - 3 * TS, MID.y);
+    fire(r, 'rifle', lion);
+    fire(r, 'rifle', cat);
+    const lionLoss = lion.maxhp - lion.hp, catLoss = cat.maxhp - cat.hp;
+    expect(lionLoss).toBeGreaterThan(0);
+    expect(lionLoss).toBeLessThan(catLoss * 0.5);
+    const s = addUnit('swordsman', 0, MID.x + 10, MID.y);
+    const before = lion.hp;
+    fire(s, 'sword', lion);
+    for (let i = 0; i < 0.6 / STEP; i++) update(STEP);
+    expect(before - lion.hp).toBeGreaterThan(WEAPON.sword.dmg * 0.5);
+  });
+
+  it('lets a Phoenix rise from its ashes once', () => {
+    const p = addUnit('phoenix', 0, MID.x, MID.y);
+    dealDamage(p, p.maxhp * 3, null);
+    expect(p.dead).toBe(false);
+    expect(p.hp).toBeGreaterThan(p.maxhp * 0.4);
+    dealDamage(p, p.maxhp * 3, null);
+    expect(p.dead).toBe(true);
+  });
+
+  it('lets a Sphinx see cloaked units', () => {
+    const jeep = addUnit('phantom', 1, MID.x, MID.y);
+    expect(cloakedFrom(jeep, 0)).toBe(true);
+    const sx = addUnit('sphinx', 0, MID.x - 6 * TS, MID.y);
+    expect(cloakedFrom(jeep, 0)).toBe(false);
+    sx.x -= 3 * TS;
+    expect(cloakedFrom(jeep, 0)).toBe(true);
+  });
+
+  it("heals friendly foot soldiers and creatures around a Satyr's pipes", () => {
+    addUnit('satyr', 0, MID.x, MID.y);
+    const near = addUnit('minotaur', 0, MID.x + TS, MID.y), far = addUnit('minotaur', 0, MID.x + 10 * TS, MID.y);
+    const foe = addUnit('minotaur', 1, MID.x, MID.y + TS);
+    for (const u of [near, far, foe]) u.hp = u.maxhp / 2;
+    for (let i = 0; i < 10; i++) satyrSong(1);
+    expect(near.hp - near.maxhp / 2).toBeGreaterThan(near.maxhp * 0.08);
+    expect(far.hp).toBe(far.maxhp / 2);
+    expect(foe.hp).toBe(foe.maxhp / 2);
   });
 
   it('the computer sends a party to capture a creature', () => {

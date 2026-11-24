@@ -1,19 +1,21 @@
 // Wild creatures of Greek myth: placing their lairs, how they guard them, beating one down until it
 // kneels, and capturing it. Tuning lives in data/creatures.ts.
-import { G, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, isOrganic, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import {
-  BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_FFA_SITES, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, RISE_HP,
-  RESPAWN_TIME, SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN,
+  BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_FFA_SITES, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, PETRIFY_IMMUNE, REBIRTH_HP, RISE_HP,
+  RESPAWN_TIME, SONG_RANGE, SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN,
 } from '../data/creatures.ts';
 import { eachInDisk, nearPortal } from './map.ts';
 import { addUnit } from './entity.ts';
 import { canAttack, combatStep } from './combat.ts';
 import { orderMove, setOrder } from './order.ts';
 import { followPath } from './move.ts';
+import { burst, part } from './fx.ts';
+import { WEAPON, type WeaponType } from '../data/weapon.ts';
 
 const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
@@ -211,4 +213,47 @@ export function respawnBeasts(): void {
     for (const t of teams()) if (sidesNear(u, 12)[t]) say(t, `The ${UNIT[r.type as UnitType].name} has returned to its lair`);
     return false;
   });
+}
+
+// ---- the creatures' gifts: the Medusa's gaze, the Nemean Lion's hide, the Phoenix's rebirth, the Satyr's pipes ----
+
+/** Is this unit turned to stone right now? */
+export const stone = (u: Ent): boolean => (u.stoneT ?? 0) > G.gameT;
+
+/** A Medusa's gaze: the unit turns to stone for `secs`, unless it has only just turned back. */
+export function petrify(u: Ent, secs: number): void {
+  if (u.kind !== 'unit' || u.wild?.down || G.gameT < (u.stoneT ?? -1e9) + PETRIFY_IMMUNE) return;
+  u.stoneT = G.gameT + secs;
+  u.moving = false;
+  burst('debris', u.x, u.y - 6, 6, 30, 90);
+}
+
+/** Arrows, bolts and bullets glance off a hide like the Nemean Lion's. */
+export function hideFactor(wt: WeaponType, t: Ent): number {
+  const h = t.kind === 'unit' ? unitDef(t).hide : undefined, p = WEAPON[wt].proj;
+  return h != null && (p === 'bullet' || p === 'bolt') ? h : 1;
+}
+
+/** A Phoenix struck down bursts into flame and rises again, once a life. Returns true if it did. */
+export function riseFromAshes(u: Ent): boolean {
+  if (u.kind !== 'unit' || u.reborn || !unitDef(u).rebirth) return false;
+  u.reborn = true;
+  u.hp = u.maxhp * REBIRTH_HP;
+  part('flash', u.x, u.y, { max: 0.5, size: 40, z: 40, col: '#ffb030' });
+  burst('spark', u.x, u.y, 18, 60, 200, null, 40);
+  if (u.team >= 0) say(u.team, `The ${unitDef(u).name} rises from its ashes!`);
+  return true;
+}
+
+/** Satyrs' pipes heal the friendly foot soldiers and creatures around them. Call once per `dt` seconds. */
+export function satyrSong(dt: number): void {
+  const pipers = G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team >= 0 && !!unitDef(e).song && !stone(e));
+  if (!pipers.length) return;
+  const r = SONG_RANGE * TS;
+  for (const u of G.ents) {
+    if (u.dead || !isOrganic(u) || u.team < 0 || u.hp >= u.maxhp) continue;
+    let rate = 0;
+    for (const s of pipers) if (s.team === u.team && Math.hypot(s.x - u.x, s.y - u.y) <= r) rate = Math.max(rate, unitDef(s).song ?? 0);
+    if (rate) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
+  }
 }

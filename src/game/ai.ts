@@ -500,7 +500,7 @@ function training(team: number): void {
   }
   // a few aircraft once there's money to spare
   if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2]]);
     if (t) enqueue(team, t);
   }
   // Workers: a few per refinery (by difficulty) for ore before the Modern age, plus the mills' choppers and derricks' haulers
@@ -516,7 +516,8 @@ function training(team: number): void {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
     const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0],
-      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5]]);
+      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5],
+      ['medusa', 1.5], ['nemean', 1.5], ['sphinx', 1], ['chimera', 1.5], ['satyr', countOf(team, 'satyr') * 8 < foot ? 1.5 : 0]]);
     if (t) enqueue(team, t);
   }
 }

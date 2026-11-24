@@ -20,7 +20,7 @@ import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } fro
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
-import { updWild } from './creatures.ts';
+import { stone, updWild } from './creatures.ts';
 
 const AUTO_CHASE = 9 * TS;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
@@ -383,6 +383,7 @@ export function updUnit(u: Ent, dt: number): void {
   u.flash = Math.max(0, u.flash - dt);
   u.atkT = Math.max(0, u.atkT - dt);
   u.moving = false;
+  if (stone(u)) return; // turned to stone by a Medusa: frozen until it wears off
   unstick(u, dt);
   // vehicle turrets drift back to the hull's heading when idle
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);

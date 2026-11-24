@@ -168,6 +168,7 @@ export function cloakedFrom(e: Ent, team: number): boolean {
   for (const o of G.ents) {
     if (o.dead || o.team !== team || o.kind === 'source') continue;
     if (o.type === 'wardstone' && o.done && Math.hypot(o.x - e.x, o.y - e.y) <= WARD_STONE_SIGHT * TS) return false;
+    if (o.kind === 'unit' && Math.hypot(o.x - e.x, o.y - e.y) <= (unitDef(o).detect ?? 0) * TS) return false; // a Sphinx's eyes
     if (Math.hypot(o.x - e.x, o.y - e.y) - (o.w ? (o.w * TS) / 2 : 0) <= r) return false;
   }
   return true;

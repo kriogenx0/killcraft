@@ -117,6 +117,10 @@ export interface Ent extends Target {
   rally: Point | null;
   /** game time until which a hexed unit moves at reduced speed */
   slowT?: number;
+  /** game time until which a unit is turned to stone by a Medusa's gaze: it can't move or fight */
+  stoneT?: number;
+  /** a Phoenix that has already risen from its ashes once this life */
+  reborn?: boolean;
   /** game time until which a cloaked unit shows after firing */
   shownT?: number;
   /** a wild creature guarding its lair (data/creatures.ts); dropped once a side captures it */

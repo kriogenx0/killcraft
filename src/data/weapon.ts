@@ -4,7 +4,8 @@ export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 
   | 'bomb' | 'planegun' | 'missile' | 'flak'
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
   | 'fireball' | 'lightning' | 'meteor' | 'minigun' | 'railgun'
-  | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick';
+  | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
+  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
 
@@ -34,6 +35,8 @@ export interface WeaponDef {
   heads?: number;
   /** bullets: the hit leaps on to this many more foes, each within CHAIN_REACH of the last, at CHAIN_FALLOFF of the damage */
   chain?: number;
+  /** seconds the target is turned to stone: it can't move or fight (the Medusa's gaze; see PETRIFY_IMMUNE in data/creatures.ts) */
+  petrify?: number;
 }
 
 export const WEAPON: Record<WeaponType, WeaponDef> = {
@@ -81,6 +84,12 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },
   hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },
   griffclaw: { dmg: 32, range: 0.8, cd: 1.2, proj: 'melee', speed: 0, splash: 0, vs: { none: 0.8, light: 1, heavy: 1, building: 0.5, air: 1.2 } },
+  gaze: { dmg: 20, range: 4.5, cd: 4, proj: 'bullet', speed: 0, splash: 0, petrify: 2.5, vs: { none: 1, light: 1, heavy: 1, building: 0, air: 0.8 } },
+  lionclaw: { dmg: 26, range: 0.8, cd: 1.1, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.9, heavy: 0.45, building: 0.4, air: 0 } },
+  sphinxclaw: { dmg: 22, range: 0.8, cd: 1.1, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.5, building: 0.5, air: 0 } },
+  thyrsus: { dmg: 7, range: 0.7, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.6, heavy: 0.2, building: 0.2, air: 0 } },
+  chimerafire: { dmg: 24, range: 4, cd: 1.5, proj: 'orb', speed: 320, splash: 12, vs: { none: 1, light: 0.8, heavy: 0.35, building: 0.6, air: 1.5 } },
+  phoenixfire: { dmg: 20, range: 3.5, cd: 1.3, proj: 'orb', speed: 300, splash: 10, vs: { none: 1.1, light: 0.9, heavy: 0.4, building: 0.8, air: 0.7 } },
 };
 
 /** Chain lightning leaps to foes within this many px of the last one struck... */

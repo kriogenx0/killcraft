@@ -354,6 +354,7 @@ export function syncEntities(dt: number): void {
       r.rotation.set(0, -e.face, 0, 'YXZ');
       animateUnit(o.model, e);
       hitFlash(o.model, e);
+      stoneLook(o.model, e);
       const air = !!UNIT[e.type as UnitType]?.alt;
       // ground units stand on the ground (wading in shallows); aircraft keep their height over water
       r.position.y += air ? surfaceY(x, z) : heightAt(x, z);
@@ -421,6 +422,33 @@ function hitFlash(m: Model, e: Ent): void {
     mt.emissiveIntensity = lerp(i, Math.max(i, 1), k);
   }
   h.on = k > 0;
+}
+
+// ---- turned to stone by a Medusa's gaze: grey and lifeless until it wears off ----
+
+const STONE_GREY = new THREE.Color('#9a958a');
+/** each stoned material's own colour, to give back when the spell wears off */
+const stoneCol = new WeakMap<THREE.Material, THREE.Color>();
+
+function stoneLook(m: Model, e: Ent): void {
+  const on = (e.stoneT ?? 0) > G.gameT, was = !!m.root.userData.stone;
+  if (!on && !was) return;
+  const h = hitState(m);
+  for (const { m: mt, e: e0, i } of h.mats) {
+    const col = (mt as Lit & { color?: THREE.Color }).color;
+    if (on) {
+      if (col && !stoneCol.has(mt)) stoneCol.set(mt, col.clone());
+      col?.copy(STONE_GREY);
+      mt.emissive.copy(STONE_GREY); mt.emissiveIntensity = 0.35;
+    } else {
+      const c0 = stoneCol.get(mt);
+      if (col && c0) col.copy(c0);
+      stoneCol.delete(mt);
+      mt.emissive.copy(e0); mt.emissiveIntensity = i;
+    }
+  }
+  m.root.userData.stone = on;
+  if (on) for (const k of ['legL', 'legR', 'legFL', 'legFR', 'legBL', 'legBR', 'wingL', 'wingR']) if (m.parts[k]) m.parts[k].rotation.set(0, 0, 0);
 }
 
 /** Free a model's flash materials when it goes. */
