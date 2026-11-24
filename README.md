@@ -26,15 +26,16 @@ Each match runs on the server, which sends each player only what their side can 
 
 To let people outside your network play, deploy the Docker image (`deploy/`) to any host that runs containers and keeps WebSockets open, such as Coolify, Fly.io or a VPS. It serves the game and the lobby on one port (8080 in the container), with `/health` and `/status` checks.
 
-### Production: killcraft.kriogenx.com (Coolify)
+### Production: killcraft.games (Coolify)
 
 The live game runs on Coolify from this repo's `main` branch:
 
 - **Build pack:** Dockerfile, base directory `/`, Dockerfile location `/deploy/Dockerfile`
-- **Port:** `8080` (exposed). No environment variables are required; the image sets `SERVER_PORT=8080` and `STATIC_DIR`.
-- **Domain:** `https://killcraft.kriogenx.com` (Coolify's proxy issues the certificate and passes WebSockets on `/ws` through)
+- **Port:** `8080` (exposed). No environment variables are required; the image sets `SERVER_PORT=8080`, `STATIC_DIR`, and the old-domain redirect below.
+- **Domains:** `https://killcraft.games`, `https://www.killcraft.games` and the old `https://killcraft.kriogenx.com` (Coolify's proxy issues the certificates and passes WebSockets on `/ws` through)
+- **Redirect:** the server answers pages on any host in `REDIRECT_HOSTS` (`killcraft.kriogenx.com,www.killcraft.games`) with a 301 to `CANONICAL_ORIGIN` (`https://killcraft.games`), keeping path and query, so old `/game/<id>` links still work
 - **Health check:** `GET /health`
-- **DNS:** an `A` record for `killcraft` on kriogenx.com pointing at the Coolify server's IP.
+- **DNS:** killcraft.games is registered at Namecheap with DigitalOcean nameservers; its DigitalOcean zone has an `A` record for `@` at the Coolify server's IP and `www` as a CNAME. kriogenx.com keeps its `killcraft` `A` record for the redirect.
 
 ## How to play
 
