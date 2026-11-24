@@ -28,7 +28,7 @@ export function refreshTouchBar(): void {
   shown = state;
   bar.classList.toggle('touch-bar--on', on);
   boxBtn.setAttribute('aria-pressed', String(V.touchBox));
-  sameBtn.disabled = !units;
-  clearBtn.disabled = !V.sel.length;
+  sameBtn.hidden = !units;
+  clearBtn.hidden = !V.sel.length;
   armyBtn.hidden = spectating();
 }
