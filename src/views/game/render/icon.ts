@@ -25,8 +25,8 @@ const ANGLE = Math.PI / 5;
 export function makeIcons(team = 0): void {
   for (const t of UNIT_TYPES) {
     const big = UNIT[t].radius > 8;
-    // creatures of myth, spellcasters and cyborgs are pictured from their 3D models
-    const pic = UNIT[t].beast || UNIT[t].magic || UNIT[t].cyborg ? unitIcon(t, team) : null;
+    // pictured from the 3D model, with the flat sprite as a fallback without WebGL
+    const pic = unitIcon(t, team);
     ICON[t] = pic ?? make((g) => drawUnitArt(g, t, team, W / 2, H / 2 + (big ? 4 : 8), { f: ANGLE, tf: ANGLE, walk: 0, atk: 0, load: 0.8 }, big ? 1.35 : 2.2));
   }
   for (const t of [...BLD_TYPES, 'yard' as const])
