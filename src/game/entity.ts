@@ -57,7 +57,7 @@ export function kill(e: Ent): void {
   if (e.w) setBlk(e, false);
   if (e.kind === 'source') return; // crystals and Aether just vanish: no rubble
   const base = { t: 0, team: e.team, seed: e.id, w: e.w, r: 0, a: e.face };
-  // living things fall as bodies; machines blow up and leave a wreck (no scorch mark)
+  // living things fall as bodies; machines blow up and leave a wreck
   const machine = e.kind === 'unit' && !isOrganic(e) && !unitDef(e).beast;
   if (e.kind === 'unit' && !machine) {
     G.decals.push({ kind: 'corpse', x: e.x, y: e.y, max: 40, ...base });
@@ -65,7 +65,7 @@ export function kill(e: Ent): void {
     return;
   }
   if (e.kind === 'unit') {
-    explosion(e.x, e.y, UNIT[e.type as UnitType].radius * 1.3, false);
+    explosion(e.x, e.y, UNIT[e.type as UnitType].radius * 1.3);
     G.decals.push({ kind: 'wreck', x: e.x, y: e.y, max: 60, ...base, r: UNIT[e.type as UnitType].radius });
     return;
   }

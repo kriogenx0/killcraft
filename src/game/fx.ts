@@ -29,10 +29,9 @@ export function burst(kind: FxKind, x: number, y: number, n: number, v0: number,
   }
 }
 
-/** Fireball, smoke, flying debris and (unless `mark` is false) a scorch mark. `size` is roughly the blast radius in px. */
-export function explosion(x: number, y: number, size: number, mark = true): void {
+/** Fireball, smoke and flying debris (no mark left on the ground). `size` is roughly the blast radius in px. */
+export function explosion(x: number, y: number, size: number): void {
   if (G.headless) return;
-  if (mark) G.decals.push({ kind: 'scorch', x, y, t: 0, max: 30, team: -1, seed: 0, w: 0, r: size * 0.8, a: 0 });
   if (!visible(x, y)) return;
   part('flash', x, y, { max: 0.15, size: size * 2.2 });
   const n = Math.round(4 + size / 3);
@@ -51,10 +50,9 @@ export function warpFx(x: number, y: number): void {
   burst('spark', x, y, 10, 40, 140, '#c9a8ff');
 }
 
-/** A heavy rock landing: dust, flying stones and a dent in the ground, no fire. */
+/** A heavy rock landing: dust and flying stones, no fire. */
 export function impact(x: number, y: number, size: number): void {
   if (G.headless) return;
-  G.decals.push({ kind: 'scorch', x, y, t: 0, max: 20, team: -1, seed: 0, w: 0, r: size * 0.6, a: 0 });
   burst('dust', x, y, Math.round(size / 2), 40, 120);
   burst('debris', x, y, Math.round(size / 3), 80, 200, '#6e665c');
 }
@@ -70,10 +68,6 @@ export function updFx(dt: number): void {
       p.vz -= g * dt;
       if (p.z <= 0) {
         p.z = 0; p.vz = 0; p.vx *= 0.6; p.vy *= 0.6;
-        if (p.kind === 'blood' && !p.landed) {
-          p.landed = true;
-          if (Math.random() < 0.35) G.decals.push({ kind: 'splat', x: p.x, y: p.y, t: 0, max: 14, team: -1, seed: 0, w: 0, r: 1.5 + Math.random() * 2, a: 0 });
-        }
       }
     } else {
       p.vx *= 0.98;
