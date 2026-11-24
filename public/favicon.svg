@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#17120b"/>
+  <rect x="2" y="2" width="60" height="60" rx="10.5" fill="none" stroke="#b08a40" stroke-width="2.5"/>
+  <!-- arms of the K -->
+  <path d="M27 34L50 9M31 30l22 25" stroke="#c9342b" stroke-width="9" stroke-linecap="butt" fill="none"/>
+  <!-- sword: the stem of the K -->
+  <path d="M17.5 12L22 5l4.5 7v32h-9z" fill="#ece6d8"/>
+  <path d="M22 9v35" stroke="#b9b2a2" stroke-width="1.5"/>
+  <rect x="10" y="43" width="24" height="5.5" rx="1.5" fill="#d9ad4e"/>
+  <rect x="19" y="48.5" width="6" height="7" fill="#7a4a22"/>
+  <circle cx="22" cy="57" r="3.2" fill="#d9ad4e"/>
+</svg>
