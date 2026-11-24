@@ -257,17 +257,44 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     else if (m.k === 'notice') setStatus(m.msg);
     else if (m.k === 'start') { joiningLink = false; lastHosted = null; setHostedGame(null); closeModal(root); opts.onStart(m); }
   });
+  // the server restarts on every deploy: keep trying to get back, then pick up what this tab was doing
+  let retry: ReturnType<typeof setTimeout> | null = null, retries = 0;
+  const isOpen = () => root.classList.contains('ui-modal--open');
+  const reconnect = (resume: () => void) => {
+    if (retry) clearTimeout(retry);
+    retry = setTimeout(async () => {
+      retry = null;
+      if (!isOpen() || net.connected) return;
+      try {
+        await net.connect(cleanName(name.value));
+        connectedAs = cleanName(name.value);
+        retries = 0;
+        setStatus('');
+        resume();
+      } catch {
+        retries++;
+        setStatus('Reconnecting to the game server…', true);
+        reconnect(resume);
+      }
+    }, Math.min(1000 * 2 ** retries, 10_000));
+  };
   net.onClose(() => {
-    if (!root.classList.contains('ui-modal--open')) return;
+    if (!isOpen()) return;
+    const was = waiting, hosted = lastHosted;
     setWaiting(null);
-    setStatus('Disconnected from the game server.', false, true);
+    setStatus('Disconnected from the game server. Reconnecting…', true);
     connectedAs = '';
     last = null;
     inviteList.replaceChildren();
-    // keep the hosted game remembered: a refresh lists it again under the same link
+    // keep the hosted game remembered: reconnecting (or a refresh) lists it again under the same link
     link.hidden = true;
     playerList.replaceChildren(empty('Not connected.'));
     online.textContent = 'Players online';
+    retries = 0;
+    reconnect(() => {
+      if (hosted) net.send({ k: 'create', game: hosted });
+      else if (was === 'quick') net.send({ k: 'quick' });
+    });
   });
 
   /** Connect (or reconnect after a name change), then run `then`. */
@@ -301,6 +328,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   });
   name.addEventListener('change', () => ensure());
   $('.lobby-back').addEventListener('click', () => {
+    if (retry) { clearTimeout(retry); retry = null; }
     net.send({ k: 'leave' });
     net.close();
     connectedAs = '';

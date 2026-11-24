@@ -604,7 +604,7 @@ function showcase(what: string): void {
 
 /**
  * URL options for testing: ?seed=N map seed, ?auto start a solo game, ?demo AI vs AI, ?online open
- * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?stress=N give every side N more last-age troops marching on the middle, ?perf record frame timings on window.__perf, ?reveal no fog, ?cam=x,y center on a
+ * the lobby (?online=quick also joins quick match), ?join=ID open the lobby and join that game (invite links), ?sim=S simulate S seconds before the first frame, ?stress=N give every side N more last-age troops marching on the middle, ?perf record frame timings on window.__perf, ?quality=0..3 hold the graphics at one level (0 best) instead of adapting, ?reveal no fog, ?cam=x,y center on a
  * tile, ?view=yaw,pitch,dist camera angle in degrees and distance in tiles, ?sel=type select up to six
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
