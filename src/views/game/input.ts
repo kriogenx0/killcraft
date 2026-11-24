@@ -6,6 +6,7 @@ import { isWall } from '../../data/building.ts';
 import { exploredAt, seenAt } from '../../game/fog.ts';
 import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
+import { toggleFollow } from './follow_cam.ts';
 import { centerCam, clampCam, ownSelected, selectedUnits, spectating, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, SPEED_KEYS, isTyping, zoomKey, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
@@ -259,7 +260,8 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
         const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
         if (pinch) {
           const w0 = screenToWorld(pinch.mx, pinch.my), w1 = screenToWorld(mx, my);
-          if (w0 && w1) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; }
+          // while following a unit, a pinch zooms and turns around it without letting go
+          if (w0 && w1 && V.follow == null) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; }
           V.cam.dist *= pinch.d / Math.max(1, d);
           // a clockwise twist (angle grows, screen y points down) turns the map clockwise with the fingers
           let turn = ang - pinch.a;
@@ -428,6 +430,7 @@ function onKey(ev: KeyboardEvent): void {
     return;
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (k === 'f' && (ev.shiftKey || spectating())) { toggleFollow(); refreshCommands(true); return; }
   const hk = normalizeKey(ev.key);
   // the command card first, so a unit's M, X, G, F and V beat the Town Hall's letters
   if (runHotkey(hk) || productionHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }

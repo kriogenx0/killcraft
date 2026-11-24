@@ -343,7 +343,7 @@ export function syncEntities(dt: number): void {
     const mask = walls.size && e.kind === 'bld' && isWall(e.type) ? wallMask(e, walls) : 0;
     // each structure takes on a newer age's look once it's upgraded (game/refit.ts)
     const key = e.kind === 'bld' ? `${e.type}|${e.team}|${bldLook(e.type as BldType, e.lvl ?? 0)}|${mask}` : `${e.type}|${e.team}|a${e.kind === 'unit' ? armorLevel(e.type as UnitType, e.team) : 0}`;
-    if (o && o.key !== key) { holder.remove(o.model.root); o = undefined; }
+    if (o && o.key !== key) { holder.remove(o.model.root); dropHit(o.model); o = undefined; }
     if (!o) { o = { model: create(e, mask), key }; objs.set(e.id, o); }
     const r = o.model.root;
     r.visible = shownToPlayer(e);
@@ -353,6 +353,7 @@ export function syncEntities(dt: number): void {
       r.position.set(x, 0, z);
       r.rotation.set(0, -e.face, 0, 'YXZ');
       animateUnit(o.model, e);
+      hitFlash(o.model, e);
       const air = !!UNIT[e.type as UnitType]?.alt;
       // ground units stand on the ground (wading in shallows); aircraft keep their height over water
       r.position.y += air ? surfaceY(x, z) : heightAt(x, z);
@@ -371,7 +372,7 @@ export function syncEntities(dt: number): void {
     killed ??= new Map(G.decals.filter((d) => d.kind === 'corpse' || d.kind === 'wreck').map((d) => [d.seed, d.kind]));
     const kind = killed.get(id);
     if (kind && o.model.root.visible) fall(o.model, kind === 'wreck');
-    else holder.remove(o.model.root);
+    else { holder.remove(o.model.root); dropHit(o.model); }
   }
   updateFallen();
   updateRings();
@@ -380,28 +381,80 @@ export function syncEntities(dt: number): void {
   updateGhost();
 }
 
-// ---- the fallen: dead units lie on the ground tinted red, then sink out of sight ----
+// ---- a subtle red flash on a unit when it's struck ----
+
+const HIT_RED = new THREE.Color('#ff2010'), HIT_GLOW = 0.3, HIT_FADE = 280; // peak share of red; fade in ms
+type Lit = THREE.Material & { emissive: THREE.Color; emissiveIntensity: number };
+interface HitState { mats: { m: Lit; e: THREE.Color; i: number }[]; at: number; on: boolean }
+
+/** The model's own copies of its lit materials, made the first time it's hit (the originals are shared). */
+function hitState(m: Model): HitState {
+  let h = m.root.userData.hit as HitState | undefined;
+  if (h) return h;
+  h = { mats: [], at: -1e9, on: false };
+  const st = h;
+  m.root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const own = (mt: THREE.Material): THREE.Material => {
+      if (!('emissive' in mt)) return mt;
+      const c = mt.clone() as Lit;
+      st.mats.push({ m: c, e: c.emissive.clone(), i: c.emissiveIntensity });
+      return c;
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(own) : own(o.material);
+  });
+  m.root.userData.hit = h;
+  return h;
+}
+
+function hitFlash(m: Model, e: Ent): void {
+  let h = m.root.userData.hit as HitState | undefined;
+  const now = performance.now();
+  // any drop in health is a hit (works the same online, where health arrives in snapshots)
+  if (e.hp < (m.root.userData.hp ?? e.hp)) { h = hitState(m); h.at = now; }
+  m.root.userData.hp = e.hp;
+  if (!h) return;
+  const k = Math.max(0, 1 - (now - h.at) / HIT_FADE);
+  if (k <= 0 && !h.on) return;
+  for (const { m: mt, e: e0, i } of h.mats) {
+    mt.emissive.copy(e0).lerp(HIT_RED, HIT_GLOW * k);
+    mt.emissiveIntensity = lerp(i, Math.max(i, 1), k);
+  }
+  h.on = k > 0;
+}
+
+/** Free a model's flash materials when it goes. */
+function dropHit(m: Model): void {
+  const h = m.root.userData.hit as HitState | undefined;
+  if (h) for (const { m: mt } of h.mats) mt.dispose();
+  m.root.userData.hit = undefined;
+}
+
+// ---- the fallen: dead units lie on the ground in dark grey, then sink out of sight ----
 
 /** Seconds a body lies on the ground before it starts to sink, and how long sinking takes. */
 const LIE = 3, SINK = 5, TOPPLE = 0.35;
-const RED = new THREE.Color('#9c1010');
+/** Dead units turn grey: black and white, and darker (their shading still shows the detail). */
+const DEAD_DARK = 0.45;
 interface Fallen { model: Model; t0: number; wreck: boolean; sinkT: number; y0: number; fly: number; tip: number; mats: THREE.Material[] }
 const fallen: Fallen[] = [];
 
 function fall(m: Model, wreck: boolean): void {
-  const r = m.root, mats: THREE.Material[] = [];
-  // red, on its own copies of the materials (the originals are shared by every model of its kind)
+  const r = m.root, mats: THREE.Material[] = [], hit = r.userData.hit as HitState | undefined;
+  if (hit) for (const { m: mt, e, i } of hit.mats) { mt.emissive.copy(e); mt.emissiveIntensity = i; }
+  // grey, on its own copies of the materials (the originals are shared by every model of its kind)
   r.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const tint = (mt: THREE.Material): THREE.Material => {
       const c = mt.clone() as THREE.Material & { color?: THREE.Color; emissive?: THREE.Color; emissiveIntensity?: number };
-      if (c.color) c.color.lerp(RED, 0.8);
+      if (c.color) { const g = (0.3 * c.color.r + 0.59 * c.color.g + 0.11 * c.color.b) * DEAD_DARK; c.color.setRGB(g, g, g); }
       if (c.emissive) c.emissiveIntensity = 0;
       mats.push(c);
       return c;
     };
     o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material);
   });
+  dropHit(m);
   const x = r.position.x, z = r.position.z;
   fallen.push({ model: m, t0: G.gameT, wreck, sinkT: wreck ? Infinity : G.gameT + LIE, y0: heightAt(x, z), fly: r.position.y - heightAt(x, z), tip: wreck ? 0 : (r.rotation.z || 0), mats });
 }

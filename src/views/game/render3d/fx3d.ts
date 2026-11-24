@@ -10,7 +10,7 @@ import { M, mat } from './materials.ts';
 import { V } from '../view_state.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { midHeight } from './entities3d.ts';
-import { groundY, heightAt, slopeAt, surfaceY } from './heights.ts';
+import { groundY, heightAt, surfaceY } from './heights.ts';
 
 const CAP = 1600;
 const layer = new THREE.Group();
@@ -121,15 +121,7 @@ const projMat = {
 };
 const projPools: Record<string, THREE.Mesh[]> = { shell: [], rocket: [], bolt: [], boulder: [], orb: [] };
 
-// ground marks: one instanced disc per kind, plus rubble stones (dead units' own models lie on the ground: entities3d.ts)
-const discGeo = new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2);
-function marks(color: string, opacity: number): THREE.InstancedMesh {
-  const im = new THREE.InstancedMesh(discGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false }), 420);
-  im.renderOrder = 1;
-  im.frustumCulled = false;
-  return im;
-}
-const decal = { scorch: marks('#141210', 0.45), splat: marks('#4a0505', 0.75), rubble: marks('#1a1612', 0.55) };
+// rubble stones where buildings fell (no dark discs on the ground; dead units' own models lie there: entities3d.ts)
 const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.1), M.rock(), 1200);
 stones.frustumCulled = false;
 stones.castShadow = true;
@@ -137,7 +129,7 @@ stones.castShadow = true;
 export function initFx3d(): void {
   S.scene.remove(layer);
   layer.clear();
-  layer.add(...Object.values(clouds).map((c) => c.pts), beams, slashes, atkLines, ...Object.values(decal), stones);
+  layer.add(...Object.values(clouds).map((c) => c.pts), beams, slashes, atkLines, stones);
   for (const pool of Object.values(projPools)) pool.length = 0;
   S.scene.add(layer);
 }
@@ -261,39 +253,22 @@ function updateProjectiles(): void {
   for (const [kind, pool] of Object.entries(projPools)) for (let i = used[kind]; i < pool.length; i++) pool[i].visible = false;
 }
 
-const flat = new THREE.Quaternion(), normal = new THREE.Vector3();
-/** Point `flat` so that marks lie along the slope at a point (tile coordinates). */
-function lie(x: number, z: number): void {
-  const [sx, sz] = slopeAt(x, z);
-  flat.setFromUnitVectors(up, normal.set(-sx, 1, -sz).normalize());
-}
-
 /** Height (tiles) of the ground, or the water where it's deeper, under a world point (px). */
 const surface = (x: number, y: number): number => surfaceY(x / TS, y / TS);
 
 function updateDecals(): void {
-  const n: Record<string, number> = { scorch: 0, splat: 0, rubble: 0 };
   let ns = 0;
   for (const d of G.decals) {
-    if (d.kind === 'corpse' || d.kind === 'wreck') continue;
-    if (!G.vis[Math.floor(d.y / TS) * 64 + Math.floor(d.x / TS)]) continue;
-    const fade = Math.min(1, (d.max - d.t) / (d.max * 0.3)), x = d.x / TS, z = d.y / TS, gy = heightAt(x, z);
-    lie(x, z);
-    const im = decal[d.kind];
-    if (n[d.kind] >= 420) continue;
-    const r = d.kind === 'splat' ? d.r / TS : d.kind === 'rubble' ? d.w * 0.6 : d.r / TS;
-    im.setMatrixAt(n[d.kind]++, m4.compose(v.set(x, gy + 0.025 + n[d.kind] * 0.00001, z), flat, sc.setScalar(Math.max(0.01, r * fade))));
-    if (d.kind === 'rubble') {
-      const rnd = mulberry32(d.seed);
-      for (let i = 0; i < d.w * 6 && ns < 1200; i++) {
-        q.setFromAxisAngle(up, rnd() * 6);
-        const s = (0.6 + rnd() * 1.4) * fade;
-        const sx = x + (rnd() - 0.5) * d.w * 0.9, sz = z + (rnd() - 0.5) * d.w * 0.9;
-        stones.setMatrixAt(ns++, m4.compose(v.set(sx, heightAt(sx, sz) + 0.05, sz), q, sc.set(s, s * 0.6, s)));
-      }
+    if (d.kind !== 'rubble' || !G.vis[Math.floor(d.y / TS) * 64 + Math.floor(d.x / TS)]) continue;
+    const fade = Math.min(1, (d.max - d.t) / (d.max * 0.3)), x = d.x / TS, z = d.y / TS;
+    const rnd = mulberry32(d.seed);
+    for (let i = 0; i < d.w * 6 && ns < 1200; i++) {
+      q.setFromAxisAngle(up, rnd() * 6);
+      const s = (0.6 + rnd() * 1.4) * fade;
+      const sx = x + (rnd() - 0.5) * d.w * 0.9, sz = z + (rnd() - 0.5) * d.w * 0.9;
+      stones.setMatrixAt(ns++, m4.compose(v.set(sx, heightAt(sx, sz) + 0.05, sz), q, sc.set(s, s * 0.6, s)));
     }
   }
-  for (const [k, im] of Object.entries(decal)) { im.count = n[k]; im.instanceMatrix.needsUpdate = true; }
   stones.count = ns;
   stones.instanceMatrix.needsUpdate = true;
 }

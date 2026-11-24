@@ -119,6 +119,17 @@ export class LobbyService {
     if (p && p.status !== 'playing') p.status = 'idle';
   }
 
+  /** A player rejoined a match already under way (after a refresh). */
+  playing(id: string, opponent: string): void {
+    const p = this.players.get(id);
+    if (!p) return;
+    this.leave(id);
+    this.dropInvitesTo(id);
+    p.status = 'playing';
+    p.opponent = opponent;
+    this.events.changed();
+  }
+
   /** A player's match is over; they're back in the lobby. */
   finished(id: string): void {
     const p = this.players.get(id);
