@@ -91,6 +91,13 @@ export function producerOf(team: number, line: ProductionLine): Ent | null {
   return own(PRODUCER[line]) ?? (line === 'infantry' ? own('yard') : null);
 }
 
+/** A unit with a `limit` (the Titan) can't be trained while that many are alive or in training. */
+const underLimit = (team: number, t: UnitType): boolean => {
+  const n = UNIT[t].limit;
+  return n == null || countOf(team, t) + G.prod[team][UNIT[t].producer].filter((x) => x.type === t).length < n;
+};
+export const atLimit = (team: number, t: Buildable): boolean => isUnitType(t) && !underLimit(team, t);
+
 /** What a team can build right now on a production line. */
 export function available(team: number, line: ProductionLine): Buildable[] {
   if (!producerOf(team, line)) return [];
@@ -141,6 +148,7 @@ function pay(team: number, type: Buildable): void {
 export function enqueue(team: number, type: Buildable, wait = false): boolean {
   const line = lineOf(type), q = G.prod[team][line];
   if (!available(team, line).includes(type)) return false;
+  if (atLimit(team, type)) { say(team, `Only ${UNIT[type as UnitType].limit} ${nameOf(type)} at a time`); return false; }
   const short = shortOf(team, type);
   if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
   const research = line === 'tech' || line === 'hospital' || line === 'armory', max = research ? 1 : QUEUE_MAX;

@@ -7,7 +7,7 @@ import type { UnitType } from '../../../data/unit.ts';
 import { UNIT } from '../../../data/unit.ts';
 import { lerp } from '../../../util/math.ts';
 import { group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { M, box, cone, cyl, mat, sph, teamMat } from './materials.ts';
+import { M, box, cone, cyl, mat, sph, teamMat, torus } from './materials.ts';
 
 const C = {
   bay: () => mat('#6e4526', { rough: 0.8 }),
@@ -28,6 +28,18 @@ const C = {
   harpyWing: () => mat('#4a3a4a', { rough: 0.9 }),
   talon: () => mat('#2a2420', { rough: 0.5 }),
   stone: () => mat('#7a746a', { rough: 0.95, flat: true }),
+  gorgon: () => mat('#5f8a4a', { rough: 0.55, metal: 0.1 }),
+  gorgonSkin: () => mat('#a8c094', { rough: 0.75 }),
+  gaze: () => mat('#d0ff80', { rough: 0.3, emissive: '#90ff30', emissiveIntensity: 1.8 }),
+  lionGold: () => mat('#d8a440', { rough: 0.4, metal: 0.45 }),
+  mane: () => mat('#8a4a1a', { rough: 0.95 }),
+  sand: () => mat('#d4b47a', { rough: 0.85 }),
+  goat: () => mat('#7a5a3a', { rough: 0.95 }),
+  ivy: () => mat('#4a7a2a', { rough: 0.9 }),
+  reed: () => mat('#c8b070', { rough: 0.8 }),
+  flame: () => mat('#ff9020', { rough: 0.5, emissive: '#ff5000', emissiveIntensity: 1.4 }),
+  blaze: () => mat('#ffd040', { rough: 0.4, emissive: '#ffa000', emissiveIntensity: 1.6 }),
+  ember: () => mat('#d02a10', { rough: 0.6, emissive: '#a01000', emissiveIntensity: 0.9 }),
 };
 
 /** A wild creature's collar is plain leather; a captured one wears its side's colour. */
@@ -263,6 +275,170 @@ function cerberus(team: number): Model {
   return { root, parts, height: 0.88 };
 }
 
+function medusa(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, sc = C.gorgon(), skin = C.gorgonSkin();
+  // a serpent's coils on the ground, the tail curling out behind and swaying
+  root.add(scl(mesh(sph(0.2, 14, 10), sc, -0.02, 0.12, 0), 1.3, 0.55, 1.1));
+  root.add(mesh(cyl(0.16, 0.2, 0.06, 14), C.belly(), 0.02, 0.2, 0));
+  const tail = group(-0.18, 0.08, 0);
+  for (let i = 0; i < 6; i++) tail.add(mesh(sph(0.075 - i * 0.01, 8, 6), sc, -i * 0.07, -i * 0.006, Math.sin(i * 0.9) * 0.07));
+  parts.tail = tail;
+  root.add(tail);
+  // a woman's body rising from the coils
+  root.add(scl(mesh(sph(0.09, 10, 8), skin, 0.04, 0.34, 0), 0.9, 1.3, 1));
+  root.add(mesh(box(0.1, 0.16, 0.14), skin, 0.05, 0.47, 0));
+  root.add(rot(mesh(box(0.11, 0.04, 0.16), colour(team), 0.05, 0.47, 0), 0.6, 0, 0)); // sash
+  root.add(mesh(box(0.09, 0.05, 0.15), M.gold(), 0.05, 0.55, 0)); // breastplate edge
+  for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
+    const arm = limb(0.05, 0.55, s * 0.09, 0.18, 0.04, skin);
+    arm.rotation.x = s * 0.25;
+    parts[name] = arm;
+    root.add(arm);
+  }
+  root.add(mesh(sph(0.06, 10, 8), skin, 0.06, 0.65, 0));
+  for (const z of [-0.02, 0.02]) root.add(mesh(sph(0.012, 6, 4), C.gaze(), 0.115, 0.665, z)); // the deadly eyes
+  // a crown of living snakes
+  const hair = group(0.05, 0.68, 0);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2, x = Math.cos(a) * 0.05, z = Math.sin(a) * 0.05;
+    hair.add(rod([x, 0, z], [x * 2.2 - 0.02, 0.07, z * 2.2], 0.011, sc, 4));
+    hair.add(mesh(sph(0.016, 6, 4), sc, x * 2.2 - 0.02, 0.075, z * 2.2));
+  }
+  parts.hair = hair;
+  root.add(hair);
+  return { root, parts, height: 0.82 };
+}
+
+function nemean(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, hide = C.lionGold(), mane = C.mane();
+  root.add(scl(mesh(sph(0.22, 14, 10), hide, -0.04, 0.44, 0), 1.6, 0.72, 0.68));
+  fourLegs(root, parts, 0.22, 0.09, 0.36, 0.34, 0.075, hide, C.talon());
+  // tail with a dark tuft
+  root.add(rod([-0.34, 0.47, 0], [-0.56, 0.58, 0], 0.016, hide, 5));
+  root.add(mesh(sph(0.04, 8, 6), mane, -0.57, 0.6, 0));
+  // great shaggy mane round a broad head
+  root.add(scl(mesh(sph(0.17, 12, 10), mane, 0.24, 0.58, 0), 0.9, 1.05, 1.15));
+  root.add(mesh(cyl(0.15, 0.16, 0.05, 14), colour(team), 0.17, 0.52, 0)); // collar
+  root.add(scl(mesh(sph(0.1, 12, 8), hide, 0.34, 0.6, 0), 1.1, 1, 0.95));
+  root.add(mesh(box(0.08, 0.07, 0.09), hide, 0.43, 0.56, 0)); // muzzle
+  root.add(mesh(box(0.025, 0.025, 0.04), M.dark(), 0.475, 0.585, 0)); // nose
+  for (const z of [-0.04, 0.04]) {
+    root.add(mesh(sph(0.013, 6, 4), mat('#ffd040', { emissive: '#c08000', emissiveIntensity: 0.7 }), 0.41, 0.64, z));
+    root.add(mesh(sph(0.03, 6, 4), hide, 0.3, 0.71, z * 2));
+  }
+  return { root, parts, height: 0.88 };
+}
+
+function sphinx(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, body = C.sand(), wing = C.tawny();
+  root.add(scl(mesh(sph(0.21, 14, 10), body, -0.05, 0.4, 0), 1.55, 0.7, 0.66));
+  fourLegs(root, parts, 0.2, 0.09, 0.33, 0.31, 0.07, body, C.talon());
+  root.add(rod([-0.33, 0.42, 0], [-0.5, 0.55, 0], 0.014, body, 5));
+  // eagle's wings folded along her back (they don't flap: she walks)
+  for (const s of [-1, 1]) {
+    const w = group(0.08, 0.56, s * 0.1);
+    w.rotation.set(s * 0.5, 0, 0.35);
+    w.add(mesh(box(0.42, 0.02, 0.16), wing, -0.18, 0, s * 0.06));
+    for (let i = 0; i < 4; i++) w.add(mesh(box(0.1, 0.015, 0.04), C.brownFeather(), -0.42 - i * 0.03, -0.005, s * (0.02 + i * 0.04)));
+    root.add(w);
+  }
+  // a woman's head and breast, crowned with a band in the side's colour
+  root.add(scl(mesh(sph(0.12, 12, 8), body, 0.2, 0.52, 0), 1, 1.15, 0.95));
+  root.add(mesh(cyl(0.04, 0.05, 0.08, 8), M.skin(), 0.25, 0.66, 0));
+  root.add(mesh(sph(0.07, 12, 8), M.skin(), 0.27, 0.75, 0));
+  root.add(scl(mesh(sph(0.078, 10, 8), M.hair(), 0.25, 0.77, 0), 1, 1, 1.05));
+  root.add(mesh(box(0.06, 0.16, 0.13), M.hair(), 0.22, 0.68, 0)); // long hair
+  root.add(mesh(cyl(0.08, 0.08, 0.025, 12), colour(team), 0.26, 0.81, 0));
+  for (const z of [-0.025, 0.025]) root.add(mesh(sph(0.011, 6, 4), mat('#40c0ff', { emissive: '#2090ff', emissiveIntensity: 1.2 }), 0.335, 0.765, z));
+  return { root, parts, height: 0.92 };
+}
+
+function satyr(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, fur = C.goat();
+  // shaggy goat legs ending in hooves
+  for (const [name, s] of [['legL', -1], ['legR', 1]] as const) {
+    const leg = limb(0, 0.3, s * 0.05, 0.15, 0.05, fur);
+    const shin = group(0, -0.15, 0, mesh(box(0.035, 0.15, 0.035), fur, 0, -0.07, 0), mesh(box(0.045, 0.03, 0.05), M.dark(), 0.01, -0.15, 0));
+    shin.rotation.z = -0.5;
+    leg.add(shin);
+    leg.rotation.z = 0.25;
+    parts[name] = leg;
+    root.add(leg);
+  }
+  root.add(scl(mesh(sph(0.07, 10, 8), fur, 0, 0.31, 0), 1, 0.8, 1.2));
+  // a man's chest, a sash and a wreath of ivy
+  root.add(mesh(box(0.09, 0.15, 0.14), M.skin(), 0, 0.42, 0));
+  root.add(rot(mesh(box(0.1, 0.035, 0.16), colour(team), 0, 0.42, 0), 0.6, 0, 0));
+  root.add(mesh(sph(0.052, 10, 8), M.skin(), 0.01, 0.55, 0));
+  root.add(mesh(box(0.03, 0.05, 0.04), fur, 0.05, 0.51, 0)); // beard
+  root.add(scl(mesh(sph(0.055, 8, 6), M.hair(), -0.005, 0.57, 0), 1, 0.75, 1.05));
+  root.add(mesh(torus(0.05, 0.012, Math.PI * 2, 6, 12), C.ivy(), 0, 0.585, 0)).rotation.x = Math.PI / 2;
+  for (const z of [-1, 1]) root.add(rod([0, 0.59, z * 0.03], [-0.05, 0.66, z * 0.06], 0.012, C.horn(), 5)); // little horns
+  // arms raised to the panpipes at his lips
+  for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
+    const arm = limb(0, 0.48, s * 0.08, 0.13, 0.032, M.skin());
+    arm.rotation.z = 1.2;
+    arm.rotation.x = -s * 0.5;
+    parts[name] = arm;
+    root.add(arm);
+  }
+  const pipes = group(0.09, 0.5, 0);
+  for (let i = 0; i < 5; i++) pipes.add(mesh(cyl(0.009, 0.009, 0.1 - i * 0.012, 6), C.reed(), 0, -i * 0.006, (i - 2) * 0.018));
+  parts.gun = pipes;
+  root.add(pipes);
+  return { root, parts, height: 0.68 };
+}
+
+function chimera(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, lion = C.tawny(), goat = C.goat(), sc = C.scale();
+  root.add(scl(mesh(sph(0.22, 14, 10), lion, -0.04, 0.44, 0), 1.6, 0.72, 0.7));
+  fourLegs(root, parts, 0.22, 0.09, 0.36, 0.34, 0.07, lion, C.talon());
+  root.add(mesh(cyl(0.14, 0.15, 0.05, 14), colour(team), 0.18, 0.52, 0)); // collar
+  // the lion's head at the front, a fiery maw
+  const head = group(0.28, 0.58, 0);
+  head.add(scl(mesh(sph(0.14, 12, 8), C.mane(), -0.02, 0, 0), 0.85, 1, 1.1));
+  head.add(scl(mesh(sph(0.09, 12, 8), lion, 0.07, 0.01, 0), 1.1, 1, 0.95));
+  head.add(mesh(box(0.08, 0.06, 0.08), lion, 0.15, -0.03, 0));
+  head.add(mesh(box(0.03, 0.025, 0.06), C.fire(), 0.19, -0.05, 0));
+  for (const z of [-0.035, 0.035]) head.add(mesh(sph(0.012, 6, 4), C.fire(), 0.13, 0.04, z));
+  parts.head0 = head;
+  root.add(head);
+  // a goat's head rising from the middle of its back
+  const gh = group(0.0, 0.6, 0.05);
+  gh.add(rod([0, 0, 0], [0.04, 0.16, 0], 0.035, goat, 6));
+  gh.add(scl(mesh(sph(0.05, 10, 8), goat, 0.07, 0.19, 0), 1.4, 0.9, 0.9));
+  gh.add(mesh(box(0.03, 0.05, 0.02), goat, 0.1, 0.14, 0)); // beard
+  for (const z of [-1, 1]) gh.add(rod([0.05, 0.23, z * 0.025], [-0.04, 0.3, z * 0.04], 0.012, C.horn(), 5));
+  parts.head1 = gh;
+  root.add(gh);
+  // a serpent for a tail, its head reared and watching behind
+  const tail = group(-0.32, 0.46, 0);
+  tail.add(rod([0, 0, 0], [-0.15, 0.1, 0], 0.025, sc, 6));
+  tail.add(rod([-0.15, 0.1, 0], [-0.2, 0.25, 0], 0.022, sc, 6));
+  tail.add(scl(mesh(sph(0.035, 8, 6), sc, -0.17, 0.28, 0), 1.4, 0.8, 1));
+  parts.head2 = tail;
+  root.add(tail);
+  return { root, parts, height: 0.92 };
+}
+
+function phoenix(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, red = C.ember(), fire = C.flame(), gold = C.blaze();
+  root.add(scl(mesh(sph(0.11, 12, 8), red, 0, 0.45, 0), 1.5, 0.85, 0.8));
+  root.add(scl(mesh(sph(0.08, 10, 8), fire, 0.08, 0.47, 0), 1, 1, 0.9)); // glowing breast
+  root.add(mesh(cyl(0.06, 0.07, 0.03, 10), colour(team), 0.12, 0.52, 0)); // band
+  root.add(mesh(sph(0.06, 10, 8), red, 0.18, 0.56, 0));
+  root.add(rot(mesh(cone(0.022, 0.08, 6), M.gold(), 0.26, 0.55, 0), 0, 0, -1.8));
+  for (const z of [-0.035, 0.035]) root.add(mesh(sph(0.01, 6, 4), gold, 0.21, 0.58, z));
+  for (let i = 0; i < 3; i++) root.add(rot(mesh(cone(0.015, 0.1, 4), gold, 0.15 - i * 0.03, 0.63 + i * 0.01, 0), 0, 0, 0.5 + i * 0.25)); // crest
+  // long streaming tail of flame
+  const tail = group(-0.14, 0.44, 0);
+  for (let i = 0; i < 5; i++) tail.add(rot(mesh(box(0.34 - Math.abs(i - 2) * 0.05, 0.012, 0.035), i % 2 ? gold : fire, -0.16, -0.02, (i - 2) * 0.035), 0, (i - 2) * 0.18, 0.15));
+  parts.tail = tail;
+  root.add(tail);
+  wings(root, parts, 0.04, 0.5, 0.48, 0.2, fire, gold);
+  return { root, parts, height: 0.72 };
+}
+
 /** A creature's model, or null if the type isn't one. */
 export function creatureModel(type: UnitType, team: number): Model | null {
   switch (type) {
@@ -274,6 +450,12 @@ export function creatureModel(type: UnitType, team: number): Model | null {
     case 'cyclops': return cyclops(team);
     case 'hydra': return hydra(team);
     case 'cerberus': return cerberus(team);
+    case 'medusa': return medusa(team);
+    case 'nemean': return nemean(team);
+    case 'sphinx': return sphinx(team);
+    case 'satyr': return satyr(team);
+    case 'chimera': return chimera(team);
+    case 'phoenix': return phoenix(team);
     default: return null;
   }
 }
@@ -299,10 +481,32 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
       break;
     case 'hydra':
     case 'cerberus':
+    case 'chimera':
       for (let i = 0; i < 3; i++) {
         const h = P[`head${i}`];
         if (h) h.rotation.z = Math.sin(t * 2 + i * 2.1) * 0.12 - strike * 0.5;
       }
+      break;
+    case 'medusa':
+      if (P.tail) P.tail.rotation.y = Math.sin(t * 1.6) * 0.35;
+      if (P.hair) P.hair.rotation.y = Math.sin(t * 3) * 0.15;
+      // she lifts her head and fixes her stare as she gazes
+      m.root.position.y += strike * 0.04;
+      if (P.armR) P.armR.rotation.z = strike * 1.4;
+      break;
+    case 'nemean':
+    case 'sphinx':
+      // a pounce: the forelegs reach out as the claws strike
+      if (strike) for (const k of ['legFL', 'legFR']) if (P[k]) P[k].rotation.z = strike * 1.1;
+      break;
+    case 'satyr': {
+      // he plays as he walks; the pipes bob, and he sways to his own tune
+      if (P.gun) P.gun.position.y = 0.5 + Math.sin(t * 6) * 0.008;
+      m.root.rotation.x = Math.sin(t * 3) * 0.05;
+      break;
+    }
+    case 'phoenix':
+      if (P.tail) P.tail.rotation.y = Math.sin(t * 4) * 0.2;
       break;
     case 'centaur': {
       const rest = P.gun?.userData.rest as THREE.Vector3 | undefined;

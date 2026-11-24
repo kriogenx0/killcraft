@@ -193,7 +193,7 @@ describe('Aether', () => {
   it('keeps hidden units close to their regular unit', () => {
     for (const t of UNIT_TYPES) {
       const d = UNIT[t];
-      if (!d.aether || d.beast || d.magic) continue; // creatures of myth and spellcasters are their own thing
+      if (!d.aether || d.beast || d.magic || d.giant) continue; // creatures of myth, spellcasters and the Titan are their own thing
       const base = UNIT[d.look ?? t];
       expect(d.look).toBeDefined();
       expect(d.era).toBeGreaterThanOrEqual(base.era);

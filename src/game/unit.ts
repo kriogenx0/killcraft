@@ -20,7 +20,8 @@ import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } fro
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
-import { updWild } from './creatures.ts';
+import { stone, updWild } from './creatures.ts';
+import { frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
@@ -359,7 +360,9 @@ function mendNear(u: Ent, r: number): Ent | null {
 function updMend(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
   if (!mendable(u, t) || (!o.sent && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE)) { setOrder(u, null); return; }
-  const r = approach(u, t, MEDIC_RANGE, dt);
+  // a wall segment hemmed in by others can only be reached from a tile off its corner, so a Worker
+  // builds and repairs from a little further off than it patches up a soldier
+  const r = approach(u, t, t.kind === 'bld' ? MEDIC_RANGE + TS : MEDIC_RANGE, dt);
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
@@ -379,10 +382,15 @@ function sentToWall(u: Ent, gx: number, gy: number, sight: number): Ent | null {
 export function updUnit(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
-  u.cd = Math.max(0, u.cd - dt);
+  u.cd = Math.max(0, u.cd - dt * reloadRate(u));
   u.flash = Math.max(0, u.flash - dt);
   u.atkT = Math.max(0, u.atkT - dt);
   u.moving = false;
+  tickStatus(u, dt);
+  if (u.dead) return;
+  if (frozen(u)) return; // locked in ice: no moving, turning, fighting or casting
+  if (stone(u)) return; // turned to stone by a Medusa: frozen until it wears off
+  if (d.spells) updCaster(u, dt);
   unstick(u, dt);
   // vehicle turrets drift back to the hull's heading when idle
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);

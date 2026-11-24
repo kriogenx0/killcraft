@@ -7,7 +7,10 @@ import type { Tile } from '../game/state.ts';
 import type { UnitType } from './unit.ts';
 
 /** Every creature a lair can hold. */
-export const BEASTS: UnitType[] = ['centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'harpy', 'pegasus', 'griffin'];
+export const BEASTS: UnitType[] = [
+  'centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'harpy', 'pegasus', 'griffin',
+  'medusa', 'nemean', 'sphinx', 'satyr', 'chimera', 'phoenix',
+];
 
 /**
  * Lair sites, in pairs that mirror each other through the map centre (like the bases), so neither
@@ -48,3 +51,10 @@ export const LEASH = 6;
 export const RESPAWN_TIME = 60;
 /** Fraction of max health a wild creature regains each second while nobody is fighting it. */
 export const WILD_REGEN = 0.02;
+
+/** After a foe turns back from stone, the Medusa's gaze can't petrify it again for this many seconds. */
+export const PETRIFY_IMMUNE = 3;
+/** The Satyr's pipes reach friendly units within this many tiles. Several Satyrs don't heal faster. */
+export const SONG_RANGE = 3.5;
+/** Health (fraction) a Phoenix rises from its ashes with. */
+export const REBIRTH_HP = 0.5;

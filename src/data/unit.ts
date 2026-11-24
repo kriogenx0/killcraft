@@ -1,11 +1,13 @@
 import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
+import type { SpellType } from './spells.ts';
 
 export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
-  | 'mage' | 'stormcaller' | 'archmage' | 'juggernaut' | 'titan'
-  | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus';
+  | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
+  | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
+  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -39,13 +41,32 @@ export interface UnitDef {
   beast?: boolean;
   /** fraction of max health regained each second, whatever the side's healing research (the Hydra's wounds, the heavy machines' field repairs) */
   regen?: number;
+  /** damage taken from arrows, bolts and bullets is multiplied by this (the Nemean Lion's hide); blades, blasts and boulders hurt in full */
+  hide?: number;
+  /** falls in flame and rises again from its ashes once per life (the Phoenix; see REBIRTH_HP in data/creatures.ts) */
+  rebirth?: boolean;
+  /** sees through enemy cloaks within this many tiles (the Sphinx) */
+  detect?: number;
+  /** heals every friendly foot soldier and creature within SONG_RANGE by this share of its health a second (the Satyr's pipes) */
+  song?: number;
   /**
    * a spellcaster with its own robes and staff (render3d/arcane3d.ts). Like the hidden units it costs
    * Aether, so it stays hidden until its side first finds some, but it is no copy of a regular unit.
    */
   magic?: boolean;
+  /** a spellcaster's spells, cast on their own when a fight calls for them (data/spells.ts, game/spells.ts) */
+  spells?: SpellType[];
+  /** most mana it can hold */
+  mana?: number;
   /** a hulking walker of flesh and steel (render3d/arcane3d.ts): it strides on two legs and twists its torso to aim */
   cyborg?: boolean;
+  /**
+   * a towering giant of myth (render3d/giant3d.ts), several times the height of anything else on the
+   * field. Rendered and animated on its own.
+   */
+  giant?: boolean;
+  /** a side may have at most this many alive or in training at once */
+  limit?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
   look?: UnitType;
   /** build time in seconds at full power */
@@ -102,13 +123,21 @@ export const UNIT: Record<UnitType, UnitDef> = {
   starfall: { name: 'Starfall Tank', cls: 'vehicle', armor: 'heavy', hp: 410, spd: 2.8, turn: 2.5, weapon: 'starbeam', cost: 700, oil: 150, aether: 70, t: 16, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 13, look: 'tank', desc: 'Battle tank with a beam of starlight. Slow to fire, but tears through buildings.' },
   // spellcasters: they draw on Aether, so they stay hidden until their side finds some. One per age,
   // each a little stronger and stranger than the last. Robes don't stop bullets.
-  mage: { name: 'Battle Mage', cls: 'infantry', armor: 'none', hp: 90, spd: 2.0, turn: 6.5, weapon: 'fireball', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, desc: 'Hurls fireballs that burst over a crowd. Deadly to massed infantry, fragile up close.' },
-  stormcaller: { name: 'Storm Caller', cls: 'infantry', armor: 'none', hp: 110, spd: 2.0, turn: 6.5, weapon: 'lightning', cost: 400, aether: 50, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, desc: 'Calls down lightning that leaps from its target to two more foes nearby. Strikes aircraft too.' },
-  archmage: { name: 'Archmage', cls: 'infantry', armor: 'light', hp: 160, spd: 1.8, turn: 6, weapon: 'meteor', cost: 600, aether: 90, t: 16, era: 2, sight: 8, producer: 'infantry', turret: false, radius: 7, magic: true, desc: 'Pulls a burning star down on a spot far away. Slow to cast, and the meteor lands where the foe stood, but it wrecks bases.' },
+  mage: { name: 'Battle Mage', cls: 'infantry', armor: 'none', hp: 90, spd: 2.0, turn: 6.5, weapon: 'fireball', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 100, spells: ['bloodlust'], desc: 'Hurls fireballs that burst over a crowd and set it burning. Casts Bloodlust on troops in a fight.' },
+  stormcaller: { name: 'Storm Caller', cls: 'infantry', armor: 'none', hp: 110, spd: 2.0, turn: 6.5, weapon: 'lightning', cost: 400, aether: 50, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 120, spells: ['bloodlust', 'slow'], desc: 'Calls down lightning that leaps from its target to two more foes nearby, and hits wet foes far harder. Strikes aircraft too. Casts Bloodlust and Slow.' },
+  archmage: { name: 'Archmage', cls: 'infantry', armor: 'light', hp: 160, spd: 1.8, turn: 6, weapon: 'meteor', cost: 600, aether: 90, t: 16, era: 2, sight: 8, producer: 'infantry', turret: false, radius: 7, magic: true, mana: 200, spells: ['bloodlust', 'slow', 'freeze'], desc: 'Pulls a burning star down on a spot far away. Slow to cast, and the meteor lands where the foe stood, but it wrecks bases. Casts Bloodlust and Slow, and saves its mana to Freeze a strong enemy.' },
+  // elemental casters: one water, one poison, one sludge
+  tidecaller: { name: 'Tide Caller', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'tidal', cost: 275, aether: 35, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 150, spells: ['douse', 'freeze'], desc: 'Hurls waves that put out fire and poison and wash off sludge, but leave foes wet for lightning. Douses burning or poisoned friends, and saves its mana to Freeze a strong enemy.' },
+  plaguewitch: { name: 'Plague Witch', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'plague', cost: 350, aether: 45, t: 11, era: 1, sight: 6, producer: 'infantry', turret: false, radius: 6, magic: true, mana: 120, spells: ['slow'], desc: 'Throws flasks of green poison gas. Poison eats through armor but only harms living things, not vehicles or machines. Casts Slow.' },
+  sludgewarlock: { name: 'Sludge Warlock', cls: 'infantry', armor: 'light', hp: 150, spd: 1.8, turn: 6, weapon: 'tar', cost: 500, aether: 60, t: 13, era: 2, sight: 6, producer: 'infantry', turret: false, radius: 7, magic: true, mana: 120, spells: ['bloodlust'], desc: 'Splashes a crowd with black sludge that slows it down and makes it burn hotter. Pair it with fire. Casts Bloodlust.' },
   // cyborgs: Modern-age giants, half soldier, half war machine, built at the War Factory. Huge,
   // slow and costly, they wade through small-arms fire; rockets and anti-tank missiles bring them down.
   juggernaut: { name: 'Cyborg Juggernaut', key: 'J', cls: 'vehicle', armor: 'heavy', hp: 900, spd: 2.2, turn: 3, weapon: 'minigun', cost: 1200, oil: 150, t: 20, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, cyborg: true, regen: 0.005, desc: 'A towering cyborg with a rotary cannon for an arm. Mows down infantry, shrugs off bullets and slowly repairs itself.' },
-  titan: { name: 'Cyborg Titan', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2000, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, regen: 0.005, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft. Slowly repairs itself.' },
+  titan: { name: 'Cyborg Colossus', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2000, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, regen: 0.005, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft. Slowly repairs itself.' },
+  // the Titan: one per side, the largest thing in the game. An elder giant of bronze and stone, woken
+  // with Aether. It smashes everything around it with a broken temple column; only aircraft are
+  // safe from it, and massed rockets and anti-tank fire are the way to bring it down.
+  giant: { name: 'Titan', cls: 'infantry', armor: 'heavy', hp: 3200, spd: 1.5, turn: 2.2, weapon: 'quake', cost: 2800, wood: 400, aether: 150, t: 50, era: 1, sight: 8, producer: 'infantry', turret: false, radius: 24, giant: true, limit: 1, group: 'Magic', desc: 'An elder giant of bronze and stone, woken with Aether. Its column smashes everything around the blow and crushes buildings. Only one at a time. Can\'t hit aircraft.' },
   // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 260, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 300, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 11, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry and fliers.' },
@@ -119,6 +148,12 @@ export const UNIT: Record<UnitType, UnitDef> = {
   harpy: { name: 'Harpy', cls: 'air', armor: 'air', hp: 105, spd: 6.0, turn: 5, weapon: 'talons', cost: 200, aether: 25, t: 8, era: 0, sight: 8, producer: 'air', turret: false, radius: 9, alt: 1.4, beast: true, desc: 'Shrieking winged hag. Swoops on harvesters and infantry; easy prey for archers.' },
   pegasus: { name: 'Pegasus', cls: 'air', armor: 'air', hp: 190, spd: 6.5, turn: 4, weapon: 'hoof', cost: 400, aether: 45, t: 11, era: 0, sight: 10, producer: 'air', turret: false, radius: 12, alt: 1.6, beast: true, desc: 'Winged horse. The fastest thing in the sky, it charges down on foes and sees far.' },
   griffin: { name: 'Griffin', cls: 'air', armor: 'air', hp: 230, spd: 4.8, turn: 3.5, weapon: 'griffclaw', cost: 500, aether: 55, t: 13, era: 0, sight: 8, producer: 'air', turret: false, radius: 13, alt: 1.5, beast: true, desc: 'Eagle-lion that dives on vehicles and tears aircraft out of the sky.' },
+  medusa: { name: 'Medusa', cls: 'infantry', armor: 'light', hp: 210, spd: 2.0, turn: 5, weapon: 'gaze', cost: 450, aether: 50, t: 12, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 10, beast: true, desc: 'Snake-haired gorgon. Her gaze turns one foe to stone for a few seconds: it can\'t move or fight. Stops a charging tank or giant cold.' },
+  nemean: { name: 'Nemean Lion', cls: 'infantry', armor: 'light', hp: 420, spd: 3.2, turn: 5, weapon: 'lionclaw', cost: 500, aether: 50, t: 13, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 12, beast: true, hide: 0.3, desc: 'Its golden hide turns arrows and bullets. Walks through archers, gunners and towers; only blades, claws, shells and blasts really hurt it.' },
+  sphinx: { name: 'Sphinx', cls: 'infantry', armor: 'light', hp: 320, spd: 2.6, turn: 4.5, weapon: 'sphinxclaw', cost: 400, aether: 40, t: 12, era: 0, sight: 9, producer: 'infantry', turret: false, radius: 12, beast: true, detect: 7, desc: 'Winged lion with a woman\'s face. Nothing hides from her: she sees cloaked units within 7 tiles, and sees far. Guards a base or leads a hunt for hidden foes.' },
+  satyr: { name: 'Satyr', cls: 'infantry', armor: 'none', hp: 130, spd: 3.2, turn: 6, weapon: 'thyrsus', cost: 250, aether: 30, t: 9, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 7, beast: true, song: 0.012, desc: 'Goat-legged piper. His tune heals every friendly foot soldier and creature around him. Weak in a fight: keep him behind the line.' },
+  chimera: { name: 'Chimera', cls: 'infantry', armor: 'light', hp: 360, spd: 3.0, turn: 4.5, weapon: 'chimerafire', cost: 500, aether: 50, t: 13, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 13, beast: true, desc: 'Lion, goat and serpent in one. Its fire breath reaches up into the sky: the creature that burns flyers down.' },
+  phoenix: { name: 'Phoenix', cls: 'air', armor: 'air', hp: 200, spd: 5.0, turn: 4, weapon: 'phoenixfire', cost: 450, aether: 60, t: 12, era: 0, sight: 8, producer: 'air', turret: false, radius: 11, alt: 1.5, beast: true, rebirth: true, desc: 'Firebird. Showers flame on the ground below, and when it falls it bursts alight and rises again from its ashes, once.' },
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */

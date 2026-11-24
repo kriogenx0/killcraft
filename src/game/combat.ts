@@ -12,9 +12,10 @@ import { payBounty } from './bounty.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
-import { kneeling, subdue } from './creatures.ts';
+import { hideFactor, kneeling, petrify, riseFromAshes, subdue } from './creatures.ts';
 import { GUARD_RADIUS as WILD_REACH } from '../data/creatures.ts';
 import { armorFactor, weaponFactor } from './upgrade.ts';
+import { applyElement, elementMult } from './spells.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -24,7 +25,7 @@ export const MELEE_LAND = 0.15;
 /** how far a target may step away mid-swing and still be struck (px) */
 const MELEE_SLACK = 12;
 /** tracer and flash colours for weapons that don't fire plain lead */
-const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a', lightning: '#bfe4ff', railgun: '#8ad8ff' };
+const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a', lightning: '#bfe4ff', railgun: '#8ad8ff', gaze: '#b8ff70' };
 
 export const armorOf = (e: Ent): ArmorClass => (e.kind === 'unit' ? unitDef(e).armor : 'building');
 export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unitDef(e).weapon : e.kind === 'bld' ? bldDef(e).weapon ?? null : null);
@@ -34,11 +35,12 @@ export const canHit = (wt: WeaponType | null, t: Ent): boolean => !!wt && t.kind
 /** Can this unit or turret attack this target? */
 export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 
-export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
+/** `dot`: a tick of burning or poison, which neither sprays sparks nor sends the unit after whoever caused it. */
+export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): void {
   if (t.dead || t.kind === 'source' || kneeling(t)) return;
   t.hp -= Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
   t.flash = 0.1;
-  if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
+  if (dot) { /* the flames and fumes show it (render3d/status3d.ts) */ } else if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));
   else burst('spark', t.x + (Math.random() - 0.5) * (t.w || 0.6) * TS * 0.6, t.y - 6, 3, 50, 140);
   if (t.team >= 0) {
@@ -50,8 +52,9 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
     }
   }
   if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
+  if (t.hp <= 0 && riseFromAshes(t)) return; // a Phoenix bursts alight and rises again, once
   if (t.hp <= 0) { hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
-  if (t.kind !== 'unit' || !src || src.dead || src.team === t.team || (src.team < 0 && !src.wild)) return;
+  if (dot || t.kind !== 'unit' || !src || src.dead || src.team === t.team || (src.team < 0 && !src.wild)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
   // idle units react: engaging ones fight back, passive ones run
@@ -62,18 +65,20 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
 }
 
 function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): void {
-  const w = WEAPON[wt], blast = w.proj === 'boulder' ? impact : explosion;
+  const w = WEAPON[wt], blast = w.proj === 'boulder' || wt === 'quake' ? impact : explosion;
   if (w.proj === 'melee' && armorOf(t) !== 'none') burst('spark', (x + (src?.x ?? x)) / 2, (y + (src?.y ?? y)) / 2 - 8, 4, 60, 160); // steel on steel
   // a bullet striking: a small flash where it lands, so every hit reads at a glance
   if (w.proj === 'bullet') part('flash', x + (Math.random() - 0.5) * 6, y - 6, { max: 0.09, size: wt === 'starbeam' ? 16 : 6, z: altOf(t), col: BEAM_COL[wt] ?? '#fff2c0' });
   if (G.visualOnly) { if (w.splash) blast(x, y, w.splash); return; } // the server decides damage
-  dealDamage(t, w.dmg * w.vs[armorOf(t)], src);
+  dealDamage(t, w.dmg * w.vs[armorOf(t)] * elementMult(w.element, t) * hideFactor(wt, t), src);
+  applyElement(t, w.element, src);
   if (w.slow) hex(t, w.slow);
+  if (w.petrify && !t.dead) petrify(t, w.petrify);
   if (!w.splash) return;
   blast(x, y, w.splash);
   for (const e of G.ents) {
     if (e === t || e.dead || e.kind !== 'unit' || (src && e.team === src.team) || !canHit(wt, e)) continue;
-    if (Math.hypot(e.x - x, e.y - y) < w.splash + unitDef(e).radius) dealDamage(e, w.dmg * 0.5 * w.vs[armorOf(e)], src);
+    if (Math.hypot(e.x - x, e.y - y) < w.splash + unitDef(e).radius) { dealDamage(e, w.dmg * 0.5 * w.vs[armorOf(e)] * elementMult(w.element, e) * hideFactor(wt, e), src); applyElement(e, w.element, src); }
   }
 }
 
@@ -125,7 +130,7 @@ function chainOn(s: Ent, wt: WeaponType, first: Ent, leaps: number): void {
     struck.add(next.id);
     part('tracer', from.x, from.y - 6, { ex: next.x, ey: next.y - 6, ez: altOf(next), max: 0.18, z: altOf(from), col: BEAM_COL[wt] ?? null, size: 2 });
     part('flash', next.x, next.y - 6, { max: 0.1, size: 10, z: altOf(next), col: BEAM_COL[wt] ?? null });
-    if (!G.visualOnly) dealDamage(next, dmg * w.vs[armorOf(next)], s);
+    if (!G.visualOnly) { dealDamage(next, dmg * w.vs[armorOf(next)] * elementMult(w.element, next) * hideFactor(wt, next), s); applyElement(next, w.element, s); }
     from = next;
   }
 }
@@ -279,7 +284,7 @@ function landBlow(p: Projectile, t: Ent, dt: number): void {
 }
 
 /** the sparks a spell leaves in its wake */
-export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030' };
+export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030', tidal: '#50b0ff', plague: '#8aff40', tar: '#c08a30', chimerafire: '#ff8a20', phoenixfire: '#ffc040' };
 
 /** How high each kind of projectile arcs (fraction of the distance, and a cap in px). */
 const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150], orb: [0.15, 40], ground: [0.35, 320] };
@@ -294,7 +299,8 @@ function shellLands(wt: WeaponType, x: number, y: number, src: Ent | null, team:
     if (e.dead || e.kind === 'source' || e.team === team) continue;
     const d = e.w ? edgeDist({ x, y }, e) : Math.max(0, Math.hypot(e.x - x, e.y - y) - unitDef(e).radius);
     if (d > w.splash) continue;
-    dealDamage(e, w.dmg * w.vs[armorOf(e)] * (1 - 0.6 * (d / w.splash)), src);
+    dealDamage(e, w.dmg * w.vs[armorOf(e)] * elementMult(w.element, e) * (1 - 0.6 * (d / w.splash)), src);
+    applyElement(e, w.element, src);
   }
 }
 

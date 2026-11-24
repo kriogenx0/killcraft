@@ -29,6 +29,16 @@ const C = {
   eye: () => mat('#ff3020', { rough: 0.2, emissive: '#ff1000', emissiveIntensity: 2.5 }),
   cable: () => mat('#2a2a2e', { rough: 0.8 }),
   core: () => mat('#8af0ff', { rough: 0.2, emissive: '#20c0ff', emissiveIntensity: 2 }),
+  // the elemental casters: sea and shell, poison gas, black sludge
+  sea: () => mat('#1e4a6a', { rough: 0.85, tex: 'canvas' }),
+  foam: () => mat('#d8f0ff', { rough: 0.6 }),
+  water: () => mat('#9ad8ff', { rough: 0.1, emissive: '#2090ff', emissiveIntensity: 1.8 }),
+  shell: () => mat('#f0d8c0', { rough: 0.5 }),
+  rag: () => mat('#4a5038', { rough: 0.95, tex: 'canvas' }),
+  gas: () => mat('#c8ff90', { rough: 0.2, emissive: '#60ff20', emissiveIntensity: 1.8 }),
+  mask: () => mat('#3a3e34', { rough: 0.7 }),
+  oilskin: () => mat('#1c1a18', { rough: 0.35, metal: 0.2 }),
+  tar: () => mat('#2a2018', { rough: 0.15, metal: 0.3, emissive: '#a06010', emissiveIntensity: 0.6 }),
 };
 
 // ---------------------------------------------------------------- spellcasters
@@ -144,6 +154,63 @@ function archmage(team: number): Model {
   return { ...m, height: 0.95 };
 }
 
+/** Medieval: a tide caller in sea-blue robes with a shell crown, a coral staff and a ball of water. */
+function tidecaller(team: number): Model {
+  const m = caster({ robe: C.sea(), trim: teamMat(team) });
+  const R = m.root;
+  R.add(mesh(lathe([[0.1, 0.38], [0.13, 0.41], [0.11, 0.445], [0.0, 0.45]], 14), C.foam(), 0, 0.0, 0)); // foam collar
+  // a crown of shells and a fall of hair
+  for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; R.add(rot(mesh(cone(0.02, 0.06, 6), C.shell(), Math.cos(a) * 0.05, 0.565, Math.sin(a) * 0.05), Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3)); }
+  R.add(scl(mesh(sph(0.065, 10, 8), M.hair(), -0.02, 0.51, 0), 1, 1, 1));
+  const head = group(0, 0, 0,
+    mesh(sph(0.045, 12, 8), C.water(), 0, 0.06, 0),
+    mesh(torus(0.05, 0.007, Math.PI * 1.4, 6, 14), C.shell(), 0, 0.03, 0),
+    ...[-1, 1].map((sd) => rot(mesh(cone(0.012, 0.06, 5), C.shell(), 0, 0.02, sd * 0.04), sd * 0.6, 0, 0)));
+  staff(m, 0.52, M.wood(), head);
+  m.parts.armL.rotation.z = 0.25;
+  return { ...m, height: 0.78 };
+}
+
+/** World War: a plague witch in ragged greens and a gas mask, swinging a smoking censer of poison. */
+function plaguewitch(team: number): Model {
+  const m = caster({ robe: C.rag(), trim: teamMat(team, 'd') });
+  const R = m.root;
+  // hood and gas mask: round eyepieces and a filter can
+  R.add(scl(mesh(sph(0.075, 12, 8), C.rag(), -0.01, 0.52, 0), 1, 1.1, 1));
+  R.add(mesh(box(0.03, 0.05, 0.08), C.mask(), 0.055, 0.49, 0));
+  for (const z of [-0.025, 0.025]) R.add(along(mesh(cyl(0.017, 0.017, 0.015, 8), C.gas(), 0.065, 0.515, z)));
+  R.add(along(mesh(cyl(0.022, 0.022, 0.04, 8), M.darkSteel(), 0.085, 0.47, 0)));
+  R.add(mesh(box(0.05, 0.12, 0.12), M.leather(), -0.09, 0.34, 0)); // pack of flasks
+  for (const z of [-0.03, 0.03]) R.add(mesh(cyl(0.018, 0.018, 0.05, 8), C.gas(), -0.09, 0.42, z));
+  const head = group(0, 0, 0,
+    mesh(sph(0.04, 10, 8), C.gas(), 0, 0.0, 0),
+    mesh(cyl(0.045, 0.03, 0.03, 8), M.brass(), 0, -0.03, 0),
+    mesh(cone(0.03, 0.04, 8), M.brass(), 0, 0.04, 0));
+  staff(m, 0.5, M.darkWood(), head);
+  m.parts.armL.rotation.z = 0.2;
+  return { ...m, height: 0.76 };
+}
+
+/** Modern: a sludge warlock in a black oilskin coat and respirator, with a dripping drum of tar for a staff head. */
+function sludgewarlock(team: number): Model {
+  const m = caster({ robe: C.oilskin(), trim: teamMat(team) });
+  const R = m.root;
+  R.add(mesh(box(0.14, 0.04, 0.2), M.hazard(), 0, 0.3, 0)); // hazard sash
+  // wide-brimmed oilskin hat and respirator
+  R.add(mesh(cyl(0.11, 0.115, 0.012, 16), C.oilskin(), 0, 0.55, 0));
+  R.add(mesh(cyl(0.06, 0.066, 0.06, 12), C.oilskin(), 0, 0.58, 0));
+  R.add(mesh(box(0.035, 0.04, 0.07), M.darkSteel(), 0.055, 0.48, 0));
+  for (const z of [-0.035, 0.035]) R.add(along(mesh(cyl(0.016, 0.016, 0.02, 8), M.darkSteel(), 0.06, 0.47, z)));
+  R.add(mesh(cyl(0.05, 0.05, 0.13, 10), M.hazard(), -0.1, 0.36, 0)); // a drum of sludge on the back
+  const head = group(0, 0, 0,
+    mesh(cyl(0.04, 0.04, 0.06, 10), M.darkSteel(), 0, 0.02, 0),
+    scl(mesh(sph(0.042, 10, 8), C.tar(), 0, 0.06, 0), 1, 0.7, 1),
+    mesh(cone(0.012, 0.05, 6), C.tar(), 0.03, -0.03, 0).rotateZ(Math.PI));
+  staff(m, 0.56, M.darkSteel(), head);
+  m.parts.armL.rotation.z = 0.3;
+  return { ...m, height: 0.82 };
+}
+
 // ---------------------------------------------------------------- cyborgs
 
 /**
@@ -255,7 +322,7 @@ function juggernaut(team: number): Model {
   return { root, parts, height: top + 0.62 * k };
 }
 
-/** Cyborg Titan: the biggest walker, a rail cannon on each arm and a missile pod over one shoulder. */
+/** Cyborg Colossus: the biggest walker, a rail cannon on each arm and a missile pod over one shoulder. */
 function titan(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, k = 1.35, plate = C.plate();
   const top = walkerLegs(root, parts, k, plate, teamMat(team));
@@ -292,6 +359,9 @@ export function arcaneModel(type: UnitType, team: number): Model | null {
     case 'mage': return mage(team);
     case 'stormcaller': return stormcaller(team);
     case 'archmage': return archmage(team);
+    case 'tidecaller': return tidecaller(team);
+    case 'plaguewitch': return plaguewitch(team);
+    case 'sludgewarlock': return sludgewarlock(team);
     case 'juggernaut': return juggernaut(team);
     case 'titan': return titan(team);
     default: return null;
