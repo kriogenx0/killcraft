@@ -298,7 +298,23 @@ export function mountGameView(root: HTMLElement): void {
 
   const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onBack: () => openModal(startModal) });
 
-  const setup = mountSetup(must(root, '.view-setup'), { onStart: (s, watch) => startSolo(watch, s), onBack: () => openModal(startModal) });
+  const setupEl = must<HTMLElement>(root, '.view-setup');
+  const setup = mountSetup(setupEl, {
+    onStart: (s, watch) => {
+      // a new game from the pause menu replaces the paused one: drop its save and its address
+      if (V.started && !V.online) {
+        const old = root.dataset.gameId;
+        if (old) void forgetGame(old).catch(() => {});
+        delete root.dataset.gameId;
+        leaveGameUrl();
+      }
+      startSolo(watch, s);
+    },
+    // Back from the pause menu's New Game returns to the paused game, otherwise to the main menu
+    onBack: () => { if (!(V.started && !V.online && !G.over)) openModal(startModal); },
+  });
+  must(root, '.game-paused-resume').addEventListener('click', () => { V.paused = false; });
+  must(root, '.game-paused-new').addEventListener('click', () => { V.paused = true; setup.open(false); });
 
   must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
   must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
@@ -348,7 +364,7 @@ export function mountGameView(root: HTMLElement): void {
       if (n >= MAX_STEPS_PER_FRAME) acc = 0;
       ageMarkers(dt * V.speed);
     }
-    const showPaused = V.started && V.paused && !G.over && !V.online;
+    const showPaused = V.started && V.paused && !G.over && !V.online && !setupEl.classList.contains('ui-modal--open');
     if (pausedBox.hidden === showPaused) pausedBox.hidden = !showPaused;
     if (!V.online && V.started && !G.over) {
       // real time, not game time: a slow machine still saves every few seconds

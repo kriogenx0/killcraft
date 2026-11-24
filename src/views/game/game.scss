@@ -90,7 +90,7 @@ $sidebar-width: 248px;
   // shown while a solo game is paused, with the game's ID
   .game-paused {
     position: absolute;
-    bottom: $space-5;
+    top: 50%;
     left: calc((100% - #{$sidebar-width}) / 2);
     z-index: 5;
     display: flex;
@@ -102,10 +102,26 @@ $sidebar-width: 248px;
     font-size: $font-xl;
     color: var(--color-gold);
     text-align: center;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
 
     &[hidden] {
       display: none;
+    }
+
+    .game-paused-title {
+      margin: 0;
+      font-size: $font-xl;
+    }
+
+    // Resume and New Game, stacked like the main menu
+    .game-paused-actions {
+      display: flex;
+      flex-direction: column;
+      gap: $space-2;
+      align-self: stretch;
+      width: 220px;
+      max-width: 100%;
+      margin: $space-1 auto;
     }
 
     .game-id {
@@ -476,8 +492,8 @@ $sidebar-width: 248px;
 
     .game-paused {
       top: 56px;
-      bottom: auto;
       left: 50%;
+      transform: translateX(-50%);
       max-width: calc(100% - 2 * #{$gutter});
     }
 

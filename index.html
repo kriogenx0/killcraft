@@ -52,7 +52,14 @@
       <button type="button" class="touch-bar-seg touch-bar-follow" aria-label="Follow unit" aria-pressed="false" title="Keep the camera on the selected unit as it moves; drag the map to let go"><svg class="touch-bar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.6-4.4 6-6.5 10-6.5s7.4 2.1 10 6.5c-2.6 4.4-6 6.5-10 6.5S4.6 16.4 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg></button>
       <button type="button" class="touch-bar-seg touch-bar-clear" aria-label="Clear selection" title="Select nothing"><svg class="touch-bar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </nav>
-    <p class="game-paused ui-panel" hidden>Paused <span class="game-id"></span></p>
+    <section class="game-paused ui-panel" aria-label="Paused" hidden>
+      <h2 class="game-paused-title">Paused</h2>
+      <div class="game-paused-actions">
+        <button type="button" class="ui-button game-paused-resume">Resume</button>
+        <button type="button" class="ui-button ui-button--secondary game-paused-new">New Game</button>
+      </div>
+      <span class="game-id"></span>
+    </section>
 
     <aside class="sidebar ui-panel" aria-label="Command sidebar">
       <canvas class="sidebar-minimap" width="160" height="160" aria-label="Radar: click or tap to move the view"></canvas>
