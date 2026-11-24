@@ -94,6 +94,11 @@
         <button type="button" class="ui-button game-start-play">Play vs Computer</button>
         <button type="button" class="ui-button ui-button--secondary game-start-watch">Watch AI vs AI</button>
       </div>
+      <p class="game-start-status" role="status" aria-live="polite"></p>
+      <section class="game-lobby" aria-label="Online now" hidden>
+        <h2 class="game-lobby-title"><span class="game-lobby-dot" aria-hidden="true"></span><span class="game-lobby-online"></span></h2>
+        <ul class="lobby-list game-lobby-list" aria-label="Games to join or watch"></ul>
+      </section>
       <details class="game-controls">
         <summary class="ui-button ui-button--secondary game-controls-toggle">Controls</summary>
         <p class="game-intro game-controls-note">Plays on phones and tablets too: tap, drag and pinch, with a touch bar for selecting.</p>

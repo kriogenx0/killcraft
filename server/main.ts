@@ -36,7 +36,7 @@ export function startServer(config: Config): Promise<RunningServer> {
   });
   sockets = new SocketController(lobby, matches);
 
-  const server = createServer(httpController(config.staticDir, { players: () => lobby.players.size, matches: () => matches.count },
+  const server = createServer(httpController(config.staticDir, { players: () => lobby.players.size, matches: () => matches.count, lobby: () => lobby.summary() },
     { hosts: config.redirectHosts, to: config.canonicalOrigin }));
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MESSAGE });
   wss.on('connection', (ws) => sockets?.connect(ws));

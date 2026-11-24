@@ -68,6 +68,8 @@ export interface SetupOptions {
   onBack: () => void;
 }
 
+export type Setup = ReturnType<typeof mountSetup>;
+
 export function mountSetup(root: HTMLElement, opts: SetupOptions) {
   root.innerHTML = MARKUP;
   const $ = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;

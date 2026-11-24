@@ -1,0 +1,147 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+
+// Layered ridgelines along the bottom of the main menu: a still picture instead of the 3D battlefield.
+$ridges: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 400' preserveAspectRatio='none'%3E%3Cpath d='M0 210 L120 150 L210 190 L330 110 L450 175 L560 130 L700 200 L820 120 L930 165 L1060 95 L1190 170 L1300 135 L1420 185 L1520 140 L1600 170 V400 H0Z' fill='%23231a0e'/%3E%3Cpath d='M0 270 L90 235 L200 265 L300 220 L430 260 L540 215 L650 255 L780 205 L900 250 L1010 225 L1130 265 L1250 215 L1370 250 L1490 230 L1600 255 V400 H0Z' fill='%23171109'/%3E%3Cpath d='M0 330 L140 300 L260 325 L380 295 L520 330 L660 305 L800 335 L940 300 L1080 325 L1220 298 L1360 330 L1480 310 L1600 325 V400 H0Z' fill='%230c0905'/%3E%3C/svg%3E";
+
+.view-game:not(.view-game--loaded) {
+  // ember glow on the horizon, a dusky sky, and the ridges in front
+  background:
+    url($ridges) bottom / 100% 42% no-repeat,
+    radial-gradient(ellipse 80% 45% at 50% 62%, rgb(170 90 30 / 38%), transparent 70%),
+    radial-gradient(ellipse at 50% 0%, #2a2a1c, transparent 70%),
+    linear-gradient(#141410, #050403);
+
+  // nothing of the game shows until one starts
+  .game-canvas,
+  .game-overlay,
+  .topbar,
+  .army-bar,
+  .touch-bar,
+  .sidebar,
+  .game-tooltip {
+    display: none;
+  }
+
+  .game-start {
+    background: radial-gradient(ellipse at center, rgb(0 0 0 / 15%), rgb(0 0 0 / 55%));
+  }
+}
+
+// the game is loading after a choice on the menu
+.view-game--loading::after {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  content: '';
+  background: rgb(0 0 0 / 60%);
+}
+
+.view-game--loading::before {
+  position: absolute;
+  top: calc(50% - 20px);
+  left: calc(50% - 20px);
+  z-index: 31;
+  width: 40px;
+  height: 40px;
+  content: '';
+  border: 3px solid var(--color-rim);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: menu-loading-turn 700ms linear infinite;
+}
+
+@keyframes menu-loading-turn {
+  to { transform: rotate(360deg); }
+}
+
+.game-start-status {
+  min-height: 0;
+  margin: 0;
+  color: var(--color-danger);
+  text-shadow: 0 1px 2px #000;
+
+  &:empty {
+    display: none;
+  }
+}
+
+// players online, open games to join and matches to watch, under the menu's buttons
+.game-lobby {
+  width: 100%;
+  max-width: 420px;
+  text-align: left;
+
+  &[hidden] {
+    display: none;
+  }
+
+  .game-lobby-title {
+    display: flex;
+    gap: $space-2;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: $font-sm;
+    font-weight: normal;
+    color: #e8d8a8;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .game-lobby-dot {
+    width: 8px;
+    height: 8px;
+    background: #6fd36f;
+    border-radius: 50%;
+    box-shadow: 0 0 6px #6fd36f;
+  }
+
+  .lobby-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
+    padding: 0;
+    margin: $space-2 0 0;
+    list-style: none;
+  }
+
+  .lobby-row {
+    display: flex;
+    gap: $space-2;
+    align-items: center;
+    justify-content: space-between;
+    padding: $space-2 $space-3;
+    color: #e8d8a8;
+    background: rgb(0 0 0 / 50%);
+    border: 1px solid rgb(176 138 64 / 25%);
+    border-radius: $radius;
+  }
+
+  .lobby-row-label {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .lobby-row-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lobby-row-status {
+    font-size: $font-sm;
+    color: #c8b888;
+  }
+
+  .lobby-empty {
+    justify-content: center;
+    font-size: $font-sm;
+    color: #c8b888;
+    background: none;
+    border: 0;
+  }
+}

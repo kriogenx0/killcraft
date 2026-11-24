@@ -17,6 +17,7 @@
 @use '../views/game/game';
 @use '../views/lobby/lobby';
 @use '../views/setup/setup';
+@use '../views/menu/menu';
 
 // shown when a new deploy is ready mid-game (src/pwa/register.ts)
 .update-prompt {

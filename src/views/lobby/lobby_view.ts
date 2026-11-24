@@ -121,6 +121,8 @@ function span(cls: string, text: string): HTMLSpanElement {
   return s;
 }
 
+export type Lobby = ReturnType<typeof mountLobby>;
+
 export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   root.innerHTML = MARKUP;
   const $ = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;

@@ -19,7 +19,7 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== location.origin || url.pathname === '/ws' || url.pathname === '/status' || url.pathname === '/health') return;
+  if (url.origin !== location.origin || url.pathname === '/ws' || url.pathname === '/status' || url.pathname === '/lobby' || url.pathname === '/health') return;
 
   // pages (/, /game/<id>, ...): the newest from the network, the cached app when offline
   if (req.mode === 'navigate') {
