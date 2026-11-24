@@ -1,5 +1,6 @@
 // Keeps a 3D model for every entity the player can see, animates them, and draws the selection
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
+import { updateBuildZone } from './build_zone3d.ts';
 import * as THREE from 'three';
 import { G, allied, haulOf, valid, type Cargo, type Ent } from '../../../game/state.ts';
 import { WOOD_LOAD } from '../../../data/economy.ts';
@@ -480,6 +481,7 @@ export function syncEntities(dt: number): void {
   updateRally();
   updateArmyFlag();
   updateGhost();
+  updateBuildZone(dt);
 }
 
 // ---- a subtle red flash on a unit when it's struck ----
