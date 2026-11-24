@@ -363,10 +363,23 @@ $sidebar-width: 248px;
     padding: $space-2;
     background: var(--color-inset);
     border-radius: $radius;
+
+    // nothing selected: no empty box taking up room
+    &[hidden] {
+      display: none;
+    }
+
+    &:has(.selection-details:empty) {
+      min-height: 0;
+    }
   }
 
   .selection-details {
     min-height: 40px;
+
+    &:empty {
+      display: none;
+    }
 
     .ui-bar {
       width: 100%;

@@ -336,7 +336,7 @@ function detailsMarkup(s: Ent[]): string {
   if (s.length > 1)
     return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
   const e = s[0];
-  if (!e) return '<p class="hud-stats">Build power, a lumber mill by the woods, then a refinery. Harvesters bring in ore.</p>';
+  if (!e) return '';
   if (e.kind === 'unit') return unitDetails(e);
   if (e.kind === 'bld') return buildingDetails(e);
   if (e.type === 'aether') {
@@ -431,6 +431,9 @@ export function refreshHud(): void {
   }
   refreshArmyBar();
   refreshCommands();
+  // nothing selected and no commands: the selection pane takes no room at all
+  const pane = els.details.parentElement, empty = !detailMarkup && !commandMarkup;
+  if (pane && pane.hidden !== empty) pane.hidden = empty;
 }
 
 export function initHud(e: HudEls): void {
