@@ -120,6 +120,15 @@
     }
   }
 
+  // Cancel / Leave on the left, Start game on the right; nothing to show when both are hidden
+  .lobby-room-actions {
+    margin-top: 0;
+
+    &:not(:has(> :not([hidden]))) {
+      display: none;
+    }
+  }
+
   .lobby-row {
     display: flex;
     gap: $space-2;

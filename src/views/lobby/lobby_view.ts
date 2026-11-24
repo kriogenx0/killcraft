@@ -36,8 +36,8 @@ const MARKUP = `
     <input class="ui-text-field-input lobby-name" maxlength="${MAX_NAME}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
   </label>
   <div class="ui-modal-actions lobby-actions">
-    <button type="button" class="ui-button lobby-quick">Quick match</button>
     <button type="button" class="ui-button ui-button--secondary lobby-create">Create game</button>
+    <button type="button" class="ui-button lobby-quick">Quick match</button>
   </div>
   <p class="lobby-status" role="status" aria-live="polite"></p>
   <div class="lobby-room" hidden>
@@ -46,7 +46,6 @@ const MARKUP = `
       ${Object.entries(MODES).map(([value, m]) => `<label class="ui-segmented-option" title="${m.desc}"><input type="radio" autocomplete="off" name="lobby-mode" value="${value}"><span>${m.short}</span></label>`).join('')}
     </div>
     <div class="seats lobby-seats" role="group" aria-label="Seats"></div>
-    <button type="button" class="ui-button lobby-begin">Start game</button>
   </div>
   <div class="lobby-invite-box" hidden>
     <div class="lobby-link">
@@ -55,7 +54,11 @@ const MARKUP = `
       <button type="button" class="ui-button ui-button--small ui-button--secondary lobby-share" hidden>Share</button>
     </div>
   </div>
-  <button type="button" class="ui-button ui-button--secondary lobby-cancel" hidden>Cancel</button>
+  <!-- the way out on the left, Start on the right -->
+  <div class="ui-modal-actions lobby-room-actions">
+    <button type="button" class="ui-button ui-button--secondary lobby-cancel" hidden>Cancel</button>
+    <button type="button" class="ui-button lobby-begin" hidden>Start game</button>
+  </div>
   <ul class="lobby-invites" aria-label="Challenges"></ul>
   <div class="lobby-columns">
     <section class="lobby-section lobby-games" aria-label="Open games">
@@ -182,6 +185,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   /** The game room you're in: how the sides line up and who sits where; the host changes seats and starts it. */
   const renderRoom = (r: RoomView | null | undefined) => {
     roomBox.hidden = !r;
+    begin.hidden = !r?.host;
     if (!r) return;
     const me = r.seats.find((s) => s.you)?.team ?? 0;
     roomTitle.textContent = r.host ? `Your game: ${MODES[r.mode].name}` : `${r.hostName}'s game: ${MODES[r.mode].name}`;
@@ -192,7 +196,6 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
       if (r.mode === '1v1') sel.querySelector('option[value="closed"]')?.remove();
       sel.addEventListener('change', () => net.send({ k: 'room', seat: Number(sel.name.slice(5)), pick: sel.value as never }));
     });
-    begin.hidden = !r.host;
     begin.disabled = !r.ready;
     const open = r.seats.filter((s) => s.kind === 'open').length;
     if (r.host) setStatus(open ? `Waiting for ${open === 1 ? 'a player' : `${open} players`} to join. Send them the invite link, or put a computer in the seat.` : r.ready ? 'Everyone is here. Start when you like.' : 'Put someone on the other side.', !!open);
@@ -207,8 +210,8 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
 
     inviteList.replaceChildren(...m.invites.map((inv) => row('lobby-invite',
       span('lobby-row-name', `${inv.name} challenges you`),
-      button('Accept', 'lobby-accept', () => { setStatus('Starting…', true); net.send({ k: 'accept', from: inv.id }); }),
       button('Decline', 'lobby-decline', () => net.send({ k: 'decline', from: inv.id }), true),
+      button('Accept', 'lobby-accept', () => { setStatus('Starting…', true); net.send({ k: 'accept', from: inv.id }); }),
     )));
 
     const games = m.games.filter((g) => g.id !== m.hosting && g.id !== m.room?.id);
