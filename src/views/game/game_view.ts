@@ -85,7 +85,7 @@ export function mountGameView(root: HTMLElement): void {
   const resignBtn = must<HTMLButtonElement>(root, '.topbar-resign'), againBtn = must<HTMLButtonElement>(root, '.game-end-again');
   const q = new URLSearchParams(location.search);
 
-  let errors = 0, messageTimer = 0, endReason = '', shownEnd = false;
+  let errors = 0, messageTimer = 0, endReason = '', shownEnd = false, quitting = false;
   const pausedBox = must<HTMLElement>(root, '.game-paused'), timeEl = must<HTMLElement>(root, '.topbar-time');
   /** Every game gets a UUID when it starts (online games use the server's match id). */
   const setGameId = (id: string) => {
@@ -182,7 +182,7 @@ export function mountGameView(root: HTMLElement): void {
   /** Save the solo game in progress, so a refresh comes back to it. */
   const saveNow = () => {
     const id = root.dataset.gameId;
-    if (!id || !V.started || V.online || G.over) return;
+    if (!id || !V.started || V.online || G.over || quitting) return;
     const g: SavedGame = { id, savedAt: Date.now(), world: captureWorld(), view: { team: V.team, speed: V.speed, paused: V.paused, cam: { ...V.cam } } };
     saveGame(g).catch((err) => console.warn('Could not save the game', err));
   };
@@ -320,6 +320,21 @@ export function mountGameView(root: HTMLElement): void {
   });
   must(root, '.game-paused-resume').addEventListener('click', () => { V.paused = false; });
   must(root, '.game-paused-new').addEventListener('click', () => { V.paused = true; setup.open(false); });
+  // End Game: a second tap confirms, then the game is dropped (save and address) for the main menu
+  const quitBtn = must<HTMLButtonElement>(root, '.game-paused-quit');
+  let quitArmed = 0;
+  quitBtn.addEventListener('click', () => {
+    if (Date.now() - quitArmed >= RESIGN_CONFIRM) {
+      quitArmed = Date.now();
+      quitBtn.textContent = 'Tap again to end';
+      setTimeout(() => { quitBtn.textContent = 'End Game'; }, RESIGN_CONFIRM);
+      return;
+    }
+    const id = root.dataset.gameId;
+    quitting = true; // no autosave brings it back on the way out
+    const leave = () => { location.href = '/'; };
+    if (id) forgetGame(id).then(leave, leave); else leave();
+  });
 
   must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
   must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
