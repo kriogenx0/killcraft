@@ -67,3 +67,52 @@
     color: var(--color-gold);
   }
 }
+
+// a pick-one setting (a unit's attack mode): its buttons joined edge to edge in one bar, full width
+.command-group {
+  display: flex;
+  flex-direction: column;
+  grid-column: 1 / -1;
+  gap: 2px;
+  min-width: 0;
+
+  .command-group-caption {
+    font-size: $font-xs;
+    color: var(--color-hotkey);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .command-group-bar {
+    display: flex;
+    min-height: 64px; // room for the icon above a two-line label
+  }
+
+  .command-button--segment {
+    flex: 1 1 0;
+    min-width: 0;
+    border-radius: 0;
+
+    & + .command-button--segment {
+      margin-left: -2px; // shared edge
+    }
+
+    &:first-child {
+      border-radius: $radius 0 0 $radius;
+    }
+
+    &:last-child {
+      border-radius: 0 $radius $radius 0;
+    }
+
+    &:hover:not(:disabled),
+    &:focus-visible,
+    &.command-button--active {
+      z-index: 1; // its gold or hover rim sits above the neighbours'
+    }
+
+    &.command-button--active {
+      background-color: color-mix(in srgb, var(--color-gold) 22%, var(--color-button-bottom));
+    }
+  }
+}

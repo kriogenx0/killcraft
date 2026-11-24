@@ -2,7 +2,7 @@
   <rect width="64" height="64" rx="12" fill="#17120b"/>
   <rect x="2" y="2" width="60" height="60" rx="10.5" fill="none" stroke="#b08a40" stroke-width="2.5"/>
   <!-- arms of the K -->
-  <path d="M50 9L30.85 29.8 53 55" stroke="#c9342b" stroke-width="9" stroke-linejoin="miter" stroke-miterlimit="10" fill="none"/>
+  <path d="M51 10L30 31 51 52" stroke="#c9342b" stroke-width="9" stroke-linejoin="miter" stroke-miterlimit="10" fill="none"/>
   <!-- sword: the stem of the K -->
   <path d="M17.5 12L22 5l4.5 7v32h-9z" fill="#ece6d8"/>
   <path d="M22 9v35" stroke="#b9b2a2" stroke-width="1.5"/>
