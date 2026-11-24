@@ -309,6 +309,14 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
 /** Sites the computer keeps going at once: one, or more (by difficulty) with money in the bank. */
 const maxSites = (team: number): number => (G.credits[team] > 2500 ? lvl(team).sites : 1);
 
+/**
+ * Ore the computer never spends on anything but a Worker: a side with no units that can't pay for one
+ * has lost (world.ts stranded), so losing every Worker at once must not leave it broke.
+ */
+const workerKeep = (): number => costOf('worker');
+/** Can the computer pay for this and still have a Worker's price left? */
+const affordKeeping = (team: number, t: Parameters<typeof canAfford>[1]): boolean => canAfford(team, t) && G.credits[team] - costOf(t) >= workerKeep();
+
 function construction(team: number): void {
   // a wall line is many small sites: it doesn't hold up the rest of the base
   ais[team].reserveWood = 0;
@@ -317,7 +325,7 @@ function construction(team: number): void {
   const t = nextStructure(team, walling);
   if (!t) { ais[team].reserve = 0; return; }
   // structures are paid for up front: save up for one rather than spend everything on troops
-  if (!canAfford(team, t)) { ais[team].reserve = costOf(t); ais[team].reserveWood = priceOf(t).wood; return; }
+  if (!affordKeeping(team, t)) { ais[team].reserve = costOf(t); ais[team].reserveWood = priceOf(t).wood; return; }
   if (isWall(t)) {
     const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
     const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.kind === 'bld' && (ais[team].foe >= 0 ? e.team === ais[team].foe : e.team >= 0 && e.team !== team));
@@ -337,7 +345,7 @@ function construction(team: number): void {
  */
 function research(team: number): void {
   if (countOf(team, 'refinery') < 1 || gatherers(team) < 1) return;
-  const credits = G.credits[team];
+  const credits = G.credits[team] - workerKeep();
   // healing is researched at the Hospital, alongside the yard
   const heal = available(team, 'hospital').filter(isTechType)[0];
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
@@ -345,7 +353,7 @@ function research(team: number): void {
   if (G.prod[team].tech.length) return;
   const can = available(team, 'tech').filter(isTechType);
   const age = can.find((t) => TECH[t].age != null);
-  if (age && G.credits[team] > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); return; }
+  if (age && credits > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); return; }
   const ward = can.find((t) => TECH[t].ward);
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
@@ -371,7 +379,7 @@ function refits(team: number): void {
   const due = own.filter(canRefit).sort((x, y) => refitRank(x) - refitRank(y));
   const b = due.find((c) => {
     const p = refitPrice(c);
-    return G.credits[team] >= p.ore + REFIT_RESERVE && G.wood[team] >= p.wood;
+    return G.credits[team] >= p.ore + Math.max(REFIT_RESERVE, workerKeep()) && G.wood[team] >= p.wood;
   });
   if (b) { toggleRefit(b); ais[team].refitSave = 0; return; }
   // can't afford one yet: once there's an army to hold the base, troops wait while it saves up
@@ -496,9 +504,9 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  // down to its last gatherer: troops leave the price of a Worker in hand. Nothing else brings ore
-  // home (scrapped buildings leave ore on the ground), so a side with none left could never recover.
-  const keep = gatherers(team) < 2 ? costOf('worker') : 0;
+  // troops always leave the price of a Worker in hand. Nothing else brings ore home (scrapped
+  // buildings leave ore on the ground), so a side that loses them all must be able to train one.
+  const keep = workerKeep();
   const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep) - (ais[team].refitSave ?? 0);
   // saving up for the next structure
   const saving = credits < 150;
@@ -513,7 +521,7 @@ function training(team: number): void {
       const A = ais[team];
       if (!A.big && !A.bigDone && !prod.vehicle.length) A.big = pick(team, 'vehicle', [['heavy', 3], ['juggernaut', 2.5], ['titan', 1.5]]);
       if (A.big) {
-        if (G.credits[team] - (A.refitSave ?? 0) >= costOf(A.big) && canAfford(team, A.big)) { t = A.big; A.big = null; A.bigDone = true; }
+        if (G.credits[team] - keep - (A.refitSave ?? 0) >= costOf(A.big) && canAfford(team, A.big)) { t = A.big; A.big = null; A.bigDone = true; }
       } else if (!saving && credits > 500) {
         t = pick(team, 'vehicle', [['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5]]);
         if (t) A.bigDone = false;

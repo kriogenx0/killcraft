@@ -18,7 +18,9 @@ import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWayg
 import { initCows } from './cows.ts';
 import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
-import { available, canAfford, emptyProduction, updProduction } from './production.ts';
+import { available, emptyProduction, priceOf, updProduction, type Price } from './production.ts';
+import { refitPrice } from './refit.ts';
+import { teamColors } from '../data/team.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
 import { AI_LEVEL } from '../data/setup.ts';
 import { isUnitType, type UnitType } from '../data/unit.ts';
@@ -76,22 +78,41 @@ export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === 
 const FALL_SECONDS = 2.5;
 
 /**
- * A side that can't come back: it has no units at all (counting units it has paid for and is training)
- * and it can't train a Worker, either because it has no Town Hall or Barracks left or because it can't
- * pay for one. With no one left to dig, chop or haul, nothing it owns can ever earn it ore again.
+ * What the side has in hand plus everything it could get back by calling off orders it has paid for:
+ * queued research and troops, unfinished building sites and upgrades under way all refund in full.
+ */
+function fundsWithRefunds(team: number): Price {
+  const f: Price = { ore: G.credits[team], wood: G.wood[team], oil: G.oil[team], aether: G.aether[team] ?? 0 };
+  const add = (p: Partial<Price>) => { f.ore += p.ore ?? 0; f.wood += p.wood ?? 0; f.oil += p.oil ?? 0; f.aether += p.aether ?? 0; };
+  for (const line of Object.values(G.prod[team])) for (const it of line) if (it.paid) add(priceOf(it.type));
+  for (const e of G.ents) {
+    if (e.dead || e.team !== team || e.kind !== 'bld') continue;
+    if (!e.done && !e.unpaid) add(priceOf(e.type as Parameters<typeof priceOf>[0]));
+    else if (e.done && e.upT != null) add(refitPrice(e));
+  }
+  return f;
+}
+
+/**
+ * A side that has lost (Alex's rule): it has no Town Hall, no units at all (counting units it has paid
+ * for and is training), and it can't train a Worker, either because it has no Barracks left or because
+ * it can't pay for one, even by cancelling orders. A side that keeps its Town Hall stays in the game.
  */
 export function stranded(team: number): boolean {
-  if (G.ents.some((e) => !e.dead && e.team === team && e.kind === 'unit')) return false;
+  if (G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'unit' || (e.type === 'yard' && e.done)))) return false;
   if (Object.values(G.prod[team]).some((line) => line.some((it) => it.paid && isUnitType(it.type)))) return false;
-  return !available(team, 'infantry').includes('worker') || !canAfford(team, 'worker');
+  if (!available(team, 'infantry').includes('worker')) return true;
+  const p = priceOf('worker'), f = fundsWithRefunds(team);
+  return f.ore < p.ore || f.wood < p.wood || f.oil < p.oil || f.aether < p.aether;
 }
 
 /** Every building a stranded side still has blows up, and the side is out of the game. */
 function fall(team: number): boolean {
   const left = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (!left.length) return false;
+  const why = `no Town Hall, no units and ${available(team, 'infantry').includes('worker') ? 'no ore for a Worker' : 'nothing that trains Workers'}`;
   for (const e of left) { kill(e); dropSalvage(e); }
-  for (let t = 0; t < G.teams; t++) say(t, t === team ? 'Your base is lost: no units left and no Worker to rebuild with' : 'An enemy base has fallen');
+  for (let t = 0; t < G.teams; t++) say(t, t === team ? `Your base is lost: ${why}` : `${teamColors(team).name}'s base has fallen: ${why}`);
   return true;
 }
 

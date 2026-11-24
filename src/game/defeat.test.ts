@@ -4,7 +4,7 @@ import { STEP } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, stranded, update } from './world.ts';
 import { addBuilding, kill } from './entity.ts';
-import { enqueue } from './production.ts';
+import { enqueue, startSite } from './production.ts';
 import { UNIT } from '../data/unit.ts';
 
 const run = (seconds: number) => { for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP); };
@@ -34,8 +34,18 @@ describe('a side that can never recover', () => {
     expect(yard(1)).toBeTruthy();
   });
 
-  it('is out when it has no units and can\'t pay for a Worker: its buildings blow up', () => {
+  it('stays in while it has a Town Hall, even with no units and no ore', () => {
+    G.credits[1] = 0;
+    expect(stranded(1)).toBe(false);
+    run(8);
+    expect(G.over).toBe(false);
+    expect(yard(1).dead).toBe(false);
+  });
+
+  it('is out with no Town Hall, no units and no ore for a Worker: its buildings blow up', () => {
     addBuilding('refinery', 1, yard(1).tx - 5, yard(1).ty, false);
+    addBuilding('barracks', 1, yard(1).tx + 5, yard(1).ty, false);
+    kill(yard(1));
     G.credits[1] = UNIT.worker.cost - 1;
     expect(stranded(1)).toBe(true);
     run(8);
@@ -67,6 +77,17 @@ describe('a side that can never recover', () => {
     expect(G.credits[1]).toBe(0);
     expect(stranded(1)).toBe(false);
     run(3);
+    expect(G.over).toBe(false);
+  });
+
+  it('keeps playing while cancelling a paid-for building site would buy a Worker', () => {
+    addBuilding('barracks', 1, yard(1).tx + 5, yard(1).ty, false);
+    G.credits[1] = 400;
+    expect(startSite(1, 'power', yard(1).tx - 4, yard(1).ty)).toBeTruthy();
+    kill(yard(1));
+    expect(G.credits[1]).toBeLessThan(UNIT.worker.cost);
+    expect(stranded(1)).toBe(false);
+    run(5);
     expect(G.over).toBe(false);
   });
 });
