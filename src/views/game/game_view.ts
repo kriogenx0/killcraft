@@ -19,7 +19,7 @@ import type { ServerMsg, SnapMsg } from '../../net/protocol.ts';
 import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net/snapshot.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
-import { mountLobby, storedName } from '../lobby/lobby_view.ts';
+import { hostedGame, mountLobby, storedName } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
 import { mountSetup } from '../setup/setup_view.ts';
@@ -334,6 +334,11 @@ export function mountGameView(root: HTMLElement): void {
   showConnection();
   window.addEventListener('online', showConnection);
   window.addEventListener('offline', showConnection);
+  /** A game's address with nothing of ours behind it: a game we were hosting (refreshed), or a friend's invite link. */
+  const openGameLink = (id: string) => {
+    delete root.dataset.gameId;
+    lobby.open(hostedGame() === id ? { host: id } : { join: id });
+  };
   againBtn.addEventListener('click', () => { location.href = V.online ? '/?online' : '/'; });
   // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
   window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });
@@ -356,8 +361,13 @@ export function mountGameView(root: HTMLElement): void {
     closeModal(startModal);
     root.dataset.gameId = resumeId;
     if (onlineKey(resumeId)) rejoin(resumeId, 1);
-    else loadGame(resumeId).then((g) => { if (!g || !resumeSolo(g)) rejoinFailed('That game has ended.'); }, () => rejoinFailed("Couldn't load that game."));
-  } else applyTestOptions(q, startSolo, (quick, join) => { closeModal(startModal); lobby.open(quick, join); });
+    else {
+      loadGame(resumeId).then(
+        (g) => { if (!g) openGameLink(resumeId); else if (!resumeSolo(g)) rejoinFailed('That game has ended.'); },
+        () => openGameLink(resumeId),
+      );
+    }
+  } else applyTestOptions(q, startSolo, (quick, join) => { closeModal(startModal); lobby.open({ quick, join }); });
 
   let last = performance.now(), acc = 0, fogT = 0, oreT = 0, savedAt = performance.now();
   const frame = (t: number) => {

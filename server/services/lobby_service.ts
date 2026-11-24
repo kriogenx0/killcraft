@@ -25,6 +25,8 @@ export interface LobbyEvents {
 /** The players list sent to each client is capped so a busy server doesn't send huge lobby updates. */
 export const MAX_LISTED = 50;
 
+const GAME_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 const ORDER: Record<PlayerStatus, number> = { idle: 0, host: 1, quick: 2, playing: 3 };
 
 export class LobbyService {
@@ -65,14 +67,24 @@ export class LobbyService {
     this.events.changed();
   }
 
-  /** List a public game that anyone can join. */
-  create(id: string): void {
+  /**
+   * List a public game that anyone can join. `game` asks for a particular id (the host refreshed the page and
+   * their invite link should keep working); it's used if it looks like an id and nobody else has it.
+   */
+  create(id: string, game?: string): string | null {
     const p = this.players.get(id);
-    if (!p || p.status === 'playing') return;
+    if (!p || p.status === 'playing') return null;
     this.leave(id);
     p.status = 'host';
-    this.open.set(randomUUID(), id);
+    const gid = game && GAME_ID.test(game) && !this.open.has(game) ? game : randomUUID();
+    this.open.set(gid, id);
     this.events.changed();
+    return gid;
+  }
+
+  /** The player hosting this open game, if it's listed. */
+  hostOf(game: string): string | null {
+    return this.open.get(game) ?? null;
   }
 
   join(id: string, game: string): boolean {

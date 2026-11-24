@@ -54,8 +54,21 @@ export class SocketController {
       if (!joined) return;
       switch (msg.k) {
         case 'quick': this.lobby.quick(id); break;
-        case 'create': this.lobby.create(id); break;
-        case 'join': if (!this.lobby.join(id, String(msg.game))) this.send(id, { k: 'error', msg: 'That game is no longer open.' }); break;
+        case 'create': {
+          const want = typeof msg.game === 'string' && !this.matches.has(msg.game) ? msg.game : undefined;
+          this.lobby.create(id, want);
+          break;
+        }
+        case 'join': {
+          const game = String(msg.game);
+          if (this.lobby.join(id, game)) break;
+          const why = this.matches.has(game) ? 'That game has already started.'
+            : this.lobby.hostOf(game) === id ? "That's your own game. Send the link to a friend."
+            : this.lobby.hostOf(game) ? "Couldn't join that game right now."
+            : 'That game is no longer open. Ask your friend for a new link, or create your own game.';
+          this.send(id, { k: 'error', msg: why });
+          break;
+        }
         case 'leave': this.lobby.leave(id); this.broadcastLobby(); break;
         case 'invite': if (!this.lobby.invite(id, String(msg.to))) this.send(id, { k: 'error', msg: "That player isn't available right now." }); break;
         case 'accept': if (!this.lobby.accept(id, String(msg.from))) this.send(id, { k: 'error', msg: 'That challenge is no longer open.' }); break;

@@ -43,6 +43,12 @@ export class MatchService {
     return this.matches.size;
   }
 
+  /** Is a match with this id under way? */
+  has(id: string): boolean {
+    const m = this.matches.get(id);
+    return !!m && !m.over;
+  }
+
   /** Start a match; a game listed in the lobby keeps its id, so every match has a UUID from the start. */
   start(a: Player, b: Player, id: string = randomUUID()): void {
     if (this.matches.size >= MAX_MATCHES) {

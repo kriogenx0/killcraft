@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { LobbyService, type Player } from './lobby_service.ts';
 
 function setup() {
-  const pairs: [Player, Player][] = [];
-  const lobby = new LobbyService({ paired: (a, b) => pairs.push([a, b]), changed: vi.fn() });
+  const pairs: [Player, Player, string?][] = [];
+  const lobby = new LobbyService({ paired: (a, b, g) => pairs.push([a, b, g]), changed: vi.fn() });
   for (const id of ['a', 'b', 'c']) lobby.add(id, id.toUpperCase());
   return { lobby, pairs };
 }
@@ -38,6 +38,20 @@ describe('lobby', () => {
     expect(lobby.join('c', game.id)).toBe(true);
     expect(pairs.map(([x, y]) => [x.id, y.id])).toEqual([['a', 'c']]);
     expect(lobby.games()).toEqual([]);
+  });
+
+  it('lists a game again under the id its host asks for (a refresh keeps the invite link working)', () => {
+    const { lobby, pairs } = setup();
+    const id = lobby.create('a')!;
+    lobby.remove('a');
+    lobby.add('a2', 'A');
+    expect(lobby.create('a2', id)).toBe(id);
+    expect(lobby.hostOf(id)).toBe('a2');
+    expect(lobby.create('b', id)).not.toBe(id); // taken: someone else gets a new id
+    expect(lobby.create('c', 'not-an-id')).not.toBe('not-an-id');
+    lobby.add('d', 'D');
+    expect(lobby.join('d', id)).toBe(true);
+    expect(pairs.map(([x, y, g]) => [x.id, y.id, g])).toEqual([['a2', 'd', id]]);
   });
 
   it('removes a game when its host leaves or disconnects', () => {

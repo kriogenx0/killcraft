@@ -18,16 +18,24 @@
     }
   }
 
+  .lobby-invite-box {
+    display: flex;
+    flex-direction: column;
+    gap: $space-2;
+    align-items: center;
+    width: 100%;
+    max-width: 480px;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
   .lobby-link {
     display: flex;
     gap: $space-2;
     align-items: center;
     width: 100%;
-    max-width: 420px;
-
-    &[hidden] {
-      display: none;
-    }
 
     .lobby-link-url {
       flex: 1;

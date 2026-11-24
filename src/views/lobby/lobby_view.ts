@@ -3,10 +3,27 @@
 import { net } from '../../net/client.ts';
 import { MAX_NAME, cleanName, type LobbyMsg, type OnlinePlayer, type ServerMsg } from '../../net/protocol.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
+import { gameIdFromUrl, leaveGameUrl } from '../game/resume.ts';
 
 type StartMsg = Extract<ServerMsg, { k: 'start' }>;
 
 const NAME_KEY = 'killcraft.name';
+/** the game this tab is hosting, so a refresh lists it again under the same id and its invite link keeps working */
+const HOSTING_KEY = 'killcraft.hosting';
+
+/** The invite link for a game: its own address, so opening it joins the game. */
+export function inviteUrl(game: string): string {
+  return new URL(`/game/${game}`, location.origin).href;
+}
+
+/** The game this tab was hosting before a refresh, if any. */
+export function hostedGame(): string | null {
+  try { return sessionStorage.getItem(HOSTING_KEY); } catch { return null; }
+}
+
+function setHostedGame(game: string | null): void {
+  try { if (game) sessionStorage.setItem(HOSTING_KEY, game); else sessionStorage.removeItem(HOSTING_KEY); } catch { /* ignore */ }
+}
 
 const MARKUP = `
   <h2 class="lobby-title">Play online</h2>
@@ -19,9 +36,12 @@ const MARKUP = `
     <button type="button" class="ui-button ui-button--secondary lobby-create">Create game</button>
   </div>
   <p class="lobby-status" role="status" aria-live="polite"></p>
-  <div class="lobby-link" hidden>
-    <input class="ui-text-field-input lobby-link-url" readonly aria-label="Invite link">
-    <button type="button" class="ui-button ui-button--small lobby-copy">Copy invite link</button>
+  <div class="lobby-invite-box" hidden>
+    <div class="lobby-link">
+      <input class="ui-text-field-input lobby-link-url" readonly aria-label="Invite link">
+      <button type="button" class="ui-button ui-button--small lobby-copy">Copy invite link</button>
+      <button type="button" class="ui-button ui-button--small ui-button--secondary lobby-share" hidden>Share</button>
+    </div>
   </div>
   <button type="button" class="ui-button ui-button--secondary lobby-cancel" hidden>Cancel</button>
   <ul class="lobby-invites" aria-label="Challenges"></ul>
@@ -93,15 +113,28 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   const quick = $<HTMLButtonElement>('.lobby-quick'), create = $<HTMLButtonElement>('.lobby-create'), cancel = $<HTMLButtonElement>('.lobby-cancel');
   let waiting: 'quick' | 'host' | 'invite' | null = null, connectedAs = '';
   let last: LobbyMsg | null = null;
-  const link = $('.lobby-link'), linkUrl = $<HTMLInputElement>('.lobby-link-url'), copy = $<HTMLButtonElement>('.lobby-copy');
+  const link = $('.lobby-invite-box'), linkUrl = $<HTMLInputElement>('.lobby-link-url'), copy = $<HTMLButtonElement>('.lobby-copy');
+  const share = $<HTMLButtonElement>('.lobby-share');
+  share.hidden = typeof navigator.share !== 'function';
+  /** joined from an invite link: if that fails, the address goes back to the start screen's */
+  let joiningLink = false;
 
   const showLink = (game: string | null) => {
     link.hidden = !game;
-    if (!game) return;
-    const url = new URL(location.pathname, location.origin);
-    url.searchParams.set('join', game);
-    if (linkUrl.value !== url.href) { linkUrl.value = url.href; copy.textContent = 'Copy invite link'; }
+    setHostedGame(game);
+    if (!game) {
+      // stopped hosting: the address no longer names a game
+      if (!joiningLink && gameIdFromUrl() && gameIdFromUrl() === lastHosted) leaveGameUrl();
+      lastHosted = null;
+      return;
+    }
+    lastHosted = game;
+    // the address bar shows the invite link too, and a refresh keeps hosting the same game
+    if (gameIdFromUrl() !== game) { try { history.replaceState(null, '', `/game/${game}`); } catch { /* ignore */ } }
+    const url = inviteUrl(game);
+    if (linkUrl.value !== url) { linkUrl.value = url; copy.textContent = 'Copy invite link'; }
   };
+  let lastHosted: string | null = null;
 
   const setStatus = (text: string, busy = false, error = false) => {
     status.replaceChildren();
@@ -167,7 +200,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     cancel.hidden = !w;
     name.disabled = !!w;
     if (w === 'quick') setStatus('Looking for an opponent…', true);
-    else if (w === 'host') setStatus('Your game is listed. Send the invite link to a friend, or wait for someone to join…', true);
+    else if (w === 'host') setStatus('Copy the invite link and send it to a friend. They join your game as soon as they open it.', true);
   };
 
   net.onMessage((m) => {
@@ -178,9 +211,12 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
       if (!w && wasBusy) setStatus('');
       render(m);
     }
-    else if (m.k === 'error') setStatus(m.msg, false, true);
+    else if (m.k === 'error') {
+      setStatus(m.msg, false, true);
+      if (joiningLink) { joiningLink = false; if (gameIdFromUrl()) leaveGameUrl(); }
+    }
     else if (m.k === 'notice') setStatus(m.msg);
-    else if (m.k === 'start') { closeModal(root); opts.onStart(m); }
+    else if (m.k === 'start') { joiningLink = false; lastHosted = null; setHostedGame(null); closeModal(root); opts.onStart(m); }
   });
   net.onClose(() => {
     if (!root.classList.contains('ui-modal--open')) return;
@@ -189,7 +225,8 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     connectedAs = '';
     last = null;
     inviteList.replaceChildren();
-    showLink(null);
+    // keep the hosted game remembered: a refresh lists it again under the same link
+    link.hidden = true;
     playerList.replaceChildren(empty('Not connected.'));
     online.textContent = 'Players online';
   });
@@ -220,23 +257,32 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     try { await navigator.clipboard.writeText(linkUrl.value); copy.textContent = 'Copied!'; }
     catch { linkUrl.focus(); copy.textContent = 'Press Ctrl+C to copy'; }
   });
+  share.addEventListener('click', () => {
+    navigator.share({ title: 'Killcraft', text: 'Join my Killcraft game', url: linkUrl.value }).catch(() => { /* closed the share sheet */ });
+  });
   name.addEventListener('change', () => ensure());
   $('.lobby-back').addEventListener('click', () => {
     net.send({ k: 'leave' });
     net.close();
     connectedAs = '';
+    showLink(null);
     closeModal(root);
     opts.onBack();
   });
 
   return {
-    /** Show the lobby; with `quick`, start looking for a match right away; with `join`, join that game (an invite link). */
-    open(quick = false, join?: string): void {
+    /**
+     * Show the lobby. `quick` starts looking for a match right away; `join` joins that game (an invite link);
+     * `host` lists the game this tab was hosting before a refresh again, under the same id.
+     */
+    open(o: { quick?: boolean; join?: string; host?: string } = {}): void {
       name.value = storedName();
       setWaiting(null);
       openModal(root);
-      if (join) void ensure(() => { setStatus('Joining…', true); net.send({ k: 'join', game: join }); });
-      else void ensure(quick ? () => net.send({ k: 'quick' }) : undefined);
+      joiningLink = !!o.join;
+      if (o.join) { const game = o.join; void ensure(() => { setStatus("Joining your friend's game…", true); net.send({ k: 'join', game }); }); }
+      else if (o.host) { const game = o.host; void ensure(() => net.send({ k: 'create', game })); }
+      else void ensure(o.quick ? () => net.send({ k: 'quick' }) : undefined);
     },
   };
 }

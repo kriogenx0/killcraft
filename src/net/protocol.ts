@@ -42,7 +42,8 @@ export interface LobbyMsg {
 export type ClientMsg =
   | { k: 'hello'; name: string }
   | { k: 'quick' }
-  | { k: 'create' }
+  /** host a game; `game` re-lists a game you were hosting before a refresh, so its invite link keeps working */
+  | { k: 'create'; game?: string }
   | { k: 'join'; game: string }
   | { k: 'leave' }
   | { k: 'invite'; to: string }
