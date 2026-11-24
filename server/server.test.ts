@@ -196,6 +196,10 @@ describe('game server', () => {
     if (hosting.k !== 'lobby' || !hosting.hosting) throw new Error('expected hosting');
     const game = hosting.hosting;
     b.ws.send(JSON.stringify({ k: 'join', game }));
+    // joining doesn't start it: the host does
+    await a.next('lobby', (m) => m.k === 'lobby' && !!m.room?.ready);
+    expect(a.msgs.some((m) => m.k === 'start') || b.msgs.some((m) => m.k === 'start')).toBe(false);
+    a.ws.send(JSON.stringify({ k: 'begin' }));
     await a.next('start');
     await b.next('start');
     const listed = await w.next('lobby', (m) => m.k === 'lobby' && m.live.some((g) => g.id === game));
@@ -240,8 +244,10 @@ describe('game server', () => {
     a.ws.send(JSON.stringify({ k: 'room', seat: 2, pick: 'open' }));
     a.ws.send(JSON.stringify({ k: 'room', seat: 3, pick: 'hard' }));
     await a.next('lobby', (m) => m.k === 'lobby' && m.room?.mode === '2v2' && m.room.seats[3]?.level === 'hard');
-    // the friend takes the open seat beside the host, and the room is full: it starts
+    // the friend takes the open seat beside the host; the host starts the game
     b.ws.send(JSON.stringify({ k: 'join', game }));
+    await a.next('lobby', (m) => m.k === 'lobby' && !!m.room?.ready);
+    a.ws.send(JSON.stringify({ k: 'begin' }));
     const startA = await a.next('start'), startB = await b.next('start');
     if (startA.k !== 'start' || startB.k !== 'start') throw new Error('expected start');
     expect(startA).toMatchObject({ team: 0, teams: 4, ally: [0, 1, 0, 1], names: ['Ivy', 'Computer (Easy)', 'Jon', 'Computer (Hard)'], opponent: 'Computer (Easy) & Computer (Hard)' });

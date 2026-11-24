@@ -112,7 +112,7 @@ export class LobbyService {
   /** Seats a room's mode uses, in team order. */
   private used = (r: Room): Seat[] => r.seats.slice(0, MODES[r.mode].teams);
 
-  /** Take the first open seat in a room (your own side first, in the order the room lists them). A room with no open seat left starts. */
+  /** Take the first open seat in a room (your own side first, in the order the room lists them). Only the host starts the game (Alex, 2026-11-24). */
   join(id: string, game: string): boolean {
     const p = this.players.get(id), r = this.rooms.get(game);
     if (!p || !r || r.host === id || p.status === 'playing' || p.status === 'watching') return false;
@@ -122,8 +122,7 @@ export class LobbyService {
     this.leave(id);
     r.seats[seat] = { kind: 'person', id };
     p.status = 'room';
-    if (!this.used(r).some((s) => s.kind === 'open')) this.begin(r.host);
-    else this.events.changed();
+    this.events.changed();
     return true;
   }
 

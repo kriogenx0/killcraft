@@ -36,6 +36,12 @@ describe('lobby', () => {
     expect(lobby.view('c')?.hosting).toBeNull();
     expect(lobby.join('a', game.id)).toBe(false);
     expect(lobby.join('c', game.id)).toBe(true);
+    // joining fills the seat; only the host starts the game
+    expect(pairs).toEqual([]);
+    expect(lobby.players.get('c')?.status).toBe('room');
+    expect(lobby.begin('c')).toBe(false);
+    expect(lobby.view('a')?.room?.ready).toBe(true);
+    expect(lobby.begin('a')).toBe(true);
     expect(pairs.map(([x, y]) => [x.id, y.id])).toEqual([['a', 'c']]);
     expect(lobby.games()).toEqual([]);
   });
@@ -51,6 +57,7 @@ describe('lobby', () => {
     expect(lobby.create('c', 'not-an-id')).not.toBe('not-an-id');
     lobby.add('d', 'D');
     expect(lobby.join('d', id)).toBe(true);
+    lobby.begin('a2');
     expect(pairs.map(([x, y, g]) => [x.id, y.id, g])).toEqual([['a2', 'd', id]]);
   });
 
@@ -145,15 +152,17 @@ describe('lobby', () => {
     lobby.leave('b');
     expect(lobby.view('a')?.room?.seats[2]).toMatchObject({ kind: 'open' });
     lobby.join('b', id);
-    // the last open seat filling starts the game
+    // the last open seat filling doesn't start the game: the host does
     expect(lobby.join('c', id)).toBe(true);
+    expect(rooms).toHaveLength(0);
+    expect(lobby.join('d', id)).toBe(false); // full
+    expect(lobby.begin('a')).toBe(true);
     expect(pairs).toEqual([]);
     expect(rooms).toHaveLength(1);
     expect(rooms[0].mode).toBe('2v2');
     expect(rooms[0].seats.map((s) => (s && typeof s === 'object' ? s.id : s))).toEqual(['a', 'c', 'b', 'hard']);
     expect(lobby.players.get('c')?.status).toBe('playing');
     expect(lobby.games()).toEqual([]);
-    expect(lobby.join('d', id)).toBe(false);
   });
 
   it('lets the host start with computers and closed seats, but needs someone on the other side', () => {
