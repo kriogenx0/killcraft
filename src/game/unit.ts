@@ -13,7 +13,7 @@ import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
-import { bankAt } from './haul.ts';
+import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { IDLE_GRACE, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
@@ -74,7 +74,7 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
  */
 function pickOre(u: Ent): [number, number] | null {
   const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
-  const homes = G.ents.filter((e) => !e.dead && e.team === u.team && e.done && (e.type === 'refinery' || e.type === 'yard'));
+  const homes = banksOf(u.team, ORE_BANKS);
   const walk = walkOf(u.team, homes);
   const x = tileOf(u.x), y = tileOf(u.y);
   // a tile worth a trip first: crumbs of regrowth only once there's nothing else
@@ -160,9 +160,9 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  // ore and oil go to a Refinery or the Town Hall; wood also to a Lumber Mill
+  // ore and oil go to the nearest Refinery, Mining Camp or Town Hall; wood to a Town Hall, Refinery or Lumber Mill
   const cargo0 = u.cargo ?? 'ore';
-  const ref = bankAt(u, cargo0 === 'ore' ? ['refinery', 'yard'] : cargo0 === 'wood' ? [...WOOD_BANKS] : ['refinery', 'yard']);
+  const ref = bankAt(u, cargo0 === 'wood' ? [...WOOD_BANKS] : ORE_BANKS);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
   if (o.st === 'ret') {
     // shut in by trees on the way home: cut a way out

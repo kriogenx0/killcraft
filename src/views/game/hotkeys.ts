@@ -3,8 +3,8 @@
 // select the Town Hall (H) and press a structure's or research's key, select a Barracks and
 // press an infantry key, and so on. A def can ask for a letter with `key`.
 //
-// A building with more items than free letters (the yard) sorts some into groups: walls, defenses
-// and Aether structures each sit behind one key, and their items are keyed again inside the group.
+// A building with more items than free letters (the yard) sorts some into groups: walls, defenses,
+// expansions and Aether structures each sit behind one key, and their items are keyed again inside the group.
 // So with the yard selected, L then S lays a Stone Wall. The Barracks does the same for creatures of
 // myth and spellcasters. A def can name its own group with `group`.
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
@@ -56,9 +56,9 @@ const BLD_KEYS = Object.values(BUILDING_KEYS);
 
 /**
  * Preferred keys for the default groups: G for guns, L for walls (W scrolls), T for the Aether's star
- * stones; at the Barracks, Y for mythic creatures and Z for spellcasters (zap).
+ * stones, X for expansions (Town Hall, Mining Camp; E scrolls); at the Barracks, Y for mythic creatures and Z for spellcasters (zap).
  */
-const GROUP_KEYS: Record<string, string> = { Defenses: 'G', Walls: 'L', Aether: 'T', Creatures: 'Y', Magic: 'Z' };
+const GROUP_KEYS: Record<string, string> = { Defenses: 'G', Walls: 'L', Aether: 'T', Expand: 'X', Creatures: 'Y', Magic: 'Z' };
 
 /** Keys for one building's items: groups first, then the ungrouped items around them, then each group's items. */
 export function keyMap(items: readonly Keyed[]): KeyMap {

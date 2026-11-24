@@ -43,3 +43,27 @@ describe('Build zone', () => {
     expect(zone[row * MW + yard.tx + yard.w + BUILD_RADIUS]).toBe(0);
   });
 });
+
+describe('Units in the way', () => {
+  it("don't stop a site from going down; they step aside", async () => {
+    const { placeBuilding } = await import('./building.ts');
+    const { addUnit } = await import('./entity.ts');
+    const { TS } = await import('./const.ts');
+    initWorld(7, 2);
+    G.reveal = true;
+    const yard = G.ents.find((e) => !e.dead && e.team === 0 && e.type === 'yard')!;
+    let spot: [number, number] | null = null;
+    for (let dy = -4; dy <= 4 && !spot; dy++) for (let dx = -4; dx <= 4 && !spot; dx++) if (canPlaceType('power', yard.tx + dx, yard.ty + dy, 0)) spot = [yard.tx + dx, yard.ty + dy];
+    expect(spot).not.toBeNull();
+    const [tx, ty] = spot!;
+    const mine = addUnit('worker', 0, (tx + 0.5) * TS, (ty + 0.5) * TS), theirs = addUnit('worker', 1, (tx + 1.5) * TS, (ty + 1.5) * TS);
+    expect(canPlaceType('power', tx, ty, 0)).toBe(true);
+    const b = placeBuilding(0, 'power', tx, ty)!;
+    expect(b).not.toBeNull();
+    for (const u of [mine, theirs]) {
+      const x = Math.floor(u.x / TS), y = Math.floor(u.y / TS);
+      expect(x < b.tx || y < b.ty || x >= b.tx + b.w || y >= b.ty + b.h, `unit at ${x},${y}`).toBe(true);
+      expect(G.blk[y * MW + x]).toBeFalsy();
+    }
+  });
+});

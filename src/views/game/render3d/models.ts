@@ -1189,7 +1189,7 @@ function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 
     case 'barracks': return barracks(team);
     case 'factory': return factory(team);
     case 'turret': return turret(team);
-    case 'tower': case 'mill': return medievalBuilding(type, team, 'stone');
+    case 'tower': case 'mill': case 'camp': return medievalBuilding(type, team, 'stone');
     case 'derrick': return derrick(team);
     case 'works': return engineWorks(team);
   }
@@ -1327,7 +1327,7 @@ function industrial(m: Model): Model {
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
  * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
- * The Watchtower and Lumber Mill grow into dressed stone (look 1) and stop there; the Oil Derrick,
+ * The Watchtower, Lumber Mill and Mining Camp grow into dressed stone (look 1) and stop there; the Oil Derrick,
  * Engine Works and Flak Cannon are brick and iron until the Modern age, even in a Medieval town.
  */
 const ERA_LOOK = [0, 2, 3] as const;
@@ -1335,7 +1335,7 @@ const ERA_LOOK = [0, 2, 3] as const;
 export function bldLook(type: BldType, era: number): 0 | 1 | 2 | 3 {
   const e = ERA_LOOK[Math.max(0, Math.min(ERA_LOOK.length - 1, era))];
   if (isFixedLook(type)) return 3;
-  if (type === 'tower' || type === 'mill') return e >= 1 ? 1 : 0;
+  if (type === 'tower' || type === 'mill' || type === 'camp') return e >= 1 ? 1 : 0;
   if (type === 'derrick' || type === 'works' || type === 'flak') return e < 2 ? 2 : e;
   if (type === 'turret' || type === 'airfield') return e < 1 ? 1 : e;
   return e;

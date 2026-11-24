@@ -77,7 +77,9 @@ describe('units steer around each other', () => {
   });
 
   it('in a four-player computer match, walking units are seldom shoved', () => {
-    // before steering, walking units were shoved about 4 px for every second they walked
-    expect(crowding(1, 600).shove).toBeLessThan(2.5);
+    // before steering, walking units were shoved about 4 px for every second they walked. Since the
+    // computer builds Mining Camps by far ore, Workers walk less and spend more of it among others
+    // at the field, and matches fight more, which lifts this to about 2-2.8 (it was 1.8-2.3)
+    expect(crowding(1, 600).shove).toBeLessThan(3);
   }, 60_000);
 });

@@ -1,9 +1,9 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
-import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
+import { G, say, tileOf, bldDef, isAir, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { dropSalvage, oilNear } from './economy.ts';
 import { DERRICK_REACH } from '../data/economy.ts';
-import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isWall, type BldType } from '../data/building.ts';
+import { BUILDING, BUILD_RADIUS, EXPAND_GAP, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isExpansion, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
@@ -96,12 +96,28 @@ export function updBld(b: Ent, dt: number): void {
   updTurret(b, dt);
 }
 
-/** Can a structure go on this tile? People can only build on ground they've explored. */
+/**
+ * Can a structure go on this tile? People can only build on ground they've explored. Units standing
+ * there don't count (Alex): they step aside when the site goes down (clearSite).
+ */
 export function tileFree(x: number, y: number, team: number): boolean {
   if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
   const i = y * MW + x;
-  if (G.blk[i] || G.terr[i] !== GRASS || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
-  return !G.ents.some((e) => !e.dead && e.kind === 'unit' && tileOf(e.x) === x && tileOf(e.y) === y);
+  return !G.blk[i] && G.terr[i] === GRASS && !(G.human[team] && !G.reveal && G.sight[team][i] === 0);
+}
+
+/** Move any ground unit standing on a new site's footprint to the nearest open tile beside it. */
+function clearSite(b: Ent): void {
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || isAir(u)) continue;
+    const x = tileOf(u.x), y = tileOf(u.y);
+    if (x < b.tx || y < b.ty || x >= b.tx + b.w || y >= b.ty + b.h) continue;
+    const to = nearestFree(x, y);
+    if (!to) continue;
+    // keep where it stood within its tile, so a crowd doesn't land on one spot
+    u.x = to[0] * TS + (u.x - x * TS);
+    u.y = to[1] * TS + (u.y - y * TS);
+  }
 }
 
 /**
@@ -132,18 +148,35 @@ export function wallLine(x0: number, y0: number, x1: number, y1: number): Tile[]
 export const onWell = (type: BldType): boolean => type === 'derrick';
 
 /**
- * Is a site here close enough to build? Most structures must be near the base (nearBase). An Oil
- * Derrick instead must reach oil, and may stand on any well, however far from home.
+ * Where a structure may go: 'base' near the side's buildings, 'well' on an oil well, 'far' (a Town
+ * Hall or Mining Camp, see EXPANSION) anywhere explored that isn't up against an enemy base.
  */
-export function inReach(tx: number, ty: number, s: number, team: number, wall = false, well = false): boolean {
-  return well ? oilNear(tx, ty, s) > 0 : nearBase(tx, ty, s, team, wall);
+export type Reach = 'base' | 'well' | 'far';
+export const reachOf = (type: BldType): Reach => (onWell(type) ? 'well' : isExpansion(type) ? 'far' : 'base');
+
+/** No enemy structure within R (default EXPAND_GAP) tiles of this footprint. */
+export function clearOfFoes(tx: number, ty: number, s: number, team: number, R = EXPAND_GAP): boolean {
+  return !G.ents.some((e) => !e.dead && e.kind === 'bld' && e.team >= 0 && e.team !== team && !isWall(e.type) &&
+    tx < e.tx + e.w + R && tx + s > e.tx - R && ty < e.ty + e.h + R && ty + s > e.ty - R);
+}
+
+/**
+ * Is a site here close enough to build? Most structures must be near the base (nearBase). An Oil
+ * Derrick instead must reach oil, and may stand on any well, however far from home; a new Town Hall
+ * or Mining Camp may go anywhere away from the enemy (the explored-ground check is tileFree's).
+ */
+export function inReach(tx: number, ty: number, s: number, team: number, wall = false, reach: Reach | boolean = 'base'): boolean {
+  const r = reach === true ? 'well' : reach === false ? 'base' : reach;
+  if (r === 'well') return oilNear(tx, ty, s) > 0;
+  if (r === 'far') return nearBase(tx, ty, s, team) || clearOfFoes(tx, ty, s, team);
+  return nearBase(tx, ty, s, team, wall);
 }
 
 /**
  * The ground where a structure of this type may go, for drawing while it's being placed. Fills
  * `out` (MW * MH) with 0 (out of reach or unexplored), 1 (in reach, but the tile itself can't be
  * built on) or 2 (in reach and open). A site is allowed when its footprint touches the zone
- * (nearBase / inReach) and every tile under it is open. Units standing about aren't counted here.
+ * (nearBase / inReach) and every tile under it is open.
  */
 export function buildZone(type: BldType, team: number, out: Uint8Array): Uint8Array {
   out.fill(0);
@@ -155,6 +188,15 @@ export function buildZone(type: BldType, team: number, out: Uint8Array): Uint8Ar
     // any tile that reaches a well (DERRICK_REACH) counts, as oilNear sees it
     for (let i = 0; i < MW * MH; i++) if (G.oilField[i] > 0) { const x = i % MW, y = (i / MW) | 0; stamp(x - DERRICK_REACH, y - DERRICK_REACH, x + 1 + DERRICK_REACH, y + 1 + DERRICK_REACH); }
   } else {
+    if (isExpansion(type)) {
+      // a new Town Hall or Mining Camp: anywhere but up against an enemy base
+      stamp(0, 0, MW, MH);
+      for (const e of G.ents) {
+        if (e.dead || e.kind !== 'bld' || e.team < 0 || e.team === team || isWall(e.type)) continue;
+        for (let y = Math.max(0, e.ty - EXPAND_GAP); y < Math.min(MH, e.ty + e.h + EXPAND_GAP); y++)
+          for (let x = Math.max(0, e.tx - EXPAND_GAP); x < Math.min(MW, e.tx + e.w + EXPAND_GAP); x++) out[y * MW + x] = 0;
+      }
+    }
     const R = isWall(type) ? WALL_RADIUS : BUILD_RADIUS;
     for (const e of G.ents) if (!e.dead && e.team === team && e.kind === 'bld' && !isWall(e.type)) stamp(e.tx - R, e.ty - R, e.tx + e.w + R, e.ty + e.h + R);
   }
@@ -168,11 +210,11 @@ export function buildZone(type: BldType, team: number, out: Uint8Array): Uint8Ar
 
 /** Can this type of structure go here? */
 export const canPlaceType = (type: BldType, tx: number, ty: number, team: number, margin = false): boolean =>
-  canPlace(tx, ty, BUILDING[type].size, team, margin, isWall(type), onWell(type));
+  canPlace(tx, ty, BUILDING[type].size, team, margin, isWall(type), reachOf(type));
 
 /** With margin, keeps a one-tile lane free around other buildings (used by the computer player). */
-export function canPlace(tx: number, ty: number, s: number, team: number, margin = false, wall = false, well = false): boolean {
-  if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !inReach(tx, ty, s, team, wall, well)) return false;
+export function canPlace(tx: number, ty: number, s: number, team: number, margin = false, wall = false, reach: Reach | boolean = 'base'): boolean {
+  if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !inReach(tx, ty, s, team, wall, reach)) return false;
   for (let y = ty; y < ty + s; y++) for (let x = tx; x < tx + s; x++) if (!tileFree(x, y, team) || nearPortal(x, y)) return false;
   if (margin)
     for (let y = ty - 1; y <= ty + s; y++)
@@ -186,10 +228,11 @@ export function canPlace(tx: number, ty: number, s: number, team: number, margin
 
 /** Lay out a construction site (the caller has checked and paid for it). */
 export function placeBuilding(team: number, type: BldType, tx: number, ty: number, quiet = false): Ent | null {
-  if (!canPlaceType(type, tx, ty, team)) { if (!quiet) say(team, onWell(type) ? 'Build it on an oil well' : 'Cannot place there'); return null; }
+  if (!canPlaceType(type, tx, ty, team)) { if (!quiet) say(team, onWell(type) ? 'Build it on an oil well' : isExpansion(type) ? 'Too close to the enemy' : 'Cannot place there'); return null; }
   for (let y = ty; y < ty + BUILDING[type].size; y++) for (let x = tx; x < tx + BUILDING[type].size; x++) G.ore[y * MW + x] = 0;
   const b = addBuilding(type, team, tx, ty, true);
   b.hp = b.maxhp * SITE_HP;
+  clearSite(b);
   return b;
 }
 
@@ -208,13 +251,17 @@ export function cancelSite(b: Ent): void {
 
 /** Tear a building down: nothing is refunded, but its scrap is left on the ground as ore to carry home. */
 export function scrap(b: Ent): void {
-  if (b.dead || b.kind !== 'bld' || b.type === 'yard') return;
+  if (b.dead || b.kind !== 'bld' || (b.type === 'yard' && !extraHall(b))) return;
   if (!b.done) { cancelSite(b); return; }
   const ore = Math.round(bldDef(b).cost * SCRAP_SHARE * (b.hp / b.maxhp) + b.carry);
   burst('dust', b.x, b.y, 20, 40, 120);
   kill(b);
   dropSalvage(b, ore);
 }
+
+/** A Town Hall the side could lose and keep another: only extra ones can be scrapped. */
+export const extraHall = (b: Ent): boolean =>
+  G.ents.some((e) => e !== b && !e.dead && e.team === b.team && e.type === 'yard' && e.done);
 
 export function toggleRepair(b: Ent): void {
   if (b.kind === 'bld' && b.done && b.hp < b.maxhp) b.repairing = !b.repairing;
