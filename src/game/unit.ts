@@ -25,7 +25,7 @@ const lastOrder = new WeakMap<Ent, string>();
 /** Units that had an order last tick. */
 const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
-import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
+import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
@@ -361,12 +361,15 @@ function woundedNear(u: Ent, r: number): Ent | null {
 function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
   if (!t || t.team !== u.team || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
-  const r = approach(u, t, MEDIC_RANGE, dt);
+  // heals from a distance: stops as soon as the patient is within reach, rather than walking up to it
+  const r = approach(u, t, MEDIC_REACH, dt);
   if (r === null) { setOrder(u, null); return; }
   if (!r) return;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
-  u.atkT = 0.25; // kneels and works: drawn like an attack
+  u.atkT = 0.25; // tends from afar: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
+  // a soft green ray to the patient now and then, so you can see who is being healed
+  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: 0, max: 0.3, col: '#7dff9a', size: 2 });
 }
 
 /** Something a Worker can mend: its side's site or damaged building (if the bank can pay), or a hurt unit on the ground. */

@@ -796,11 +796,14 @@ function military(team: number): void {
   } else if (A.attacking && home) {
     for (const u of idle) if (Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
   }
-  // medics trail the army: each idle one walks to the nearest fighter that's away from it
+  // medics trail the army: each idle one keeps a couple of tiles behind the nearest fighter (on the
+  // side away from the enemy), close enough to heal it from there
   for (const m of G.ents) {
     if (m.dead || m.team !== team || m.type !== 'medic' || m.order || !army.length) continue;
     const near = army.reduce((a, p) => (Math.hypot(p.x - m.x, p.y - m.y) < Math.hypot(a.x - m.x, a.y - m.y) ? p : a));
-    if (Math.hypot(near.x - m.x, near.y - m.y) > 3 * TS) orderMove(m, tileOf(near.x), tileOf(near.y));
+    if (Math.hypot(near.x - m.x, near.y - m.y) <= 3 * TS) continue;
+    const back = Math.atan2(near.y - tgt.y, near.x - tgt.x);
+    orderMove(m, tileOf(near.x + Math.cos(back) * 2 * TS), tileOf(near.y + Math.sin(back) * 2 * TS));
   }
   if (!home) return;
   // muster new troops in front of the base

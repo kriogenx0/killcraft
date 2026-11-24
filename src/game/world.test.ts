@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { G, hooks, isHarvester } from './state.ts';
+import { G, hooks, isAir, isHarvester } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
@@ -207,6 +207,14 @@ describe('production', () => {
     run(20);
     expect(s.hp).toBe(s.maxhp);
     expect(m.order).toBeNull();
+  });
+
+  it('a medic heals from a few tiles back instead of walking up to its patient', () => {
+    const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), m = addUnit('medic', 0, 26 * TS, 50 * TS);
+    s.hp = 20;
+    run(10);
+    expect(s.hp).toBeGreaterThan(20 + 15);
+    expect(Math.hypot(m.x - s.x, m.y - s.y)).toBeGreaterThan(2.5 * TS);
   });
 
   it('stalls without credits instead of going into debt', () => {
@@ -477,7 +485,7 @@ describe('a computer-vs-computer match', () => {
       expect(income[team]).toBeGreaterThan(0);
       if (!raided[team]) expect(G.ents.some((e) => e.team === team && isHarvester(e))).toBe(true);
     }
-    // nothing may stand inside a wall or building
-    for (const u of G.ents.filter((e) => e.kind === 'unit')) expect(G.blk[Math.floor(u.y / TS) * MW + Math.floor(u.x / TS)]).toBe(0);
+    // nothing on the ground may stand inside a wall or building (fliers pass over them)
+    for (const u of G.ents.filter((e) => e.kind === 'unit' && !isAir(e))) expect(G.blk[Math.floor(u.y / TS) * MW + Math.floor(u.x / TS)]).toBe(0);
   }, 15_000);
 });

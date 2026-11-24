@@ -104,7 +104,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   rocket: { name: 'Rocket Soldier', cls: 'infantry', armor: 'none', hp: 45, spd: 1.9, turn: 6.5, weapon: 'rocket', cost: 300, oil: 50, t: 8, era: 2, sight: 5, producer: 'infantry', turret: false, radius: 6, desc: 'Anti-armor infantry. Big, slow rockets that burst over a small area. Strong against vehicles.' },
   swordsman: { name: 'Footman', cls: 'infantry', armor: 'light', hp: 90, spd: 2.2, turn: 6.5, weapon: 'sword', cost: 175, t: 6, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 6, desc: 'Plate armor, sword and shield. Beats riflemen up close and shrugs off bullets.' },
   crossbowman: { name: 'Crossbowman', cls: 'infantry', armor: 'none', hp: 50, spd: 2.0, turn: 6.5, weapon: 'crossbow', cost: 170, wood: 30, t: 7, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Armor-piercing bolts. Good against footmen and knights.' },
-  medic: { name: 'Medic', cls: 'infantry', armor: 'none', hp: 60, spd: 2.2, turn: 6.5, weapon: null, cost: 200, t: 7, era: 0, requires: ['hospital'], sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Unarmed. Walks to wounded infantry and knights nearby and patches them up.' },
+  medic: { name: 'Medic', cls: 'infantry', armor: 'none', hp: 60, spd: 2.2, turn: 6.5, weapon: null, cost: 200, t: 7, era: 0, requires: ['hospital'], sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Unarmed. Heals wounded infantry, knights and creatures from up to 4 tiles away, so it can stay behind the front line.' },
   knight: { name: 'Knight', cls: 'infantry', armor: 'light', hp: 220, spd: 4.6, turn: 5, weapon: 'lance', cost: 450, wood: 50, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, desc: 'Armored horseman. Fast charges against infantry and harvesters.' },
   jeep: { name: 'Scout Jeep', cls: 'vehicle', armor: 'light', hp: 210, spd: 5.0, turn: 4, weapon: 'mg', cost: 325, oil: 50, t: 9, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, desc: 'Fast scout with a machine gun.' },
   tank: { name: 'Battle Tank', key: 'T', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, turn: 2.5, weapon: 'cannon', cost: 700, oil: 150, t: 14, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
@@ -160,8 +160,10 @@ export const UNIT: Record<UnitType, UnitDef> = {
   unicorn: { name: 'Unicorn', cls: 'infantry', armor: 'light', hp: 280, spd: 4.6, turn: 5, weapon: 'rainbow', cost: 400, aether: 40, t: 12, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 16, beast: true, cleanse: 4, desc: 'A joyful white unicorn with a rainbow mane. Its horn shoots rainbows, and its presence cures every friend nearby of burns, poison, ice, curses, hexes and stone. The answer to spellcasters and the Medusa.' },
 };
 
-/** Medics heal this many hit points a second, standing within this many px of their patient. */
+/** Medics heal this many hit points a second, from up to MEDIC_REACH px away, so they can stay behind the front. */
 export const MEDIC_HEAL = 4;
+export const MEDIC_REACH = 4 * 32;
+/** How close a Worker stands to the unit it patches up, px. */
 export const MEDIC_RANGE = 20;
 /** A Worker patches up a hurt unit this many hit points a second (half a Medic). */
 export const WORKER_HEAL = 2;
