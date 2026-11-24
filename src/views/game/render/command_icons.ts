@@ -15,6 +15,8 @@ export const COMMAND_GLYPH: Record<string, string> = {
   engage: svg(crosshair(12, 12, 6, 4)),
   skirmish: svg(`<path d="M3 19h10M10 16l3 3-3 3"/>${crosshair(15, 8.5, 4, 3)}`),
   passive: svg('<path d="M6 21V3"/><path d="M6 4h12l-3 4.5 3 4.5H6"/>'),
+  // Fix, then harvest: a hammer over a nugget of ore
+  tend: svg('<path d="M3.5 20.5l9-9"/><path d="M11.8 6.6l5.6 5.6-2.2 2.2-5.6-5.6z"/><path d="M19 15.5l2.5 2.5-2.5 2.5-2.5-2.5z"/>'),
   rally: svg('<path d="M6 21V3"/><path d="M6 4l13 4.5L6 13"/><path d="M3 21h7"/>'),
   follow: svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   cancel: svg('<path d="M6 6l12 12M18 6L6 18"/>'),

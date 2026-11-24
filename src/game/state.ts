@@ -16,9 +16,10 @@ export type EntType = UnitType | BldType | 'source' | 'aether' | 'shard';
 /**
  * How a unit fights. There is only one way to move; the stance decides what happens on the way.
  * engage: stop to fight enemies it meets (the default) · skirmish: shoot on the move without
- * stopping · passive: never attack, and run away from armed enemies.
+ * stopping · passive: never attack, and run away from armed enemies · tend (Workers only, their
+ * default): never attack; when idle, build, repair and patch up what's nearby, then harvest.
  */
-export const STANCES = ['engage', 'skirmish', 'passive'] as const;
+export const STANCES = ['engage', 'skirmish', 'passive', 'tend'] as const;
 export type Stance = (typeof STANCES)[number];
 
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
@@ -85,8 +86,6 @@ export interface Ent extends Target {
   drawT?: number;
   /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
   loot?: number;
-  /** a Worker told to fix everything nearby, then harvest: looks further for things to mend until there are none */
-  tending?: boolean;
   scan: number;
   rep: number;
   px: number;

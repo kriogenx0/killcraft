@@ -413,11 +413,11 @@ function mendNear(u: Ent, r: number): Ent | null {
  * up within TEND_RADIUS, unless an enemy is about and it's on "Don't attack". Returns true if it went.
  */
 export function fixNext(u: Ent): boolean {
-  if (u.stance === 'passive' && nearestThreat(u, Math.min(unitDef(u).sight, 7))) return false;
+  if (u.stance !== 'tend' || nearestThreat(u, Math.min(unitDef(u).sight, 7))) return false;
   const t = mendNear(u, TEND_RADIUS * TS);
   if (!t) return false;
   // a building it'll stay on however far; a wounded unit it gives up if it strays (it may be off fighting)
-  setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending || t.kind === 'bld' });
+  setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: t.kind === 'bld' });
   return true;
 }
 
@@ -470,7 +470,7 @@ export function updUnit(u: Ent, dt: number): void {
     u.scan = 0.3 + Math.random() * 0.2;
     if (u.type === 'medic') {
       const t = woundedNear(u, d.sight * TS);
-      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
+      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: false }); return; }
     }
     // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
@@ -483,7 +483,7 @@ export function updUnit(u: Ent, dt: number): void {
     // (a passive one only when no enemy is about), and only then goes back to gathering
     if (u.type === 'worker' && fixNext(u)) return;
     // a Worker only fights back, or an enemy that comes right up to it
-    const foe = u.stance === 'passive' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
+    const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
     // a passive unit runs from enemies, but a gatherer sticks to its work with them about
     const threat = u.stance === 'passive' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
     if (threat) orderFlee(u, threat);
@@ -495,7 +495,6 @@ export function updUnit(u: Ent, dt: number): void {
       const since = idleSince.get(u), grace = lastOrder.get(u) === 'move' ? IDLE_GRACE : 0;
       if (since === undefined && grace > 0) idleSince.set(u, G.gameT);
       else if (G.gameT - (since ?? G.gameT) >= grace) {
-        u.tending = false;
         u.scan = 1.5;
         idleSince.delete(u);
         lastOrder.delete(u);
@@ -512,7 +511,7 @@ export function updUnit(u: Ent, dt: number): void {
   busy.add(u);
   switch (o.t) {
     case 'move': {
-      if (u.stance === 'skirmish' || u.stance === 'passive' || !d.weapon) {
+      if (u.stance === 'skirmish' || u.stance === 'passive' || u.stance === 'tend' || !d.weapon) {
         // keep going; a skirmisher shoots along the way
         if (followPath(u, dt)) arrive(u);
         if (u.stance === 'skirmish') fireOnTheMove(u, dt);

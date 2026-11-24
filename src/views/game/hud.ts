@@ -74,7 +74,8 @@ export function setSelection(list: Ent[]): void {
 const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
   engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on (default)' },
   skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping' },
-  passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies' },
+  passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies. Workers just keep harvesting' },
+  tend: { label: 'Fix, then harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
 
 const isStance = (id: string): id is Stance => (STANCES as readonly string[]).includes(id);
@@ -118,9 +119,9 @@ export function commandList(): Command[] {
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
-      ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
-      // Workers: T, to tend the base
-      ...(s.some((u) => u.type === 'worker') ? [{ id: 'tend', label: 'Fix, then harvest', hotkey: COMMAND_KEYS.tend, icon: ICON.repair, tip: `Fix everything damaged within ${TEND_RADIUS} tiles (buildings, building sites and wounded units), then go back to harvesting. Idle Workers do this for what's close by on their own`, active: s.every((u) => u.type !== 'worker' || u.tending) }] : []),
+      // Fix, then harvest is for Workers only (and is theirs by default)
+      ...STANCES.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
+        .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
@@ -154,7 +155,6 @@ export function runCommand(id: string): void {
   else if (id === 'follow') toggleFollow();
   else if (id === 'move' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
-  else if (id === 'tend') dispatch({ c: 'tend', ids: ids(s.filter((u) => u.type === 'worker')) });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });

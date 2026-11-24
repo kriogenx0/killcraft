@@ -125,9 +125,28 @@ describe('Workers', () => {
     expect(gained).toBeLessThan(MEDIC_HEAL * 5);
   });
 
-  it('start on "Don\'t attack"', () => {
-    expect(addUnit('worker', 0, 20 * TS, 50 * TS).stance).toBe('passive');
-    expect(addUnit('swordsman', 0, 20 * TS, 50 * TS).stance).toBe('engage');
+  it('start on "Fix, then harvest", a stance only Workers can take', () => {
+    const w = addUnit('worker', 0, 20 * TS, 50 * TS), s = addUnit('swordsman', 0, 20 * TS, 50 * TS);
+    expect(w.stance).toBe('tend');
+    expect(s.stance).toBe('engage');
+    applyCommand(0, { c: 'stance', ids: [w.id, s.id], stance: 'passive' });
+    expect([w.stance, s.stance]).toEqual(['passive', 'passive']);
+    applyCommand(0, { c: 'stance', ids: [w.id, s.id], stance: 'tend' });
+    expect([w.stance, s.stance]).toEqual(['tend', 'passive']);
+  });
+
+  it('on "Don\'t attack" just harvest: they leave damage alone', () => {
+    for (const e of G.ents.filter((e) => e.type === 'worker')) kill(e);
+    const b = addBuilding('power', 0, 16, 50, false);
+    b.hp = b.maxhp * 0.5;
+    const w = addUnit('worker', 0, 19 * TS, 51 * TS);
+    applyCommand(0, { c: 'stance', ids: [w.id], stance: 'passive' });
+    run(4);
+    expect(w.order?.t).toBe('harvest');
+    applyCommand(0, { c: 'stance', ids: [w.id], stance: 'tend' });
+    applyCommand(0, { c: 'stop', ids: [w.id] });
+    run(1);
+    expect(w.order).toMatchObject({ t: 'heal', tgt: b.id });
   });
 
   it('fight back weakly with a pick, when put on engage', () => {
@@ -187,23 +206,22 @@ describe('Fix, then harvest', () => {
     expect(wounded.hp).toBeGreaterThan(20 + 15);
     for (let i = 0; i < 40 && w.order?.t !== 'harvest'; i++) run(1);
     expect(w.order?.t).toBe('harvest');
-    expect(w.tending).toBe(false);
   });
 
-  it('the Fix, then harvest order reaches the same', () => {
+  it('the old Fix, then harvest command sets the stance', () => {
     const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
     const cmd = parseCommand({ c: 'tend', ids: [w.id] });
     expect(cmd).toEqual({ c: 'tend', ids: [w.id] });
     if (!cmd) return;
+    w.stance = 'passive';
     applyCommand(0, cmd);
-    expect(w.tending).toBe(true);
+    expect(w.stance).toBe('tend');
   });
 
-  it('ends when the Worker gets another order', () => {
+  it('a stance, so it stays on through other orders', () => {
     const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
-    applyCommand(0, { c: 'tend', ids: [w.id] });
     applyCommand(0, { c: 'move', ids: [w.id], tx: 20, ty: 50 });
-    expect(w.tending).toBe(false);
+    expect(w.stance).toBe('tend');
   });
 });
 
