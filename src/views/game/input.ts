@@ -204,6 +204,9 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
     lastPointer = ev.pointerType;
     if (ev.pointerType === 'touch') {
       document.documentElement.classList.add('touch-ui');
+      // the first finger of a new gesture: forget fingers whose lift never arrived (iOS can swallow it
+      // in a system gesture), or a later one-finger drag would act as a pinch with a ghost finger
+      if (ev.isPrimary) { touches.clear(); boxing = false; wallDrag = false; }
       touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       pinch = null;
       clearPress();
@@ -353,7 +356,9 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
     if (ev.shiftKey && !dx) { dx = dy; dy = 0; }
     panScreen(dx, dy);
   }, { passive: false });
+  // the pointer left the window: stop scrolling at the screen edge (mouseout covers Safari)
   document.addEventListener('pointerleave', () => { V.mouse.inside = false; });
+  window.addEventListener('mouseout', (ev) => { if (!ev.relatedTarget) V.mouse.inside = false; });
   canvas.addEventListener('dblclick', (ev) => {
     // a mouse double-click only: on touch, two quick taps are just two taps (a long press selects a type)
     if (!V.started || lastPointer === 'touch') return;
@@ -438,13 +443,17 @@ function onKey(ev: KeyboardEvent): void {
 
 /** Move the view by a screen offset (px), as if dragging the ground the other way. */
 function panScreen(dx: number, dy: number): void {
-  const cx = V.vw / 2, cy = V.vh / 2;
-  const w0 = screenToWorld(cx, cy), w1 = screenToWorld(cx + dx, cy + dy);
-  if (w0 && w1) { V.cam.x += w1.x - w0.x; V.cam.y += w1.y - w0.y; }
-  else {
-    const [px, py] = panDelta(V.cam.yaw, dx * V.cam.dist * 0.05, dy * V.cam.dist * 0.05);
-    V.cam.x += px; V.cam.y += py;
-  }
+  // world px per screen px, measured a few px around the middle of the map view. Scaling linearly from
+  // there (rather than projecting the whole offset onto the ground) keeps every scroll step the same
+  // size: a big trackpad flick on a tilted camera no longer leaps toward the horizon or off into the sky.
+  const cx = V.viewW / 2, cy = V.viewH / 2, P = 8;
+  const c = screenToWorld(cx, cy), r = screenToWorld(cx + P, cy), d = screenToWorld(cx, cy + P);
+  const fallback = (V.cam.dist * TS) / Math.max(1, V.viewH);
+  const sx = c && r ? Math.hypot(r.x - c.x, r.y - c.y) / P : fallback;
+  const sy = c && d ? Math.hypot(d.x - c.x, d.y - c.y) / P : fallback;
+  const [px, py] = panDelta(V.cam.yaw, dx * sx, dy * sy);
+  V.cam.x += px;
+  V.cam.y += py;
   clampCam();
 }
 
