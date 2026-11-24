@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G } from './state.ts';
 import { STEP } from './const.ts';
 import { ais } from './ai.ts';
-import { initWorld, stranded, update } from './world.ts';
+import { initWorld, outReasons, stranded, update } from './world.ts';
 import { addBuilding, kill } from './entity.ts';
 import { enqueue, startSite } from './production.ts';
 import { UNIT } from '../data/unit.ts';
@@ -52,6 +52,8 @@ describe('a side that can never recover', () => {
     expect(own(1, 'bld')).toHaveLength(0);
     expect(G.over).toBe(true);
     expect(G.winner).toBe(0);
+    // the end screen and the server log say who went out, when and why
+    expect(outReasons()).toEqual([expect.stringMatching(/^Red was knocked out at 0:0\d: its base blew up: no Town Hall, no units and no ore for a Worker\.$/)]);
   });
 
   it('is out with ore but nothing left that trains Workers', () => {
@@ -89,5 +91,12 @@ describe('a side that can never recover', () => {
     expect(stranded(1)).toBe(false);
     run(5);
     expect(G.over).toBe(false);
+  });
+
+  it('logs a side wiped out the ordinary way', () => {
+    for (const b of own(1, 'bld')) kill(b);
+    run(5);
+    expect(G.winner).toBe(0);
+    expect(outReasons()[0]).toMatch(/^Red was knocked out at 0:0\d: no buildings and no fighting units left\.$/);
   });
 });

@@ -6,7 +6,7 @@ import { layoutFor } from '../../data/map.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, type GameSetup } from '../../data/setup.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
-import { initWorld, update } from '../../game/world.ts';
+import { initWorld, outReasons, update } from '../../game/world.ts';
 import { ais, setAiLevel } from '../../game/ai.ts';
 import { noUpgrades } from '../../game/upgrade.ts';
 import { rebuildBlk } from '../../game/map.ts';
@@ -269,6 +269,7 @@ export function mountGameView(root: HTMLElement): void {
       if (watchingNames) endReason = m.reason === 'left' ? `${loser} left the game.` : m.reason === 'resigned' ? `${loser} surrendered.` : '';
       else endReason = m.reason === 'left' ? (m.winner === V.team ? 'Your opponent left the game.' : 'You left the game.')
         : m.reason === 'resigned' ? (m.winner === V.team ? 'Your opponent surrendered.' : 'You surrendered.') : '';
+      if (m.detail?.length) endReason = m.detail.join(' '); // the server knows best why it ended
     }
   };
   net.onMessage(onGameMessage);
@@ -506,6 +507,8 @@ export function mountGameView(root: HTMLElement): void {
     }
     if (G.over && !shownEnd) {
       shownEnd = true;
+      // a game this screen ran: say who was knocked out, when and why
+      if (!endReason && !V.online) endReason = outReasons((t) => `${watchingNames?.[t] ?? teamColors(t).name}${t === V.team && !G.demo ? ' (you)' : ''}`).join(' ');
       if (root.dataset.gameId) void forgetGame(root.dataset.gameId).catch(() => {});
       must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${watchingNames?.[G.winner] ?? teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
