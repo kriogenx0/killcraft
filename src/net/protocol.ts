@@ -123,7 +123,7 @@ export type ServerMsg =
   | SnapMsg
   /** you're now watching this match (sent again on a reconnect) */
   | { k: 'spectate'; game: string; seed: number; players: string[] }
-  | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned' }
+  | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned'; /** how each side was knocked out */ detail?: string[] }
   /** `live`: the game asked for is a match under way, which can be watched instead */
   | { k: 'error'; msg: string; live?: LiveGame }
   | { k: 'notice'; msg: string }

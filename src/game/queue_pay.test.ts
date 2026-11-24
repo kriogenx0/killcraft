@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G } from './state.ts';
-import { STEP } from './const.ts';
 import { ais } from './ai.ts';
-import { initWorld, update } from './world.ts';
+import { initWorld } from './world.ts';
 import { addBuilding } from './entity.ts';
 import { applyCommand } from './command.ts';
 import { priceOf } from './production.ts';
@@ -29,24 +28,22 @@ const ore = priceOf('swordsman').ore;
 const queue = () => G.prod[0].infantry;
 
 describe("a player's queued orders", () => {
-  it('are charged only when they start training, one at a time', () => {
+  it('are paid for in full the moment they are queued', () => {
     for (let i = 0; i < 3; i++) applyCommand(0, { c: 'build', type: 'swordsman' });
-    expect(queue().map((x) => x.paid)).toEqual([true, false, false]);
-    expect(G.credits[0]).toBe(10000 - ore);
-    // the first one finishes: only then is the second charged
-    for (let t = 0; queue().length === 3 && t < 120; t += STEP) update(STEP);
-    expect(G.credits[0]).toBe(10000 - ore);
-    update(STEP);
-    expect(queue().map((x) => x.paid)).toEqual([true, false]);
-    expect(G.credits[0]).toBe(10000 - 2 * ore);
+    expect(queue().map((x) => x.paid)).toEqual([true, true, true]);
+    expect(G.credits[0]).toBe(10000 - 3 * ore);
   });
 
-  it('refund only what was charged when cancelled', () => {
+  it("are turned down when the side can't pay", () => {
+    G.credits[0] = ore * 2 - 1;
     for (let i = 0; i < 3; i++) applyCommand(0, { c: 'build', type: 'swordsman' });
-    applyCommand(0, { c: 'cancel', type: 'swordsman' }); // the newest: never charged, nothing back
-    expect(G.credits[0]).toBe(10000 - ore);
-    applyCommand(0, { c: 'cancel', type: 'swordsman' });
-    applyCommand(0, { c: 'cancel', type: 'swordsman' }); // the one training: charged, refunded in full
+    expect(queue()).toHaveLength(1);
+    expect(G.credits[0]).toBe(ore - 1);
+  });
+
+  it('refund in full when cancelled', () => {
+    for (let i = 0; i < 3; i++) applyCommand(0, { c: 'build', type: 'swordsman' });
+    for (let i = 0; i < 3; i++) applyCommand(0, { c: 'cancel', type: 'swordsman' });
     expect(queue()).toHaveLength(0);
     expect(G.credits[0]).toBe(10000);
   });

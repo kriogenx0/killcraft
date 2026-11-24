@@ -258,6 +258,8 @@ export const G = {
   gameT: 0,
   over: false,
   winner: -1,
+  /** each side knocked out so far, in order: when and why (shown on the end screen) */
+  outLog: [] as { team: number; t: number; why: string }[],
   /** both sides are computer-controlled */
   demo: false,
   /** reveal the whole map (testing) */

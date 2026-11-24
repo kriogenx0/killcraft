@@ -79,7 +79,7 @@ export class MatchService {
     this.byPlayer.set(a.id, m);
     this.byPlayer.set(b.id, m);
     worker.on('message', (msg: WorkerOut) => this.fromWorker(m, msg));
-    worker.on('error', (err) => { console.error('match worker failed', err); this.end(m, -1, 'left'); });
+    worker.on('error', (err) => { console.error('match worker failed', err); this.end(m, -1, 'left', ['The game server hit an error and stopped the match.']); });
     m.players.forEach((p, team) => this.events.send(p.id, { k: 'start', team, seed, game: m.id, key: m.keys[team], opponent: m.players[1 - team].name }));
   }
 
@@ -91,7 +91,7 @@ export class MatchService {
     this.byPlayer.delete(playerId);
     m.away[team] = true;
     m.worker.postMessage({ k: 'ai', team, on: true } satisfies WorkerIn);
-    if (m.away.every(Boolean)) m.abandon ??= setTimeout(() => this.end(m, -1, 'left'), this.abandonAfter);
+    if (m.away.every(Boolean)) m.abandon ??= setTimeout(() => this.end(m, -1, 'left', ['Both players were away too long.']), this.abandonAfter);
     else this.events.send(m.players[1 - team].id, { k: 'notice', msg: `${m.players[team].name} lost connection. The computer is playing for them until they're back.` });
     return true;
   }
@@ -181,24 +181,26 @@ export class MatchService {
       if (msg.team < 0) { if (m.watchers.size) { const json = JSON.stringify(msg.snap); for (const w of m.watchers) this.events.sendRaw(w, json); } }
       else this.events.send(m.players[msg.team].id, msg.snap);
     }
-    else if (msg?.k === 'end') this.end(m, msg.winner, 'destroyed');
+    else if (msg?.k === 'end') this.end(m, msg.winner, 'destroyed', msg.detail);
     else if (msg?.k === 'error') console.error('match error:', msg.msg);
   }
 
-  private end(m: Match, winner: number, reason: 'destroyed' | 'left' | 'resigned'): void {
+  private end(m: Match, winner: number, reason: 'destroyed' | 'left' | 'resigned', detail: string[] = []): void {
     if (m.over) return;
     m.over = true;
+    // one line per finished match in the server log, so a report of a game that ended can be traced by its id
+    console.info(`match ${m.id} ended after ${Math.round((Date.now() - m.started) / 1000)}s: ${reason}, winner ${winner}${detail.length ? `. ${detail.join(' ')}` : ''}`);
     if (m.abandon) clearTimeout(m.abandon);
     void m.worker.terminate();
     this.matches.delete(m.id);
     for (const p of m.players) {
       this.byPlayer.delete(p.id);
-      this.events.send(p.id, { k: 'end', winner, reason });
+      this.events.send(p.id, { k: 'end', winner, reason, detail });
       this.events.finished(p.id);
     }
     for (const w of m.watchers) {
       this.byWatcher.delete(w);
-      this.events.send(w, { k: 'end', winner, reason });
+      this.events.send(w, { k: 'end', winner, reason, detail });
       this.events.finished(w);
     }
     m.watchers.clear();

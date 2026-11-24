@@ -6,7 +6,7 @@ import { STEP } from '../../src/game/const.ts';
 import { ais } from '../../src/game/ai.ts';
 import { AI_LEVEL, type Difficulty } from '../../src/data/setup.ts';
 import { updFog } from '../../src/game/fog.ts';
-import { initWorld, update } from '../../src/game/world.ts';
+import { initWorld, outReasons, update } from '../../src/game/world.ts';
 import { applyCommand, parseCommand } from '../../src/game/command.ts';
 import { encodeEnt, encodeOre, visibleTo, weaponIndex, type FxEvent } from '../../src/net/snapshot.ts';
 import type { SideStock, SnapMsg } from '../../src/net/protocol.ts';
@@ -15,7 +15,7 @@ import type { SideStock, SnapMsg } from '../../src/net/protocol.ts';
  * or the computer taking over (or handing back) a side whose player dropped out */
 export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: number } | { k: 'ai'; team: number; on: boolean };
 /** team -1: the snapshot for people watching, which shows everything */
-export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number } | { k: 'error'; msg: string };
+export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number; detail: string[] } | { k: 'error'; msg: string };
 
 const SNAP_EVERY = 6; // steps (10 snapshots a second)
 const ORE_EVERY = 10; // snapshots
@@ -83,7 +83,7 @@ const timer = setInterval(() => {
     if (++steps % SNAP_EVERY === 0) sendSnapshots();
     if (G.over) {
       sendSnapshots();
-      port.postMessage({ k: 'end', winner: G.winner } satisfies WorkerOut);
+      port.postMessage({ k: 'end', winner: G.winner, detail: outReasons() } satisfies WorkerOut);
       clearInterval(timer);
       return;
     }
