@@ -377,6 +377,14 @@ $sidebar-width: 248px;
     background: radial-gradient(ellipse at center, rgb(30 34 20 / 55%), rgb(0 0 0 / 95%));
   }
 
+  // main menu: one column of equal-width buttons
+  .game-start-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 280px;
+  }
+
   // keyboard and mouse reference, hidden until "Controls" is opened
   .game-controls {
     width: 100%;
@@ -384,7 +392,10 @@ $sidebar-width: 248px;
   }
 
   .game-controls-toggle {
-    display: inline-block;
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
     list-style: none;
     cursor: pointer;
 
