@@ -49,13 +49,17 @@ export const FREEZE_HP = 300;
 export const BURN_DPS = 4;
 export const BURN_TIME = 4;
 /** Poison: damage per second and duration. It only harms living things (not vehicles, machines or cyborgs) and goes through armor. */
-export const POISON_DPS = 5;
+export const POISON_DPS = 8;
 export const POISON_TIME = 6;
 /** Sludge: how long a coat lasts, and the speed it leaves its target. */
 export const SLUDGE_TIME = 6;
 export const SLUDGE_SPEED = 0.65;
 /** Sludge is oily: fire on a sludged target does this much more damage, and burns hotter (above). */
 export const SLUDGE_FIRE = 1.25;
+/** Sludge gums up weapons too: reloads take this much longer. */
+export const SLUDGE_RELOAD = 0.75;
+/** Water hits anything that fights with fire this much harder (Battle Mages, Cerberus, the Phoenix...). */
+export const WATER_VS_FIRE = 1.8;
 /** Water: how long a target stays wet, and how much harder lightning hits it. */
 export const WET_TIME = 8;
 export const WET_SHOCK = 1.6;
@@ -68,6 +72,6 @@ export const ELEMENT_DESC: Record<Element, string> = {
   fire: 'sets its target burning',
   electric: `hits wet targets ${Math.round((WET_SHOCK - 1) * 100)}% harder`,
   poison: 'poisons living things, straight through armor',
-  sludge: 'coats its target in sludge: slower, and it burns hotter',
-  water: 'puts out fire and poison and washes off sludge, but leaves its target wet (lightning hits it harder)',
+  sludge: 'coats its target in sludge: it moves and reloads slower, and burns hotter',
+  water: `hits fire-wielders ${Math.round((WATER_VS_FIRE - 1) * 100)}% harder; puts out fire and poison and washes off sludge, but leaves its target wet (lightning hits it harder)`,
 };

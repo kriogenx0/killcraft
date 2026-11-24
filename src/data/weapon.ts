@@ -76,9 +76,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   lightning: { element: 'electric', dmg: 34, range: 5, cd: 2.0, proj: 'bullet', speed: 0, splash: 0, chain: 2, vs: { none: 1, light: 1, heavy: 0.8, building: 0.4, air: 1.2 } },
   meteor: { element: 'fire', dmg: 130, range: 9, minRange: 3, cd: 5, proj: 'orb', speed: 280, splash: 30, ground: true, vs: { none: 0.8, light: 0.9, heavy: 0.8, building: 1.3, air: 0 } },
   // elemental spells: a wave of water, a flask of poison gas, a splash of sludge
-  tidal: { element: 'water', dmg: 20, range: 4.5, cd: 1.6, proj: 'orb', speed: 300, splash: 14, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.4, air: 0.8 } },
-  plague: { element: 'poison', dmg: 14, range: 4.5, cd: 1.8, proj: 'orb', speed: 260, splash: 16, vs: { none: 1, light: 0.9, heavy: 0.5, building: 0.25, air: 0.6 } },
-  tar: { element: 'sludge', dmg: 26, range: 5, cd: 2.0, proj: 'orb', speed: 260, splash: 20, vs: { none: 1, light: 0.9, heavy: 0.7, building: 0.5, air: 0 } },
+  tidal: { element: 'water', dmg: 24, range: 4.5, cd: 1.4, proj: 'orb', speed: 300, splash: 16, vs: { none: 1, light: 0.9, heavy: 0.5, building: 0.4, air: 1.4 } },
+  plague: { element: 'poison', dmg: 16, range: 4.5, cd: 1.8, proj: 'orb', speed: 260, splash: 22, vs: { none: 1, light: 1.1, heavy: 0.9, building: 0.15, air: 0.6 } },
+  tar: { element: 'sludge', dmg: 26, range: 5, cd: 2.0, proj: 'orb', speed: 260, splash: 20, vs: { none: 1, light: 1.1, heavy: 1.2, building: 0.8, air: 0 } },
   // cyborg arms
   minigun: { dmg: 8, range: 4.5, cd: 0.2, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.75, heavy: 0.3, building: 0.35, air: 0.5 } },
   railgun: { dmg: 95, range: 6, cd: 3.2, proj: 'shell', speed: 900, splash: 14, vs: { none: 0.4, light: 1, heavy: 1.1, building: 1.1, air: 0 } },
@@ -97,8 +97,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   lionclaw: { dmg: 26, range: 0.8, cd: 1.1, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.9, heavy: 0.45, building: 0.4, air: 0 } },
   sphinxclaw: { dmg: 22, range: 0.8, cd: 1.1, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.5, building: 0.5, air: 0 } },
   thyrsus: { dmg: 12, range: 0.7, cd: 0.9, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.12, building: 0.3, air: 0 } },
-  chimerafire: { dmg: 24, range: 4, cd: 1.5, proj: 'orb', speed: 320, splash: 12, vs: { none: 1, light: 0.8, heavy: 0.35, building: 0.6, air: 1.5 } },
-  phoenixfire: { dmg: 20, range: 3.5, cd: 1.3, proj: 'orb', speed: 300, splash: 10, vs: { none: 1.1, light: 0.9, heavy: 0.4, building: 0.8, air: 0.7 } },
+  chimerafire: { element: 'fire', dmg: 24, range: 4, cd: 1.5, proj: 'orb', speed: 320, splash: 12, vs: { none: 1, light: 0.8, heavy: 0.35, building: 0.6, air: 1.5 } },
+  phoenixfire: { element: 'fire', dmg: 20, range: 3.5, cd: 1.3, proj: 'orb', speed: 300, splash: 10, vs: { none: 1.1, light: 0.9, heavy: 0.4, building: 0.8, air: 0.7 } },
 };
 
 /** Chain lightning leaps to foes within this many px of the last one struck... */

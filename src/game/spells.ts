@@ -11,9 +11,10 @@ import { cloakedFrom, hex } from './aether.ts';
 import { kneeling } from './creatures.ts';
 import { dealDamage } from './combat.ts';
 import { UNIT } from '../data/unit.ts';
+import { WEAPON } from '../data/weapon.ts';
 import {
   BURN_DPS, BURN_TIME, DOT_TICK, FREEZE_HP, FREEZE_WORTH, LUST_ATTACK, LUST_SPEED, MANA_REGEN, MANA_START, POISON_DPS, POISON_TIME,
-  SLOW_ATTACK, SLUDGE_FIRE, SLUDGE_SPEED, SLUDGE_TIME, SPELL, WET_SHOCK, WET_TIME, type Element, type SpellType,
+  SLOW_ATTACK, SLUDGE_FIRE, SLUDGE_RELOAD, WATER_VS_FIRE, SLUDGE_SPEED, SLUDGE_TIME, SPELL, WET_SHOCK, WET_TIME, type Element, type SpellType,
 } from '../data/spells.ts';
 
 const on = (t: number | undefined): boolean => (t ?? 0) > G.gameT;
@@ -45,12 +46,13 @@ export function spellSpeed(u: Ent): number {
 }
 
 /** How fast a unit's weapon reloads: Bloodlust speeds it up, the Slow spell slows it down. */
-export const reloadRate = (u: Ent): number => (lusting(u) ? LUST_ATTACK : 1) * (cursed(u) ? SLOW_ATTACK : 1);
+export const reloadRate = (u: Ent): number => (lusting(u) ? LUST_ATTACK : 1) * (cursed(u) ? SLOW_ATTACK : 1) * (sludged(u) ? SLUDGE_RELOAD : 1);
 
 /** Extra damage an element does to a target in its current state: lightning on wet, fire on sludge. */
 export function elementMult(el: Element | undefined, t: Ent): number {
   if (el === 'electric' && wet(t)) return WET_SHOCK;
   if (el === 'fire' && sludged(t)) return SLUDGE_FIRE;
+  if (el === 'water' && t.kind === 'unit') { const w = unitDef(t).weapon; if (w && WEAPON[w].element === 'fire') return WATER_VS_FIRE; }
   return 1;
 }
 
