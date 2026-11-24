@@ -62,7 +62,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null): void {
 }
 
 function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): void {
-  const w = WEAPON[wt], blast = w.proj === 'boulder' ? impact : explosion;
+  const w = WEAPON[wt], blast = w.proj === 'boulder' || wt === 'quake' ? impact : explosion;
   if (w.proj === 'melee' && armorOf(t) !== 'none') burst('spark', (x + (src?.x ?? x)) / 2, (y + (src?.y ?? y)) / 2 - 8, 4, 60, 160); // steel on steel
   // a bullet striking: a small flash where it lands, so every hit reads at a glance
   if (w.proj === 'bullet') part('flash', x + (Math.random() - 0.5) * 6, y - 6, { max: 0.09, size: wt === 'starbeam' ? 16 : 6, z: altOf(t), col: BEAM_COL[wt] ?? '#fff2c0' });

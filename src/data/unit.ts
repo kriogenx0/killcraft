@@ -4,7 +4,7 @@ import type { BldType } from './building.ts';
 export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
-  | 'mage' | 'stormcaller' | 'archmage' | 'juggernaut' | 'titan'
+  | 'mage' | 'stormcaller' | 'archmage' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
@@ -46,6 +46,13 @@ export interface UnitDef {
   magic?: boolean;
   /** a hulking walker of flesh and steel (render3d/arcane3d.ts): it strides on two legs and twists its torso to aim */
   cyborg?: boolean;
+  /**
+   * a towering giant of myth (render3d/giant3d.ts), several times the height of anything else on the
+   * field. Rendered and animated on its own.
+   */
+  giant?: boolean;
+  /** a side may have at most this many alive or in training at once */
+  limit?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
   look?: UnitType;
   /** build time in seconds at full power */
@@ -108,7 +115,11 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // cyborgs: Modern-age giants, half soldier, half war machine, built at the War Factory. Huge,
   // slow and costly, they wade through small-arms fire; rockets and anti-tank missiles bring them down.
   juggernaut: { name: 'Cyborg Juggernaut', key: 'J', cls: 'vehicle', armor: 'heavy', hp: 900, spd: 2.2, turn: 3, weapon: 'minigun', cost: 1200, oil: 150, t: 20, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, cyborg: true, desc: 'A towering cyborg with a rotary cannon for an arm. Mows down infantry and shrugs off bullets.' },
-  titan: { name: 'Cyborg Titan', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2200, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft.' },
+  titan: { name: 'Cyborg Colossus', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2200, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft.' },
+  // the Titan: one per side, the largest thing in the game. An elder giant of bronze and stone, woken
+  // with Aether. It smashes everything around it with a broken temple column; only aircraft are
+  // safe from it, and massed rockets and anti-tank fire are the way to bring it down.
+  giant: { name: 'Titan', cls: 'infantry', armor: 'heavy', hp: 3200, spd: 1.5, turn: 2.2, weapon: 'quake', cost: 2800, wood: 400, aether: 150, t: 50, era: 1, sight: 8, producer: 'infantry', turret: false, radius: 24, giant: true, limit: 1, group: 'Magic', desc: 'An elder giant of bronze and stone, woken with Aether. Its column smashes everything around the blow and crushes buildings. Only one at a time. Can\'t hit aircraft.' },
   // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 220, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 350, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 11, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry.' },

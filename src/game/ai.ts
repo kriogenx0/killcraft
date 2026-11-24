@@ -8,7 +8,7 @@ import { BUILDING, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace, wallLine } from './building.ts';
-import { available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
+import { atLimit, available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear, woodNear } from './economy.ts';
 import { CHOPPERS_PER_MILL } from '../data/economy.ts';
 import { orderFix, orderHarvest, orderMove, setStance, orderHaul } from './order.ts';
@@ -475,7 +475,7 @@ function armory(team: number): void {
 function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [UnitType, number][]): UnitType | null {
   const can = available(team, line), wood = G.wood[team] - (ais[team].reserveWood ?? 0);
   const enough = (t: UnitType) => { const p = priceOf(t); return (p.wood <= 0 || wood >= p.wood) && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
-  const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t));
+  const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t) && !atLimit(team, t));
   let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
   for (const [t, w] of ok) if ((r -= w) < 0) return t;
   return ok[0]?.[0] ?? null;
@@ -516,7 +516,7 @@ function training(team: number): void {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
     const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0],
-      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5]]);
+      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5], ['giant', credits > 3200 ? 1 : 0]]);
     if (t) enqueue(team, t);
   }
 }

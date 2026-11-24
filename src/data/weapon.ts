@@ -3,7 +3,7 @@ export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak'
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
-  | 'fireball' | 'lightning' | 'meteor' | 'minigun' | 'railgun'
+  | 'fireball' | 'lightning' | 'meteor' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
@@ -72,6 +72,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // cyborg arms
   minigun: { dmg: 8, range: 4.5, cd: 0.2, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.75, heavy: 0.3, building: 0.35, air: 0.5 } },
   railgun: { dmg: 95, range: 6, cd: 3.2, proj: 'shell', speed: 900, splash: 14, vs: { none: 0.4, light: 1, heavy: 1.1, building: 1.1, air: 0 } },
+  // the Titan's column: a slow, earth-shaking blow that hits everything around the target
+  quake: { dmg: 120, range: 1.3, cd: 2.6, proj: 'melee', speed: 0, splash: 36, vs: { none: 0.9, light: 1, heavy: 1, building: 1.5, air: 0 } },
   // creatures of Greek myth
   centaurbow: { dmg: 15, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 0.7 } },
   axe: { dmg: 34, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
