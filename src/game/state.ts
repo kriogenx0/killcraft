@@ -28,7 +28,7 @@ export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: numb
 /** What a unit is carrying home. */
 export type Cargo = 'ore' | 'wood' | 'oil';
 /** Gather ore from the ground, or (with `res`) haul wood or oil from the store of building `src`. */
-export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number; res?: 'wood' | 'oil'; src?: number }
+export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unload'; tx: number; ty: number; wait: number; res?: 'wood' | 'oil'; src?: number; /** a job the Worker picked itself while idle: it may switch when it drops a load off (autogather.ts) */ auto?: boolean }
 /**
  * A medic tending a wounded ally, or a Worker mending an ally or building (repairing it, or helping a
  * site go up). One it found itself gives up if it strays too far from where it started (ox, oy).

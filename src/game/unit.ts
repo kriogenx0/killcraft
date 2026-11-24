@@ -6,7 +6,7 @@ import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
-import { orderFlee, orderHarvest, orderMove, setOrder, arrive } from './order.ts';
+import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { nearestOre, takeOre } from './ore.ts';
@@ -15,6 +15,10 @@ import { bankAt } from './haul.ts';
 import { oilLeft } from './economy.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
+import { IDLE_GRACE, autoGather, rethink } from './autogather.ts';
+
+/** When each idle gatherer last had something to do (game seconds). */
+const idleSince = new WeakMap<Ent, number>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
@@ -159,7 +163,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   else if (cargo === 'oil') G.oil[u.team] += a;
   else { G.credits[u.team] += a; hooks.income(u.team, a); }
   hooks.gain(u.team, u.x, u.y, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a, u.id);
-  if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; }
+  if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; rethink(u, o); }
 }
 
 /** Haul oil: walk to a derrick, fill up from its store, then head home. */
@@ -425,14 +429,21 @@ export function updUnit(u: Ent, dt: number): void {
       if (threat) orderFlee(u, threat);
     } else if (foe) {
       setOrder(u, { t: 'attack', tgt: foe.id, auto: true, ox: u.x, oy: u.y });
-    } else if (isHarvester(u) && nearestOwn(u, 'refinery')) {
-      u.tending = false; // nothing left to fix: back to the ore
-      u.scan = 1.5;
-      if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
-      else orderHarvest(u, tileOf(u.x), tileOf(u.y));
+    } else if (isHarvester(u)) {
+      // nothing left to fix: after a moment's pause, go and gather what the side needs most
+      const since = idleSince.get(u);
+      if (since === undefined) idleSince.set(u, G.gameT);
+      else if (G.gameT - since >= IDLE_GRACE) {
+        u.tending = false;
+        u.scan = 1.5;
+        idleSince.delete(u);
+        if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
+        else autoGather(u);
+      }
     }
     return;
   }
+  idleSince.delete(u);
   switch (o.t) {
     case 'move': {
       if (u.stance === 'skirmish' || u.stance === 'passive' || !d.weapon) {

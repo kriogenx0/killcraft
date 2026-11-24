@@ -266,6 +266,7 @@ describe('production', () => {
   it('pumps oil from a well until it runs dry, and nothing away from a well', () => {
     const [wx, wy] = OIL_WELLS[0];
     G.oil[0] = 0;
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // nobody hauls it off: idle Workers would
     const far = addBuilding('derrick', 0, 30, 4, false);
     expect(oilLeft(far)).toBe(0);
     const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
