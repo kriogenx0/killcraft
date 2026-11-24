@@ -11,7 +11,7 @@ import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThre
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH } from '../data/aether.ts';
-import { nearestOre, takeOre } from './ore.ts';
+import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { bankAt } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
@@ -33,7 +33,6 @@ const AUTO_CHASE = 9 * TS;
 export const TEND_RADIUS = 12;
 /** Idle Workers repair buildings on their own only while the bank holds more ore than this. */
 const AUTO_REPAIR_FLOOR = 200;
-const ORE_SEARCH = 24;
 /** How far (px) a stuck unit edges aside to get past a unit in its way. */
 const SIDESTEP = 8;
 
@@ -64,27 +63,30 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
 }
 
 /**
- * The ore closest to the harvester's drop-off that no other harvester has claimed; shares a tile only if every field is taken. When
- * the ground within `r` holds less than a load (a field mined out, with only crumbs of regrowth
- * left), head for the nearest patch with worthwhile ore anywhere instead.
+ * The next ore to dig: the tile closest to any of the side's ore drop-offs (Refinery or Town Hall),
+ * wherever the gatherer is now, so it always works the ore nearest the base first and trips stay
+ * short. Crumbs of regrowth only once no tile worth a trip is left. Skips tiles another
+ * gatherer has claimed, sharing one only if every tile is taken.
  */
-function pickOre(u: Ent, tx: number, ty: number, r: number): [number, number] | null {
+function pickOre(u: Ent): [number, number] | null {
   const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
-  // closest to where it'll be dropped off, so trips stay short
-  const home = bankAt(u, ['refinery', 'yard']);
-  const here = () => nearestOre(tx, ty, r, 1, free, home) ?? nearestOre(tx, ty, r, 1, ok, home);
-  if (r >= MW || oreAround(tx, ty, Math.max(r, 3)) >= haulOf(u)) return here();
-  return nearestOre(tx, ty, MW, ORE_WORTH, free, home) ?? nearestOre(tx, ty, MW, ORE_WORTH, ok, home) ?? here();
+  const homes = G.ents.filter((e) => !e.dead && e.team === u.team && e.done && (e.type === 'refinery' || e.type === 'yard'));
+  const walk = walkOf(u.team, homes);
+  const x = tileOf(u.x), y = tileOf(u.y);
+  // a tile worth a trip first: crumbs of regrowth only once there's nothing else
+  return nearestOre(x, y, MW, ORE_WORTH, free, homes, walk) ?? nearestOre(x, y, MW, 1, free, homes, walk) ?? nearestOre(x, y, MW, 1, ok, homes, walk);
 }
 
-/** The ore within r tiles of a tile, not counting crumbs too small to be worth a trip. */
-function oreAround(tx: number, ty: number, r: number): number {
-  let sum = 0;
-  for (let y = Math.max(0, ty - r); y <= Math.min(MH - 1, ty + r); y++)
-    for (let x = Math.max(0, tx - r); x <= Math.min(MW - 1, tx + r); x++) if (G.ore[y * MW + x] >= ORE_WORTH) sum += G.ore[y * MW + x];
-  return sum;
+/** Each side's walking distances from its ore drop-offs, refreshed every couple of seconds or when its drop-offs change. */
+const walkCache = new Map<number, { t: number; key: string; d: Float32Array }>();
+function walkOf(team: number, homes: Ent[]): Float32Array | null {
+  if (!homes.length) return null;
+  const key = homes.map((h) => h.id).join(','), c = walkCache.get(team);
+  if (c && c.key === key && G.gameT >= c.t && G.gameT - c.t < 2) return c.d;
+  const d = walkDist(homes);
+  walkCache.set(team, { t: G.gameT, key, d });
+  return d;
 }
-
 
 /** Ore tiles each harvester found it couldn't walk up to, so it doesn't keep trying them. Forgotten once it scoops. */
 const cantReach = new WeakMap<Ent, Set<number>>();
@@ -106,7 +108,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (o.st === 'go') {
     const i = o.ty * MW + o.tx;
     if (G.ore[i] <= 0 || oreTaken(i, u, false)) {
-      const t = pickOre(u, o.tx, o.ty, ORE_SEARCH) ?? pickOre(u, tileOf(u.x), tileOf(u.y), MW);
+      const t = pickOre(u);
       if (!t) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; return; }
       [o.tx, o.ty] = t;
       u.path = null;
@@ -123,7 +125,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
         giveUpOn(u, o.ty * MW + o.tx);
         u.path = null;
         o.wait = 0.3;
-        const t = pickOre(u, tileOf(u.x), tileOf(u.y), ORE_SEARCH);
+        const t = pickOre(u);
         if (t) [o.tx, o.ty] = t;
         return;
       }
@@ -135,7 +137,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
       // couldn't get there: try another tile nearby, not the same one again
       giveUpOn(u, o.ty * MW + o.tx);
       o.wait = 0.5;
-      const t = pickOre(u, tileOf(u.x), tileOf(u.y), 3);
+      const t = pickOre(u);
       if (t) [o.tx, o.ty] = t;
     }
     return;
@@ -149,7 +151,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     if (Math.random() < dt * 6) part('ore', u.x + Math.cos(u.face) * 14, u.y + Math.sin(u.face) * 14, { vz: 40, vx: (Math.random() - 0.5) * 30, max: 0.5, size: 2, col: '#f0c040' });
     if (u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; return; }
     if (G.ore[o.ty * MW + o.tx] <= 0) {
-      const t = pickOre(u, o.tx, o.ty, 4);
+      const t = pickOre(u);
       if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > haulOf(u) * 0.3 ? 'ret' : 'go';
     }
     return;
@@ -174,7 +176,13 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   else if (cargo === 'oil') G.oil[u.team] += a;
   else { G.credits[u.team] += a; hooks.income(u.team, a); }
   hooks.gain(u.team, u.x, u.y, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a, u.id);
-  if (u.carry <= 0.01) { u.carry = 0; o.st = 'go'; rethink(u, o); }
+  if (u.carry <= 0.01) {
+    u.carry = 0;
+    o.st = 'go';
+    // back out to the ore nearest the base, which may not be where the last load came from
+    if (!o.res) { const t = pickOre(u); if (t) [o.tx, o.ty] = t; }
+    rethink(u, o);
+  }
 }
 
 /** Haul oil: walk to a derrick, fill up from its store, then head home. */

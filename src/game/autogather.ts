@@ -114,12 +114,21 @@ export function pickResource(u: Ent, can: Res[] = options(u)): Res | null {
 
 /** Give a Worker a gathering job of its own choosing. */
 function gather(u: Ent, r: Res): void {
-  const x = tileOf(u.x), y = tileOf(u.y);
+  const [x, y] = r === 'ore' ? oreStart(u) : [tileOf(u.x), tileOf(u.y)];
   if (r === 'oil') {
     const d = derrickFor(u);
     if (!d) return;
     setOrder(u, { t: 'harvest', st: 'go', tx: d.tx, ty: d.ty, wait: 0, res: 'oil', src: d.id, auto: true });
   } else setOrder(u, { t: 'harvest', st: 'go', tx: x, ty: y, wait: 0, res: r === 'wood' ? 'wood' : undefined, auto: true });
+}
+
+/**
+ * Where an ore job starts: the drop-off's own tile, which holds no ore, so the gatherer picks the
+ * ore nearest the base (unit.ts pickOre) rather than digging wherever it stands.
+ */
+function oreStart(u: Ent): [number, number] {
+  const b = bankAt(u, ['refinery', 'yard']);
+  return b ? [b.tx, b.ty] : [tileOf(u.x), tileOf(u.y)];
 }
 
 /** Under the computer's hand: it splits its own Workers (ai.ts assignHaulers), so it only sends idle ones to the ore. */
@@ -129,13 +138,14 @@ const computer = (team: number): boolean => !!ais[team]?.on;
 export function autoGather(u: Ent): boolean {
   if (u.type !== 'worker' || computer(u.team)) {
     if (!bankAt(u, ['refinery', 'yard'])) return false;
-    setOrder(u, { t: 'harvest', st: u.carry > 0 && (u.cargo ?? 'ore') === 'ore' ? 'ret' : 'go', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0 });
+    const [tx, ty] = oreStart(u);
+    setOrder(u, { t: 'harvest', st: u.carry > 0 && (u.cargo ?? 'ore') === 'ore' ? 'ret' : 'go', tx, ty, wait: 0 });
     return true;
   }
   const r = pickResource(u);
   if (r) gather(u, r);
   // nothing worth gathering close by: take any load home and dig ore wherever it's left, rather than stand about
-  if (!u.order && bankAt(u, ['refinery', 'yard'])) setOrder(u, { t: 'harvest', st: u.carry > 0 ? 'ret' : 'go', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, auto: true });
+  if (!u.order && bankAt(u, ['refinery', 'yard'])) { const [tx, ty] = oreStart(u); setOrder(u, { t: 'harvest', st: u.carry > 0 ? 'ret' : 'go', tx, ty, wait: 0, auto: true }); }
   return !!u.order;
 }
 
