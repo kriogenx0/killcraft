@@ -118,6 +118,28 @@ export function available(team: number, line: ProductionLine): Buildable[] {
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
+/**
+ * Every unit the side's current age offers, in a fixed order for the sidebar: Barracks, then War
+ * Factory, then air; the Worker first; secret (Aether-drawn or captured) units after the regular
+ * ones; then by age and in data order. Units it can't train yet (no Barracks, no Hospital) are
+ * included, so the list never shuffles as buildings go up or fall.
+ */
+export function unitSlots(team: number): UnitType[] {
+  const era = eraOf(team), LINES: ProductionLine[] = ['infantry', 'vehicle', 'air'];
+  const secret = (t: UnitType) => (UNIT[t].beast || priceOf(t).aether > 0 ? 1 : 0);
+  const key = (t: UnitType) => [LINES.indexOf(UNIT[t].producer), t === 'worker' ? 0 : 1, secret(t), UNIT[t].era, UNIT_TYPES.indexOf(t)];
+  return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
+    .sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i]; return 0; });
+}
+
+/** What a unit the side can't train yet is waiting for: the building that trains it, or one it requires. */
+export function unitNeeds(team: number, t: UnitType): BldType | null {
+  const line = UNIT[t].producer, at = producerOf(team, line);
+  const trainer = (BLD_TYPES.find((b) => BUILDING[b].produces === line) ?? null) as BldType | null;
+  if (!at || (at.type === 'yard' && line === 'infantry' && !YARD_INFANTRY.includes(t))) return trainer;
+  return (UNIT[t].requires ?? []).find((r) => !hasBuilding(team, r)) ?? null;
+}
+
 /** The first resource the team lacks for the whole price, or null if it can pay. */
 export function shortOf(team: number, t: Buildable): keyof typeof SHORT_MSG | null {
   const p = priceOf(t);

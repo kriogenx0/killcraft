@@ -1,5 +1,6 @@
 // The game view: wires the engine, renderer, sidebar, HUD and input to the page and runs the
 // frame loop. Solo and AI-vs-AI games simulate here; online games draw what the server sends.
+// The main menu (views/menu) loads this module, and three.js with it, only once a game starts.
 import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { layoutFor } from '../../data/map.ts';
@@ -20,10 +21,10 @@ import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
 import { setupCopyButton } from '../../components/copy_button/copy_button.ts';
-import { hostedGame, mountLobby, storedName } from '../lobby/lobby_view.ts';
+import { hostedGame, storedName, type Lobby } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
-import { mountSetup } from '../setup/setup_view.ts';
+import type { Setup } from '../setup/setup_view.ts';
 import { mountFullscreenButton } from './fullscreen.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
 import { canPlaceType } from '../../game/building.ts';
@@ -96,7 +97,33 @@ function must<T extends Element>(root: Element, selector: string): T {
   return el;
 }
 
-export function mountGameView(root: HTMLElement): void {
+/** What the main menu hands the game: the lobby and new-game screens it already made. */
+export interface GameDeps {
+  lobby: Lobby;
+  setup: Setup;
+}
+
+/**
+ * What to do on mounting with no game picked from the menu: `resume` the game in the address
+ * (a refresh), or `test` run the URL test options (see applyTestOptions).
+ */
+export type GameBoot = 'resume' | 'test' | null;
+
+export interface GameView {
+  /** a solo game or AI-vs-AI match from the new game screen */
+  newSolo: (s: GameSetup, watch: boolean) => void;
+  startOnline: (m: Extract<ServerMsg, { k: 'start' }>) => void;
+  startSpectate: (m: Extract<ServerMsg, { k: 'spectate' }>) => void;
+  /** server messages that came in while this module was loading */
+  feed: (m: ServerMsg) => void;
+  /** a solo game is under way (paused behind a menu, say) */
+  playingSolo: () => boolean;
+}
+
+export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot = null): GameView {
+  const { lobby, setup } = deps;
+  const setupEl = must<HTMLElement>(root, '.view-setup');
+  root.classList.add('view-game--loaded');
   const canvas = must<HTMLCanvasElement>(root, '.game-canvas'), overlay = must<HTMLCanvasElement>(root, '.game-overlay'), og = ctx2d(overlay);
   const minimap = must<HTMLCanvasElement>(root, '.sidebar-minimap'), mg = ctx2d(minimap);
   const sidebar = must<HTMLElement>(root, '.sidebar'), topbar = must<HTMLElement>(root, '.topbar');
@@ -144,7 +171,8 @@ export function mountGameView(root: HTMLElement): void {
   G.reveal = q.has('reveal');
   initScene(canvas);
   initWorld(q.has('seed') ? Number(q.get('seed')) : Math.floor(Math.random() * 1e6));
-  setupWorldView();
+  // a game picked from the menu builds its own map right away; a refresh or test shows this one meanwhile
+  if (boot) setupWorldView();
   makeIcons(V.team);
   initHud({
     credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), aether: must(root, '.topbar-aether'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
@@ -186,8 +214,7 @@ export function mountGameView(root: HTMLElement): void {
     setOffline(false);
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
-    // no map number: play on the map already showing behind the menu
-    initWorld(s.seed ?? G.seed, teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent });
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || !s.fog });
     ais.forEach((a, t) => {
@@ -425,23 +452,17 @@ export function mountGameView(root: HTMLElement): void {
     show(`Watching ${sidesTitle(m.players.map((p, t) => (p ? `${p} (${teamColors(t).name})` : '')), m.ally)}`);
   };
 
-  const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onSpectate: startSpectate, onBack: () => openModal(startModal) });
-
-  const setupEl = must<HTMLElement>(root, '.view-setup');
-  const setup = mountSetup(setupEl, {
-    onStart: (s, watch) => {
-      // a new game from the pause menu replaces the paused one: drop its save and its address
-      if (V.started && !V.online) {
-        const old = root.dataset.gameId;
-        if (old) void forgetGame(old).catch(() => {});
-        delete root.dataset.gameId;
-        leaveGameUrl();
-      }
-      startSolo(watch, s);
-    },
-    // Back from the pause menu's New Game returns to the paused game, otherwise to the main menu
-    onBack: () => { if (!(V.started && !V.online && !G.over)) openModal(startModal); },
-  });
+  /** A game from the new game screen. */
+  const newSolo = (s: GameSetup, watch: boolean) => {
+    // a new game from the pause menu replaces the paused one: drop its save and its address
+    if (V.started && !V.online) {
+      const old = root.dataset.gameId;
+      if (old) void forgetGame(old).catch(() => {});
+      delete root.dataset.gameId;
+      leaveGameUrl();
+    }
+    startSolo(watch, s);
+  };
   must(root, '.game-paused-resume').addEventListener('click', () => { V.paused = false; });
   must(root, '.game-paused-new').addEventListener('click', () => { V.paused = true; setup.open(false); });
   // End Game: a second tap confirms, then the game is dropped (save and address) for the main menu
@@ -460,19 +481,6 @@ export function mountGameView(root: HTMLElement): void {
     if (id) forgetGame(id).then(leave, leave); else leave();
   });
 
-  must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
-  must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
-  const onlineBtn = must<HTMLButtonElement>(root, '.game-start-online');
-  onlineBtn.addEventListener('click', () => { closeModal(startModal); lobby.open(); });
-  // with no connection only solo play works (the game itself is cached by the service worker)
-  const showConnection = () => {
-    onlineBtn.disabled = !navigator.onLine;
-    onlineBtn.textContent = navigator.onLine ? 'Play Online' : 'Play Online (offline)';
-    onlineBtn.title = navigator.onLine ? '' : 'No internet connection. You can still play against the computer.';
-  };
-  showConnection();
-  window.addEventListener('online', showConnection);
-  window.addEventListener('offline', showConnection);
   /** A game's address with nothing of ours behind it: a game we were hosting (refreshed), or a friend's invite link. */
   const openGameLink = (id: string) => {
     delete root.dataset.gameId;
@@ -496,7 +504,7 @@ export function mountGameView(root: HTMLElement): void {
   });
 
   openSaves();
-  const resumeId = gameIdFromUrl();
+  const resumeId = boot === 'resume' ? gameIdFromUrl() : null;
   if (resumeId) {
     // a refresh of a game's address: rejoin the online match, or load the saved solo game
     closeModal(startModal);
@@ -509,7 +517,7 @@ export function mountGameView(root: HTMLElement): void {
         () => openGameLink(resumeId),
       );
     }
-  } else applyTestOptions(q, startSolo, (quick, join) => { closeModal(startModal); lobby.open({ quick, join }); });
+  } else if (boot === 'test') applyTestOptions(q, startSolo);
 
   let last = performance.now(), acc = 0, fogT = 0, oreT = 0, savedAt = performance.now();
   const frame = (t: number) => {
@@ -582,6 +590,8 @@ export function mountGameView(root: HTMLElement): void {
     perfEnd();
   };
   requestAnimationFrame(frame);
+
+  return { newSolo, startOnline, startSpectate, feed: onGameMessage, playingSolo: () => V.started && !V.online && !G.over };
 }
 
 /**
@@ -637,8 +647,7 @@ function testSetup(q: URLSearchParams): GameSetup {
   return s;
 }
 
-function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean, s?: GameSetup) => void, openLobby: (quick: boolean, join?: string) => void): void {
-  if (q.has('online') || q.has('join')) { openLobby(q.get('online') === 'quick', q.get('join') ?? undefined); return; }
+function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean, s?: GameSetup) => void): void {
   if (q.has('demo') || q.has('auto')) startSolo(q.has('demo'), testSetup(q));
   if (q.has('era')) G.era[V.team] = Math.max(0, Math.min(LAST_ERA, Number(q.get('era')) || 0));
   if (q.has('showcase')) showcase(q.get('showcase') ?? '');

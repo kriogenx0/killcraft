@@ -57,7 +57,7 @@ The live game runs on Coolify from this repo's `main` branch:
 
   | Age | How you get there | Unlocks |
   | --- | --- | --- |
-  | Medieval | (start) | Swordsman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, Lumber Mill, Oil Derrick and Engine Works, and every base structure but the Gun Turret |
+  | Medieval | (start) | Footman, Crossbowman, Knight, Catapult, Harvester, the Watchtower, Lumber Mill, Oil Derrick and Engine Works, and every base structure but the Gun Turret |
   | World War | Build the Engine Works (1000 ore, 150 wood, 35s; needs an Oil Derrick) | Rifleman, Machine Gunner, Scout Jeep, Battle Tank, Gun Turret, Flak Cannon, Airfield, War Balloon, Biplane |
   | Modern | Research at the Town Hall: 800 oil, 60s | Rocket Soldier, Heavy Tank, Attack Helicopter, Combat Drone |
 
@@ -65,7 +65,7 @@ The live game runs on Coolify from this repo's `main` branch:
 - **Defense:** the Watchtower (Medieval, needs Barracks) shoots ballista bolts that are strong against infantry and cavalry; the Gun Turret (World War) fires shells that beat vehicles; the Flak Cannon (World War) only shoots at aircraft, from long range.
 - **Units:** click a unit in the sidebar to queue it at your Barracks or War Factory. Each one is paid for in full the moment you queue it (if you can't afford it, it isn't queued), and cancelling refunds it in full. You start with your Town Hall and two Workers, and no army. The Town Hall trains Workers until you have a Barracks.
 - **Workers mend things:** a Worker with nothing to carry looks after what's near it. It builds sites, repairs damaged buildings (paying ore at the same rate as the Repair button), and patches up wounded troops and vehicles at half a Medic's pace. Select Workers and right-click one of your damaged buildings, building sites or wounded units to send them to it. Press `T` (Fix, then harvest) with Workers selected to have them fix everything damaged within 12 tiles, then go back to the ore. A Worker swings its pick at an enemy that attacks it or comes right up to it, but it's no soldier. On the passive stance it runs from enemies instead, and mends only when none are about. The computer sends Workers to its sites and badly damaged buildings too.
-  - Barracks: swords and bows first, then guns, then rockets: Swordsman (plate armor, beats riflemen up close), Crossbowman (armor-piercing bolts), Knight (fast armored lancer), then Rifleman, Machine Gunner (belt-fed gun, mows down infantry but moves slowly) and Rocket Soldier.
+  - Barracks: swords and bows first, then guns, then rockets: Footman (plate armor, beats riflemen up close), Crossbowman (armor-piercing bolts), Knight (fast armored lancer), then Rifleman, Machine Gunner (belt-fed gun, mows down infantry but moves slowly) and Rocket Soldier.
   - War Factory: Catapult (lobs boulders from long range, crushes buildings) and Harvester, then Scout Jeep, Battle Tank and Heavy Tank.
   - Airfield (World War, needs a Refinery): War Balloon (slow, sees far, drops bombs), then Biplane (fast fighter, best against other aircraft) and, in the Modern age, the Attack Helicopter (missiles that wreck tanks) and the Combat Drone (a cheap, fast quadcopter with a light gun, best in swarms). Aircraft fly straight over buildings, woods and water.
   - Only weapons that can aim up hit aircraft: crossbows, ballista towers, rifles, machine guns, rockets, aircraft guns and flak. Swords, lances, catapults and tank cannons can't. Rocket Soldiers and the Flak Cannon are the best answers to helicopters.

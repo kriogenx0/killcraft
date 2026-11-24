@@ -5,7 +5,7 @@ import { G, hooks, bldDef, isOrganic, unitDef, type Ent, type EntKind, type EntT
 import { TS } from './const.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
-import { LEADER_POWER } from '../data/economy.ts';
+import { LEADER_PLANTS } from '../data/economy.ts';
 import { setBlk } from './map.ts';
 import { burst, explosion } from './fx.ts';
 import { dropAether } from './aether.ts';
@@ -87,8 +87,8 @@ export function power(team: number): { made: number; used: number } {
     if (p > 0) made += Math.round(p * refitBonus(e) * Math.max(0.25, e.hp / e.maxhp));
     else used -= p;
   }
-  // a runaway leader's base is hungrier (see LEADER_POWER)
-  if (team === G.leader) used = Math.round(used * LEADER_POWER);
+  // a runaway leader's plants make less (see LEADER_PLANTS)
+  if (team === G.leader) made = Math.round(made * LEADER_PLANTS);
   return { made, used };
 }
 

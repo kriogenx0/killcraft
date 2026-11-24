@@ -34,7 +34,7 @@ export function updLeader(): void {
   G.leader = leader;
   if (leader < 0) return;
   for (let t = 0; t < G.teams; t++)
-    say(t, t === leader ? 'You are in the lead: enemies earn a bounty for everything of yours they destroy' : `${teamColors(leader).name} leads: bounty on their units and buildings`);
+    say(t, t === leader ? 'You are in the lead: your Power Plants make half as much, you build and train slower, and enemies earn a bounty for everything of yours they destroy' : `${teamColors(leader).name} leads: bounty on their units and buildings`);
 }
 
 /**

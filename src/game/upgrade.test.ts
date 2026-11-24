@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
 import { STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
@@ -7,6 +7,9 @@ import { addBuilding, addUnit } from './entity.ts';
 import { dealDamage } from './combat.ts';
 import { available, enqueue } from './production.ts';
 import { TECH, TECH_TYPES, UPGRADE_TRACKS, ERA } from '../data/era.ts';
+
+// these tests time production exactly: switch off the leader's handicaps (one side always ends up far ahead here)
+vi.mock('../data/economy.ts', async (orig) => ({ ...(await orig<typeof import('../data/economy.ts')>()), LEADER_SPEED: 1, LEADER_PLANTS: 1 }));
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP; i++) update(STEP);

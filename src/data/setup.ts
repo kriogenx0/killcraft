@@ -67,8 +67,8 @@ export type StartArmy = 'workers' | 'squad' | 'army';
 /** What each side starts with beside its Town Hall. */
 export const START_ARMY: Record<StartArmy, { name: string; desc: string; units: UnitType[] }> = {
   workers: { name: '2 Workers', desc: 'Two Workers and nothing else.', units: ['worker', 'worker'] },
-  squad: { name: 'Squad', desc: 'Two Workers, two Swordsmen, a Crossbowman and a Knight.', units: ['worker', 'worker', 'swordsman', 'swordsman', 'crossbowman', 'knight'] },
-  army: { name: 'Army', desc: 'Four Workers, two Swordsmen, two Crossbowmen and two Knights.', units: ['worker', 'worker', 'worker', 'worker', 'swordsman', 'swordsman', 'crossbowman', 'crossbowman', 'knight', 'knight'] },
+  squad: { name: 'Squad', desc: 'Two Workers, two Footmen, a Crossbowman and a Knight.', units: ['worker', 'worker', 'swordsman', 'swordsman', 'crossbowman', 'knight'] },
+  army: { name: 'Army', desc: 'Four Workers, two Footmen, two Crossbowmen and two Knights.', units: ['worker', 'worker', 'worker', 'worker', 'swordsman', 'swordsman', 'crossbowman', 'crossbowman', 'knight', 'knight'] },
 };
 
 /** How the sides line up: one against one, two teams of two (allies share sight and win together), or everyone for themselves. */

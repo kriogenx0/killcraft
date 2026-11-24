@@ -59,6 +59,14 @@ export interface OnlinePlayer {
 }
 
 /** The lobby as one player sees it. */
+/** The lobby at a glance, from GET /lobby: the main menu shows it without connecting. */
+export interface LobbySummary {
+  /** everyone connected */
+  online: number;
+  games: OpenGame[];
+  live: LiveGame[];
+}
+
 export interface LobbyMsg {
   k: 'lobby';
   games: OpenGame[];

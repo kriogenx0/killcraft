@@ -13,7 +13,10 @@ export default defineConfig({
     port: Number(process.env.PORT ?? 8000),
     strictPort: true,
     // the game server (make dev starts it) handles the lobby and online matches
-    proxy: { '/ws': { target: `ws://localhost:${process.env.SERVER_PORT ?? 8081}`, ws: true } },
+    proxy: {
+      '/ws': { target: `ws://localhost:${process.env.SERVER_PORT ?? 8081}`, ws: true },
+      '/lobby': { target: `http://localhost:${process.env.SERVER_PORT ?? 8081}` },
+    },
   },
   preview: { port: Number(process.env.PORT ?? 8000), strictPort: true },
   build: {

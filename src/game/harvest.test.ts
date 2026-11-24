@@ -2,7 +2,7 @@
 // crowding one tile, and never standing about.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, type Ent } from './state.ts';
-import { GRASS, MW, STEP, TS } from './const.ts';
+import { GRASS, MW, ROCK, STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addSource, addUnit } from './entity.ts';
@@ -95,4 +95,56 @@ describe('when a patch of ore runs out', () => {
       expect(new Set(scooping).size).toBe(scooping.length);
     }, 30_000);
   }
+});
+
+describe('Workers go for the ore closest to base', () => {
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockImplementation(mulberry32(12));
+    G.demo = true;
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    G.demo = false;
+    initWorld(1);
+    ais[0].on = false;
+    ais[1].on = true;
+  });
+
+  const run = (s: number) => { for (let i = 0; i < s / STEP; i++) update(STEP); };
+  const scooped = (u: Ent): number => (u.order?.t === 'harvest' ? u.order.ty * MW + u.order.tx : -1);
+
+  it('rather than the ore where they stand, and from whichever drop-off is nearest', () => {
+    emptyMap();
+    addBuilding('refinery', 0, 20, 20, false);
+    for (const e of G.ents) if (e.kind === 'unit') e.dead = true;
+    const far = patch(40, 40, 3, 400), near = patch(25, 20, 3, 400);
+    // standing right on the far patch, sent to dig at a tile with nothing on it
+    const w = addUnit('worker', 0, 41.5 * TS, 41.5 * TS);
+    orderHarvest(w, 41, 37);
+    run(1);
+    expect(near).toContain(scooped(w));
+    run(40);
+    expect(oreIn(near)).toBeLessThan(400 * near.length);
+    expect(oreIn(far)).toBe(400 * far.length);
+    // a second drop-off right by the far patch: now that one is the ore closest to base
+    addBuilding('refinery', 0, 43, 40, false);
+    rebuildBlk();
+    run(20);
+    expect(far).toContain(scooped(w));
+  });
+
+  it('measured by the walk there, not straight across a cliff', () => {
+    emptyMap();
+    addBuilding('refinery', 0, 20, 20, false);
+    for (const e of G.ents) if (e.kind === 'unit') e.dead = true;
+    // a rock wall just north of the Refinery, with ore right behind it: a long walk round
+    for (let tx = 8; tx < 40; tx++) G.terr[17 * MW + tx] = ROCK;
+    rebuildBlk();
+    const behind = patch(21, 14, 2, 400), open = patch(29, 25, 2, 400);
+    const w = addUnit('worker', 0, 23.5 * TS, 24 * TS);
+    orderHarvest(w, 23, 24);
+    run(1);
+    expect(open).toContain(scooped(w));
+    expect(behind).not.toContain(scooped(w));
+  });
 });
