@@ -37,6 +37,10 @@ interface AiState {
   reserveWood?: number;
   /** ore troops leave untouched while saving for the next building upgrade (see refits) */
   refitSave?: number;
+  /** a Heavy Tank or Cyborg the War Factory is saving up for, in the Modern age (every other vehicle) */
+  big?: UnitType | null;
+  /** the last vehicle was a big one, so the next is a regular one */
+  bigDone?: boolean;
   /** units sent to capture a wild creature, and the creature */
   hunters: Set<number>;
   prey: number | null;
@@ -62,7 +66,7 @@ const HUNTERS = 5;
 const MIN_HUNTERS = 3;
 const HUNT_ARMY = 9;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'turret', 'flak', 'power'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'pillbox', 'turret', 'flak', 'power', 'atturret', 'pillbox', 'atturret', 'bertha'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -70,7 +74,7 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 export function resetAi(teams = 2): void {
   while (ais.length < teams) ais.push({ on: true, level: 'normal', thinkT: 0, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
   wallPause.length = 0;
-  ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.foe = teams === 2 ? 1 - team : -1; });
+  ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.big = null; a.bigDone = false; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -106,6 +110,11 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   // walls are cheap and go up alongside the build plan, not after it: a stretch for each defensive structure
   const wall = walling ? null : wallWanted(team, can);
   if (wall) return wall;
+  // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine once past the first
+  // age (troops leave the Aether for it, see shrineAether); these jump the build plan
+  const aether = G.aether[team] ?? 0;
+  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
+  if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
@@ -119,14 +128,16 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   // answer enemy aircraft with flak
   const foeAir = G.ents.filter((e) => !e.dead && e.team >= 0 && e.team !== team && isAir(e)).length;
   if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
-  // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine when there's Aether to spare
-  const aether = G.aether[team] ?? 0;
-  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
-  if (can.includes('shrine') && countOf(team, 'shrine') < 1 && aether >= (BUILDING.shrine.aether ?? 0) + 40 && G.credits[team] > 1200) return 'shrine';
   // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
   return defense(team, can);
+}
+
+/** Aether to keep for a Star Shrine: one per side once it has reached the World War age and has a Barracks. */
+function shrineAether(team: number): number {
+  if (G.era[team] < 1 || countOf(team, 'shrine') > 0 || !hasBuilding(team, 'barracks') || !available(team, 'structure').includes('shrine')) return 0;
+  return BUILDING.shrine.aether ?? 0;
 }
 
 /** Wall segments a computer player puts up, at most. */
@@ -140,11 +151,11 @@ const AI_WALL_RUN = 4;
  * Big Bertha once the bank is deep.
  */
 function defense(team: number, can: readonly string[]): BldType | null {
-  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && e.team === 1 - team && e.kind === 'unit' && !isAir(e));
+  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && !isAir(e));
   const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
-  if (credits > 4500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
-  if (credits > 2500 && turrets < 5) {
+  if (credits > 3500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
+  if (credits > 1500 && turrets < 9) {
     const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
     const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
     const pick = infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
@@ -306,7 +317,7 @@ function construction(team: number): void {
   if (!canAfford(team, t)) { ais[team].reserve = costOf(t); ais[team].reserveWood = priceOf(t).wood; return; }
   if (isWall(t)) {
     const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
-    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.team === 1 - team && e.kind === 'bld');
+    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.kind === 'bld' && (ais[team].foe >= 0 ? e.team === ais[team].foe : e.team >= 0 && e.team !== team));
     const line = yard ? wallSite(team, yard, foe) : null;
     // nowhere to put a stretch: give up on walls for a while rather than hold up the base
     if (!line || !startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1])) wallPause[team] = G.gameT + WALL_RETRY;
@@ -474,7 +485,7 @@ function armory(team: number): void {
 /** Pick from weighted options, skipping anything the team can't build yet or lacks the wood or oil for. */
 function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [UnitType, number][]): UnitType | null {
   const can = available(team, line), wood = G.wood[team] - (ais[team].reserveWood ?? 0);
-  const enough = (t: UnitType) => { const p = priceOf(t); return (p.wood <= 0 || wood >= p.wood) && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
+  const enough = (t: UnitType) => { const p = priceOf(t); return (p.wood <= 0 || wood >= p.wood) && G.oil[team] >= p.oil && (!p.aether || (G.aether[team] ?? 0) >= p.aether + shrineAether(team)); };
   const ok = options.filter(([t, w]) => w > 0 && can.includes(t) && enough(t));
   let r = Math.random() * ok.reduce((s, [, w]) => s + w, 0);
   for (const [t, w] of ok) if ((r -= w) < 0) return t;
@@ -494,8 +505,17 @@ function training(team: number): void {
     const refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
     if (available(team, 'vehicle').includes('harvester') && countOf(team, 'harvester') < Math.min(6, refineries * lvl(team).harvesters) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
-    else if (!saving && !full && credits > 500)
-      t = pick(team, 'vehicle', [['heavy', credits > 1600 ? 3 : 0], ['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5], ['juggernaut', credits > 1500 ? 2 : 0], ['titan', credits > 2600 ? 2 : 0]]);
+    else if (!full) {
+      // in the Modern age every other vehicle is a big one (Heavy Tank or Cyborg), saved up for
+      const A = ais[team];
+      if (!A.big && !A.bigDone && !prod.vehicle.length) A.big = pick(team, 'vehicle', [['heavy', 3], ['juggernaut', 2.5], ['titan', 1.5]]);
+      if (A.big) {
+        if (G.credits[team] - (A.refitSave ?? 0) >= costOf(A.big) && canAfford(team, A.big)) { t = A.big; A.big = null; A.bigDone = true; }
+      } else if (!saving && credits > 500) {
+        t = pick(team, 'vehicle', [['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5]]);
+        if (t) A.bigDone = false;
+      }
+    }
     if (t) enqueue(team, t);
   }
   // a few aircraft once there's money to spare
@@ -511,7 +531,7 @@ function training(team: number): void {
   const infantryQueue = credits > 2500 ? L.queue + 2 : L.queue;
   // an idle War Factory in the World War age or later: save up for a vehicle instead of spending every
   // last coin on cheap infantry
-  const forVehicle = hasBuilding(team, 'factory') && !prod.vehicle.length && G.era[team] >= 1 && credits < 900;
+  const big = ais[team].big, forVehicle = hasBuilding(team, 'factory') && !prod.vehicle.length && G.era[team] >= 1 && credits < (big ? costOf(big) : 900);
   if (!saving && !full && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;

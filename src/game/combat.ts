@@ -323,7 +323,7 @@ export function updProjs(dt: number): void {
     const k = clamp(p.tr / Math.max(p.d0, 1), 0, 1);
     const [arc, cap] = ARC[p.kind] ?? [0, 0];
     p.z = lerp(p.z0, 4 + altOf(t), k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
-    if (p.kind === 'rocket' && Math.random() < 0.8) part('trail', p.x, p.y - p.z, { max: 0.6, size: 2.5, soft: true });
+    if (p.kind === 'rocket' && Math.random() < 0.8) part('trail', p.x, p.y - p.z, { max: 0.8, size: 4.5, soft: true });
     if (p.kind === 'orb' && Math.random() < 0.8) part('flash', p.x, p.y, { max: 0.25, size: 5, z: p.z, col: ORB_COL[p.weapon] ?? null });
     if (dist <= st + 6) {
       p.dead = true;

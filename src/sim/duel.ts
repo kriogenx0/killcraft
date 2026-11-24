@@ -137,6 +137,42 @@ export function siege(def: BldType, atk: UnitType, budget: number, seed: number,
   return { a: def, b: atk, na: nd, nb: na, score: left(D, td, duelPrice(def)) - left(A, ta, duelPrice(atk)), time: Math.round(t) };
 }
 
+/**
+ * Siege speed: units worth `budget` knock down a row of Power Plants guarded by two Watchtowers. Returns building
+ * hit points destroyed per second for each 1000 of value, so siege units show their purpose.
+ */
+export function wreck(atk: UnitType, budget: number, seed: number, maxSeconds = 120): number {
+  const prevRandom = Math.random;
+  Math.random = mulberry32(seed ^ 0x3ec4);
+  hooks.error = (e) => { throw e; };
+  arena(seed);
+  const Bs = Array.from({ length: 4 }, (_, i) => addBuilding('power', 0, MW / 2 - 4, MH / 2 - 6 + i * 3, false));
+  // two Watchtowers guard them: units that out-range towers (siege) can knock the base down unhurt
+  for (const dy of [-3, 3]) Bs.push(addBuilding('tower', 0, MW / 2 - 1, MH / 2 + dy, false));
+  rebuildBlk();
+  const na = Math.max(1, Math.round(budget / duelPrice(atk)));
+  const A = place(atk, 1, na, MW / 2 + 4);
+  const total = Bs.reduce((s, b) => s + b.maxhp, 0);
+  let t = 0;
+  while (t < maxSeconds && Bs.some((b) => !b.dead)) {
+    if (Math.round(t / STEP) % 60 === 0) {
+      const live = Bs.filter((b) => !b.dead);
+      for (const u of A) if (!u.dead && (!u.order || u.order.t === 'move')) {
+        const tgt = live.reduce((m, d) => (Math.hypot(d.x - u.x, d.y - u.y) < Math.hypot(m.x - u.x, m.y - u.y) ? d : m), live[0]);
+        u.order = { t: 'attack', tgt: tgt.id, auto: false, ox: u.x, oy: u.y };
+      }
+    }
+    update(STEP);
+    t += STEP;
+  }
+  Math.random = prevRandom;
+  const done = Bs.reduce((s, b) => s + (b.dead ? b.maxhp : b.maxhp - b.hp), 0);
+  return done / Math.max(1, t) / ((na * duelPrice(atk)) / 1000) * (done >= total ? 1 : done / total);
+}
+
+/** A unit "has a purpose" in an age if it wins some trade clearly, or wrecks buildings among the fastest. */
+export const NICHE = 0.4;
+
 // ---- runner ----
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = new Map<string, string>();
@@ -165,8 +201,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const rs = Array.from({ length: reps }, (_, r) => siege(d, u, Math.max(budget / 2, duelPrice(d)), 2000 + r * 31));
     sieges.set(`${d}|${u}`, avg(rs.map((r) => r.score)));
   }
+  const wrecks = new Map<string, number>();
+  for (const u of FIGHTERS) {
+    if (only && !only.includes(u)) continue;
+    wrecks.set(u, avg([0, 1].map((r) => wreck(u, 2000, 3000 + r * 31))));
+  }
   process.stderr.write(`${all.length} duels in ${((performance.now() - t0) / 1000).toFixed(0)}s\n`);
-  if (args.get('json')) writeFileSync(args.get('json') as string, JSON.stringify({ budget, reps, scores: Object.fromEntries(scores), sieges: Object.fromEntries(sieges) }));
+  if (args.get('json')) writeFileSync(args.get('json') as string, JSON.stringify({ budget, reps, scores: Object.fromEntries(scores), sieges: Object.fromEntries(sieges), wrecks: Object.fromEntries(wrecks) }));
 
   const fmt = (n: number | undefined) => (n == null ? '' : (n >= 0 ? '+' : '') + n.toFixed(2));
   const out: string[] = [`# Unit duels: equal value, open ground (budget ${budget}, Aether at ${AETHER_VALUE} ore)`, ''];
@@ -181,6 +222,27 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     out.push('');
   }
+  out.push('## Does every unit have a purpose?', '', `A unit has a purpose in an age if it beats at least one other unit of that age by ${NICHE} or more at equal value, or is among the three fastest at knocking down buildings. It is outclassed if another unit from the same producer, and no harder to get (creatures need a capture, Aether units need Aether), does at least as well against every opponent, better overall, and knocks down buildings about as fast. Things duels can't measure (cloaking, the hex slow, sight, speed for raiding) are not counted.`, '');
+  out.push('| Age | Unit | Beats clearly | Wrecks buildings (hp/s per 1000) | Outclassed by | Verdict |', '| --- | --- | --- | ---: | --- | --- |');
+  for (let age = 0; age < ERA.length; age++) {
+    const us = FIGHTERS.filter((t) => inAge(t, age));
+    const topWreck = [...us].sort((x, y) => (wrecks.get(y) ?? 0) - (wrecks.get(x) ?? 0)).slice(0, 3);
+    for (const a of us) {
+      const others = us.filter((b) => b !== a);
+      const beats = others.filter((b) => (scores.get(`${a}|${b}`) ?? 0) >= NICHE);
+      const sa = avg(others.map((b) => scores.get(`${a}|${b}`) ?? 0));
+      // only something no harder to get counts: creatures need a capture, Aether units need Aether
+      const rarity = (t: UnitType) => (UNIT[t].beast ? 2 : UNIT[t].aether ? 1 : 0);
+      const over = us.filter((c) => c !== a && UNIT[c].producer === UNIT[a].producer && rarity(c) <= rarity(a) &&
+        (wrecks.get(c) ?? 0) >= (wrecks.get(a) ?? 0) * 0.9 &&
+        others.filter((b) => b !== c).every((b) => (scores.get(`${c}|${b}`) ?? 0) >= (scores.get(`${a}|${b}`) ?? 0) - 0.05) &&
+        avg(us.filter((b) => b !== c).map((b) => scores.get(`${c}|${b}`) ?? 0)) > sa + 0.1);
+      const purpose = beats.length > 0 || topWreck.includes(a);
+      const verdict = !purpose ? '**no clear purpose**' : over.length ? '**outclassed**' : 'ok';
+      out.push(`| ${ERA[age].name} | ${UNIT[a].name} | ${beats.length ? beats.map((b) => UNIT[b].name).slice(0, 4).join(', ') + (beats.length > 4 ? ` +${beats.length - 4}` : '') : '–'} | ${(wrecks.get(a) ?? 0).toFixed(0)}${topWreck.includes(a) ? ' (top 3)' : ''} | ${over.map((c) => UNIT[c].name).join(', ') || '–'} | ${verdict} |`);
+    }
+  }
+  out.push('');
   out.push('## Defenses against attackers of equal value', '', 'Score is the defense\'s side (+ it holds, - it falls cheaply).', '');
   out.push('| Defense | Attacker | Score |', '| --- | --- | ---: |');
   for (const [k, v] of sieges) { const [d, u] = k.split('|'); out.push(`| ${BUILDING[d as BldType].name} | ${UNIT[u as UnitType].name} | ${fmt(v)} |`); }

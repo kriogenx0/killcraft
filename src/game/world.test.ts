@@ -116,6 +116,8 @@ describe('production', () => {
 
   it('finds oil, builds the Engine Works to reach World War, and pays oil for Modern', () => {
     addBuilding('power', 0, 10, 50, false);
+    // side 0 ends up far ahead, so it's the leader and draws extra power (LEADER_POWER): a second plant keeps it powered
+    addBuilding('power', 0, 10, 53, false);
     addBuilding('barracks', 0, 13, 50, false);
     addBuilding('refinery', 0, 6, 46, false);
     expect(available(0, 'structure')).toContain('derrick');

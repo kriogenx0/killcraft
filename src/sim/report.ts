@@ -3,6 +3,8 @@ import type { MatchResult, TeamStats } from './match.ts';
 import { priceOf } from './match.ts';
 import { ERA } from '../data/era.ts';
 import { TEAM } from '../data/team.ts';
+import { UNIT_TYPES } from '../data/unit.ts';
+import { BLD_TYPES, BUILDING } from '../data/building.ts';
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : '–');
 const mmss = (s: number | null | undefined) => (s == null || !Number.isFinite(s) ? '–' : `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`);
@@ -83,6 +85,10 @@ export function report(results: MatchResult[]): string {
       return [t, f1(b / sides.length), pct(cost, spentAll), lost[t] ?? 0, kills[t] ?? 0, b ? f1((kills[t] ?? 0) / b) : '–', cost ? (value[t] ?? 0) / cost >= 10 ? Math.round((value[t] ?? 0) / cost) : f1((value[t] ?? 0) / cost) : '–'];
     });
   })()));
+
+  // every unit and buildable structure should turn up in a computer player's game now and then
+  const rare = [...UNIT_TYPES, ...BLD_TYPES.filter((t) => BUILDING[t].buildable)].filter((t) => (built[t] ?? 0) / sides.length < 0.05);
+  out.push('', `Rarely or never built (under one side in 20): ${rare.length ? rare.map((t) => `${t} (${built[t] ?? 0})`).join(', ') : 'none'}.`);
 
   // what winners did differently from everyone else
   if (decided.length) {

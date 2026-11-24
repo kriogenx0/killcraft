@@ -44,3 +44,5 @@ export const SALVAGE_SHARE = 0.3;
  */
 export const BOUNTY_LEAD = 1.3;
 export const BOUNTY_SHARE = 0.5;
+/** The leader's buildings draw this much more power, so it needs more Power Plants (and goes short when they fall). */
+export const LEADER_POWER = 1.5;

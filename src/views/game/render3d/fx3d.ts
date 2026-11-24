@@ -107,7 +107,7 @@ atkLines.renderOrder = 3;
 // projectiles: a small pool of meshes per kind
 const projGeo = {
   shell: new THREE.SphereGeometry(0.085, 10, 8),
-  rocket: new THREE.CylinderGeometry(0.055, 0.055, 0.42, 8).rotateZ(Math.PI / 2),
+  rocket: new THREE.CylinderGeometry(0.1, 0.1, 0.75, 8).rotateZ(Math.PI / 2),
   bolt: new THREE.BoxGeometry(0.5, 0.045, 0.045),
   boulder: new THREE.DodecahedronGeometry(0.2),
   orb: new THREE.IcosahedronGeometry(0.11, 1),
@@ -222,7 +222,7 @@ function updateAttackLines(): void {
 /** glow colour around each kind of projectile, and the streak behind it: length (tiles), thickness, colour */
 const PROJ_GLOW: Record<string, [number, number, number] | null> = { shell: [1, 0.6, 0.2], rocket: [1, 0.5, 0.15], bolt: [0.55, 0.5, 0.4], boulder: null, orb: [1, 0.55, 0.15] };
 const STREAK: Record<string, [number, number, number, number, number]> = {
-  shell: [0.6, 0.05, 1, 0.65, 0.25], rocket: [0.5, 0.06, 1, 0.55, 0.2], bolt: [0.55, 0.025, 0.6, 0.55, 0.45], boulder: [0, 0, 0, 0, 0], orb: [0.7, 0.09, 1, 0.45, 0.1],
+  shell: [0.6, 0.05, 1, 0.65, 0.25], rocket: [0.7, 0.1, 1, 0.55, 0.2], bolt: [0.55, 0.025, 0.6, 0.55, 0.45], boulder: [0, 0, 0, 0, 0], orb: [0.7, 0.09, 1, 0.45, 0.1],
 };
 
 function updateProjectiles(): void {
