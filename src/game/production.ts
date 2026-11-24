@@ -21,7 +21,7 @@ import { tileOf } from './state.ts';
 
 export type Buildable = UnitType | BldType | TechType;
 
-const QUEUE_MAX = 5;
+const QUEUE_MAX = 10;
 const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', air: 'airfield', tech: 'yard', hospital: 'hospital', armory: 'armory' };
 const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'air', 'tech', 'hospital', 'armory'];
 const FUNDS_NOTICE = 6;
