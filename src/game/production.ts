@@ -299,11 +299,13 @@ export function itemsOf(team: number, type: Buildable): ProductionItem[] {
 function deliver(team: number, type: UnitType): void {
   const b = producerOf(team, UNIT[type].producer);
   if (!b) return;
-  const [x, y] = exitTile(b, b.rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
+  // Workers and harvesters ignore rally points: they come out the usual side and go to work
+  const haul = !!UNIT[type].haul, rally = haul ? null : b.rally;
+  const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
   say(team, `${UNIT[type].name} ready`);
-  if (UNIT[type].haul) orderHarvest(u, x, y);
-  else if (b.rally) orderMove(u, tileOf(b.rally.x), tileOf(b.rally.y));
+  if (haul) orderHarvest(u, x, y);
+  else if (rally) orderMove(u, tileOf(rally.x), tileOf(rally.y));
 }
 
 function advance(team: number, type: TechType): void {

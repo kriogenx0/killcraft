@@ -10,7 +10,8 @@ export const producers = (team: number): Ent[] =>
   G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && e.done && isUnitProducer(bldDef(e).produces));
 
 /** A side's fighting units: everything but Workers and harvesters, which keep working. */
-export const army = (team: number): Ent[] => G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === team && !isHarvester(e));
+export const army = (team: number): Ent[] =>
+  G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === team && e.type !== 'worker' && !isHarvester(e));
 
 /** Set the army rally point (world px): every producer sends new troops there, and with `send` the army marches there now. */
 export function rallyArmy(team: number, x: number, y: number, send: boolean): void {
