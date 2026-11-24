@@ -187,6 +187,9 @@ function resizeComposer(w: number, h: number): void {
   composer?.setSize(w, h);
 }
 
+/** Smoothed time per frame (ms), for effects that thin out on slow devices. */
+export const frameTime = (): number => frameMs;
+
 export function renderScene(): void {
   const now = performance.now();
   if (lastFrame) frameMs = frameMs * 0.95 + Math.min(100, now - lastFrame) * 0.05;
