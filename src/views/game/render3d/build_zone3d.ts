@@ -1,4 +1,4 @@
-// While a structure is being placed: the ground where it may go, tinted green with a bright edge,
+// While a structure is being placed: the ground where it may go, faintly tinted with a thin edge line,
 // draped over the hills like the fog sheet. Redrawn only when the zone changes.
 import * as THREE from 'three';
 import { MW, MH } from '../../../game/const.ts';
@@ -36,15 +36,12 @@ export function initBuildZone(layer: THREE.Group): void {
 function draw(): void {
   const g = ctx2d(canvas!);
   g.clearRect(0, 0, canvas!.width, canvas!.height);
-  // open ground in reach: a soft green wash
-  g.fillStyle = 'rgba(90,255,120,0.16)';
+  // kept quiet on purpose (Alex found a bright wash too much): a faint tint on open ground in reach,
+  // nothing on rock, water or trees, and a thin, soft edge line
+  g.fillStyle = 'rgba(220,255,220,0.06)';
   for (let i = 0; i < MW * MH; i++) if (zone[i] === 2) g.fillRect((i % MW) * PX, ((i / MW) | 0) * PX, PX, PX);
-  // in reach but not buildable (rock, water, trees): a fainter wash, so the zone still reads as one shape
-  g.fillStyle = 'rgba(90,255,120,0.06)';
-  for (let i = 0; i < MW * MH; i++) if (zone[i] === 1) g.fillRect((i % MW) * PX, ((i / MW) | 0) * PX, PX, PX);
-  // the zone's edge: a bright line wherever a zone tile meets one outside it
-  g.fillStyle = 'rgba(140,255,150,0.95)';
-  const W = 2, out = (x: number, y: number) => x < 0 || y < 0 || x >= MW || y >= MH || !zone[y * MW + x];
+  g.fillStyle = 'rgba(225,255,225,0.45)';
+  const W = 1, out = (x: number, y: number) => x < 0 || y < 0 || x >= MW || y >= MH || !zone[y * MW + x];
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
       if (!zone[y * MW + x]) continue;

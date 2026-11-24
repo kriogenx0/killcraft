@@ -1,5 +1,5 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
-import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
+import { G, say, tileOf, bldDef, isAir, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { dropSalvage, oilNear } from './economy.ts';
 import { DERRICK_REACH } from '../data/economy.ts';
@@ -96,12 +96,28 @@ export function updBld(b: Ent, dt: number): void {
   updTurret(b, dt);
 }
 
-/** Can a structure go on this tile? People can only build on ground they've explored. */
+/**
+ * Can a structure go on this tile? People can only build on ground they've explored. Units standing
+ * there don't count (Alex): they step aside when the site goes down (clearSite).
+ */
 export function tileFree(x: number, y: number, team: number): boolean {
   if (x < 0 || y < 0 || x >= MW || y >= MH) return false;
   const i = y * MW + x;
-  if (G.blk[i] || G.terr[i] !== GRASS || (G.human[team] && !G.reveal && G.sight[team][i] === 0)) return false;
-  return !G.ents.some((e) => !e.dead && e.kind === 'unit' && tileOf(e.x) === x && tileOf(e.y) === y);
+  return !G.blk[i] && G.terr[i] === GRASS && !(G.human[team] && !G.reveal && G.sight[team][i] === 0);
+}
+
+/** Move any ground unit standing on a new site's footprint to the nearest open tile beside it. */
+function clearSite(b: Ent): void {
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || isAir(u)) continue;
+    const x = tileOf(u.x), y = tileOf(u.y);
+    if (x < b.tx || y < b.ty || x >= b.tx + b.w || y >= b.ty + b.h) continue;
+    const to = nearestFree(x, y);
+    if (!to) continue;
+    // keep where it stood within its tile, so a crowd doesn't land on one spot
+    u.x = to[0] * TS + (u.x - x * TS);
+    u.y = to[1] * TS + (u.y - y * TS);
+  }
 }
 
 /**
@@ -160,7 +176,7 @@ export function inReach(tx: number, ty: number, s: number, team: number, wall = 
  * The ground where a structure of this type may go, for drawing while it's being placed. Fills
  * `out` (MW * MH) with 0 (out of reach or unexplored), 1 (in reach, but the tile itself can't be
  * built on) or 2 (in reach and open). A site is allowed when its footprint touches the zone
- * (nearBase / inReach) and every tile under it is open. Units standing about aren't counted here.
+ * (nearBase / inReach) and every tile under it is open.
  */
 export function buildZone(type: BldType, team: number, out: Uint8Array): Uint8Array {
   out.fill(0);
@@ -216,6 +232,7 @@ export function placeBuilding(team: number, type: BldType, tx: number, ty: numbe
   for (let y = ty; y < ty + BUILDING[type].size; y++) for (let x = tx; x < tx + BUILDING[type].size; x++) G.ore[y * MW + x] = 0;
   const b = addBuilding(type, team, tx, ty, true);
   b.hp = b.maxhp * SITE_HP;
+  clearSite(b);
   return b;
 }
 
