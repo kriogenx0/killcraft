@@ -194,4 +194,26 @@ describe('idle Workers', () => {
       watch(ws, 40);
     });
   });
+
+  it('stick to their resource unless the side runs short of another', () => {
+    const ws = workers(4);
+    G.credits[0] = 5000; G.wood[0] = 5000;
+    // three on wood, one on ore: off the usual split, but nothing's short
+    ws.forEach((w, k) => { w.order = { t: 'harvest', st: 'go', tx: w.x / TS | 0, ty: w.y / TS | 0, wait: 0, res: k ? 'wood' : undefined, auto: true }; });
+    const jobs = ws.map(jobOf);
+    // the bank swings about, but nothing runs short: nobody switches
+    for (let k = 0; k < 6; k++) { G.credits[0] = 1000 + k * 800; G.wood[0] = 5000 - k * 700; run(10); }
+    expect(ws.map(jobOf)).toEqual(jobs);
+  });
+
+  it('dropping a load off, a Worker first fixes what is damaged nearby', () => {
+    const [w] = workers(1);
+    G.credits[0] = 5000; G.wood[0] = 5000;
+    run(IDLE_GRACE + 1);
+    expect(jobOf(w)).not.toBeNull();
+    yard.hp = yard.maxhp * 0.6;
+    let fixing = false;
+    for (let i = 0; i < 60 / STEP && !fixing; i++) { update(STEP); fixing = w.order?.t === 'heal' && w.order.tgt === yard.id; }
+    expect(fixing).toBe(true);
+  });
 });

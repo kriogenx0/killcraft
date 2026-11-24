@@ -5,7 +5,7 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
-import { available, cancel, enqueue, sendBuilder, sitesOf, startSite } from './production.ts';
+import { available, cancel, enqueue, sitesOf, startSite } from './production.ts';
 import { advanceSite, canPlace, scrap } from './building.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodNear } from './economy.ts';
 import { nearestTree } from './chop.ts';
@@ -129,9 +129,7 @@ describe('production', () => {
     const works = addBuilding('works', 0, 19, 50, true);
     expect(available(0, 'structure')).not.toContain('works'); // one at a time
     expect(G.era[0]).toBe(0);
-    run(BUILDING.works.t);
-    expect(works.done).toBe(false); // nobody is building it
-    expect(sendBuilder(0, works)).not.toBeNull();
+    // idle Workers nearby take the site up by themselves
     run(BUILDING.works.t + 10);
     expect(works.done).toBe(true);
     expect(G.era[0]).toBe(1);
@@ -149,6 +147,7 @@ describe('production', () => {
   });
 
   it('slowly heals infantry and knights but not vehicles', () => {
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // they'd patch the troops up
     const k = addUnit('knight', 0, 20 * TS, 50 * TS), h = addUnit('harvester', 0, 24 * TS, 50 * TS);
     k.hp = k.maxhp / 2; h.hp = h.maxhp / 2;
     run(10);
@@ -161,6 +160,7 @@ describe('production', () => {
   });
 
   it('researches faster healing at the Hospital, one level at a time', () => {
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // they'd patch the troops up
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     G.credits[0] = 5000;
@@ -182,6 +182,7 @@ describe('production', () => {
   });
 
   it('heals faster with a Hospital, which also lets the Barracks train Medics', () => {
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // they'd patch the troops up
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     expect(available(0, 'infantry')).not.toContain('medic');

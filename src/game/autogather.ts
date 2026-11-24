@@ -37,6 +37,11 @@ export function owed(team: number): Record<Res, number> {
   return o;
 }
 
+/** How far the side is from paying for what's waiting on a resource, plus a small floor (0 if it has enough). */
+export function shortfall(team: number, r: Res): number {
+  return Math.max(0, owed(team)[r] + FLOOR[r] - have(team, r));
+}
+
 /** What a gatherer's order brings in (none if it isn't gathering). */
 export function jobOf(u: Ent): Res | null {
   return u.order?.t === 'harvest' ? u.order.res ?? 'ore' : null;
@@ -152,7 +157,8 @@ export function autoGather(u: Ent): boolean {
 /** A Worker that chose its own job has just dropped a load off: switch if the side now needs something else more. */
 export function rethink(u: Ent, o: HarvestOrder): void {
   if (!o.auto || u.type !== 'worker' || computer(u.team)) return;
+  // a Worker sticks to its resource: it only moves over when the side is short of another and not of this one
   const now = o.res ?? 'ore', r = pickResource(u);
-  if (!r || r === now) return;
+  if (!r || r === now || shortfall(u.team, now) > 0 || shortfall(u.team, r) <= 0) return;
   gather(u, r);
 }

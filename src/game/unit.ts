@@ -181,7 +181,8 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     o.st = 'go';
     // back out to the ore nearest the base, which may not be where the last load came from
     if (!o.res) { const t = pickOre(u); if (t) [o.tx, o.ty] = t; }
-    rethink(u, o);
+    // one that picked its own job looks round for anything to fix before setting out again
+    if (!(o.auto && u.type === 'worker' && fixNext(u))) rethink(u, o);
   }
 }
 
@@ -382,6 +383,19 @@ function mendNear(u: Ent, r: number): Ent | null {
   return bld ?? unit;
 }
 
+/**
+ * Send a Worker to the nearest site to build, damaged building to repair or wounded unit to patch
+ * up within TEND_RADIUS, unless an enemy is about and it's on "Don't attack". Returns true if it went.
+ */
+export function fixNext(u: Ent): boolean {
+  if (u.stance === 'passive' && nearestThreat(u, Math.min(unitDef(u).sight, 7))) return false;
+  const t = mendNear(u, TEND_RADIUS * TS);
+  if (!t) return false;
+  // a building it'll stay on however far; a wounded unit it gives up if it strays (it may be off fighting)
+  setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending || t.kind === 'bld' });
+  return true;
+}
+
 /** A Worker mending: helps a site go up, repairs a building (for ore), or patches up a unit. */
 function updMend(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
@@ -439,17 +453,15 @@ export function updUnit(u: Ent, dt: number): void {
       const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
       if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
     }
-    // an idle Worker mends what's near (a passive one only when no enemy is about), before going back to the ore
-    if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
-      const t = mendNear(u, (u.tending ? TEND_RADIUS : d.sight) * TS);
-      if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: u.tending }); return; }
-    }
+    // fix, then harvest: an idle Worker first builds, repairs and patches up whatever needs it nearby
+    // (a passive one only when no enemy is about), and only then goes back to gathering
+    if (u.type === 'worker' && fixNext(u)) return;
     // a Worker only fights back, or an enemy that comes right up to it
     const foe = u.stance === 'passive' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
-    if (u.stance === 'passive') {
-      const threat = nearestThreat(u, Math.min(d.sight, 7));
-      if (threat) orderFlee(u, threat);
-    } else if (foe) {
+    // a passive unit runs from enemies, but a gatherer sticks to its work with them about
+    const threat = u.stance === 'passive' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
+    if (threat) orderFlee(u, threat);
+    else if (u.stance === 'passive' && !isHarvester(u)) { /* nothing to do */ } else if (foe) {
       setOrder(u, { t: 'attack', tgt: foe.id, auto: true, ox: u.x, oy: u.y });
     } else if (isHarvester(u)) {
       // nothing left to fix: after a moment's pause, go and gather what the side needs most

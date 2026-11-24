@@ -10,12 +10,13 @@ import { setBlk } from './map.ts';
 import { burst, explosion } from './fx.ts';
 import { dropAether } from './aether.ts';
 
+/** Workers start on "Don't attack" (they flee rather than fight); everyone else on engage. */
 function baseEnt(kind: EntKind, type: EntType, team: number, x: number, y: number, hp: number): Ent {
   return {
     id: G.nextId++, kind, type, team, x, y, hp, maxhp: hp, dead: false, flash: 0,
     tx: 0, ty: 0, w: 0, h: 0,
     order: null, path: null, goal: null, cd: 0, face: Math.PI / 2, tface: Math.PI / 2, carry: 0,
-    scan: Math.random() * 0.3, rep: 0, px: x, py: y, stkT: 0.5, walk: 0, moving: false, atkT: 0, stance: 'engage', shot: null, breach: null, foe: null, foeT: -99,
+    scan: Math.random() * 0.3, rep: 0, px: x, py: y, stkT: 0.5, walk: 0, moving: false, atkT: 0, stance: type === 'worker' ? 'passive' : 'engage', shot: null, breach: null, foe: null, foeT: -99,
     done: true, prog: 1, repairing: false, rally: null,
   };
 }

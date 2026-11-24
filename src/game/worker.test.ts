@@ -113,6 +113,7 @@ describe('Workers', () => {
   });
 
   it('patch up wounded troops, slower than a Medic', () => {
+    for (const e of G.ents.filter((e) => e.type === 'worker')) kill(e); // just the one
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), w = addUnit('worker', 0, 22 * TS, 50 * TS);
     s.hp = 20;
     run(8);
@@ -124,8 +125,14 @@ describe('Workers', () => {
     expect(gained).toBeLessThan(MEDIC_HEAL * 5);
   });
 
-  it('fight back weakly with a pick', () => {
+  it('start on "Don\'t attack"', () => {
+    expect(addUnit('worker', 0, 20 * TS, 50 * TS).stance).toBe('passive');
+    expect(addUnit('swordsman', 0, 20 * TS, 50 * TS).stance).toBe('engage');
+  });
+
+  it('fight back weakly with a pick, when put on engage', () => {
     const w = addUnit('worker', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 21 * TS, 50 * TS);
+    w.stance = 'engage';
     run(3);
     expect(w.dead).toBe(false);
     expect(w.order?.t).toBe('attack');
@@ -133,14 +140,18 @@ describe('Workers', () => {
     expect(foe.hp).toBeGreaterThan(foe.maxhp * 0.6);
   });
 
-  it("stay off fights and mending on the passive stance when an enemy is about", () => {
+  it("stay off fights and mending on the passive stance when an enemy is about, and keep harvesting", () => {
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), w = addUnit('worker', 0, 22 * TS, 50 * TS);
     s.hp = 20;
-    w.stance = 'passive';
     const foe = addUnit('crossbowman', 1, 25 * TS, 50 * TS);
     foe.stance = 'passive';
     run(1);
-    expect(w.order?.t).toBe('move'); // running away
+    expect(w.order?.t).not.toBe('heal');
+    expect(w.order?.t).not.toBe('attack');
+    expect(w.order?.t).not.toBe('move'); // no running off either
+    s.hp = s.maxhp;
+    run(IDLE_GRACE + 1);
+    expect(w.order?.t).toBe('harvest'); // gets on with its work, enemy or not
   });
 
   it('go and mend what a player right-clicks, however far', () => {
@@ -161,29 +172,30 @@ describe('Workers', () => {
 });
 
 describe('Fix, then harvest', () => {
-  it('sends Workers to fix everything damaged further off, then back to the ore', () => {
+  it('is what idle Workers do: fix everything damaged nearby, buildings first, then back to the ore', () => {
     addBuilding('power', 0, 12, 50, false);
     advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
     const far = addBuilding('barracks', 0, 20, 50, false), wounded = addUnit('swordsman', 0, 19 * TS, 47 * TS);
     far.hp = far.maxhp * 0.5;
     wounded.hp = 20;
     const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
-    run(IDLE_GRACE);
-    for (let i = 0; i < 1 / STEP && !w.order; i++) update(STEP); // idle a moment, then it goes to gather
-    expect(w.order?.t).toBe('harvest'); // too far off to notice by itself
-    const cmd = parseCommand({ c: 'tend', ids: [w.id] });
-    expect(cmd).toEqual({ c: 'tend', ids: [w.id] });
-    if (!cmd) return;
-    applyCommand(0, cmd);
-    expect(w.tending).toBe(true);
     run(1);
-    expect(w.order).toMatchObject({ t: 'heal', tgt: far.id }); // buildings first
+    expect(w.order).toMatchObject({ t: 'heal', tgt: far.id }); // buildings first, without being told
     run(60);
     expect(far.hp).toBe(far.maxhp);
     expect(wounded.hp).toBeGreaterThan(20 + 15);
     for (let i = 0; i < 40 && w.order?.t !== 'harvest'; i++) run(1);
     expect(w.order?.t).toBe('harvest');
     expect(w.tending).toBe(false);
+  });
+
+  it('the Fix, then harvest order reaches the same', () => {
+    const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
+    const cmd = parseCommand({ c: 'tend', ids: [w.id] });
+    expect(cmd).toEqual({ c: 'tend', ids: [w.id] });
+    if (!cmd) return;
+    applyCommand(0, cmd);
+    expect(w.tending).toBe(true);
   });
 
   it('ends when the Worker gets another order', () => {
