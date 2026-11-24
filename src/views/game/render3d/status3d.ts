@@ -46,9 +46,10 @@ export function statusFx(m: Model, e: Ent, dt: number): void {
   const fz = frozen(e);
   if (fz && !ice) {
     ice = new THREE.Mesh(iceGeo, iceMat);
-    const r = (UNIT[e.type as UnitType]?.radius ?? 8) / 16, h = m.height || 0.8;
-    ice.scale.set(r * 1.6 + 0.1, h * 0.75, r * 1.6 + 0.1);
-    ice.position.y = h * 0.55;
+    // the model is in tiles: a unit's radius is in px (32 to the tile)
+    const r = (UNIT[e.type as UnitType]?.radius ?? 8) / 32, h = m.height || 0.8;
+    ice.scale.set(r * 1.25 + 0.05, h * 0.6, r * 1.25 + 0.05);
+    ice.position.y = h * 0.45;
     ice.renderOrder = 3;
     m.root.add(ice);
     m.root.userData.ice = ice;
