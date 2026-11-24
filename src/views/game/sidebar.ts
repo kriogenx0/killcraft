@@ -154,7 +154,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--waiting', !!need);
     c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
     // orders are paid in full up front: dim what the bank can't cover yet
-    c.root.classList.toggle('build-cell--short', !items.length && (!canAfford(V.team, type) || atLimit(V.team, type)));
+    c.root.classList.toggle('build-cell--short', !canAfford(V.team, type) || (!items.length && atLimit(V.team, type)));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
   }
   if (tabs) for (const k of ['structure', 'unit'] as const) {

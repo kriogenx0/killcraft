@@ -132,7 +132,7 @@ export function applyCommand(team: number, cmd: Command): void {
       break;
     }
     case 'build':
-      enqueue(team, cmd.type, true); // a player's order waits in the queue until it can be paid for
+      enqueue(team, cmd.type); // paid in full the moment it's queued; turned down if the side can't pay
       break;
     case 'hold':
       toggleHold(team, cmd.type);
