@@ -221,6 +221,20 @@ describe('creatures of myth', () => {
     expect(before - lion.hp).toBeGreaterThan(WEAPON.sword.dmg * 0.5);
   });
 
+  it("gives the Dragon scales that turn bullets, and a breath that burns tanks and buildings", () => {
+    const d = addUnit('dragon', 1, MID.x, MID.y), p = addUnit('pegasus', 1, MID.x, MID.y + 3 * TS);
+    const r = addUnit('rifleman', 0, MID.x - 3 * TS, MID.y);
+    fire(r, 'rifle', d);
+    fire(r, 'rifle', p);
+    expect(d.maxhp - d.hp).toBeLessThan((p.maxhp - p.hp) * 0.7);
+    const w = WEAPON[UNIT.dragon.weapon as keyof typeof WEAPON];
+    expect(w.element).toBe('fire');
+    expect(w.vs.building).toBeGreaterThan(w.vs.none);
+    expect(w.vs.heavy).toBeGreaterThan(w.vs.none);
+    expect(w.vs.air).toBeLessThan(0.5);
+    expect(BEASTS).toContain('dragon');
+  });
+
   it('lets a Phoenix rise from its ashes once', () => {
     const p = addUnit('phoenix', 0, MID.x, MID.y);
     dealDamage(p, p.maxhp * 3, null);

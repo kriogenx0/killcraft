@@ -284,7 +284,7 @@ function landBlow(p: Projectile, t: Ent, dt: number): void {
 }
 
 /** the sparks a spell leaves in its wake */
-export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030', tidal: '#50b0ff', plague: '#8aff40', tar: '#c08a30', chimerafire: '#ff8a20', phoenixfire: '#ffc040' };
+export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030', tidal: '#50b0ff', plague: '#8aff40', tar: '#c08a30', chimerafire: '#ff8a20', phoenixfire: '#ffc040', dragonfire: '#ff5a10' };
 
 /** How high each kind of projectile arcs (fraction of the distance, and a cap in px). */
 const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150], orb: [0.15, 40], ground: [0.35, 320] };

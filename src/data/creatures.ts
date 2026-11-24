@@ -9,7 +9,7 @@ import type { UnitType } from './unit.ts';
 /** Every creature a lair can hold. */
 export const BEASTS: UnitType[] = [
   'centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'harpy', 'pegasus', 'griffin',
-  'medusa', 'nemean', 'sphinx', 'satyr', 'chimera', 'phoenix',
+  'medusa', 'nemean', 'sphinx', 'satyr', 'chimera', 'phoenix', 'dragon',
 ];
 
 /**

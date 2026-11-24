@@ -6,7 +6,7 @@ export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
-  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire';
+  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
 
@@ -99,6 +99,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   thyrsus: { dmg: 12, range: 0.7, cd: 0.9, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.12, building: 0.3, air: 0 } },
   chimerafire: { element: 'fire', dmg: 24, range: 4, cd: 1.5, proj: 'orb', speed: 320, splash: 12, vs: { none: 1, light: 0.8, heavy: 0.35, building: 0.6, air: 1.5 } },
   phoenixfire: { element: 'fire', dmg: 20, range: 3.5, cd: 1.3, proj: 'orb', speed: 300, splash: 10, vs: { none: 1.1, light: 0.9, heavy: 0.4, building: 0.8, air: 0.7 } },
+  // the Dragon's breath: a slow, heavy gout of flame that splashes wide and melts armor and walls alike, but can't reach up at flyers
+  dragonfire: { element: 'fire', dmg: 42, range: 3.5, cd: 2.4, proj: 'orb', speed: 280, splash: 24, vs: { none: 0.55, light: 0.85, heavy: 1.1, building: 1.5, air: 0.35 } },
 };
 
 /** Chain lightning leaps to foes within this many px of the last one struck... */
