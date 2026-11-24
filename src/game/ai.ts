@@ -157,7 +157,7 @@ function defense(team: number, can: readonly string[]): BldType | null {
   const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && !isAir(e));
   const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
-  if (credits > 3500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
+  if (credits > 2400 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
   if (credits > 1500 && turrets < 9) {
     const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
     const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';

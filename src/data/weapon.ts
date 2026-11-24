@@ -53,7 +53,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   turretcannon: { dmg: 30, range: 5.5, cd: 1.5, proj: 'shell', speed: 700, splash: 12, vs: { none: 0.5, light: 1, heavy: 1, building: 0.5, air: 0 } },
   pillboxmg: { dmg: 9, range: 5.5, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.7, heavy: 0.15, building: 0.2, air: 0.35 } },
   atmissile: { dmg: 80, range: 7, cd: 2.8, proj: 'rocket', speed: 240, splash: 18, vs: { none: 0.2, light: 0.9, heavy: 1.25, building: 0.5, air: 0 } },
-  bertha: { dmg: 220, range: 22, minRange: 5, cd: 10, proj: 'shell', speed: 150, splash: 40, ground: true, vs: { none: 0.7, light: 0.8, heavy: 0.8, building: 1, air: 0 } },
+  bertha: { dmg: 260, range: 22, minRange: 4, cd: 7, proj: 'shell', speed: 200, splash: 48, ground: true, vs: { none: 0.8, light: 0.9, heavy: 0.9, building: 1.3, air: 0 } },
   // medieval arms
   // a Worker's pick: a last resort, not a weapon of war
   pick: { dmg: 6, range: 0.6, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.5, heavy: 0.15, building: 0.3, air: 0 } },
