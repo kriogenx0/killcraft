@@ -21,7 +21,20 @@ export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: numb
 /** team -1: the snapshot for people watching, which shows everything */
 export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number; detail: string[] } | { k: 'error'; msg: string }
   /** the whole match as it stands, for the server to keep through a restart */
-  | { k: 'saved'; world: SavedWorld };
+  | { k: 'saved'; world: SavedWorld }
+  | { k: 'perf'; perf: MatchPerf };
+
+/** How hard a match's thread worked over the last few seconds (logged by the server's perf monitor). */
+export interface MatchPerf {
+  /** game steps run, and the time they took on average and at worst (ms) */
+  steps: number; stepAvg: number; stepMax: number;
+  /** time spent making snapshots (ms, total) */
+  snapMs: number;
+  /** game time thrown away because the thread fell more than a quarter second behind (ms): the game ran slow */
+  lostMs: number;
+  /** entities on the map */
+  ents: number;
+}
 
 const SNAP_EVERY = 6; // steps (10 snapshots a second)
 const ORE_EVERY = 10; // snapshots
@@ -94,15 +107,23 @@ port.on('message', (m: WorkerIn) => {
   if (cmd && TEAMS.includes(m.team)) applyCommand(m.team, cmd);
 });
 
+/** seconds between perf reports */
+const PERF_EVERY = 10;
+const perf = { steps: 0, stepMs: 0, stepMax: 0, snapMs: 0, lostMs: 0, at: performance.now() };
+
 let steps = 0, snaps = 0, last = performance.now(), acc = 0;
 const timer = setInterval(() => {
-  const now = performance.now();
-  acc += Math.min(0.25, (now - last) / 1000);
+  const now = performance.now(), behind = (now - last) / 1000;
+  if (behind > 0.25) perf.lostMs += (behind - 0.25) * 1000;
+  acc += Math.min(0.25, behind);
   last = now;
   while (acc >= STEP) {
+    const t0 = performance.now();
     update(STEP);
+    const ms = performance.now() - t0;
+    perf.steps++; perf.stepMs += ms; perf.stepMax = Math.max(perf.stepMax, ms);
     acc -= STEP;
-    if (++steps % SNAP_EVERY === 0) sendSnapshots();
+    if (++steps % SNAP_EVERY === 0) { const t1 = performance.now(); sendSnapshots(); perf.snapMs += performance.now() - t1; }
     if (G.over) {
       sendSnapshots();
       port.postMessage({ k: 'end', winner: G.winner, detail: outReasons() } satisfies WorkerOut);
@@ -110,12 +131,17 @@ const timer = setInterval(() => {
       return;
     }
   }
+  if (now - perf.at >= PERF_EVERY * 1000) {
+    const out: MatchPerf = { steps: perf.steps, stepAvg: perf.steps ? perf.stepMs / perf.steps : 0, stepMax: perf.stepMax, snapMs: perf.snapMs, lostMs: perf.lostMs, ents: G.ents.length };
+    port.postMessage({ k: 'perf', perf: out } satisfies WorkerOut);
+    Object.assign(perf, { steps: 0, stepMs: 0, stepMax: 0, snapMs: 0, lostMs: 0, at: now });
+  }
 }, 1000 / 60);
 
 function stock(team: number): SideStock {
   return {
     credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team],
-    tamed: G.tamed[team] ?? [], era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
+    tamed: G.tamed[team] ?? [], rally: G.rally[team] ?? null, era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
   };
 }
 

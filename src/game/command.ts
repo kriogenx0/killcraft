@@ -9,6 +9,7 @@ import { groupMove, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, o
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
+import { rallyArmy } from './rally.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
@@ -21,6 +22,8 @@ export type Command =
   | { c: 'haul'; ids: number[]; target: number }
   | { c: 'fix'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
+  /** the army rally point: every producer's new troops go there, and with `send` the whole army too */
+  | { c: 'muster'; x: number; y: number; send: boolean }
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
   | { c: 'cancel'; type: Buildable }
@@ -58,6 +61,8 @@ export function parseCommand(raw: unknown): Command | null {
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'harvest', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
     case 'rally':
       return isInt(o.id) && inWorld(o.x, o.y) ? { c: 'rally', id: o.id, x: o.x as number, y: o.y as number } : null;
+    case 'muster':
+      return inWorld(o.x, o.y) && typeof o.send === 'boolean' ? { c: 'muster', x: o.x as number, y: o.y as number, send: o.send } : null;
     case 'build':
     case 'hold':
     case 'cancel':
@@ -131,6 +136,9 @@ export function applyCommand(team: number, cmd: Command): void {
       if (b) b.rally = { x: cmd.x, y: cmd.y };
       break;
     }
+    case 'muster':
+      rallyArmy(team, cmd.x, cmd.y, cmd.send);
+      break;
     case 'build':
       enqueue(team, cmd.type); // paid in full the moment it's queued; turned down if the side can't pay
       break;

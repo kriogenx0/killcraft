@@ -50,6 +50,7 @@ import { updateFollow } from './follow_cam.ts';
 import { initTouchBar, refreshTouchBar } from './touch_bar.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
 import { perfEnd, perfLap, perfStart } from './perf.ts';
+import { initPerfReport } from './perf_report.ts';
 import { stageBattle } from '../../sim/stage.ts';
 
 const MAX_STEPS_PER_FRAME = 16;
@@ -170,6 +171,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
 
   G.reveal = q.has('reveal');
   initScene(canvas);
+  initPerfReport();
   initWorld(q.has('seed') ? Number(q.get('seed')) : Math.floor(Math.random() * 1e6));
   // a game picked from the menu builds its own map right away; a refresh or test shows this one meanwhile
   if (boot) setupWorldView();
@@ -279,6 +281,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     G.aetherFound[team] = !!s.aetherFound;
     G.tamed[team] = s.tamed ?? [];
     G.ward[team] = !!s.ward;
+    G.rally[team] = s.rally ?? null;
     G.era[team] = s.era ?? 0;
     G.heal[team] = s.heal ?? 0;
     G.upg[team] = { ...noUpgrades(), ...s.upg };

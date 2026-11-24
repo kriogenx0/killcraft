@@ -127,6 +127,8 @@ export interface SnapMsg {
   ward: boolean;
   /** creature kinds the team has captured, and so can train */
   tamed: string[];
+  /** the army rally point (world px), if set */
+  rally?: { x: number; y: number } | null;
   /** the team's age of technology */
   era: number;
   /** the team's healing level */
@@ -151,6 +153,8 @@ export interface SideStock {
   aetherFound: boolean;
   ward: boolean;
   tamed: string[];
+  /** the army rally point (world px), if set */
+  rally?: { x: number; y: number } | null;
   era: number;
   heal: number;
   upg?: Record<UpgradeTrack, number>;

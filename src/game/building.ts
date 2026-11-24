@@ -12,6 +12,7 @@ import { nearestFree } from './path.ts';
 import { nearPortal } from './map.ts';
 import { updTurret } from './combat.ts';
 import { orderHarvest } from './order.ts';
+import { joinRally } from './rally.ts';
 
 /** A new site starts with this share of its hit points and gains the rest as it goes up. */
 export const SITE_HP = 0.1;
@@ -35,6 +36,7 @@ export function exitTile(b: Ent, toward?: Point): Tile {
 function completed(b: Ent): void {
   burst('dust', b.x, b.y + (b.h * TS) / 2, 14, 40, 100);
   if (!G.visualOnly) say(b.team, `${bldDef(b).name} complete`);
+  if (!G.visualOnly) joinRally(b);
   const to = bldDef(b).advances;
   if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
     G.era[b.team] = Math.min(LAST_ERA, to);

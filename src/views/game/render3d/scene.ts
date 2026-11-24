@@ -206,6 +206,13 @@ const SLOW_MS = 26, FAST_MS = 18;
 const DOWN_AFTER = 1.5;
 let quality = 0, pinned = false, slowFor = 0, fastFor = 0, upAfter = 6, lastUp = -1e9, shadowFrame = 0;
 
+/** Told when quality steps down (from, to), or stays at the lowest level with frames still slow (to === from). */
+const onSlow: ((from: number, to: number, fps: number) => void)[] = [];
+export const onSlowFrames = (f: (from: number, to: number, fps: number) => void): void => { onSlow.push(f); };
+/** seconds at the lowest level with frames still slow before that's reported again */
+const STILL_SLOW = 20;
+let stillSlowFor = 0;
+
 /** The current quality level (0 best), for effects that thin out with it. */
 export const qualityLevel = (): number => quality;
 
@@ -234,12 +241,18 @@ function adaptQuality(now: number, dt: number): void {
   if (pinned) return;
   slowFor = frameMs > SLOW_MS ? slowFor + dt : 0;
   fastFor = frameMs < FAST_MS ? fastFor + dt : 0;
+  if (frameMs <= SLOW_MS) stillSlowFor = 0;
   if (slowFor > DOWN_AFTER && quality < QUALITY.length - 1) {
     // falling back soon after stepping up: that level is too much, so wait longer before trying it again
     if (now - lastUp < 15000) upAfter = Math.min(120, upAfter * 2);
+    for (const f of onSlow) f(quality, quality + 1, 1000 / frameMs);
     setQuality(quality + 1);
     slowFor = fastFor = 0;
     frameMs = (SLOW_MS + FAST_MS) / 2; // judge the new level on its own frames
+  } else if (quality === QUALITY.length - 1 && frameMs > SLOW_MS && (stillSlowFor += dt) > STILL_SLOW) {
+    // as low as it goes and still slow: worth knowing about
+    stillSlowFor = 0;
+    for (const f of onSlow) f(quality, quality, 1000 / frameMs);
   } else if (fastFor > upAfter && quality > 0) {
     setQuality(quality - 1);
     slowFor = fastFor = 0; lastUp = now;
