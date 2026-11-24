@@ -213,4 +213,53 @@ describe('game server', () => {
     expect(await w.next('error', (m) => m.k === 'error' && !m.live)).toMatchObject({ msg: 'That game has ended.' });
     for (const x of [a, b, w, c]) x.ws.close();
   }, 20000);
+
+  it('plays a 2v2 from a game room: two people as allies against two computers', async () => {
+    const a = await connect('Ivy'), b = await connect('Jon'), w = await connect('Kim');
+    await a.next('welcome');
+    a.ws.send(JSON.stringify({ k: 'create' }));
+    const hosting = await a.next('lobby', (m) => m.k === 'lobby' && !!m.room);
+    if (hosting.k !== 'lobby' || !hosting.room) throw new Error('expected a room');
+    const game = hosting.room.id;
+    a.ws.send(JSON.stringify({ k: 'room', mode: '2v2' }));
+    a.ws.send(JSON.stringify({ k: 'room', seat: 1, pick: 'easy' }));
+    a.ws.send(JSON.stringify({ k: 'room', seat: 2, pick: 'open' }));
+    a.ws.send(JSON.stringify({ k: 'room', seat: 3, pick: 'hard' }));
+    await a.next('lobby', (m) => m.k === 'lobby' && m.room?.mode === '2v2' && m.room.seats[3]?.level === 'hard');
+    // the friend takes the open seat beside the host, and the room is full: it starts
+    b.ws.send(JSON.stringify({ k: 'join', game }));
+    const startA = await a.next('start'), startB = await b.next('start');
+    if (startA.k !== 'start' || startB.k !== 'start') throw new Error('expected start');
+    expect(startA).toMatchObject({ team: 0, teams: 4, ally: [0, 1, 0, 1], names: ['Ivy', 'Computer (Easy)', 'Jon', 'Computer (Hard)'], opponent: 'Computer (Easy) & Computer (Hard)' });
+    expect(startB.team).toBe(2);
+
+    // allies see each other's bases from the start
+    const snap = (await a.next('snap', (m) => m.k === 'snap' && m.ents.some((r) => r[2] === 2))) as SnapMsg;
+    expect(snap.ents.some((r) => r[2] === 2 && TYPES[r[1]] === 'yard')).toBe(true);
+    // the computer plays only its own seats: Jon's side waits for Jon
+    await new Promise((r) => setTimeout(r, 1500));
+    b.msgs.length = 0;
+    expect(((await b.next('snap')) as SnapMsg).credits).toBe(START_CREDITS);
+
+    const listed = await w.next('lobby', (m) => m.k === 'lobby' && m.live.some((g) => g.id === game));
+    if (listed.k !== 'lobby') throw new Error('expected lobby');
+    expect(listed.live.find((g) => g.id === game)?.title).toBe('Ivy & Jon vs Computer (Easy) & Computer (Hard)');
+    w.ws.send(JSON.stringify({ k: 'watch', game }));
+    expect(await w.next('spectate')).toMatchObject({ teams: 4, ally: [0, 1, 0, 1] });
+    expect(((await w.next('snap')) as SnapMsg).sides).toHaveLength(4);
+
+    // one ally surrendering knocks out only their side; the other plays on
+    b.ws.send(JSON.stringify({ k: 'resign' }));
+    expect(await b.next('end')).toMatchObject({ reason: 'resigned' });
+    expect(await a.next('notice', (m) => m.k === 'notice' && m.msg.includes('surrendered'))).toMatchObject({ msg: 'Jon surrendered.' });
+    await new Promise((r) => setTimeout(r, 2000));
+    expect(a.msgs.some((m) => m.k === 'end')).toBe(false);
+    a.msgs.length = 0;
+    const later = (await a.next('snap')) as SnapMsg;
+    expect(later.ents.some((r) => r[2] === 2)).toBe(false);
+    a.ws.send(JSON.stringify({ k: 'resign' }));
+    expect(await a.next('end')).toMatchObject({ reason: 'resigned' });
+    expect(await w.next('end')).toMatchObject({ reason: 'resigned' });
+    for (const x of [a, b, w]) x.ws.close();
+  }, 30000);
 });

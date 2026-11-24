@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LobbyService, type Player } from './lobby_service.ts';
+import { LobbyService, type Player, type RoomStart } from './lobby_service.ts';
 
 function setup() {
-  const pairs: [Player, Player, string?][] = [];
-  const lobby = new LobbyService({ paired: (a, b, g) => pairs.push([a, b, g]), changed: vi.fn() });
+  const pairs: [Player, Player, string?][] = [], rooms: RoomStart[] = [];
+  const lobby = new LobbyService({ paired: (a, b, g) => pairs.push([a, b, g]), started: (r) => rooms.push(r), changed: vi.fn() });
   for (const id of ['a', 'b', 'c']) lobby.add(id, id.toUpperCase());
-  return { lobby, pairs };
+  return { lobby, pairs, rooms };
 }
 
 describe('lobby', () => {
@@ -123,5 +123,64 @@ describe('lobby', () => {
     lobby.quick('d'); // c is now in a match
     expect(lobby.view('a')?.inviting).toBeNull();
     expect(lobby.invite('a', 'c')).toBe(false);
+  });
+
+  it('sets up a 2v2 room: computers and closed seats, people fill open seats, the host starts it', () => {
+    const { lobby, pairs, rooms } = setup();
+    lobby.add('d', 'D');
+    const id = lobby.create('a')!;
+    expect(lobby.view('a')?.room).toMatchObject({ id, mode: '1v1', host: true, ready: false, seats: [{ kind: 'person', name: 'A', you: true }, { kind: 'open' }] });
+    expect(lobby.configure('b', { mode: '2v2' })).toBe(false); // not the host
+    expect(lobby.configure('a', { mode: '2v2' })).toBe(true);
+    expect(lobby.configure('a', { seat: 2, pick: 'open' })).toBe(true); // a friend as the ally
+    expect(lobby.configure('a', { seat: 3, pick: 'hard' })).toBe(true);
+    expect(lobby.configure('a', { seat: 0, pick: 'easy' })).toBe(false); // the host's own seat
+    expect(lobby.games()).toEqual([{ id, host: 'A', mode: '2v2', players: 1, free: 2 }]);
+    // the first to join sits on the host's side
+    expect(lobby.join('b', id)).toBe(true);
+    expect(lobby.view('b')?.room?.seats.find((s) => s.you)?.team).toBe(2);
+    expect(lobby.players.get('b')?.status).toBe('room');
+    expect(lobby.begin('a')).toBe(false); // a seat is still open
+    // someone leaving opens their seat again
+    lobby.leave('b');
+    expect(lobby.view('a')?.room?.seats[2]).toMatchObject({ kind: 'open' });
+    lobby.join('b', id);
+    // the last open seat filling starts the game
+    expect(lobby.join('c', id)).toBe(true);
+    expect(pairs).toEqual([]);
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0].mode).toBe('2v2');
+    expect(rooms[0].seats.map((s) => (s && typeof s === 'object' ? s.id : s))).toEqual(['a', 'c', 'b', 'hard']);
+    expect(lobby.players.get('c')?.status).toBe('playing');
+    expect(lobby.games()).toEqual([]);
+    expect(lobby.join('d', id)).toBe(false);
+  });
+
+  it('lets the host start with computers and closed seats, but needs someone on the other side', () => {
+    const { lobby, rooms } = setup();
+    lobby.create('a');
+    lobby.configure('a', { mode: '2v2' });
+    lobby.configure('a', { seat: 1, pick: 'closed' });
+    lobby.configure('a', { seat: 3, pick: 'closed' });
+    expect(lobby.view('a')?.room?.ready).toBe(false);
+    expect(lobby.begin('a')).toBe(false);
+    lobby.configure('a', { seat: 3, pick: 'brutal' });
+    expect(lobby.view('a')?.room?.ready).toBe(true);
+    expect(lobby.begin('a')).toBe(true);
+    expect(rooms[0].seats.map((s) => (s && typeof s === 'object' ? s.id : s))).toEqual(['a', null, 'normal', 'brutal']);
+  });
+
+  it('sends everyone in a room back to the lobby when the host leaves', () => {
+    const { lobby } = setup();
+    const id = lobby.create('a')!;
+    lobby.configure('a', { mode: 'ffa' });
+    lobby.configure('a', { seat: 2, pick: 'open' });
+    lobby.join('b', id);
+    expect(lobby.configure('a', { mode: '1v1' })).toBe(true); // b sits in seat 1, which 1v1 keeps
+    lobby.configure('a', { mode: 'ffa' });
+    lobby.remove('a');
+    expect(lobby.players.get('b')?.status).toBe('idle');
+    expect(lobby.view('b')?.room).toBeNull();
+    expect(lobby.games()).toEqual([]);
   });
 });

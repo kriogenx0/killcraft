@@ -71,10 +71,36 @@ export const START_ARMY: Record<StartArmy, { name: string; desc: string; units: 
   army: { name: 'Army', desc: 'Four Workers, two Swordsmen, two Crossbowmen and two Knights.', units: ['worker', 'worker', 'worker', 'worker', 'swordsman', 'swordsman', 'crossbowman', 'crossbowman', 'knight', 'knight'] },
 };
 
+/** How the sides line up: one against one, two teams of two (allies share sight and win together), or everyone for themselves. */
+export type Mode = '1v1' | '2v2' | 'ffa';
+export const MODES: Record<Mode, { name: string; short: string; desc: string; teams: number; ally: number[] }> = {
+  '1v1': { name: 'One vs one', short: '1v1', desc: 'You against one computer.', teams: 2, ally: [0, 1] },
+  '2v2': { name: 'Two vs two', short: '2v2', desc: 'Two teams of two. Allies share what they see, never fight each other and win together.', teams: 4, ally: [0, 1, 0, 1] },
+  ffa: { name: 'Free-for-all', short: 'FFA', desc: 'Four sides, one base in each corner, everyone for themselves.', teams: 4, ally: [0, 1, 2, 3] },
+};
+export const isMode = (m: unknown): m is Mode => typeof m === 'string' && m in MODES;
+
+/** Who sits in a seat: a computer at a difficulty, or nobody (the corner stays empty). */
+export type SeatPick = Difficulty | 'closed';
+export const isSeatPick = (v: unknown): v is SeatPick => v === 'closed' || (typeof v === 'string' && v in AI_LEVEL);
+
+/**
+ * Can a match be played with these seats closed? There must be at least two sides with someone on them.
+ * `closed[t]` is true for an empty seat.
+ */
+export function playable(mode: Mode, closed: readonly boolean[]): boolean {
+  const m = MODES[mode], sides = new Set<number>();
+  for (let t = 0; t < m.teams; t++) if (!closed[t]) sides.add(m.ally[t]);
+  return sides.size >= 2;
+}
+
+/** Seats in the order the setup screens list them: your side first, then the other side (2v2 pairs seats 0+2 and 1+3). */
+export const seatOrder = (mode: Mode): number[] => (mode === '1v1' ? [0, 1] : mode === '2v2' ? [0, 2, 1, 3] : [0, 1, 2, 3]);
+
 export interface GameSetup {
-  difficulty: Difficulty;
-  /** computer opponents: 1 (one against one) or 3 (four-player free-for-all) */
-  foes: 1 | 3;
+  mode: Mode;
+  /** the computer in each seat (index = team); seat 0 is you, except in a match to watch */
+  seats: SeatPick[];
   /** map seed; null picks a random map */
   seed: number | null;
   resources: StartResources;
@@ -84,5 +110,13 @@ export interface GameSetup {
   fog: boolean;
 }
 
-export const DEFAULT_SETUP: GameSetup = { difficulty: 'normal', foes: 1, seed: null, resources: 'standard', army: 'workers', speed: 1, fog: true };
+export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: true };
 export const SPEEDS = [0.5, 1, 2];
+
+/** The match a setup makes: how many teams, each one's side, which seats are empty, and each computer's difficulty. */
+export function matchOf(s: GameSetup, watch: boolean): { teams: number; ally: number[]; absent: boolean[]; levels: (Difficulty | null)[] } {
+  const m = MODES[s.mode];
+  const absent = Array.from({ length: m.teams }, (_, t) => (t > 0 || watch) && s.seats[t] === 'closed');
+  const levels = Array.from({ length: m.teams }, (_, t) => (t === 0 && !watch) || absent[t] ? null : (s.seats[t] === 'closed' ? 'normal' : s.seats[t]));
+  return { teams: m.teams, ally: [...m.ally], absent, levels };
+}

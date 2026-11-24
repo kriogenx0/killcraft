@@ -1,7 +1,7 @@
 // Keeps a 3D model for every entity the player can see, animates them, and draws the selection
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import * as THREE from 'three';
-import { G, haulOf, valid, type Ent } from '../../../game/state.ts';
+import { G, allied, haulOf, valid, type Ent } from '../../../game/state.ts';
 import { MH, MW, TS } from '../../../game/const.ts';
 import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
@@ -252,7 +252,7 @@ function onGround(o: THREE.Object3D, x: number, z: number, lift: number): void {
 
 const ringPool: THREE.Mesh[] = [];
 const markerPool: THREE.Mesh[] = [];
-const ringMats = { own: basic('#5f5'), enemy: basic('#f55'), neutral: basic('#ff5') };
+const ringMats = { own: basic('#5f5'), enemy: basic('#f55'), neutral: basic('#ff5'), ally: basic('#5cf') };
 let rally: THREE.Group | null = null;
 let ghost: { type: BldType; look: number; group: THREE.Group; tiles: THREE.Mesh[]; foot: THREE.Mesh } | null = null;
 
@@ -271,7 +271,7 @@ function updateRings(): void {
     if (!r) { r = new THREE.Mesh(ringGeo, ringMats.own); r.renderOrder = 3; ringPool.push(r); overlays.add(r); }
     n++;
     r.visible = true;
-    r.material = e.team === V.team ? ringMats.own : e.team < 0 ? ringMats.neutral : ringMats.enemy;
+    r.material = e.team === V.team ? ringMats.own : e.team < 0 ? ringMats.neutral : allied(e.team, V.team) ? ringMats.ally : ringMats.enemy;
     r.geometry = e.w ? squareGeo : ringGeo;
     const size = e.w ? e.w * 0.72 : UNIT[e.type as UnitType].radius / TS + 0.16;
     r.scale.setScalar(size);

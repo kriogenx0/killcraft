@@ -1,7 +1,7 @@
 // WebSocket messages: parse and rate-limit what clients send, then call the services.
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import { cleanName, type ClientMsg, type ServerMsg } from '../../src/net/protocol.ts';
+import { cleanName, sidesTitle, type ClientMsg, type ServerMsg } from '../../src/net/protocol.ts';
 import type { LobbyService } from '../services/lobby_service.ts';
 import type { MatchService } from '../services/match_service.ts';
 
@@ -74,17 +74,19 @@ export class SocketController {
           if (this.lobby.join(id, game)) break;
           // a match already under way can be watched instead
           const live = this.matches.live().find((g) => g.id === game);
-          if (live) { this.send(id, { k: 'error', msg: `That game has already started: ${live.players.join(' vs ')}.`, live }); break; }
+          if (live) { this.send(id, { k: 'error', msg: `That game has already started: ${live.title ?? live.players.join(' vs ')}.`, live }); break; }
           const why = this.lobby.hostOf(game) === id ? "That's your own game. Send the link to a friend."
             : this.lobby.hostOf(game) ? "Couldn't join that game right now."
             : 'That game is no longer open. Ask your friend for a new link, or create your own game.';
           this.send(id, { k: 'error', msg: why });
           break;
         }
+        case 'room': if (!this.lobby.configure(id, { mode: msg.mode, seat: msg.seat, pick: msg.pick })) this.send(id, { k: 'error', msg: "Couldn't change that seat." }); break;
+        case 'begin': if (!this.lobby.begin(id)) this.send(id, { k: 'error', msg: 'Fill or close every open seat first, and put someone on each side.' }); break;
         case 'watch': {
           const me = this.lobby.players.get(id);
           const players = me && me.status !== 'playing' ? this.matches.watch(id, String(msg.game)) : null;
-          if (players) this.lobby.watching(id, players.join(' vs '));
+          if (players) this.lobby.watching(id, sidesTitle(players));
           else this.send(id, { k: 'error', msg: 'That game has ended.' });
           break;
         }
@@ -103,7 +105,7 @@ export class SocketController {
           const me = this.lobby.players.get(id);
           if (!me || me.status === 'playing') { this.send(id, { k: 'nogame' }); break; }
           void this.matches.rejoin(me, String(msg.game), String(msg.key)).then((opponent) => {
-            if (opponent) this.lobby.playing(id, opponent.name);
+            if (opponent) this.lobby.playing(id, opponent);
             else this.send(id, { k: 'nogame' });
           });
           break;

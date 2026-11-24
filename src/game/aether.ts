@@ -1,6 +1,6 @@
 // Aether deposits: placing them on the map, drawing Aether from a held deposit, and the tricks the
 // hidden units use (slowing hexes and cloaks). Tuning lives in data/aether.ts.
-import { G, hooks, say, unitDef, type Ent, type Tile } from './state.ts';
+import { G, allied, hooks, say, unitDef, type Ent, type Tile } from './state.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
@@ -100,7 +100,7 @@ export function holderOf(d: Ent): number {
   const r = AETHER_REACH * TS;
   let holder = -1;
   for (const e of G.ents) {
-    if (e.dead || e.kind !== 'unit' || e.team < 0 || e.team === holder) continue;
+    if (e.dead || e.kind !== 'unit' || e.team < 0 || (holder >= 0 && allied(e.team, holder))) continue;
     if (Math.hypot(e.x - d.x, e.y - d.y) > r) continue;
     if (holder >= 0) return -1;
     holder = e.team;
@@ -163,10 +163,10 @@ export function unveil(u: Ent): void {
 
 /** Is `e` a cloaked unit that `team` can't see right now? Enemies very close see through the cloak. */
 export function cloakedFrom(e: Ent, team: number): boolean {
-  if (e.kind !== 'unit' || e.team === team || e.team < 0 || !unitDef(e).cloak || (e.shownT ?? 0) > G.gameT) return false;
+  if (e.kind !== 'unit' || allied(e.team, team) || e.team < 0 || !unitDef(e).cloak || (e.shownT ?? 0) > G.gameT) return false;
   const r = CLOAK_DETECT * TS;
   for (const o of G.ents) {
-    if (o.dead || o.team !== team || o.kind === 'source') continue;
+    if (o.dead || o.team < 0 || !allied(o.team, team) || o.kind === 'source') continue;
     if (o.type === 'wardstone' && o.done && Math.hypot(o.x - e.x, o.y - e.y) <= WARD_STONE_SIGHT * TS) return false;
     if (o.kind === 'unit' && Math.hypot(o.x - e.x, o.y - e.y) <= (unitDef(o).detect ?? 0) * TS) return false; // a Sphinx's eyes
     if (Math.hypot(o.x - e.x, o.y - e.y) - (o.w ? (o.w * TS) / 2 : 0) <= r) return false;

@@ -18,6 +18,33 @@
     }
   }
 
+  // the game room you're in before it starts: how the sides line up and who sits where
+  .lobby-room {
+    display: flex;
+    flex-direction: column;
+    gap: $space-3;
+    align-items: center;
+    width: 100%;
+    max-width: 480px;
+    padding: $space-3;
+    background: rgb(0 0 0 / 35%);
+    border: 1px solid rgb(176 138 64 / 50%);
+    border-radius: $radius;
+
+    &[hidden] {
+      display: none;
+    }
+
+    .lobby-room-title {
+      margin: 0;
+      color: #e8d8a8;
+    }
+
+    .lobby-room-mode[hidden] {
+      display: none;
+    }
+  }
+
   .lobby-invite-box {
     display: flex;
     flex-direction: column;

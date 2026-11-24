@@ -20,7 +20,9 @@ Other targets: `make test` (type-check, lint, and every test, including a live t
 Click **Play Online**, pick a name, then:
 
 - **Quick match** pairs you with the next person who presses it.
-- **Create game** lists your game in the lobby; anyone can click **Join**.
+- **Create game** opens a game room, listed in the lobby, with an invite link. Pick **1v1**, **2v2** or **FFA** (four sides), then set each seat to **Open for a player**, a computer at any difficulty, or **Closed**. People who click **Join** (or open the link) take the open seats, your own side first. The game starts as soon as the last open seat fills, or when you press **Start game** once no seat is waiting.
+
+In a **2v2**, the two bases on the left (Blue and Green) play the two on the right (Red and Gold). Allies share what they see, can't hurt each other, and win together, even if one of them was knocked out along the way. A player who surrenders in a game of more than two sides loses their base, and the rest play on. Solo games work the same way: **Play vs Computer** offers 1v1, 2v2 and free-for-all, with a difficulty (or Closed) for every computer seat, so you can play with a computer ally, or 2v1.
 
 Each match runs on the server, which sends each player only what their side can see. If a player surrenders, the other wins. A player whose connection drops (or who refreshes the page) has 60 seconds to come back before the other wins; the game reconnects by itself.
 

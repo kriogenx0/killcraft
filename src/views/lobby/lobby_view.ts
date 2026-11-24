@@ -1,7 +1,9 @@
 // The online lobby: pick a name, see who's online, then quick match, host/join a public game,
 // or challenge a specific player.
 import { net } from '../../net/client.ts';
-import { MAX_NAME, cleanName, type LiveGame, type LobbyMsg, type OnlinePlayer, type ServerMsg } from '../../net/protocol.ts';
+import { MAX_NAME, cleanName, type LiveGame, type LobbyMsg, type OnlinePlayer, type RoomView, type ServerMsg } from '../../net/protocol.ts';
+import { MODES, isMode } from '../../data/setup.ts';
+import { seatRows } from '../../components/seats/seats.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { copyButton } from '../../components/copy_button/copy_button.ts';
 import { gameIdFromUrl, leaveGameUrl } from '../game/resume.ts';
@@ -38,6 +40,14 @@ const MARKUP = `
     <button type="button" class="ui-button ui-button--secondary lobby-create">Create game</button>
   </div>
   <p class="lobby-status" role="status" aria-live="polite"></p>
+  <div class="lobby-room" hidden>
+    <h3 class="lobby-room-title"></h3>
+    <div class="ui-segmented lobby-room-mode" role="radiogroup" aria-label="Players">
+      ${Object.entries(MODES).map(([value, m]) => `<label class="ui-segmented-option" title="${m.desc}"><input type="radio" autocomplete="off" name="lobby-mode" value="${value}"><span>${m.short}</span></label>`).join('')}
+    </div>
+    <div class="seats lobby-seats" role="group" aria-label="Seats"></div>
+    <button type="button" class="ui-button lobby-begin">Start game</button>
+  </div>
   <div class="lobby-invite-box" hidden>
     <div class="lobby-link">
       <input class="ui-text-field-input lobby-link-url" readonly autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Invite link">
@@ -81,6 +91,7 @@ const STATUS_TEXT: Record<OnlinePlayer['status'], string> = {
   idle: 'In the lobby',
   quick: 'Looking for a match',
   host: 'Hosting a game',
+  room: 'In a game, waiting to start',
   playing: 'In a match',
   watching: 'Watching a match',
 };
@@ -95,7 +106,7 @@ function statusText(p: OnlinePlayer): string {
 export function liveText(g: LiveGame, now = Date.now(), at = now): { name: string; detail: string } {
   const mins = Math.floor((g.secs + (now - at) / 1000) / 60);
   const since = mins < 1 ? 'Just started' : `${mins} min in`;
-  return { name: g.players.join(' vs '), detail: g.watchers ? `${since} · ${g.watchers} watching` : since };
+  return { name: g.title ?? g.players.filter(Boolean).join(' vs '), detail: g.watchers ? `${since} · ${g.watchers} watching` : since };
 }
 
 function button(label: string, cls: string, onClick: () => void, secondary = false): HTMLButtonElement {
@@ -127,7 +138,9 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   const name = $<HTMLInputElement>('.lobby-name'), status = $('.lobby-status'), online = $('.lobby-online');
   const gameList = $('.lobby-game-list'), liveList = $('.lobby-live-list'), playerList = $('.lobby-player-list'), inviteList = $('.lobby-invites');
   const quick = $<HTMLButtonElement>('.lobby-quick'), create = $<HTMLButtonElement>('.lobby-create'), cancel = $<HTMLButtonElement>('.lobby-cancel');
-  let waiting: 'quick' | 'host' | 'invite' | null = null, connectedAs = '';
+  let waiting: 'quick' | 'host' | 'room' | 'invite' | null = null, connectedAs = '';
+  const roomBox = $('.lobby-room'), roomTitle = $('.lobby-room-title'), roomSeats = $('.lobby-seats'), begin = $<HTMLButtonElement>('.lobby-begin');
+  const roomMode = $('.lobby-room-mode');
   let last: LobbyMsg | null = null, lastAt = 0;
   const link = $('.lobby-invite-box'), linkUrl = $<HTMLInputElement>('.lobby-link-url'), copy = $<HTMLButtonElement>('.lobby-copy');
   const share = $<HTMLButtonElement>('.lobby-share');
@@ -135,9 +148,10 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   /** joined from an invite link: if that fails, the address goes back to the start screen's */
   let joiningLink = false;
 
-  const showLink = (game: string | null) => {
+  /** Show the invite link for the game you're hosting or have joined (only a hosted one is listed again after a refresh). */
+  const showLink = (game: string | null, hosting = true) => {
     link.hidden = !game;
-    setHostedGame(game);
+    setHostedGame(hosting ? game : null);
     if (!game) {
       // stopped hosting: the address no longer names a game
       if (!joiningLink && gameIdFromUrl() && gameIdFromUrl() === lastHosted) leaveGameUrl();
@@ -163,10 +177,30 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
 
   const watchButton = (game: string) => button('Watch', 'lobby-watch', () => { setStatus('Opening the game…', true); net.send({ k: 'watch', game }); }, true);
 
+  /** The game room you're in: how the sides line up and who sits where; the host changes seats and starts it. */
+  const renderRoom = (r: RoomView | null | undefined) => {
+    roomBox.hidden = !r;
+    if (!r) return;
+    const me = r.seats.find((s) => s.you)?.team ?? 0;
+    roomTitle.textContent = r.host ? `Your game: ${MODES[r.mode].name}` : `${r.hostName}'s game: ${MODES[r.mode].name}`;
+    roomMode.hidden = !r.host;
+    roomMode.querySelectorAll<HTMLInputElement>('input').forEach((i) => { i.checked = i.value === r.mode; });
+    roomSeats.innerHTML = seatRows(r.mode, r.seats.map((s) => ({ ...s, editable: r.host && s.kind !== 'person', openable: true })), me);
+    roomSeats.querySelectorAll<HTMLSelectElement>('.seat-select').forEach((sel) => {
+      if (r.mode === '1v1') sel.querySelector('option[value="closed"]')?.remove();
+      sel.addEventListener('change', () => net.send({ k: 'room', seat: Number(sel.name.slice(5)), pick: sel.value as never }));
+    });
+    begin.hidden = !r.host;
+    begin.disabled = !r.ready;
+    const open = r.seats.filter((s) => s.kind === 'open').length;
+    if (r.host) setStatus(open ? `Waiting for ${open === 1 ? 'a player' : `${open} players`} to join. Send them the invite link, or put a computer in the seat.` : r.ready ? 'Everyone is here. Start when you like.' : 'Put someone on the other side.', !!open);
+    else setStatus(`Waiting for the host to start${open ? ` (${open} open seat${open === 1 ? '' : 's'} left)` : ''}…`, true);
+  };
+
   const render = (m: LobbyMsg) => {
     last = m;
     lastAt = Date.now();
-    showLink(m.hosting);
+    showLink(m.hosting ?? m.room?.id ?? null, !!m.hosting);
     const byId = new Map(m.players.map((p) => [p.id, p]));
 
     inviteList.replaceChildren(...m.invites.map((inv) => row('lobby-invite',
@@ -175,13 +209,14 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
       button('Decline', 'lobby-decline', () => net.send({ k: 'decline', from: inv.id }), true),
     )));
 
-    const games = m.games.filter((g) => g.id !== m.hosting);
+    const games = m.games.filter((g) => g.id !== m.hosting && g.id !== m.room?.id);
     gameList.replaceChildren(...games.map((g) => {
       const join = button('Join', 'lobby-join', () => { setStatus('Joining…', true); net.send({ k: 'join', game: g.id }); });
-      join.disabled = waiting === 'host';
+      join.disabled = waiting === 'host' || waiting === 'room' || g.free === 0;
       const label = document.createElement('span');
       label.className = 'lobby-row-label';
-      const id = span('lobby-row-status lobby-game-id', `Game ${g.id.slice(0, 8)}`);
+      const shape = g.mode && g.mode !== '1v1' ? `${MODES[g.mode].short} · ${g.free ?? 0} open seat${g.free === 1 ? '' : 's'} · ` : '';
+      const id = span('lobby-row-status lobby-game-id', `${shape}Game ${g.id.slice(0, 8)}`);
       id.title = `Game ID ${g.id}`;
       id.append(copyButton(() => inviteUrl(g.id), 'Copy invite link'));
       label.append(span('lobby-row-name', `${g.host}'s game`), id);
@@ -217,6 +252,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     if (hidden > 0) playerList.append(empty(`and ${hidden} more`));
     online.textContent = `Players online (${m.online})`;
 
+    renderRoom(m.room);
     if (m.inviting) {
       const target = byId.get(m.inviting)?.name ?? 'them';
       setWaiting('invite');
@@ -228,6 +264,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     waiting = w;
     quick.hidden = create.hidden = !!w;
     cancel.hidden = !w;
+    cancel.textContent = w === 'room' ? 'Leave game' : w === 'host' ? 'Close game' : 'Cancel';
     name.disabled = !!w;
     if (w === 'quick') setStatus('Looking for an opponent…', true);
     else if (w === 'host') setStatus('Copy the invite link and send it to a friend. They join your game as soon as they open it.', true);
@@ -235,7 +272,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
 
   net.onMessage((m) => {
     if (m.k === 'lobby') {
-      const w = m.waiting ?? (m.inviting ? 'invite' : null);
+      const w = m.waiting ?? (m.room ? 'room' : m.inviting ? 'invite' : null);
       const wasBusy = !!status.querySelector('.ui-spinner');
       setWaiting(w);
       if (!w && wasBusy) setStatus('');
@@ -315,9 +352,11 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     }
   };
 
+  roomMode.addEventListener('change', (e) => { const v = (e.target as HTMLInputElement).value; if (isMode(v)) net.send({ k: 'room', mode: v }); });
+  begin.addEventListener('click', () => { begin.disabled = true; net.send({ k: 'begin' }); });
   quick.addEventListener('click', () => ensure(() => net.send({ k: 'quick' })));
   create.addEventListener('click', () => ensure(() => net.send({ k: 'create' })));
-  cancel.addEventListener('click', () => { net.send({ k: 'leave' }); setWaiting(null); setStatus(''); if (last) render({ ...last, inviting: null, hosting: null }); });
+  cancel.addEventListener('click', () => { net.send({ k: 'leave' }); setWaiting(null); setStatus(''); if (last) render({ ...last, inviting: null, hosting: null, room: null }); });
   linkUrl.addEventListener('focus', () => linkUrl.select());
   copy.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(linkUrl.value); copy.textContent = 'Copied!'; }

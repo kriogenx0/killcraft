@@ -1,5 +1,5 @@
 // Fog of war per team: 0 unexplored, 1 explored, 2 currently visible.
-import { G, hooks, tileOf, unitDef, bldDef, type Ent } from './state.ts';
+import { G, allied, hooks, tileOf, unitDef, bldDef, type Ent } from './state.ts';
 import { WEAPON } from '../data/weapon.ts';
 import { UNIT_SIGHT_BOOST } from '../data/unit.ts';
 import { MW, MH, TS } from './const.ts';
@@ -7,11 +7,13 @@ import { MW, MH, TS } from './const.ts';
 export function updFog(): void {
   G.sight.forEach((vis, team) => {
     if (G.reveal) { vis.fill(2); return; }
-    // computer players don't need fog, except to aim a gun that reaches past its own sight (Big Bertha)
-    if (!G.human[team] && team !== G.viewer && !G.ents.some((e) => !e.dead && e.team === team && outranges(e))) return;
+    // computer players don't need fog, except to aim a gun that reaches past its own sight (Big Bertha),
+    // or when a person plays on their side: allies share what they see
+    const mates = Array.from({ length: G.teams }, (_, t) => t).filter((t) => allied(t, team));
+    if (!mates.some((t) => G.human[t] || t === G.viewer) && !G.ents.some((e) => !e.dead && e.team === team && outranges(e))) return;
     for (let i = 0; i < MW * MH; i++) if (vis[i] === 2) vis[i] = 1;
     for (const e of G.ents) {
-      if (e.dead || e.team !== team || e.kind === 'source') continue;
+      if (e.dead || e.team < 0 || !allied(e.team, team) || e.kind === 'source') continue;
       const r = e.kind === 'unit' ? unitDef(e).sight * UNIT_SIGHT_BOOST : bldDef(e).sight, cx = e.x / TS, cy = e.y / TS;
       for (let y = Math.floor(cy - r); y <= cy + r; y++)
         for (let x = Math.floor(cx - r); x <= cx + r; x++) {

@@ -1,6 +1,6 @@
 // Walls are only attacked when they must be: when enemy walls are all that stand between a unit and
 // where it's going. Target picking (combat.ts) skips walls; this finds the one to break through.
-import { G, isAir, tileOf, unitDef, type Ent } from './state.ts';
+import { G, hostile, isAir, tileOf, unitDef, type Ent } from './state.ts';
 import { MW } from './const.ts';
 import { isWall } from '../data/building.ts';
 import { WEAPON } from '../data/weapon.ts';
@@ -14,7 +14,7 @@ export function canBreach(u: Ent): boolean {
 
 /** An enemy wall standing on a tile, if any. */
 export function enemyWallAt(team: number, tx: number, ty: number): Ent | null {
-  return G.ents.find((e) => !e.dead && e.kind === 'bld' && e.team !== team && e.team >= 0 && e.tx === tx && e.ty === ty && isWall(e.type)) ?? null;
+  return G.ents.find((e) => !e.dead && e.kind === 'bld' && hostile(e.team, team) && e.tx === tx && e.ty === ty && isWall(e.type)) ?? null;
 }
 
 /**
@@ -23,7 +23,7 @@ export function enemyWallAt(team: number, tx: number, ty: number): Ent | null {
  * its own walls) or no enemy wall is in the way.
  */
 export function wallInWay(u: Ent, gx: number, gy: number): Ent | null {
-  const walls = G.ents.filter((e) => !e.dead && e.kind === 'bld' && e.team !== u.team && e.team >= 0 && isWall(e.type));
+  const walls = G.ents.filter((e) => !e.dead && e.kind === 'bld' && hostile(e.team, u.team) && isWall(e.type));
   if (!walls.length) return null;
   // (often the unit's search for a path just found none: no need to look again)
   if (!knownUnreachable(tileOf(u.x), tileOf(u.y), gx, gy, u.team)) {

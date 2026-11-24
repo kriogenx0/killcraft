@@ -1,6 +1,6 @@
 // Compact per-team snapshots of the world. The server encodes what one team can see; the online
 // client decodes it into its own copy of the world, which the normal renderer then draws.
-import { G, STANCES, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
+import { G, STANCES, allied, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
 import { MW, TS } from '../game/const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -58,7 +58,7 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
 
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
 export function visibleTo(e: Ent, team: number): boolean {
-  if (e.team === team || e.team < 0) return true;
+  if (e.team < 0 || allied(e.team, team)) return true;
   if (cloakedFrom(e, team)) return false;
   const v = G.sight[team][Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)];
   return e.kind === 'unit' ? v === 2 : v > 0;

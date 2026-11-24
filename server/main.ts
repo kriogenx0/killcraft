@@ -31,6 +31,7 @@ export function startServer(config: Config): Promise<RunningServer> {
   void matches.pruneSaved();
   const lobby = new LobbyService({
     paired: (a, b, game) => matches.start(a, b, game),
+    started: (room) => matches.startRoom(room),
     changed: () => sockets?.broadcastLobby(),
     live: () => matches.live(),
   });

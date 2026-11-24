@@ -1,7 +1,7 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
-import { G, haulOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, haulOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
 import { BUILDING, isWall, type BldType } from '../data/building.ts';
@@ -56,9 +56,9 @@ const lvl = (team: number): AiLevel => AI_LEVEL[ais[team]?.level ?? 'normal'];
 /** How fast a side's production and building sites work: the computer's difficulty pace, full speed for players. */
 export const aiPace = (team: number): number => (ais[team]?.on && !G.human[team] ? AI_LEVEL[ais[team].level].pace : 1);
 
-/** Set every computer player's difficulty (after resetAi, which puts them back to Normal). */
-export function setAiLevel(level: Difficulty): void {
-  for (const a of ais) { a.level = level; a.attackAt = AI_LEVEL[level].firstWave; }
+/** Set one computer player's difficulty, or every one's (after resetAi, which puts them back to Normal). */
+export function setAiLevel(level: Difficulty, team?: number): void {
+  for (const [t, a] of ais.entries()) if (team == null || t === team) { a.level = level; a.attackAt = AI_LEVEL[level].firstWave; }
 }
 
 /** Troops sent to hold an Aether deposit, and how big the army must be before any go. */
@@ -88,15 +88,15 @@ const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team
 function foeOf(team: number): number {
   const A = ais[team];
   // everyone turns on a side with a bounty on it (see bounty.ts)
-  if (G.leader >= 0 && G.leader !== team && standing(G.leader)) {
+  if (hostile(G.leader, team) && standing(G.leader)) {
     if (A.foe !== G.leader) { A.foe = G.leader; A.attacking = false; }
     return G.leader;
   }
-  if (A.foe >= 0 && A.foe !== team && standing(A.foe)) return A.foe;
+  if (hostile(A.foe, team) && standing(A.foe)) return A.foe;
   const home = homeOf(team) ?? G.ents.find((e) => !e.dead && e.team === team);
   let best = -1, bestD = Infinity;
   for (let t = 0; t < G.teams; t++) {
-    if (t === team || !standing(t)) continue;
+    if (!hostile(t, team) || !standing(t)) continue;
     const there = homeOf(t) ?? G.ents.find((e) => !e.dead && e.team === t);
     const d = home && there ? Math.hypot(there.x - home.x, there.y - home.y) + Math.random() * TS : 0;
     if (d < bestD) { bestD = d; best = t; }
@@ -116,7 +116,7 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine once past the first
   // age (troops leave the Aether for it, see shrineAether); these jump the build plan
   const aether = G.aether[team] ?? 0;
-  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && e.team >= 0 && e.team !== team && e.type === 'phantom')) return 'wardstone';
+  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.type === 'phantom')) return 'wardstone';
   if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
@@ -129,7 +129,7 @@ function nextStructure(team: number, walling: boolean): BldType | null {
     if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
   }
   // answer enemy aircraft with flak
-  const foeAir = G.ents.filter((e) => !e.dead && e.team >= 0 && e.team !== team && isAir(e)).length;
+  const foeAir = G.ents.filter((e) => !e.dead && hostile(e.team, team) && isAir(e)).length;
   if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
@@ -154,7 +154,7 @@ const AI_WALL_RUN = 4;
  * Big Bertha once the bank is deep.
  */
 function defense(team: number, can: readonly string[]): BldType | null {
-  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && !isAir(e));
+  const credits = G.credits[team], foe = G.ents.filter((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && !isAir(e));
   const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
   if (credits > 3500 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
@@ -337,7 +337,7 @@ function construction(team: number): void {
   if (!affordKeeping(team, t)) { ais[team].reserve = costOf(t); ais[team].reserveWood = priceOf(t).wood; return; }
   if (isWall(t)) {
     const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
-    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.kind === 'bld' && (ais[team].foe >= 0 ? e.team === ais[team].foe : e.team >= 0 && e.team !== team));
+    const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.kind === 'bld' && (ais[team].foe >= 0 ? e.team === ais[team].foe : hostile(e.team, team)));
     const line = yard ? wallSite(team, yard, foe) : null;
     // nowhere to put a stretch: give up on walls for a while rather than hold up the base
     if (!line || !startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1])) wallPause[team] = G.gameT + WALL_RETRY;
@@ -672,7 +672,7 @@ function military(team: number): void {
   const home = homeOf(team);
   if (home) {
     // defend against anyone, not just the side we're fighting
-    const threat = G.ents.find((e) => !e.dead && e.team >= 0 && e.team !== team && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < lvl(team).defendRange * TS);
+    const threat = G.ents.find((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < lvl(team).defendRange * TS);
     if (threat)
       for (const u of army)
         if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));

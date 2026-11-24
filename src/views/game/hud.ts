@@ -1,5 +1,5 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, allied, hostile, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
@@ -172,7 +172,7 @@ export function refreshCommands(force = false): void {
 /** Whose it is: "enemy" in your own games; the side's name when spectating. */
 function sideTag(e: Ent): string {
   if (spectating()) return e.team < 0 ? '' : ` <small class="hud-side" style="color:${teamColors(e.team).l}">${teamColors(e.team).name}</small>`;
-  return e.team !== V.team ? ' <small class="hud-enemy">enemy</small>' : '';
+  return hostile(e.team, V.team) ? ' <small class="hud-enemy">enemy</small>' : e.team !== V.team && allied(e.team, V.team) ? ` <small class="hud-ally" style="color:${teamColors(e.team).l}">ally</small>` : '';
 }
 
 /** Full detail (orders, production, rates) is shown for your own things, and for every side when spectating. */

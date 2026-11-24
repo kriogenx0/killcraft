@@ -1,6 +1,6 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import { isWall } from '../data/building.ts';
-import { G, hooks, say, unitDef } from './state.ts';
+import { G, allied, hooks, say, unitDef } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
 import { START_ERA } from '../data/era.ts';
@@ -34,15 +34,20 @@ export interface StartOptions {
   share?: number;
   /** the units each side starts with beside its yard */
   units?: readonly UnitType[];
+  /** each team's side (2v2: [0, 1, 0, 1]); every team is its own side if left out */
+  ally?: readonly number[];
+  /** teams whose slot is closed: their corner stays empty */
+  absent?: readonly boolean[];
 }
 
-/** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (free-for-all, one base per corner). */
+/** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (one base per corner: a free-for-all, or two sides of two with `ally`). */
 export function initWorld(seed: number, teams = 2, start: StartOptions = {}): void {
   const share = start.share ?? 1, units = start.units ?? START_UNITS;
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [],
     alertT: each(() => -99), lastAlert: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), upg: each(noUpgrades), prod: each(emptyProduction),
   });
   while (G.sight.length < n) G.sight.push(new Uint8Array(MW * MH));
@@ -54,6 +59,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const { yards, ore } = layoutFor(n);
   for (const [x, y] of ore) addSource(x, y);
   yards.forEach(([x, y], team) => {
+    if (G.absent[team]) return;
     addBuilding('yard', team, x, y, false);
     // the starting Workers face the middle of the map
     const face = Math.atan2(MH / 2 - y, MW / 2 - x);
@@ -117,6 +123,13 @@ function fall(team: number): boolean {
   return true;
 }
 
+/** A player gave up: everything their side has is destroyed and it's out of the game. */
+export function surrender(team: number): void {
+  knockOut(team, 'surrendered');
+  for (const e of G.ents) if (!e.dead && e.team === team) kill(e);
+  for (let t = 0; t < G.teams; t++) if (t !== team) say(t, `${teamColors(team).name} surrendered.`);
+}
+
 /** Note the first time a side is out of the game, and why. */
 function knockOut(team: number, why: string): void {
   if (!G.outLog) G.outLog = []; // a game saved before the log existed
@@ -171,10 +184,12 @@ export function update(dt: number): void {
     G.endT = 1;
     // stranded sides go up in flames; give the explosions a moment before calling the match
     let fell = false;
-    for (let t = 0; t < G.teams; t++) if (stranded(t) && fall(t)) fell = true;
+    const playing = Array.from({ length: G.teams }, (_, t) => t).filter((t) => !G.absent?.[t]);
+    for (const t of playing) if (stranded(t) && fall(t)) fell = true;
     if (fell) { G.endT = FALL_SECONDS; return; }
-    const left = Array.from({ length: G.teams }, (_, t) => t).filter(alive);
-    for (let t = 0; t < G.teams; t++) if (!left.includes(t)) knockOut(t, 'no buildings and no fighting units left');
-    if (left.length <= 1) { G.over = true; G.winner = left[0] ?? -1; }
+    const left = playing.filter(alive);
+    for (const t of playing) if (!left.includes(t)) knockOut(t, 'no buildings and no fighting units left');
+    // the match is over when one side is left (in a team game, allies win together)
+    if (left.every((t) => allied(t, left[0]))) { G.over = true; G.winner = left[0] ?? -1; }
   }
 }

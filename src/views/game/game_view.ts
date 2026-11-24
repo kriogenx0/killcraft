@@ -1,9 +1,9 @@
 // The game view: wires the engine, renderer, sidebar, HUD and input to the page and runs the
 // frame loop. Solo and AI-vs-AI games simulate here; online games draw what the server sends.
-import { G, hooks } from '../../game/state.ts';
+import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { layoutFor } from '../../data/map.ts';
-import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, type GameSetup } from '../../data/setup.ts';
+import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, outReasons, update } from '../../game/world.ts';
@@ -15,7 +15,7 @@ import { updFx } from '../../game/fx.ts';
 import { updProjs } from '../../game/combat.ts';
 import { applyCommand } from '../../game/command.ts';
 import { net } from '../../net/client.ts';
-import type { ServerMsg, SideStock, SnapMsg } from '../../net/protocol.ts';
+import { sidesTitle, type ServerMsg, type SideStock, type SnapMsg } from '../../net/protocol.ts';
 import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net/snapshot.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
@@ -174,6 +174,9 @@ export function mountGameView(root: HTMLElement): void {
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(sidebar);
   resize();
+  /** The winning side's names: one team, or every team allied with it ("Blue and Green"). */
+  const winners = (team: number): string => Array.from({ length: G.teams }, (_, t) => t)
+    .filter((t) => !G.absent?.[t] && allied(t, team)).map((t) => watchingNames?.[t] || onlineNames?.[t] || teamColors(t).name).join(' and ');
   const home = (team: number) => { const [x, y] = layoutFor(G.teams).yards[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
   home(V.team);
 
@@ -182,16 +185,18 @@ export function mountGameView(root: HTMLElement): void {
   const startSolo = (demo: boolean, s: GameSetup = DEFAULT_SETUP) => {
     setOffline(false);
     closeModal(startModal);
-    const teams = s.foes === 3 ? 4 : 2;
+    const { teams, ally, absent, levels } = matchOf(s, demo);
     // no map number: play on the map already showing behind the menu
-    initWorld(s.seed ?? G.seed, teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units });
-    setAiLevel(s.difficulty);
+    initWorld(s.seed ?? G.seed, teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent });
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || !s.fog });
-    const bonus = AI_LEVEL[s.difficulty].bonus;
     ais.forEach((a, t) => {
-      a.on = t < teams && !G.human[t];
-      if (a.on && bonus !== 1) { G.credits[t] = Math.round(G.credits[t] * bonus); G.wood[t] = Math.round(G.wood[t] * bonus); }
+      const level = levels[t];
+      a.on = t < teams && !G.human[t] && !!level;
+      if (!a.on || !level) return;
+      setAiLevel(level, t);
+      const bonus = AI_LEVEL[level].bonus;
+      if (bonus !== 1) { G.credits[t] = Math.round(G.credits[t] * bonus); G.wood[t] = Math.round(G.wood[t] * bonus); }
     });
     updFog();
     setGameId(newGameId());
@@ -237,6 +242,8 @@ export function mountGameView(root: HTMLElement): void {
   // ---- online ----
   /** the players' names while watching an online match (team order), else null */
   let watchingNames: string[] | null = null;
+  /** every side's player in an online team game (names, or "Computer (Hard)"), else null */
+  let onlineNames: string[] | null = null;
   const setStock = (team: number, s: SideStock) => {
     G.credits[team] = s.credits;
     G.wood[team] = s.wood ?? 0;
@@ -273,10 +280,10 @@ export function mountGameView(root: HTMLElement): void {
       G.over = true;
       G.winner = m.winner;
       setWatchedGame(null);
-      const loser = watchingNames?.[1 - m.winner] ?? 'A player';
+      const loser = watchingNames?.[1 - m.winner] ?? 'A player', won = m.winner >= 0 && allied(m.winner, V.team);
       if (watchingNames) endReason = m.reason === 'left' ? `${loser} left the game.` : m.reason === 'resigned' ? `${loser} surrendered.` : '';
-      else endReason = m.reason === 'left' ? (m.winner === V.team ? 'Your opponent left the game.' : 'You left the game.')
-        : m.reason === 'resigned' ? (m.winner === V.team ? 'Your opponent surrendered.' : 'You surrendered.') : '';
+      else endReason = m.reason === 'left' ? (won ? 'Your opponent left the game.' : 'You left the game.')
+        : m.reason === 'resigned' ? (won ? 'Your opponent surrendered.' : 'You surrendered.') : '';
       if (m.detail?.length) endReason = m.detail.join(' '); // the server knows best why it ended
     }
   };
@@ -355,15 +362,16 @@ export function mountGameView(root: HTMLElement): void {
     setWatchedGame(null);
     V.online = true;
     V.team = m.team;
+    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent });
     for (const a of ais) a.on = false;
-    initWorld(m.seed);
+    onlineNames = m.names ?? null;
     setGameId(m.game ?? newGameId());
     if (m.game) {
       if (m.key) rememberOnline(m.game, m.key);
       enterGameUrl(m.game);
     }
     // the server owns every unit and building: start empty and fill in from snapshots
-    Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: false, visualOnly: true, viewer: m.team, human: [m.team === 0, m.team === 1] });
+    Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: false, visualOnly: true, viewer: m.team, human: Array.from({ length: G.teams }, (_, t) => t === m.team) });
     G.byId.clear();
     rebuildBlk();
     resetSnapshots();
@@ -377,7 +385,9 @@ export function mountGameView(root: HTMLElement): void {
     againBtn.textContent = 'Back to lobby';
     home(m.team);
     setSelection([]);
-    show(m.resumed ? `Back in your game vs ${m.opponent}` : `Match found: you vs ${m.opponent}`);
+    const mates = (m.names ?? []).filter((n, t) => n && t !== m.team && allied(t, m.team));
+    const you = mates.length ? `you & ${mates.join(' & ')}` : 'you';
+    show(m.resumed ? `Back in your game: ${you} vs ${m.opponent}` : `Match found: ${you} vs ${m.opponent}`);
   };
 
   /** Watch an online match under way: the whole map, every side's stock, and nothing to order. */
@@ -389,11 +399,11 @@ export function mountGameView(root: HTMLElement): void {
     closeModal(startModal);
     V.online = true;
     V.team = 0;
+    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent });
     for (const a of ais) a.on = false;
-    initWorld(m.seed);
     setGameId(m.game);
     enterGameUrl(m.game);
-    Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: true, reveal: true, visualOnly: true, viewer: 0, human: [false, false] });
+    Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: true, reveal: true, visualOnly: true, viewer: 0, human: Array.from({ length: G.teams }, () => false) });
     G.byId.clear();
     rebuildBlk();
     resetSnapshots();
@@ -412,7 +422,7 @@ export function mountGameView(root: HTMLElement): void {
     const [a, b] = layoutFor(G.teams).yards;
     centerCam(((a[0] + b[0]) / 2 + 1.5) * TS, ((a[1] + b[1]) / 2 + 1.5) * TS);
     setSelection([]);
-    show(`Watching ${m.players.map((p, t) => `${p} (${teamColors(t).name})`).join(' vs ')}`);
+    show(`Watching ${sidesTitle(m.players.map((p, t) => (p ? `${p} (${teamColors(t).name})` : '')), m.ally)}`);
   };
 
   const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onSpectate: startSpectate, onBack: () => openModal(startModal) });
@@ -535,7 +545,7 @@ export function mountGameView(root: HTMLElement): void {
       // a game this screen ran: say who was knocked out, when and why
       if (!endReason && !V.online) endReason = outReasons((t) => `${watchingNames?.[t] ?? teamColors(t).name}${t === V.team && !G.demo ? ' (you)' : ''}`).join(' ');
       if (root.dataset.gameId && !restartEnd) void forgetGame(root.dataset.gameId).catch(() => {});
-      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${watchingNames?.[G.winner] ?? teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? (restartEnd ? 'Restarting Server' : 'Game over') : 'Defeat';
+      must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${winners(G.winner)} ${teamGame() ? 'win' : 'wins'}`) : G.winner >= 0 && allied(G.winner, V.team) ? 'Victory' : G.winner < 0 ? (restartEnd ? 'Restarting Server' : 'Game over') : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       resignBtn.hidden = true;
       openModal(endModal);
@@ -609,16 +619,18 @@ function showcase(what: string): void {
  * of your units of that type, ?queue=a,b start building these, ?era=N start your side in age N,
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
  * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
- * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3, ?res=low|high, ?army=squad|army,
+ * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3 (free-for-all), ?mode=1v1|2v2|ffa, ?res=low|high, ?army=squad|army,
  * ?fog=off, ?speed=2.
  */
 function testSetup(q: URLSearchParams): GameSetup {
   const s: GameSetup = { ...DEFAULT_SETUP, seed: null };
   const ai = q.get('ai'), res = q.get('res'), army = q.get('army');
-  if (ai && ai in AI_LEVEL) s.difficulty = ai as GameSetup['difficulty'];
+  if (ai && ai in AI_LEVEL) s.seats = [0, 1, 2, 3].map(() => ai as Difficulty);
   if (res && res in START_RESOURCES) s.resources = res as GameSetup['resources'];
   if (army && army in START_ARMY) s.army = army as GameSetup['army'];
-  if (q.get('foes') === '3') s.foes = 3;
+  if (q.get('foes') === '3') s.mode = 'ffa';
+  const mode = q.get('mode');
+  if (isMode(mode)) s.mode = mode;
   if (q.get('fog') === 'off') s.fog = false;
   if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
   if (q.has('seed')) s.seed = Number(q.get('seed')) || null;

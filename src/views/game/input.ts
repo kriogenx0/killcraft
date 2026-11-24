@@ -1,5 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, bldDef, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { G, bldDef, hostile, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TREE, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
@@ -42,7 +42,7 @@ export function entityAt(wx: number, wy: number): Ent | null {
 }
 
 const mark = (x: number, y: number, color: string) => V.markers.push({ x, y, t: 0, color });
-const isEnemy = (e: Ent | null): boolean => !!e && e.team !== V.team && e.team >= 0;
+const isEnemy = (e: Ent | null): boolean => !!e && hostile(e.team, V.team);
 
 /** Context command at a world point: harvest, unload, rally or move. Units only ever move; their stance decides whether they fight. */
 export function worldCommand(wx: number, wy: number, hit: Ent | null): void {

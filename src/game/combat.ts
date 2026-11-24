@@ -1,5 +1,5 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
-import { G, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
+import { G, allied, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { CHAIN_FALLOFF, CHAIN_REACH, WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
@@ -54,7 +54,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): v
   if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
   if (t.hp <= 0 && riseFromAshes(t)) return; // a Phoenix bursts alight and rises again, once
   if (t.hp <= 0) { hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
-  if (dot || t.kind !== 'unit' || !src || src.dead || src.team === t.team || (src.team < 0 && !src.wild)) return;
+  if (dot || t.kind !== 'unit' || !src || src.dead || allied(src.team, t.team) || (src.team < 0 && !src.wild)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
   // idle units react: engaging ones fight back, passive ones run
@@ -77,7 +77,7 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
   if (!w.splash) return;
   blast(x, y, w.splash);
   for (const e of G.ents) {
-    if (e === t || e.dead || e.kind !== 'unit' || (src && e.team === src.team) || !canHit(wt, e)) continue;
+    if (e === t || e.dead || e.kind !== 'unit' || (src && allied(e.team, src.team)) || !canHit(wt, e)) continue;
     if (Math.hypot(e.x - x, e.y - y) < w.splash + unitDef(e).radius) { dealDamage(e, w.dmg * 0.5 * w.vs[armorOf(e)] * elementMult(w.element, e) * hideFactor(wt, e), src); applyElement(e, w.element, src); }
   }
 }
@@ -121,7 +121,7 @@ function chainOn(s: Ent, wt: WeaponType, first: Ent, leaps: number): void {
   for (let i = 0; i < leaps; i++) {
     let next: Ent | null = null, best = CHAIN_REACH;
     for (const e of G.ents) {
-      if (e.dead || e.kind !== 'unit' || struck.has(e.id) || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+      if (e.dead || e.kind !== 'unit' || struck.has(e.id) || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
       const d = Math.hypot(e.x - from.x, e.y - from.y);
       if (d < best) { best = d; next = e; }
     }
@@ -140,7 +140,7 @@ function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number): Ent[] {
   const r = WEAPON[wt].range * TS, out: Ent[] = [];
   for (const e of G.ents) {
     if (out.length >= n) break;
-    if (e === t || e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+    if (e === t || e.dead || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
     if (edgeDist(s, e) <= r) out.push(e);
   }
   return out;
@@ -178,7 +178,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
   const spotted = s.kind === 'bld' && radiusTiles > bldDef(s).sight ? G.sight[s.team] : null;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
-    if (e.dead || e.team === s.team || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
+    if (e.dead || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
     if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
@@ -245,7 +245,7 @@ export function fireOnTheMove(u: Ent, dt: number): void {
 export function nearestThreat(u: Ent, radiusTiles: number): Ent | null {
   let best: Ent | null = null, bd = radiusTiles * TS;
   for (const e of G.ents) {
-    if (e.dead || e.kind !== 'unit' || e.team === u.team || e.team < 0 || !unitDef(e).weapon) continue;
+    if (e.dead || e.kind !== 'unit' || !hostile(e.team, u.team) || !unitDef(e).weapon) continue;
     const dist = Math.hypot(e.x - u.x, e.y - u.y);
     if (dist < bd) { bd = dist; best = e; }
   }
@@ -296,7 +296,7 @@ function shellLands(wt: WeaponType, x: number, y: number, src: Ent | null, team:
   burst('debris', x, y, 10, 60, 180);
   if (G.visualOnly) return; // the server decides damage
   for (const e of G.ents) {
-    if (e.dead || e.kind === 'source' || e.team === team) continue;
+    if (e.dead || e.kind === 'source' || allied(e.team, team)) continue;
     const d = e.w ? edgeDist({ x, y }, e) : Math.max(0, Math.hypot(e.x - x, e.y - y) - unitDef(e).radius);
     if (d > w.splash) continue;
     dealDamage(e, w.dmg * w.vs[armorOf(e)] * elementMult(w.element, e) * (1 - 0.6 * (d / w.splash)), src);

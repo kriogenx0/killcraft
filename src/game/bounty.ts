@@ -4,7 +4,7 @@
 // landed the blow carries it, and it counts once that unit brings it home (like Aether). Loot a
 // turret earns, or a carrier drops when it dies, is left on the ground as ore for gatherers.
 // Tuning lives in data/economy.ts.
-import { G, hooks, say, type Ent } from './state.ts';
+import { G, allied, teamGame, hooks, say, type Ent } from './state.ts';
 import { TS } from './const.ts';
 import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
@@ -25,6 +25,8 @@ export function worth(): number[] {
 
 /** Work out who is in the lead (-1 if nobody is clearly ahead) and tell everyone when it changes. */
 export function updLeader(): void {
+  // no bounty in a team game: a side's ally could be the one ahead
+  if (teamGame()) { G.leader = -1; return; }
   const w = worth(), order = w.map((v, t) => t).sort((a, b) => w[b] - w[a]);
   const [first, second] = order;
   const leader = w[first] > w[second] * BOUNTY_LEAD ? first : -1;
@@ -40,7 +42,7 @@ export function updLeader(): void {
  * bounty as loot. A building that destroyed it leaves the loot as ore where the victim falls.
  */
 export function payBounty(victim: Ent, by: Ent | null): void {
-  if (!by || by.team < 0 || victim.team !== G.leader || by.team === victim.team) return;
+  if (!by || by.team < 0 || victim.team !== G.leader || allied(by.team, victim.team)) return;
   const ore = Math.round(priceOf(victim) * BOUNTY_SHARE);
   if (ore <= 0) return;
   if (by.kind === 'unit' && !by.dead) by.loot = (by.loot ?? 0) + ore;

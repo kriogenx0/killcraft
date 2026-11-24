@@ -1,0 +1,94 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+
+// The seats of a match (src/components/seats/seats.ts): colour, who sits there, and a choice for each.
+.seats {
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+  width: 100%;
+  min-width: 0;
+
+  .seat {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: $space-2;
+    align-items: center;
+    min-width: 0;
+    text-align: left;
+  }
+
+  // the second team starts a little apart from the first
+  .seat--new-side {
+    margin-top: $space-2;
+  }
+
+  .seat-label {
+    display: flex;
+    gap: $space-2;
+    align-items: center;
+    min-width: 0;
+    color: #e8d8a8;
+    white-space: nowrap;
+  }
+
+  .seat-swatch {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid rgb(0 0 0 / 60%);
+    border-radius: 3px;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 20%);
+  }
+
+  .seat-role {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .seat-side {
+    font-size: $font-sm;
+    color: #cfc093;
+  }
+
+  .seat-name {
+    overflow: hidden;
+    padding: $space-1 $space-2;
+    color: #f4ead0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .seat-name--muted {
+    font-style: italic;
+    color: #b8a878;
+  }
+
+  .seat-select {
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    padding: $space-1 $space-2;
+    font: inherit;
+    color: var(--color-button-text);
+    background: var(--color-button-bottom);
+    border: 2px solid var(--color-rim);
+    border-radius: $radius;
+    outline: none;
+    cursor: pointer;
+
+    &:hover,
+    &:focus {
+      border-color: var(--color-rim-hover);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .seat-label,
+    .seat-name,
+    .seat-select {
+      font-size: $font-sm;
+    }
+  }
+}

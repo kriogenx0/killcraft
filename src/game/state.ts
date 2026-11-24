@@ -219,6 +219,13 @@ export const G = {
   viewer: 0,
   /** number of sides in the match (2, or 4 for a free-for-all) */
   teams: 2,
+  /**
+   * each team's side in a team game (2v2): allies share sight, never fight each other and win together.
+   * Every team is its own side in one against one and free-for-all.
+   */
+  ally: [0, 1] as number[],
+  /** teams whose slot was closed: no base and no player, never counted as knocked out */
+  absent: [] as boolean[],
   /** which teams are people (they only build on ground they've explored) */
   human: [true, false],
   /** running on the server: no visual effects */
@@ -308,6 +315,14 @@ export function blkAt(x: number, y: number): boolean {
   if (tx < 0 || ty < 0 || tx >= MW || ty >= MH) return true;
   return G.blk[ty * MW + tx] === 1;
 }
+
+/** Same team, or on the same side in a team game. Wild creatures and neutrals (team -1) are only allied with each other. */
+export const allied = (a: number, b: number): boolean => a === b || (a >= 0 && b >= 0 && (G.ally[a] ?? a) === (G.ally[b] ?? b));
+/** Two real sides at war: different teams that aren't allies. */
+export const hostile = (a: number, b: number): boolean => a >= 0 && b >= 0 && !allied(a, b);
+
+/** Some side has more than one team on it (2v2). */
+export const teamGame = (): boolean => G.ally.some((a, t) => !G.absent?.[t] && G.ally.some((b, u) => u !== t && b === a && !G.absent?.[u]));
 
 /** Show a message to one team's player. */
 export function say(team: number, msg: string): void {

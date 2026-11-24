@@ -82,6 +82,16 @@
     text-align: left;
   }
 
+  // seats line up with the other settings: label column, then the choice
+  .setup-seats .seat {
+    grid-template-columns: 170px minmax(0, 1fr);
+    gap: $space-3;
+  }
+
+  .setup-seats-hint:empty {
+    display: none;
+  }
+
   .setup-map {
     display: flex;
     gap: $space-2;
@@ -146,6 +156,15 @@
 
     .setup-hint {
       margin: -$space-1 0 0 calc(76px + #{$space-2});
+    }
+
+    .setup-seats .seat {
+      grid-template-columns: 76px minmax(0, 1fr);
+      gap: $space-2;
+    }
+
+    .seat-side {
+      display: none;
     }
   }
 }
