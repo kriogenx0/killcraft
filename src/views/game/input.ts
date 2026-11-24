@@ -15,7 +15,8 @@ import { screenToWorld, worldToScreen } from './render3d/scene.ts';
 import { midHeight, pickEntity } from './render3d/entities3d.ts';
 
 const DRAG_START = 6;
-const DOUBLE_TAP = 350;
+/** How long (ms) a finger rests before a drag draws a selection box instead of panning. */
+const LONG_PRESS = 350;
 const ORBIT_SPEED = 0.006;
 const ZOOM_STEP = 1.12;
 
@@ -138,19 +139,40 @@ function clickSelect(sx: number, sy: number, add: boolean): void {
   setSelection([e]);
 }
 
-let lastTap = { t: 0, id: 0 };
-/** Touch: tap selects your own things (anything, when spectating); with something selected, tapping elsewhere gives an order. */
-function tap(sx: number, sy: number): void {
-  const w = screenToWorld(sx, sy), e = pickEntity(sx, sy), now = performance.now();
+/**
+ * Touch: tap selects your own things (anything, when spectating); with something selected, tapping elsewhere gives an order.
+ * add (the touch bar's Select mode): tapping a unit adds it to the selection, or takes it out again.
+ */
+function tap(sx: number, sy: number, add = false): void {
+  const w = screenToWorld(sx, sy), e = pickEntity(sx, sy);
   if (V.mode) { if (w) useMode(w.x, w.y, e); return; }
   if (e && (e.team === V.team || spectating())) {
-    if (lastTap.id === e.id && now - lastTap.t < DOUBLE_TAP && e.kind === 'unit') selectSameType(e);
+    if (add && e.kind === 'unit') clickSelect(sx, sy, true);
     else setSelection([e]);
-    lastTap = { t: now, id: e.id };
     return;
   }
   if (ownSelected().length && w) worldCommand(w.x, w.y, e);
   else setSelection(e ? [e] : []);
+}
+
+/** Touch: a long press on a unit selects every one of its type on screen; anywhere else it acts as a tap. */
+function longPress(sx: number, sy: number): void {
+  const e = pickEntity(sx, sy);
+  if (!V.mode && e?.kind === 'unit' && (e.team === V.team || spectating())) selectSameType(e);
+  else tap(sx, sy, V.touchBox);
+}
+
+/** Every one of your units on screen of the types now selected (the touch bar's Same button). */
+export function selectSameTypes(): void {
+  const types = new Set(V.sel.filter((e) => e.kind === 'unit').map((e) => e.type)), side = V.sel[0]?.team;
+  if (!types.size) return;
+  const r = canvasRect;
+  setSelection(unitsOnScreen((sx, sy) => sx >= r.left && sx <= r.right && sy >= r.top && sy <= r.bottom).filter((u) => types.has(u.type) && u.team === side));
+}
+
+/** All your fighting units, wherever they are (the touch bar's Army button). */
+export function selectArmy(): void {
+  setSelection(G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && !isHarvester(e)));
 }
 
 function minimapWorld(ev: PointerEvent, mini: HTMLCanvasElement): [number, number] {
@@ -167,17 +189,45 @@ function orbit(dx: number, dy: number): void {
 
 export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): void {
   const touches = new Map<number, { x: number; y: number }>();
-  let panned = false, pinch: { d: number; a: number; mx: number; my: number } | null = null, orbiting: { x: number; y: number } | null = null;
+  let panned = false, pressTimer = 0, downT = 0, boxing = false, wallDrag = false, lastPointer = '', pinch: { d: number; a: number; mx: number; my: number } | null = null, orbiting: { x: number; y: number } | null = null;
   const refreshRect = () => { const r = canvas.getBoundingClientRect(); canvasRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; };
+  refreshRect();
+  window.addEventListener('resize', refreshRect);
+  const endBox = () => { boxing = false; Object.assign(V.mouse, { down: false, drag: false, hold: false }); };
+  const clearPress = () => { clearTimeout(pressTimer); pressTimer = 0; };
 
   canvas.addEventListener('pointerdown', (ev) => {
     if (!V.started) return;
     refreshRect();
     V.mouse.x = ev.clientX; V.mouse.y = ev.clientY;
+    lastPointer = ev.pointerType;
     if (ev.pointerType === 'touch') {
+      document.documentElement.classList.add('touch-ui');
       touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
-      if (touches.size === 1) { panned = false; V.mouse.sx = ev.clientX; V.mouse.sy = ev.clientY; }
       pinch = null;
+      clearPress();
+      if (touches.size > 1) {
+        // a second finger always pans, pinches or turns; drop any box or wall line under way
+        panned = true;
+        if (boxing) endBox();
+        if (wallDrag && V.mode?.t === 'place') { V.mode.ax = undefined; V.mode.ay = undefined; }
+        wallDrag = false;
+        return;
+      }
+      panned = false;
+      downT = ev.timeStamp;
+      V.mouse.sx = ev.clientX; V.mouse.sy = ev.clientY;
+      // walls: drag a finger to lay a line
+      if (V.mode?.t === 'place' && isWall(V.mode.type)) { wallDrag = true; return; }
+      // Select mode: a drag draws a box straight away; otherwise rest the finger first
+      if (V.touchBox) { boxing = true; Object.assign(V.mouse, { down: true, drag: false, hold: false }); return; }
+      pressTimer = window.setTimeout(() => {
+        pressTimer = 0;
+        if (touches.size !== 1 || panned) return;
+        boxing = true;
+        Object.assign(V.mouse, { down: true, drag: false, hold: true });
+        navigator.vibrate?.(12);
+      }, LONG_PRESS);
       return;
     }
     if (ev.button === 1) { ev.preventDefault(); orbiting = { x: ev.clientX, y: ev.clientY }; canvas.setPointerCapture(ev.pointerId); return; }
@@ -221,7 +271,18 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
         panned = true;
         return;
       }
-      if (!panned && Math.hypot(t.x - V.mouse.sx, t.y - V.mouse.sy) < DRAG_START) return;
+      const moved = Math.hypot(t.x - V.mouse.sx, t.y - V.mouse.sy) >= DRAG_START;
+      if (boxing) { if (moved) { V.mouse.drag = true; V.mouse.hold = false; } return; }
+      if (wallDrag) {
+        // the ghost still sits where the finger went down: anchor the line there
+        const m = V.mode;
+        if (moved && m?.t === 'place' && m.ax == null) { m.ax = m.tx; m.ay = m.ty; }
+        return;
+      }
+      if (!panned && !moved) return;
+      clearPress();
+      // judged by the clock too, so a busy frame that delays the timer can't turn a held drag into a pan
+      if (!panned && ev.timeStamp - downT >= LONG_PRESS) { boxing = true; Object.assign(V.mouse, { down: true, drag: true, hold: false }); return; }
       // one finger: drag the ground under it
       const w0 = screenToWorld(prev.x, prev.y), w1 = screenToWorld(t.x, t.y);
       if (w0 && w1) { V.cam.x += w0.x - w1.x; V.cam.y += w0.y - w1.y; clampCam(); }
@@ -235,8 +296,23 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
     if (orbiting && ev.button === 1) { orbiting = null; return; }
     if (touches.has(ev.pointerId)) {
       touches.delete(ev.pointerId);
-      if (!touches.size && !panned) tap(ev.clientX, ev.clientY);
+      clearPress();
       if (touches.size < 2) pinch = null;
+      if (touches.size) return;
+      const m = V.mode;
+      if (boxing) {
+        const { drag, hold, sx, sy } = V.mouse;
+        endBox();
+        if (drag) boxSelect(sx, sy, ev.clientX, ev.clientY, V.touchBox);
+        else if (hold) longPress(ev.clientX, ev.clientY);
+        else tap(ev.clientX, ev.clientY, true);
+      } else if (wallDrag && m?.t === 'place' && m.ax != null && m.ay != null) {
+        dispatch({ c: 'place', type: m.type, tx: m.ax, ty: m.ay, ex: m.tx, ey: m.ty });
+        V.mode = null;
+        refreshCommands(true);
+      } else if (!panned && ev.timeStamp - downT >= LONG_PRESS && !V.touchBox) longPress(ev.clientX, ev.clientY);
+      else if (!panned) tap(ev.clientX, ev.clientY, V.touchBox);
+      wallDrag = false;
       return;
     }
     const m = V.mode;
@@ -253,7 +329,13 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
     V.mouse.drag = false;
   });
 
-  canvas.addEventListener('pointercancel', (ev) => { touches.delete(ev.pointerId); pinch = null; orbiting = null; V.mouse.down = false; V.mouse.drag = false; });
+  canvas.addEventListener('pointercancel', (ev) => {
+    touches.delete(ev.pointerId);
+    clearPress();
+    pinch = null; orbiting = null; boxing = false; wallDrag = false;
+    if (V.mode?.t === 'place') { V.mode.ax = undefined; V.mode.ay = undefined; }
+    Object.assign(V.mouse, { down: false, drag: false, hold: false });
+  });
   canvas.addEventListener('wheel', (ev) => {
     ev.preventDefault();
     // Ctrl/Cmd+wheel (and trackpad pinch, which arrives as Ctrl+wheel) zooms; Alt+wheel tilts
@@ -271,7 +353,8 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
   }, { passive: false });
   document.addEventListener('pointerleave', () => { V.mouse.inside = false; });
   canvas.addEventListener('dblclick', (ev) => {
-    if (!V.started) return;
+    // a mouse double-click only: on touch, two quick taps are just two taps (a long press selects a type)
+    if (!V.started || lastPointer === 'touch') return;
     refreshRect();
     const e = pickEntity(ev.clientX, ev.clientY);
     if (e?.kind === 'unit' && (e.team === V.team || spectating())) selectSameType(e);

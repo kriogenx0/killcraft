@@ -50,5 +50,10 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     g.fillStyle = 'rgba(80,255,80,.08)'; g.fillRect(x, y, bw, bh);
     g.strokeStyle = '#5f5'; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, bw, bh);
   }
+  // a finger held long enough to draw a box: a ring under it says so
+  if (V.mouse.down && V.mouse.hold) {
+    g.strokeStyle = '#5f5'; g.lineWidth = 2;
+    g.beginPath(); g.arc(V.mouse.x - r.left, V.mouse.y - r.top, 28, 0, Math.PI * 2); g.stroke();
+  }
   if (V.paused) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, 0, w, h); }
 }

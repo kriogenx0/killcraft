@@ -136,6 +136,45 @@ $sidebar-width: 248px;
     user-select: none;
   }
 
+  // touch selection bar: bottom-left of the map, under the thumb; only on touch screens
+  .touch-bar {
+    position: absolute;
+    bottom: $space-3;
+    left: $gutter;
+    z-index: 5;
+    display: none;
+    gap: $space-2;
+
+    .ui-button {
+      min-width: 64px;
+      min-height: 44px;
+      font-size: $font-md;
+      background: linear-gradient(var(--color-button-top), var(--color-button-bottom));
+      opacity: 0.92;
+    }
+
+    .ui-button[aria-pressed='true'] {
+      color: #0d1a0d;
+      background: #6c6;
+      border-color: #afa;
+    }
+
+    .ui-button[hidden] {
+      display: none;
+    }
+  }
+
+  // touch screens: room for 44px buttons in the top bar
+  @media (pointer: coarse) {
+    .topbar {
+      height: 48px;
+    }
+
+    .game-message {
+      top: 60px;
+    }
+  }
+
   // command sidebar, docked right
   .sidebar {
     position: absolute;
@@ -387,5 +426,20 @@ $sidebar-width: 248px;
     .game-tooltip {
       display: none;
     }
+
+    .touch-bar {
+      bottom: calc(min(40vh, 320px) + #{$space-2});
+      left: $space-2;
+      gap: $space-1;
+
+      .ui-button {
+        min-width: 56px;
+        padding: 0 $space-2;
+      }
+    }
   }
+}
+
+:root.touch-ui .view-game .touch-bar--on {
+  display: flex;
 }

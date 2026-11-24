@@ -40,6 +40,7 @@ import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
 import { initInput, scrollCamera, updatePlacement } from './input.ts';
+import { initTouchBar, refreshTouchBar } from './touch_bar.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
 
 const MAX_STEPS_PER_FRAME = 16;
@@ -115,6 +116,7 @@ export function mountGameView(root: HTMLElement): void {
   });
   initSidebar(must(root, '.build-list--structure'), must(root, '.build-list--unit'), must(root, '.game-tooltip'));
   initInput(canvas, minimap);
+  initTouchBar(root);
 
   const resize = () => {
     V.vw = window.innerWidth;
@@ -295,6 +297,7 @@ export function mountGameView(root: HTMLElement): void {
       drawMinimap(mg, viewFootprint());
       refreshHud();
       refreshSidebar();
+      refreshTouchBar();
     } catch (err) {
       hooks.error(err);
     }

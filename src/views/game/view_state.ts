@@ -31,7 +31,10 @@ export const V = {
   /** the production hotkey group open on the selected building (see hotkeys.ts), e.g. 'Walls' */
   keyGroup: null as string | null,
   groups: new Map<string, number[]>(),
-  mouse: { x: 0, y: 0, down: false, drag: false, sx: 0, sy: 0, inside: false },
+  /** hold: a finger pressed long enough to start a selection box */
+  mouse: { x: 0, y: 0, down: false, drag: false, hold: false, sx: 0, sy: 0, inside: false },
+  /** touch: one-finger drags draw a selection box instead of panning, and taps add to the selection */
+  touchBox: false,
   markers: [] as Marker[],
   pings: [] as Ping[],
   started: false,
