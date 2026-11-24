@@ -7,6 +7,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# the commit shown on the main menu; Coolify passes it when "Include Source Commit in Build" is on,
+# otherwise the build reads it from .git (src/build_version.ts)
+ARG SOURCE_COMMIT
 RUN npm run build
 
 FROM node:24-slim

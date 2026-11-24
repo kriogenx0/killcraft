@@ -1,8 +1,14 @@
 import { defineConfig } from 'vitest/config';
 import { offlineServiceWorker } from './src/pwa/sw_plugin.ts';
+import { buildCommit } from './src/build_version.ts';
 
 export default defineConfig({
   plugins: [offlineServiceWorker()],
+  // shown small in a corner of the main menu, so it's clear which deploy is running
+  define: {
+    __APP_COMMIT__: JSON.stringify(buildCommit()),
+    __APP_BUILT__: JSON.stringify(new Date().toISOString()),
+  },
   server: {
     port: Number(process.env.PORT ?? 8000),
     strictPort: true,

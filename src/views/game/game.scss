@@ -492,6 +492,29 @@ $sidebar-width: 248px;
   }
 
   // title and result screens
+  // the favicon's K-and-sword emblem, large, above the title
+  .game-logo {
+    flex: none;
+    width: min(128px, 28vw);
+    height: auto;
+    margin-bottom: calc(-1 * #{$space-2});
+    filter: drop-shadow(0 6px 18px rgb(0 0 0 / 80%));
+  }
+
+  // deployed commit and build time, small in the bottom corner of the main menu
+  .game-version {
+    position: absolute;
+    right: max(#{$space-2}, env(safe-area-inset-right));
+    bottom: max(#{$space-2}, env(safe-area-inset-bottom));
+    margin: 0;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: rgb(232 216 168 / 55%);
+    text-shadow: 0 1px 2px #000;
+    pointer-events: auto;
+    user-select: text;
+  }
+
   .game-title {
     max-width: 100%;
     // shrinks on narrow phones so the title never runs off the screen
