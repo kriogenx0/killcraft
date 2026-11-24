@@ -3,7 +3,8 @@
 // Used by the balance runner (run.ts); runs in Node with no DOM.
 import { G, hooks, unitDef, type Ent } from '../game/state.ts';
 import { STEP } from '../game/const.ts';
-import { ais } from '../game/ai.ts';
+import { ais, setAiLevel } from '../game/ai.ts';
+import { AI_LEVEL, type Difficulty } from '../data/setup.ts';
 import { alive, initWorld, update } from '../game/world.ts';
 import { START_CREDITS } from '../data/map.ts';
 import { UNIT, isUnitType } from '../data/unit.ts';
@@ -65,6 +66,8 @@ export interface MatchResult {
   /** game seconds of the first kill between sides (first contact) */
   firstBlood: number | null;
   errors: number;
+  /** each side's computer difficulty */
+  levels: Difficulty[];
   stats: TeamStats[];
 }
 
@@ -73,11 +76,13 @@ export interface MatchOptions {
   teams?: number;
   /** stop after this many game seconds */
   maxSeconds?: number;
+  /** every computer player's difficulty (default Normal), or one per side */
+  level?: Difficulty | Difficulty[];
 }
 
 const bump = (r: Record<string, number>, k: string, n = 1) => { r[k] = (r[k] ?? 0) + n; };
 
-export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions): MatchResult {
+export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal' }: MatchOptions): MatchResult {
   G.headless = true;
   G.demo = true;
   G.reveal = false;
@@ -91,6 +96,8 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions):
   initWorld(seed, teams);
   G.viewer = -1;
   for (let t = 0; t < G.teams; t++) ais[t].on = true;
+  if (Array.isArray(level)) level.forEach((l, t) => { if (ais[t]) { ais[t].level = l; ais[t].attackAt = AI_LEVEL[l].firstWave; } });
+  else setAiLevel(level);
 
   const stats: TeamStats[] = Array.from({ length: G.teams }, (_, team) => ({
     team, ageAt: [0, null, null, null], healAt: [0, null, null, null], built: {}, lost: {}, killsBy: {}, killed: {}, killValueBy: {},
@@ -155,6 +162,6 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600 }: MatchOptions):
   Math.random = prevRandom;
   return {
     seed: G.seed, teams: G.teams, length: Math.round(G.gameT), winner: G.over ? G.winner : -1, timedOut: !G.over,
-    firstBlood: firstBlood == null ? null : Math.round(firstBlood), errors, stats,
+    firstBlood: firstBlood == null ? null : Math.round(firstBlood), errors, levels: ais.slice(0, G.teams).map((a) => a.level), stats,
   };
 }

@@ -11,7 +11,9 @@ Other targets: `make test` (type-check, lint, and every test, including a live t
 
 ## Balance simulations
 
-`npm run sim -- --matches 200 --teams 4` plays computer-only matches headlessly (four players, one per corner, or `--teams 2`) across all CPU cores and prints a Markdown report: win rate by corner, match length, when each age was reached, what every unit and structure built, killed and traded, and what winners spent on compared with everyone else. Every match is seeded, so the same options give the same report. `--json out.json` saves the raw results, `--max 3600` caps a match in game seconds. The code is in `src/sim/`.
+`npm run sim -- --matches 200 --teams 4` plays computer-only matches headlessly (four players, one per corner, or `--teams 2`) across all CPU cores and prints a Markdown report: win rate by corner, match length, when each age was reached, what every unit and structure built, killed and traded, and what winners spent on compared with everyone else. Every match is seeded, so the same options give the same report. `--json out.json` saves the raw results, `--max 3600` caps a match in game seconds. `--level hard` sets the computer difficulty, and `--level easy,normal,hard,brutal` gives each side its own (rotated every match) and adds a win rate by difficulty.
+
+`npm run duel` pits every fighting unit against every other on open ground, two groups of equal value (Aether counted at 3 ore a point), and every defense against attackers of equal value, then prints each unit's average score per age (+1 won without a scratch, -1 wiped out for nothing) with its best and worst matchups. It takes under two minutes and has none of a full match's noise, so it's the quick check after changing a unit's stats. The code is in `src/sim/`.
 
 ## Play online
 

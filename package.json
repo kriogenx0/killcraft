@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "sim": "node src/sim/run.ts"
+    "sim": "node src/sim/run.ts",
+    "duel": "node src/sim/duel.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

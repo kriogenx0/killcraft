@@ -32,6 +32,15 @@ export function report(results: MatchResult[]): string {
   const errs = results.reduce((a, r) => a + r.errors, 0);
   if (errs) out.push(`- Engine errors caught: ${errs}`);
 
+  const levelNames = [...new Set(results.flatMap((r) => r.levels ?? []))];
+  if (levelNames.length > 1) {
+    out.push('', '## Win rate by computer difficulty', '');
+    out.push(table(['Difficulty', 'Sides', 'Wins', 'Win rate', 'Avg place'], levelNames.map((l) => {
+      const mine = results.flatMap((r) => r.stats.filter((s) => r.levels[s.team] === l));
+      const wins = decided.filter((r) => r.levels[r.winner] === l).length;
+      return [l, mine.length, wins, pct(wins, decided.length), f1(mean(mine.map((s) => s.place)))];
+    })));
+  }
   out.push('', '## Win rate by starting corner', '');
   out.push(table(['Side', 'Wins', 'Win rate', 'Avg place', 'Knocked out (median)'], Array.from({ length: teams }, (_, t) => {
     const mine = sides.filter((s) => s.team === t), outs = mine.flatMap((s) => (s.outAt == null ? [] : [s.outAt]));
