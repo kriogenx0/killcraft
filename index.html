@@ -56,20 +56,62 @@
 
     <section class="ui-modal ui-modal--open game-start" aria-label="Start">
       <h1 class="game-title">KILLCRAFT</h1>
-      <p class="game-intro">Mine ore, build your base from the sidebar, and destroy everything the enemy owns.</p>
-      <p class="game-intro">
-        <b>Build:</b> click a structure in the sidebar. When it says READY, click it again and place it near your base. Right-click to hold or cancel.<br>
-        <b>Mouse:</b> left-click or drag to select. Right-click to move, attack, harvest ore or set a rally point.<br>
-        <b>Touch:</b> tap to select or give an order. Drag to scroll.<br>
-        <kbd class="ui-key">W</kbd><kbd class="ui-key">A</kbd><kbd class="ui-key">S</kbd><kbd class="ui-key">D</kbd> scroll · <kbd class="ui-key">Q</kbd>/<kbd class="ui-key">E</kbd> or middle-drag turn · scroll pan · <kbd class="ui-key">Ctrl</kbd>+wheel or pinch zoom · <kbd class="ui-key">Alt</kbd>+wheel tilt · <kbd class="ui-key">M</kbd> move · <kbd class="ui-key">X</kbd> stop · <kbd class="ui-key">G</kbd>/<kbd class="ui-key">F</kbd>/<kbd class="ui-key">V</kbd> stance · <kbd class="ui-key">Ctrl</kbd>+<kbd class="ui-key">1-9</kbd> group ·
-        <kbd class="ui-key">H</kbd> select base · <kbd class="ui-key">R</kbd> repair · <kbd class="ui-key">Del</kbd> scrap · <kbd class="ui-key">+</kbd>/<kbd class="ui-key">-</kbd> zoom · <kbd class="ui-key">[</kbd>/<kbd class="ui-key">]</kbd> speed · <kbd class="ui-key">Space</kbd> last alert · <kbd class="ui-key">P</kbd> pause<br>
-        <b>Hotkeys:</b> select a building and its sidebar items light up with a letter. Press it to build, train or research. Walls, defenses and Aether structures take two keys: <kbd class="ui-key">H</kbd> <kbd class="ui-key">L</kbd> <kbd class="ui-key">T</kbd> lays a Stone Wall.
-      </p>
+      <p class="game-intro">Mine ore, build your base and destroy everything the enemy owns.</p>
       <div class="ui-modal-actions">
         <button type="button" class="ui-button game-start-online">Play Online</button>
         <button type="button" class="ui-button game-start-play">Play vs Computer</button>
         <button type="button" class="ui-button ui-button--secondary game-start-watch">Watch AI vs AI</button>
       </div>
+      <details class="game-controls">
+        <summary class="ui-button ui-button--secondary game-controls-toggle">Controls</summary>
+        <div class="game-controls-grid">
+        <table class="game-controls-table">
+          <caption>Mouse &amp; touch</caption>
+          <tbody>
+            <tr><th scope="row">Left-click / drag</th><td>Select</td></tr>
+            <tr><th scope="row">Right-click</th><td>Move, attack, harvest or set rally point</td></tr>
+            <tr><th scope="row">Tap / drag</th><td>Select or order / scroll (touch)</td></tr>
+            <tr><th scope="row">Sidebar item</th><td>Build; click again when READY to place it</td></tr>
+          </tbody>
+        </table>
+        <table class="game-controls-table">
+          <caption>Camera</caption>
+          <tbody>
+            <tr><th scope="row"><kbd class="ui-key">W</kbd> <kbd class="ui-key">A</kbd> <kbd class="ui-key">S</kbd> <kbd class="ui-key">D</kbd></th><td>Scroll</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Q</kbd> <kbd class="ui-key">E</kbd> or middle-drag</th><td>Turn</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Ctrl</kbd>+wheel, <kbd class="ui-key">+</kbd> <kbd class="ui-key">-</kbd> or pinch</th><td>Zoom</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Alt</kbd>+wheel</th><td>Tilt</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Space</kbd></th><td>Jump to last alert</td></tr>
+          </tbody>
+        </table>
+        <table class="game-controls-table">
+          <caption>Units</caption>
+          <tbody>
+            <tr><th scope="row"><kbd class="ui-key">M</kbd></th><td>Move</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">X</kbd></th><td>Stop</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">G</kbd> <kbd class="ui-key">F</kbd> <kbd class="ui-key">V</kbd></th><td>Stance</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Ctrl</kbd>+<kbd class="ui-key">1-9</kbd></th><td>Set group</td></tr>
+          </tbody>
+        </table>
+        <table class="game-controls-table">
+          <caption>Base</caption>
+          <tbody>
+            <tr><th scope="row"><kbd class="ui-key">H</kbd></th><td>Select Construction Yard</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">R</kbd></th><td>Repair</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">Del</kbd></th><td>Scrap</td></tr>
+            <tr><th scope="row">Letter on button</th><td>Build, train or research</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">H</kbd> <kbd class="ui-key">L</kbd> <kbd class="ui-key">T</kbd></th><td>Two-key groups, e.g. Stone Wall</td></tr>
+          </tbody>
+        </table>
+        <table class="game-controls-table">
+          <caption>Game</caption>
+          <tbody>
+            <tr><th scope="row"><kbd class="ui-key">P</kbd></th><td>Pause</td></tr>
+            <tr><th scope="row"><kbd class="ui-key">[</kbd> <kbd class="ui-key">]</kbd></th><td>Speed</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </details>
     </section>
 
     <section class="ui-modal game-end" aria-label="Game over" aria-hidden="true">

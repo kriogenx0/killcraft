@@ -298,7 +298,64 @@ $sidebar-width: 248px;
   }
 
   .game-start {
+    justify-content: safe center;
+    overflow-y: auto;
     background: radial-gradient(ellipse at center, rgb(30 34 20 / 55%), rgb(0 0 0 / 95%));
+  }
+
+  // keyboard and mouse reference, hidden until "Controls" is opened
+  .game-controls {
+    width: 100%;
+    max-width: 760px;
+  }
+
+  .game-controls-toggle {
+    display: inline-block;
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  .game-controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: $space-3;
+    align-items: start;
+    margin-top: $space-3;
+  }
+
+  .game-controls-table {
+    width: 100%;
+    font-size: $font-sm;
+    color: #e8d8a8;
+    text-align: left;
+    table-layout: fixed;
+    border-collapse: collapse;
+    background: rgb(0 0 0 / 70%);
+
+    caption {
+      padding: $space-1 $space-2;
+      font-weight: bold;
+      color: var(--color-title);
+      text-align: left;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    th,
+    td {
+      padding: $space-1 $space-2;
+      vertical-align: middle;
+      border-top: 1px solid rgb(255 255 255 / 8%);
+    }
+
+    th {
+      width: 50%;
+      font-weight: normal;
+    }
   }
 
   // narrow screens: the sidebar becomes a bottom panel
