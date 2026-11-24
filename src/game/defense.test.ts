@@ -244,6 +244,8 @@ describe('Big Bertha', () => {
   });
 
   it('misses a target that drives away while the shell is in the air', () => {
+    for (const e of G.ents) if (e.wild) e.dead = true; // no lair creature joining in
+    G.ents = G.ents.filter((e) => !e.dead);
     const { target, tx, ty } = setup(14);
     for (let i = 0; i < 120 && !G.projs.some((p) => p.weapon === 'bertha'); i++) run(STEP);
     expect(G.projs.some((p) => p.weapon === 'bertha')).toBe(true);

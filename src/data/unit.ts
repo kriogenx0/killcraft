@@ -7,7 +7,7 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
-  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon';
+  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'unicorn';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -49,6 +49,8 @@ export interface UnitDef {
   detect?: number;
   /** heals every friendly foot soldier and creature within SONG_RANGE by this share of its health a second (the Satyr's pipes) */
   song?: number;
+  /** lifts burns, poison, ice, curses, hexes and stone off every friendly unit within this many tiles, about once a second (the Unicorn) */
+  cleanse?: number;
   /**
    * a spellcaster with its own robes and staff (render3d/arcane3d.ts). Like the hidden units it costs
    * Aether, so it stays hidden until its side first finds some, but it is no copy of a regular unit.
@@ -155,6 +157,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   chimera: { name: 'Chimera', cls: 'infantry', armor: 'light', hp: 360, spd: 3.0, turn: 4.5, weapon: 'chimerafire', cost: 500, aether: 50, t: 13, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 17, beast: true, desc: 'Lion, goat and serpent in one. Its fire breath reaches up into the sky: the creature that burns flyers down.' },
   phoenix: { name: 'Phoenix', cls: 'air', armor: 'air', hp: 200, spd: 5.0, turn: 4, weapon: 'phoenixfire', cost: 450, aether: 60, t: 12, era: 0, sight: 8, producer: 'air', turret: false, radius: 14, alt: 1.5, beast: true, rebirth: true, desc: 'Firebird. Showers flame on the ground below, and when it falls it bursts alight and rises again from its ashes, once.' },
   dragon: { name: 'Dragon', cls: 'air', armor: 'air', hp: 480, spd: 3.6, turn: 2.8, weapon: 'dragonfire', cost: 800, aether: 90, t: 22, era: 0, sight: 8, producer: 'air', turret: false, radius: 23, alt: 1.9, beast: true, hide: 0.6, desc: 'Great serpent of the sky that guards treasure (Ladon, who coiled round the golden apples). Its breath melts armor and sets whole bases ablaze, and arrows and bullets glance off its scales. Can\'t fight other flyers: send Flak, rockets, a Chimera or a Griffin against it.' },
+  unicorn: { name: 'Unicorn', cls: 'infantry', armor: 'light', hp: 280, spd: 4.6, turn: 5, weapon: 'rainbow', cost: 400, aether: 40, t: 12, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 16, beast: true, cleanse: 4, desc: 'A joyful white unicorn with a rainbow mane. Its horn shoots rainbows, and its presence cures every friend nearby of burns, poison, ice, curses, hexes and stone. The answer to spellcasters and the Medusa.' },
 };
 
 /** Medics heal this many hit points a second, standing within this many px of their patient. */
