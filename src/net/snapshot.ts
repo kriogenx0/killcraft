@@ -94,9 +94,18 @@ function create(type: EntType, team: number, x: number, y: number): Ent {
   return addBuilding(type as BldType, team, Math.round(x / TS - s / 2), Math.round(y / TS - s / 2), false);
 }
 
+/**
+ * Ids the client hands out itself start here, far above the server's. A new entity is made with a local
+ * id and then given the server's; if the local one were also a server id in use, making it would knock
+ * that entity out of G.byId, and the next snapshot would make a second copy of it (a stale twin whose
+ * health the damage numbers then read as a fresh hit every frame).
+ */
+const LOCAL_IDS = 2 ** 30;
+
 /** Bring the local world in line with a snapshot. */
 export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: FxEvent) => void): void {
   const seen = new Set<number>();
+  G.nextId = Math.max(G.nextId, LOCAL_IDS);
   let structural = false;
   for (const [id, ti, team, x, y, hp, face, tface, carry, flags, prog, rx, ry, lvl, up] of rows) {
     const type = TYPES[ti];
