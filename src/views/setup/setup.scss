@@ -37,10 +37,7 @@
     gap: $space-3;
     align-items: center;
     min-width: 0;
-    padding: 0;
-    margin: 0;
     text-align: left;
-    border: 0;
 
     &[hidden] {
       display: none;
@@ -48,8 +45,7 @@
   }
 
   .setup-label {
-    float: left; // lets a legend sit in a grid cell
-    padding: 0;
+    min-width: 0;
     overflow: hidden;
     color: #e8d8a8;
     text-overflow: ellipsis;
@@ -60,11 +56,21 @@
     display: none;
   }
 
+  // the options stretch across the whole control column, sharing it evenly
   .ui-segmented {
+    display: flex;
     flex-wrap: nowrap;
+    justify-self: stretch;
+    width: 100%;
 
-    .ui-segmented-option span {
-      white-space: nowrap;
+    .ui-segmented-option {
+      flex: 1 1 0;
+
+      span {
+        justify-content: center;
+        width: 100%;
+        white-space: nowrap;
+      }
     }
   }
 
@@ -82,8 +88,8 @@
     align-items: center;
 
     .setup-seed {
-      flex: 0 1 120px;
-      width: 120px;
+      flex: 1 1 auto;
+      width: 0;
       min-width: 0;
       min-height: 36px;
       padding: $space-1 $space-2;
@@ -133,20 +139,9 @@
       display: inline;
     }
 
-    .ui-segmented {
-      display: flex;
-
-      .ui-segmented-option {
-        flex: 1 1 auto;
-        min-width: 0;
-
-        span {
-          justify-content: center;
-          width: 100%;
-          padding: 0 $space-1;
-          font-size: $font-sm;
-        }
-      }
+    .ui-segmented .ui-segmented-option span {
+      padding: 0 $space-2;
+      font-size: $font-sm;
     }
 
     .setup-hint {

@@ -8,17 +8,18 @@ const SETUP_KEY = 'killcraft.setup';
 interface Choice { value: string; label: string; title?: string }
 
 // Each setting is one row at every width; phones show the short label so the row fits in 320px.
-const legend = (label: string, short = label): string => short === label
-  ? `<legend class="setup-label">${label}</legend>`
-  : `<legend class="setup-label"><span class="setup-label-full">${label}</span><span class="setup-label-short">${short}</span></legend>`;
+// Rows are plain divs (not fieldset/legend), which Safari lays out like every other browser.
+const rowLabel = (label: string, short = label): string => short === label
+  ? `<span class="setup-label">${label}</span>`
+  : `<span class="setup-label"><span class="setup-label-full">${label}</span><span class="setup-label-short">${short}</span></span>`;
 
 const group = (name: string, label: string, choices: Choice[], short?: string): string => `
-  <fieldset class="setup-row setup-row--${name}">
-    ${legend(label, short)}
+  <div class="setup-row setup-row--${name}">
+    ${rowLabel(label, short)}
     <div class="ui-segmented" role="radiogroup" aria-label="${label}">
       ${choices.map((c) => `<label class="ui-segmented-option"${c.title ? ` title="${c.title}"` : ''}><input type="radio" name="setup-${name}" value="${c.value}"><span>${c.label}</span></label>`).join('')}
     </div>
-  </fieldset>`;
+  </div>`;
 
 const MARKUP = `
   <h2 class="setup-title">New game</h2>
@@ -30,13 +31,13 @@ const MARKUP = `
     ${group('army', 'Starting units', Object.entries(START_ARMY).map(([value, a]) => ({ value, label: a.name, title: a.desc })), 'Units')}
     ${group('speed', 'Game speed', SPEEDS.map((s) => ({ value: String(s), label: `${s}x` })), 'Speed')}
     ${group('fog', 'Fog of war', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off', title: 'See the whole map' }], 'Fog')}
-    <fieldset class="setup-row">
-      <legend class="setup-label">Map</legend>
+    <div class="setup-row" role="group" aria-label="Map">
+      <span class="setup-label">Map</span>
       <div class="setup-map">
         <input class="ui-text-field-input setup-seed" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="Random" aria-label="Map number (blank for a random map)">
         <button type="button" class="ui-button ui-button--small ui-button--secondary setup-reroll" title="Pick a random map number">New map</button>
       </div>
-    </fieldset>
+    </div>
   </form>
   <div class="ui-modal-actions">
     <button type="button" class="ui-button ui-button--secondary setup-back">Back</button>
