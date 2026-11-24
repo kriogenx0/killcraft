@@ -38,12 +38,12 @@ export interface AiLevel {
 
 export const AI_LEVEL: Record<Difficulty, AiLevel> = {
   easy: {
-    name: 'Easy', desc: 'Slow to react and to build, a small economy and at most 10 troops. Leaves you alone for 10 minutes, then attacks in small groups.',
-    think: 3, firstWave: 4, waveStep: 1, firstAttack: 600, workers: 2, maxWorkers: 7, harvesters: 1, sites: 1, queue: 1, armyCap: 10, defendRange: 9, bonus: 1, pace: 0.6,
+    name: 'Easy', desc: 'Slow to react and to build, a small economy and at most 8 troops. Leaves you alone for 12 minutes, then attacks in small groups.',
+    think: 3, firstWave: 3, waveStep: 1, firstAttack: 720, workers: 2, maxWorkers: 6, harvesters: 1, sites: 1, queue: 1, armyCap: 8, defendRange: 9, bonus: 1, pace: 0.5,
   },
   normal: {
-    name: 'Normal', desc: 'A fair opponent. Builds a little slower than you can, and gives you 5 minutes before its first attack.',
-    think: 1.5, firstWave: 6, waveStep: 2, firstAttack: 300, workers: 3, maxWorkers: 14, harvesters: 2, sites: 2, queue: 2, armyCap: 40, defendRange: 12, bonus: 1, pace: 0.85,
+    name: 'Normal', desc: 'A relaxed opponent. Builds slower than you can, keeps at most 25 troops, and gives you 8 minutes before its first small attack.',
+    think: 2, firstWave: 5, waveStep: 1, firstAttack: 480, workers: 3, maxWorkers: 11, harvesters: 2, sites: 1, queue: 1, armyCap: 25, defendRange: 11, bonus: 1, pace: 0.7,
   },
   hard: {
     name: 'Hard', desc: 'Reacts fast, runs a bigger economy, builds three sites at once and attacks in larger waves after 2½ minutes.',
