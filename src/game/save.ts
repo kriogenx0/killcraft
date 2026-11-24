@@ -14,7 +14,8 @@ export interface SavedWorld {
   ais: typeof ais;
 }
 
-export const SAVE_VERSION = 1;
+/** Bumped when saves stop fitting: 2 is the 96×96 map, so a game saved on the old 64×64 map isn't restored. */
+export const SAVE_VERSION = 2;
 
 /** A copy of the game as it stands (structured-cloneable; clone it before keeping it in memory). */
 export function captureWorld(): SavedWorld {

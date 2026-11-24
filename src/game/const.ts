@@ -2,8 +2,8 @@
 
 /** Tile size in pixels. */
 export const TS = 32;
-export const MW = 64;
-export const MH = 64;
+export const MW = 96;
+export const MH = 96;
 /** How close (px) a worker must be to a target's edge to use it. */
 export const NEAR = 26;
 /** Fixed simulation step in seconds. */

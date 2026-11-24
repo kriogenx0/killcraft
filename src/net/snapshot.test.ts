@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { G } from '../game/state.ts';
 import { initWorld } from '../game/world.ts';
 import { addBuilding } from '../game/entity.ts';
-import { applySnapshot, encodeEnt, type EntRow } from './snapshot.ts';
+import { applySnapshot, decodeOre, encodeEnt, encodeOre, type EntRow } from './snapshot.ts';
 
 afterEach(() => { G.visualOnly = false; initWorld(1); });
 
@@ -26,5 +26,15 @@ describe('following a server game', () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(G.ents).toHaveLength(2);
     expect(G.byId.get(7)?.hp).toBe(300);
+  });
+
+  it('sends the ground ore compactly and the client gets every tile back exactly', () => {
+    initWorld(3);
+    G.ore[0] = 1; G.ore[G.ore.length - 1] = 500; // both ends of the map
+    const server = G.ore.slice(), msg = encodeOre();
+    expect(msg.length).toBeLessThan((G.ore.byteLength * 4) / 3 / 2); // well under half the whole map
+    G.ore.fill(7); // the client's stale copy
+    decodeOre(msg);
+    expect(G.ore).toEqual(server);
   });
 });

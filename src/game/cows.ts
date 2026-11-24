@@ -12,7 +12,7 @@ import { nearPortal } from './map.ts';
 /** Coat colours a cow can have. Purple first: every herd gets one. */
 export const COW_COLORS = ['#8a4ad0', '#f2efe8', '#2a2624', '#7a4a2a', '#e86aa8', '#4aa8e8', '#f0c830', '#5ac86a', '#f08a30', '#d84040', '#40c8c0'];
 /** How many herds a map gets (fewer if it has too little open meadow). */
-export const HERDS = 4;
+export const HERDS = 8;
 export const HERD_SIZE: [number, number] = [4, 7];
 /** How far (tiles) a cow strays from its herd. */
 export const HERD_RADIUS = 2.6;

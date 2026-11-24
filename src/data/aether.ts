@@ -7,18 +7,18 @@ import type { Tile } from '../game/state.ts';
 
 /** Where the deposits go: two on the flanks, equally far from both bases, and sometimes one near the middle. */
 export const AETHER_SITES: Tile[] = [
-  [19, 15],
-  [44, 47],
+  [29, 23],
+  [66, 72],
 ];
 /** Four-player free-for-all: one deposit between each pair of neighbouring bases. */
 export const AETHER_FFA_SITES: Tile[] = [
-  [31, 19],
-  [32, 44],
-  [19, 32],
-  [44, 31],
+  [47, 29],
+  [48, 66],
+  [29, 48],
+  [66, 47],
 ];
 /** The middle deposit only appears on some maps. */
-export const AETHER_MIDDLE: Tile = [27, 27];
+export const AETHER_MIDDLE: Tile = [41, 41];
 /** Chance a map gets the middle deposit. */
 export const AETHER_MIDDLE_CHANCE = 0.5;
 

@@ -12,7 +12,7 @@ import { cloakedFrom } from '../../../game/aether.ts';
 
 const fog = { c: null as HTMLCanvasElement | null, img: null as ImageData | null, listeners: [] as (() => void)[] };
 
-/** 64×64 image of the fog: black, see-through where visible, half dark where explored. */
+/** One-pixel-per-tile image of the fog: black, see-through where visible, half dark where explored. */
 export const fogCanvas = (): HTMLCanvasElement => {
   if (!fog.c) throw new Error('initFog first');
   return fog.c;

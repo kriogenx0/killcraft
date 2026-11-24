@@ -1,5 +1,5 @@
 // Pre-rendered terrain: per-pixel ground with soft shorelines, scattered details, and trees.
-// `ground` never changes; `full` adds the trees on top.
+// `ground` never changes and is the 3D ground's texture; `mini` is the radar's copy with the trees on top.
 import { G } from '../../../game/state.ts';
 import { MW, MH, TS, WATER, TREE, SHALLOW, ROCK } from '../../../game/const.ts';
 import { DIRS } from '../../../game/path.ts';
@@ -11,7 +11,6 @@ export const MINI = 160;
 
 interface Layers {
   ground: HTMLCanvasElement;
-  full: HTMLCanvasElement;
   mini: HTMLCanvasElement;
 }
 
@@ -142,31 +141,16 @@ function drawTree(g: CanvasRenderingContext2D, tx: number, ty: number): void {
   for (let i = 0; i < 4; i++) { g.beginPath(); g.arc(cx - 6 + hash(tx + i, ty) * 10, cy - 20 + hash(ty, tx + i) * 8, 1.6, 0, TAU); g.fill(); }
 }
 
-/** Redraw ground and trees inside a tile rectangle (inclusive). */
-export function repaintRegion(tx0: number, ty0: number, tx1: number, ty1: number): void {
-  tx0 = clamp(tx0, 0, MW - 1); ty0 = clamp(ty0, 0, MH - 1); tx1 = clamp(tx1, 0, MW - 1); ty1 = clamp(ty1, 0, MH - 1);
-  const x = tx0 * TS, y = ty0 * TS, w = (tx1 - tx0 + 1) * TS, h = (ty1 - ty0 + 1) * TS, g = ctx2d(terrain.full);
-  g.save();
-  g.beginPath(); g.rect(x, y, w, h); g.clip();
-  g.drawImage(terrain.ground, x, y, w, h, x, y, w, h);
-  // trees overhang the tile above, so paint one extra row below the region
-  for (let ty = ty0 - 1; ty <= ty1 + 2; ty++) {
-    if (ty < 0 || ty >= MH) continue;
-    for (let tx = tx0 - 1; tx <= tx1 + 1; tx++) if (tx >= 0 && tx < MW && G.terr[ty * MW + tx] === TREE) drawTree(g, tx, ty);
-  }
-  g.restore();
-  if (terrain.mini) {
-    const k = MINI / (MW * TS), m = ctx2d(terrain.mini);
-    m.drawImage(terrain.full, x, y, w, h, x * k, y * k, w * k, h * k);
-  }
-}
-
 export function initTerrain(seed: number): void {
   seedNoise(mulberry32(seed + 7));
   terrain.ground = mkCanvas(MW * TS, MH * TS);
-  terrain.full = mkCanvas(MW * TS, MH * TS);
   paintGround(ctx2d(terrain.ground));
-  repaintRegion(0, 0, MW - 1, MH - 1);
+  // the radar's picture: the ground shrunk down, with the woods drawn over it at that size
   terrain.mini = mkCanvas(MINI, MINI);
-  ctx2d(terrain.mini).drawImage(terrain.full, 0, 0, MINI, MINI);
+  const m = ctx2d(terrain.mini);
+  m.drawImage(terrain.ground, 0, 0, MINI, MINI);
+  m.save();
+  m.scale(MINI / (MW * TS), MINI / (MH * TS));
+  for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) if (G.terr[ty * MW + tx] === TREE) drawTree(m, tx, ty);
+  m.restore();
 }

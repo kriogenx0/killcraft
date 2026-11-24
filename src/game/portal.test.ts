@@ -75,7 +75,7 @@ describe('portal maps', () => {
     }
     expect(counts[0]).toBeGreaterThan(5);
     expect(counts[1] + counts[2]).toBeGreaterThan(5);
-  });
+  }, 20_000); // eighty full-size maps
 
   it('sends a unit through a portal to the far side', () => {
     let seed = 1;

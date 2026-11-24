@@ -9,8 +9,11 @@ import {
 import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
 import { ORE_FIELD_RADIUS, ORE_TILE_MAX } from '../data/ore.ts';
 
-function valueGrid(rnd: () => number, sz: number): (x: number, y: number) => number {
-  const a: number[] = [];
+/** Map size against the 64-tile map the terrain was tuned on: noise cells and rivers scale with it, so lakes and woods stay the same size. */
+const K = MW / 64;
+
+function valueGrid(rnd: () => number, cells: number): (x: number, y: number) => number {
+  const sz = Math.round(cells * K), a: number[] = [];
   for (let i = 0; i < (sz + 1) * (sz + 1); i++) a.push(rnd());
   const s = (t: number) => t * t * (3 - 2 * t);
   return (x, y) => {
@@ -66,13 +69,14 @@ function distToLine(x: number, y: number, pts: [number, number][]): { d: number;
 function riverCourse(rnd: () => number): { pts: [number, number][]; fords: number[]; width: number } {
   // run from the top-left side to the bottom-right side, so it lies between the two bases
   const along = rnd() < 0.5;
-  const a: [number, number] = along ? [-2, 8 + rnd() * 20] : [8 + rnd() * 20, -2];
-  const b: [number, number] = along ? [MW + 2, MH - 8 - rnd() * 20] : [MW - 8 - rnd() * 20, MH + 2];
+  const a: [number, number] = along ? [-2, (8 + rnd() * 20) * K] : [(8 + rnd() * 20) * K, -2];
+  const b: [number, number] = along ? [MW + 2, MH - (8 + rnd() * 20) * K] : [MW - (8 + rnd() * 20) * K, MH + 2];
   const len = Math.hypot(b[0] - a[0], b[1] - a[1]), px = -(b[1] - a[1]) / len, py = (b[0] - a[0]) / len;
-  const amp = 3 + rnd() * 4, f1 = 1.5 + rnd() * 1.5, f2 = 3 + rnd() * 3, ph1 = rnd() * 6.3, ph2 = rnd() * 6.3;
+  const amp = (3 + rnd() * 4) * K, f1 = 1.5 + rnd() * 1.5, f2 = 3 + rnd() * 3, ph1 = rnd() * 6.3, ph2 = rnd() * 6.3;
   const pts: [number, number][] = [];
-  for (let k = 0; k <= 48; k++) {
-    const t = k / 48, off = Math.sin(t * Math.PI * 2 * f1 + ph1) * amp + Math.sin(t * Math.PI * 2 * f2 + ph2) * amp * 0.35;
+  const n = Math.round(48 * K);
+  for (let k = 0; k <= n; k++) {
+    const t = k / n, off = Math.sin(t * Math.PI * 2 * f1 + ph1) * amp + Math.sin(t * Math.PI * 2 * f2 + ph2) * amp * 0.35;
     pts.push([a[0] + (b[0] - a[0]) * t + px * off, a[1] + (b[1] - a[1]) * t + py * off]);
   }
   const fords = [0.18 + rnd() * 0.12, 0.42 + rnd() * 0.16, 0.7 + rnd() * 0.12];
@@ -87,7 +91,7 @@ function genMap(seed: number): boolean {
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
   const h1 = valueGrid(rnd, 3), h2 = valueGrid(rnd, 7), h3 = valueGrid(rnd, 13), pl = valueGrid(rnd, 4), rp = valueGrid(rnd, 9);
   const river = rnd() < RIVER_CHANCE ? riverCourse(rnd) : null;
-  const coast = rnd() < COAST_CHANCE && G.teams <= 2 ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = 13 + rnd() * 6;
+  const coast = rnd() < COAST_CHANCE && G.teams <= 2 ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = (13 + rnd() * 6) * K;
   terr.fill(GRASS);
   ore.fill(0);
   oilField.fill(0);
@@ -99,12 +103,12 @@ function genMap(seed: number): boolean {
       const wn = (w1(u, v) + w2(u, v) * 0.5) / 1.5;
       let w = smooth(0.645, 0.72, wn) * 1.2;
       if (river) {
-        const { d, t } = distToLine(x + 0.5, y + 0.5, river.pts), ford = river.fords.some((f) => Math.abs(t - f) < 0.03);
+        const { d, t } = distToLine(x + 0.5, y + 0.5, river.pts), ford = river.fords.some((f) => Math.abs(t - f) < 0.03 / K); // fords stay the same width in tiles
         const r = river.width * (0.85 + w2(u, v) * 0.4);
         w = Math.max(w, d < r && !ford ? 1.2 : d < r + 1.3 ? 0.7 : 0);
       }
       if (coast) {
-        const d = Math.hypot(x - coast[0], y - coast[1]) + (t2(u, v) - 0.5) * 8;
+        const d = Math.hypot(x - coast[0], y - coast[1]) + (t2(u, v) - 0.5) * 8 * K;
         w = Math.max(w, d < coastR ? 1.2 : d < coastR + 2 ? 0.7 : 0);
       }
       wet[i] = w;

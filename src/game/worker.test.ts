@@ -87,11 +87,11 @@ describe('Workers', () => {
   });
 
   it('build sites: nothing goes up without one, and two build twice as fast', () => {
-    addBuilding('power', 0, 12, 50, false);
-    const helped = placeBuilding(0, 'barracks', 16, 50), alone = placeBuilding(0, 'barracks', 13, 46);
+    addBuilding('power', 0, 12, 82, false);
+    const helped = placeBuilding(0, 'barracks', 16, 82), alone = placeBuilding(0, 'barracks', 13, 78);
     if (!helped || !alone) throw new Error('no site');
     for (const w of G.ents.filter((e) => e.type === 'worker')) kill(w); // the starting pair stay out of it
-    for (let i = 0; i < 2; i++) addUnit('worker', 0, (19 + i * 0.5) * TS, 51 * TS); // idle (no refinery to dig for), right by the first site
+    for (let i = 0; i < 2; i++) addUnit('worker', 0, (19 + i * 0.5) * TS, 83 * TS); // idle (no refinery to dig for), right by the first site
     const t = BUILDING.barracks.t;
     run(t / (2 * WORKER_BUILD) + 2);
     expect(helped.done).toBe(true);
@@ -192,9 +192,9 @@ describe('Workers', () => {
 
 describe('Fix, then harvest', () => {
   it('is what idle Workers do: fix everything damaged nearby, buildings first, then back to the ore', () => {
-    addBuilding('power', 0, 12, 50, false);
-    advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
-    const far = addBuilding('barracks', 0, 20, 50, false), wounded = addUnit('swordsman', 0, 19 * TS, 47 * TS);
+    addBuilding('power', 0, 12, 82, false);
+    advanceSite(addBuilding('refinery', 0, 6, 78, true), 1);
+    const far = addBuilding('barracks', 0, 20, 82, false), wounded = addUnit('swordsman', 0, 19 * TS, 79 * TS);
     far.hp = far.maxhp * 0.5;
     wounded.hp = 20;
     const ws = G.ents.filter((e) => e.type === 'worker' && e.team === 0), w = ws[0];

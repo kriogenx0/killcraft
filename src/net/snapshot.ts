@@ -72,12 +72,25 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-export const encodeOre = (): string => bytesToBase64(new Uint8Array(G.ore.buffer, G.ore.byteOffset, G.ore.byteLength));
+/**
+ * The ore on the ground, sent once a second. Most tiles have none, so only the tiles that do go out,
+ * as (tile, amount) pairs of 16-bit numbers: a few KB instead of the whole map's 18 KB.
+ */
+export function encodeOre(): string {
+  let n = 0;
+  for (let i = 0; i < G.ore.length; i++) if (G.ore[i]) n++;
+  const pairs = new Int16Array(n * 2);
+  for (let i = 0, k = 0; i < G.ore.length; i++) if (G.ore[i]) { pairs[k++] = i - 0x8000; pairs[k++] = G.ore[i]; }
+  return bytesToBase64(new Uint8Array(pairs.buffer));
+}
 
 export function decodeOre(b64: string): void {
   const bin = atob(b64), bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  if (bytes.length === G.ore.byteLength) G.ore.set(new Int16Array(bytes.buffer));
+  if (bytes.length % 4) return;
+  const pairs = new Int16Array(bytes.buffer);
+  G.ore.fill(0);
+  for (let k = 0; k < pairs.length; k += 2) { const i = pairs[k] + 0x8000; if (i < G.ore.length) G.ore[i] = pairs[k + 1]; }
 }
 
 // ---- client side ----

@@ -118,15 +118,15 @@ describe('production', () => {
   });
 
   it('finds oil, builds the Engine Works to reach World War, and pays oil for Modern', () => {
-    addBuilding('power', 0, 10, 50, false);
-    addBuilding('barracks', 0, 13, 50, false);
-    addBuilding('refinery', 0, 6, 46, false);
+    addBuilding('power', 0, 10, 82, false);
+    addBuilding('barracks', 0, 13, 82, false);
+    addBuilding('refinery', 0, 6, 78, false);
     expect(available(0, 'structure')).toContain('derrick');
     expect(available(0, 'structure')).not.toContain('works'); // needs oil first
     expect(available(0, 'tech')).toEqual([]);
-    addBuilding('derrick', 0, 16, 50, false);
+    addBuilding('derrick', 0, 16, 82, false);
     expect(available(0, 'structure')).toContain('works');
-    const works = addBuilding('works', 0, 19, 50, true);
+    const works = addBuilding('works', 0, 19, 82, true);
     expect(available(0, 'structure')).not.toContain('works'); // one at a time
     expect(G.era[0]).toBe(0);
     // idle Workers nearby take the site up by themselves
@@ -340,13 +340,13 @@ describe('production', () => {
   });
 
   it("won't start an order it can't pay for in full, and refunds all of it on cancel", () => {
-    addBuilding('power', 0, 10, 50, false);
+    addBuilding('power', 0, 10, 82, false);
     G.credits[0] = 5000;
     G.wood[0] = (BUILDING.barracks.wood ?? 0) - 1;
-    expect(startSite(0, 'barracks', 13, 50)).toBeNull();
+    expect(startSite(0, 'barracks', 13, 82)).toBeNull();
     expect(G.credits[0]).toBe(5000);
     G.wood[0] = BUILDING.barracks.wood ?? 0;
-    expect(startSite(0, 'barracks', 13, 50)).not.toBeNull();
+    expect(startSite(0, 'barracks', 13, 82)).not.toBeNull();
     expect(G.wood[0]).toBe(0);
     expect(G.credits[0]).toBe(5000 - BUILDING.barracks.cost);
     run(4); // part built
@@ -385,11 +385,11 @@ describe('production', () => {
   });
 
   it("lays out a player's site it can't pay for yet; Workers build it once it's paid", () => {
-    addBuilding('power', 0, 10, 50, false);
+    addBuilding('power', 0, 10, 82, false);
     G.credits[0] = 5000;
     G.wood[0] = 0;
-    expect(startSite(0, 'barracks', 13, 50)).toBeNull(); // the computer stops where the money runs out
-    const site = startSite(0, 'barracks', 13, 50, 13, 50, true);
+    expect(startSite(0, 'barracks', 13, 82)).toBeNull(); // the computer stops where the money runs out
+    const site = startSite(0, 'barracks', 13, 82, 13, 82, true);
     expect(site?.unpaid).toBe(true);
     expect(G.credits[0]).toBe(5000);
     advanceSite(site!, 0.5);
@@ -401,7 +401,7 @@ describe('production', () => {
     expect(G.wood[0]).toBe(0);
     // an unpaid site called off gives nothing back
     G.wood[0] = 0;
-    const other = startSite(0, 'barracks', 17, 50, 17, 50, true);
+    const other = startSite(0, 'barracks', 17, 82, 17, 82, true);
     expect(other?.unpaid).toBe(true);
     const ore = G.credits[0];
     cancel(0, 'barracks');

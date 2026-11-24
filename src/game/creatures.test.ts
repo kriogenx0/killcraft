@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 /** A creature in the open middle of the map, and the spot beside it. */
-const MID = { x: 30.5 * TS, y: 20.5 * TS };
+const MID = { x: 66.5 * TS, y: 26.5 * TS };
 const beast = (type: UnitType = 'minotaur'): Ent => addBeast(type, MID.x, MID.y);
 
 describe('creatures of myth', () => {
@@ -152,12 +152,14 @@ describe('creatures of myth', () => {
   it('comes back wild at its lair a minute after a captured one dies', () => {
     const b = beast('griffin');
     dealDamage(b, b.maxhp, null);
-    addUnit('swordsman', 0, b.x, b.y + TS).stance = 'passive';
+    const captor = addUnit('swordsman', 0, b.x, b.y + TS);
+    captor.stance = 'passive';
     run(CAPTURE_TIME + 1.5);
     expect(b.team).toBe(0);
-    // it wanders off with its new side and dies there
+    // it wanders off with its new side and dies there; nobody is left at the lair for it to chase
     b.x += 10 * TS;
     kill(b);
+    kill(captor);
     run(RESPAWN_TIME - 5);
     expect(wildBeasts()).toHaveLength(0);
     run(7);

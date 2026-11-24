@@ -84,12 +84,19 @@ function swaying(m: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   return m;
 }
 
-interface Tree { i: number; kind: Kind; slot: number }
+interface Tree { i: number; kind: Kind; set: string }
 interface TreeSet { leaves: THREE.InstancedMesh; trunk: THREE.InstancedMesh; n: number }
+
+/**
+ * Woods are drawn in square patches this many tiles across, one batch per patch and kind, so
+ * patches off screen are skipped (the whole map's trees in every pass cost too many triangles).
+ */
+const PATCH = 24;
+const patchOf = (x: number, y: number): number => Math.floor(y / PATCH) * Math.ceil(MW / PATCH) + Math.floor(x / PATCH);
 
 const group = new THREE.Group();
 let trees: Tree[] = [];
-let sets: Record<Kind, TreeSet> | null = null;
+let sets: Map<string, TreeSet> | null = null;
 let shown = new Uint8Array(0);
 let boulders: THREE.InstancedMesh | null = null;
 
@@ -107,16 +114,28 @@ function kindAt(x: number, y: number): Kind {
 export function initTrees(parent: THREE.Object3D): void {
   group.clear();
   trees = [];
-  const counts: Record<Kind, number> = { pine: 0, fir: 0, oak: 0, birch: 0 };
+  const counts = new Map<string, number>();
   for (let i = 0; i < MW * MH; i++)
-    if (G.terr[i] === TREE) { const kind = kindAt(i % MW, (i / MW) | 0); trees.push({ i, kind, slot: counts[kind]++ }); }
+    if (G.terr[i] === TREE) {
+      const x = i % MW, y = (i / MW) | 0, kind = kindAt(x, y), set = `${kind}:${patchOf(x, y)}`;
+      trees.push({ i, kind, set });
+      counts.set(set, (counts.get(set) ?? 0) + 1);
+    }
   const bark = M.darkWood(), birchBark = mat('#e6e0d2', { rough: 0.8 });
-  sets = Object.fromEntries(KINDS.map((k) => {
-    const leaves = new THREE.InstancedMesh(LEAVES[k](), swaying(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, vertexColors: true, envMapIntensity: 0.35 })), Math.max(1, counts[k]));
-    const trunk = new THREE.InstancedMesh(TRUNKS[k](), k === 'birch' ? birchBark : bark, Math.max(1, counts[k]));
-    for (const im of [leaves, trunk]) { im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true; im.count = 0; group.add(im); }
-    return [k, { leaves, trunk, n: 0 }];
-  })) as unknown as Record<Kind, TreeSet>;
+  const leafGeo = Object.fromEntries(KINDS.map((k) => [k, LEAVES[k]()])) as Record<Kind, THREE.BufferGeometry>;
+  const trunkGeo = Object.fromEntries(KINDS.map((k) => [k, TRUNKS[k]()])) as Record<Kind, THREE.BufferGeometry>;
+  const leafMat = Object.fromEntries(KINDS.map((k) => [k, swaying(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, vertexColors: true, envMapIntensity: 0.35 }))])) as unknown as Record<Kind, THREE.Material>;
+  const cols = Math.ceil(MW / PATCH);
+  sets = new Map();
+  for (const [key, n] of counts) {
+    const [k, p] = key.split(':') as [Kind, string], px = (Number(p) % cols) * PATCH, py = Math.floor(Number(p) / cols) * PATCH;
+    // a fixed sphere round the patch (trees regrow and fall, so three's own would go stale)
+    const bounds = new THREE.Sphere(new THREE.Vector3(px + PATCH / 2, 1, py + PATCH / 2), PATCH * 0.75 + 2);
+    const leaves = new THREE.InstancedMesh(leafGeo[k], leafMat[k], n);
+    const trunk = new THREE.InstancedMesh(trunkGeo[k], k === 'birch' ? birchBark : bark, n);
+    for (const im of [leaves, trunk]) { im.boundingSphere = bounds; im.castShadow = true; im.receiveShadow = true; im.count = 0; group.add(im); }
+    sets.set(key, { leaves, trunk, n: 0 });
+  }
   shown = new Uint8Array(trees.length);
   placeBoulders();
   parent.add(group);
@@ -158,11 +177,11 @@ export function refreshTrees(force = false): void {
     if (s !== shown[k]) { shown[k] = s; changed = true; }
   }
   if (!changed) return;
-  for (const s of Object.values(sets)) s.n = 0;
+  for (const s of sets.values()) s.n = 0;
   const color = new THREE.Color();
   trees.forEach((t, k) => {
     if (!shown[k]) return;
-    const set = sets?.[t.kind];
+    const set = sets?.get(t.set);
     if (!set) return;
     const x = t.i % MW, y = (t.i / MW) | 0, h = hash(x, y), h2 = hash(y + 3.3, x - 7.1), grown = (shown[k] - 1) / 8;
     const s = (0.8 + h2 * 0.4) * (0.25 + 0.75 * grown), px = x + 0.5 + (h - 0.5) * 0.3, pz = y + 0.5 + (h2 - 0.5) * 0.3;
@@ -180,7 +199,7 @@ export function refreshTrees(force = false): void {
     set.leaves.setColorAt(set.n, color);
     set.n++;
   });
-  for (const s of Object.values(sets)) {
+  for (const s of sets.values()) {
     s.leaves.count = s.trunk.count = s.n;
     s.leaves.instanceMatrix.needsUpdate = s.trunk.instanceMatrix.needsUpdate = true;
     if (s.leaves.instanceColor) s.leaves.instanceColor.needsUpdate = true;

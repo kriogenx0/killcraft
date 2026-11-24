@@ -166,7 +166,7 @@ export function initWorld3d(): void {
   initTrees(layer);
   initCows3d(layer);
   // ore crystals
-  ore = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09).scale(0.8, 1.7, 0.8), M.ore(), 2600);
+  ore = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09).scale(0.8, 1.7, 0.8), M.ore(), 5000);
   ore.castShadow = true;
   ore.frustumCulled = false; // instances span the map and change; three would cull them by a stale bounding sphere
   ore.count = 0;

@@ -166,9 +166,9 @@ describe('Aether', () => {
   });
 
   it('lets any unit that walks over dropped Aether pick it up, up to what it can carry', () => {
-    const u = addUnit('swordsman', 1, 30 * TS, 30 * TS);
+    const u = addUnit('swordsman', 1, 66 * TS, 26 * TS);
     u.ae = AETHER_CARRY - 10;
-    const v = addUnit('knight', 0, 30 * TS, 30 * TS);
+    const v = addUnit('knight', 0, 66 * TS, 26 * TS);
     v.ae = 25;
     dealDamage(v, 9999, null);
     run(0.1);
@@ -217,11 +217,11 @@ describe('Aether', () => {
 
   it('slows what a Hexblade hits, for a moment', () => {
     // two swordsmen walk side by side; one has just been hexed from far away
-    const hex = addUnit('hexblade', 0, 30 * TS, 8 * TS), a = addUnit('swordsman', 1, 28 * TS, 30 * TS), b = addUnit('swordsman', 1, 33 * TS, 30 * TS);
+    const hex = addUnit('hexblade', 0, 67 * TS, 4 * TS), a = addUnit('swordsman', 1, 65 * TS, 22 * TS), b = addUnit('swordsman', 1, 70 * TS, 22 * TS);
     fire(hex, 'hexrifle', a);
     hex.dead = true;
-    orderMove(a, 28, 45);
-    orderMove(b, 33, 45);
+    orderMove(a, 65, 37);
+    orderMove(b, 70, 37);
     const y0 = a.y;
     for (let i = 0; i < 1 / STEP; i++) update(STEP);
     expect(a.y - y0).toBeLessThan((b.y - y0) * 0.7);

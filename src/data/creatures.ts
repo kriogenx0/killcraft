@@ -18,20 +18,21 @@ export const BEASTS: UnitType[] = [
  * map uses some of the pairs, picked by its seed.
  */
 export const LAIR_PAIRS: [Tile, Tile][] = [
-  [[34, 13], [29, 50]],
-  [[10, 26], [53, 37]],
-  [[30, 20], [33, 43]],
-  [[12, 10], [51, 53]],
+  [[51, 20], [44, 75]],
+  [[15, 39], [80, 56]],
+  [[45, 30], [50, 65]],
+  [[18, 15], [77, 80]],
+  [[30, 79], [65, 16]],
 ];
 /** Four-player free-for-all: one lair on the way out of each corner, toward the middle. */
 export const LAIR_FFA_SITES: Tile[] = [
-  [24, 39],
-  [39, 24],
-  [24, 24],
-  [39, 39],
+  [36, 59],
+  [59, 36],
+  [36, 36],
+  [59, 59],
 ];
 /** Pairs of lairs a two-player map gets (so twice as many creatures). */
-export const LAIR_PAIRS_PER_MAP = 2;
+export const LAIR_PAIRS_PER_MAP = 3;
 
 /** A wild creature kneels once its health falls to this fraction. */
 export const SUBDUE_AT = 0.25;
