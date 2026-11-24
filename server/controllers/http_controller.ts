@@ -13,8 +13,16 @@ export interface StatusSource {
   matches: () => number;
 }
 
-export function httpController(staticDir: string, status: StatusSource) {
+export interface RedirectOptions {
+  /** hosts (no port) that are moved for good */
+  hosts?: string[];
+  /** the origin they move to, e.g. https://killcraft.games */
+  to?: string;
+}
+
+export function httpController(staticDir: string, status: StatusSource, redirect: RedirectOptions = {}) {
   const root = normalize(staticDir + sep);
+  const moved = new Set(redirect.hosts ?? []);
 
   async function serveFile(res: ServerResponse, path: string): Promise<boolean> {
     const file = normalize(join(root, path));
@@ -33,6 +41,13 @@ export function httpController(staticDir: string, status: StatusSource) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const path = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
     if (path === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('OK'); return; }
+    // an old domain: send people (and invite links, path and query intact) to the new one
+    const host = (req.headers.host ?? '').toLowerCase().replace(/:\d+$/, '');
+    if (redirect.to && moved.has(host)) {
+      res.writeHead(301, { location: redirect.to + (req.url ?? '/'), 'cache-control': 'public, max-age=86400' });
+      res.end();
+      return;
+    }
     if (path === '/status') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ lobby: 'ok', players: status.players(), matches: status.matches() }));
