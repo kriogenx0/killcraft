@@ -128,7 +128,9 @@ export type ServerMsg =
   | { k: 'error'; msg: string; live?: LiveGame }
   | { k: 'notice'; msg: string }
   /** a rejoin found no such match: it has ended, or the key was wrong */
-  | { k: 'nogame' };
+  | { k: 'nogame' }
+  /** the server is going down for an update (a deploy) and will be back shortly */
+  | { k: 'restarting' };
 
 /** Trim and clean a player name. */
 export function cleanName(raw: unknown): string {

@@ -50,6 +50,7 @@ describe('a deploy in the middle of a match', () => {
 
     // the deploy: the old server saves its match and goes away
     expect(await first.saveMatches()).toBe(1);
+    await a.next('restarting'); // players are told, so a lost game says why
     await first.close();
     expect(await readdir(dir)).toEqual([`${start.game}.match`]);
 

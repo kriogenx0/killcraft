@@ -29,6 +29,11 @@ export class SocketController {
     if (ws && ws.readyState === ws.OPEN) ws.send(json);
   }
 
+  /** Tell everyone connected that the server is restarting (a deploy). */
+  broadcastRestart(): void {
+    for (const id of this.sockets.keys()) this.send(id, { k: 'restarting' });
+  }
+
   /** Tell everyone in the lobby (not in a match or watching one) who is online, open games and their challenges. */
   broadcastLobby(): void {
     for (const p of this.lobby.players.values()) {

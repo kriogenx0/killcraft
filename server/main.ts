@@ -48,7 +48,7 @@ export function startServer(config: Config): Promise<RunningServer> {
         server,
         port,
         matches: () => matches.count,
-        saveMatches: () => matches.saveAll(),
+        saveMatches: () => { sockets?.broadcastRestart(); return matches.saveAll(); },
         close: () => new Promise<void>((done) => {
           matches.stopAll();
           for (const c of wss.clients) c.terminate();
