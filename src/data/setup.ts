@@ -46,8 +46,8 @@ export const AI_LEVEL: Record<Difficulty, AiLevel> = {
     think: 1.5, firstWave: 6, waveStep: 2, firstAttack: 300, workers: 3, maxWorkers: 14, harvesters: 2, sites: 2, queue: 2, armyCap: 40, defendRange: 12, bonus: 1, pace: 0.85,
   },
   hard: {
-    name: 'Hard', desc: 'Reacts fast, runs a bigger economy, builds three sites at once and attacks early in larger waves.',
-    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 22, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1, pace: 1,
+    name: 'Hard', desc: 'Reacts fast, runs a bigger economy, builds three sites at once and attacks in larger waves after 2½ minutes.',
+    think: 0.75, firstWave: 8, waveStep: 3, firstAttack: 150, workers: 4, maxWorkers: 20, harvesters: 3, sites: 3, queue: 3, armyCap: 60, defendRange: 16, bonus: 1, pace: 0.95,
   },
   brutal: {
     name: 'Brutal', desc: 'Plays like Hard, builds 15% faster and starts with 25% more ore and wood.',
