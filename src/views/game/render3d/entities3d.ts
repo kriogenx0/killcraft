@@ -15,7 +15,7 @@ import { eraOf } from '../../../game/production.ts';
 import { S, raycastObjects, worldToScreen } from './scene.ts';
 import { waygateLinked } from '../../../game/aether.ts';
 import { shardModel, aetherModel, bldLook, buildingModel, sourceModel, unitModel, type Model } from './models.ts';
-import { teamMat } from './materials.ts';
+import { M, teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
 import { animateArcane } from './arcane3d.ts';
 import { animateGiant } from './giant3d.ts';
@@ -23,8 +23,7 @@ import { statusFx, statusTint } from './status3d.ts';
 import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
-import { levelUnder } from './world3d.ts';
-import { footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
+import { footprintRange, footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 interface Obj { model: Model; key: string }
 
@@ -48,6 +47,42 @@ export function resetEntities3d(): void {
   S.scene.add(holder, overlays);
 }
 
+/** How far a foundation reaches below the lowest ground under it, so no gap shows at its foot. */
+const FOOT_SINK = 0.15;
+/** Drops (tiles) smaller than this get no foundation: the building's own pad covers them. */
+const FOOT_MIN = 0.04;
+const footGeos = new Map<string, THREE.BoxGeometry>();
+
+/**
+ * A box w by d tiles and `tall` deep with its top at y = 0, its texture repeating once a tile
+ * on every face instead of stretching.
+ */
+function footGeometry(w: number, d: number, tall: number): THREE.BoxGeometry {
+  const key = `${w}|${d}|${tall.toFixed(2)}`;
+  let g = footGeos.get(key);
+  if (g) return g;
+  g = new THREE.BoxGeometry(w, tall, d).translate(0, -tall / 2, 0);
+  // faces come in the order +x, -x, +y, -y, +z, -z, four vertices each
+  const uv = g.attributes.uv as THREE.BufferAttribute, size: [number, number][] = [[d, tall], [d, tall], [w, d], [w, d], [w, tall], [w, tall]];
+  for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * size[f][0], uv.getY(i) * size[f][1]); }
+  footGeos.set(key, g);
+  return g;
+}
+
+/**
+ * A structure on a slope stands level with the highest ground under it (`footprintY`); this
+ * fills the gap beneath it down to the lowest: stone in the Medieval age, concrete after.
+ */
+function foundation(e: Ent): THREE.Mesh | null {
+  const lo = footprintRange(e.tx, e.ty, e.w, e.h)[0], top = footprintY(e.tx, e.ty, e.w, e.h);
+  if (top - lo < FOOT_MIN) return null;
+  const m = new THREE.Mesh(footGeometry(e.w, e.h, top - lo + FOOT_SINK), (e.lvl ?? 0) > 0 ? M.concrete() : M.darkStone());
+  m.position.y = -0.005; // just under the building's own pad, so the two don't flicker
+  m.castShadow = m.receiveShadow = true;
+  m.name = 'foundation';
+  return m;
+}
+
 function create(e: Ent, wallMask: number): Model {
   const m = e.kind === 'unit' ? unitModel(e.type as UnitType, e.team) : e.type === 'aether' ? aetherModel() : e.type === 'shard' ? shardModel() : e.kind === 'source' ? sourceModel() : buildingModel(e.type as BldType, e.team, e.lvl ?? 0, wallMask);
   m.root.userData.id = e.id;
@@ -57,6 +92,8 @@ function create(e: Ent, wallMask: number): Model {
   }
   if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
+  const foot = e.kind === 'bld' ? foundation(e) : null;
+  if (foot) { m.root.add(foot); m.parts.foundation = foot; }
   holder.add(m.root);
   return m;
 }
@@ -163,6 +200,8 @@ function animateUnit(m: Model, e: Ent): void {
 function animateBuilding(m: Model, e: Ent, dt: number): void {
   const P = m.parts, atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
   m.root.scale.y = Math.max(0.02, e.prog);
+  // a site's foundation is laid first: it stands full height while the building rises on it
+  if (P.foundation) P.foundation.scale.y = 1 / m.root.scale.y;
   if (P.turret) P.turret.rotation.y = -e.tface;
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.12 : 0);
   if (P.crane) P.crane.rotation.y = Math.sin(G.gameT * 0.25 + e.id) * 0.7;
@@ -196,7 +235,7 @@ const ringPool: THREE.Mesh[] = [];
 const markerPool: THREE.Mesh[] = [];
 const ringMats = { own: basic('#5f5'), enemy: basic('#f55'), neutral: basic('#ff5') };
 let rally: THREE.Group | null = null;
-let ghost: { type: BldType; look: number; group: THREE.Group; tiles: THREE.Mesh[] } | null = null;
+let ghost: { type: BldType; look: number; group: THREE.Group; tiles: THREE.Mesh[]; foot: THREE.Mesh } | null = null;
 
 function basic(color: string, opacity = 0.9): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, fog: false, side: THREE.DoubleSide });
@@ -277,7 +316,10 @@ function ghostFor(type: BldType): NonNullable<typeof ghost> {
     tiles.push(t);
     group.add(t);
   }
-  ghost = { type, look, group, tiles };
+  // the foundation it would stand on, sized each frame to the slope under the cursor
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(s, 1, s).translate(0, -0.5, 0), see);
+  group.add(foot);
+  ghost = { type, look, group, tiles, foot };
   overlays.add(group);
   return ghost;
 }
@@ -305,8 +347,10 @@ function updateGhost(): void {
   if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
   const g = ghostFor(m.type), s = BUILDING[m.type].size, near = inReach(m.tx, m.ty, s, V.team, isWall(m.type), onWell(m.type));
   g.group.visible = true;
-  const base = footprintY(m.tx, m.ty, s, s);
+  const base = footprintY(m.tx, m.ty, s, s), drop = base - footprintRange(m.tx, m.ty, s, s)[0];
   g.group.position.set(m.tx + s / 2, base, m.ty + s / 2);
+  g.foot.visible = drop >= FOOT_MIN;
+  g.foot.scale.y = drop + FOOT_SINK;
   g.tiles.forEach((t, i) => {
     const x = m.tx + (i % s), y = m.ty + Math.floor(i / s);
     t.position.y = surfaceY(x + 0.5, y + 0.5) - base + 0.1;
@@ -364,7 +408,6 @@ export function syncEntities(dt: number): void {
       r.position.y += air ? surfaceY(x, z) : heightAt(x, z);
       if (!air && UNIT[e.type as UnitType]?.cls === 'vehicle') tilt(r, x, z, e.face);
     } else if (e.kind === 'bld') {
-      levelUnder(e.tx, e.ty, e.w, e.h);
       r.position.set(x, footprintY(e.tx, e.ty, e.w, e.h), z);
       animateBuilding(o.model, e, dt);
     } else r.position.set(x, heightAt(x, z), z);

@@ -1,6 +1,6 @@
 // The ground's shape for the renderer: a height grid (two vertices per tile) built from the map's
 // tile heights, with craggy cliffs on rock tiles. Everything that stands on the ground asks here.
-import { G } from '../../../game/state.ts';
+import { G, type Ent } from '../../../game/state.ts';
 import { MW, MH, TS, ROCK } from '../../../game/const.ts';
 import { WATER_LEVEL } from '../../../data/map.ts';
 import { clamp, hash } from '../../../util/math.ts';
@@ -56,28 +56,29 @@ export function slopeAt(x: number, z: number): [number, number] {
   return [(heightAt(x + e, z) - heightAt(x - e, z)) / (2 * e), (heightAt(x, z + e) - heightAt(x, z - e)) / (2 * e)];
 }
 
-/** Ground height under a footprint (tiles): its average, which is where `level` flattens it to. */
-export function footprintY(tx: number, ty: number, w: number, h: number): number {
-  let sum = 0, n = 0;
-  for (let y = ty * RES; y <= (ty + h) * RES; y++) for (let x = tx * RES; x <= (tx + w) * RES; x++) { sum += heights[clamp(y, 0, VH - 1) * VW + clamp(x, 0, VW - 1)]; n++; }
-  return Math.max(sum / n, WATER_LEVEL + 0.06);
+/** The lowest and highest ground (tiles) under a footprint: every grid vertex it covers. */
+export function footprintRange(tx: number, ty: number, w: number, h: number): [number, number] {
+  let lo = Infinity, hi = -Infinity;
+  for (let y = ty * RES; y <= (ty + h) * RES; y++)
+    for (let x = tx * RES; x <= (tx + w) * RES; x++) {
+      const v = heights[clamp(y, 0, VH - 1) * VW + clamp(x, 0, VW - 1)];
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+  return [lo, hi];
 }
 
 /**
- * Level the ground under a structure's footprint to its average height (feathering the edge), so
- * it sits flat on a hillside. Returns the range of grid rows touched, or null if nothing changed.
+ * Where a structure stands (tiles): level with the highest ground under its footprint, so on a
+ * hillside it never sinks into the slope. A foundation fills the gap down to the lower side.
  */
-export function level(tx: number, ty: number, w: number, h: number): [number, number] | null {
-  const x0 = tx * RES, y0 = ty * RES, x1 = (tx + w) * RES, y1 = (ty + h) * RES;
-  let sum = 0, n = 0;
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { sum += heights[y * VW + x]; n++; }
-  const target = Math.max(sum / n, WATER_LEVEL + 0.06);
-  let changed = false;
-  for (let y = y0 - 1; y <= y1 + 1; y++)
-    for (let x = x0 - 1; x <= x1 + 1; x++) {
-      if (x < 0 || y < 0 || x >= VW || y >= VH) continue;
-      const edge = x < x0 || x > x1 || y < y0 || y > y1, i = y * VW + x, to = edge ? (heights[i] + target) / 2 : target;
-      if (Math.abs(heights[i] - to) > 1e-4) { heights[i] = to; changed = true; }
-    }
-  return changed ? [Math.max(0, y0 - 1), Math.min(VH - 1, y1 + 1)] : null;
+export function footprintY(tx: number, ty: number, w: number, h: number): number {
+  return Math.max(footprintRange(tx, ty, w, h)[1], WATER_LEVEL + 0.06);
 }
+
+/**
+ * How far an entity stands above the ground (or water) at its centre, tiles: a structure on a
+ * slope is raised to the top of its footprint. Add it to heights given to `worldToScreen`.
+ */
+export const standLift = (e: Ent): number =>
+  e.kind === 'bld' ? footprintY(e.tx, e.ty, e.w, e.h) - Math.max(groundY(e.x, e.y), WATER_LEVEL) : 0;

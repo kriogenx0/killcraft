@@ -1,6 +1,7 @@
 // Flat things drawn over the 3D view: health bars and the drag-select box.
 import { G, haulOf, isHarvester, unitDef } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
+import { standLift } from './heights.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { clamp } from '../../../util/math.ts';
 import { S, worldToScreen } from './scene.ts';
@@ -26,13 +27,13 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     if (e.dead || e.kind === 'source' || !shownToPlayer(e)) continue;
     // a construction site: a thin progress bar instead of a health bar (its health is in the panel)
     if (e.kind === 'bld' && !e.done) {
-      const s = worldToScreen(e.x, e.y, modelHeight(e) * Math.max(0.15, e.prog) + 0.2);
+      const s = worldToScreen(e.x, e.y, standLift(e) + modelHeight(e) * Math.max(0.15, e.prog) + 0.2);
       if (s.front) workBar(g, s.sx - r.left, s.sy - r.top, e.w * 16, e.prog);
       continue;
     }
     const hurt = e.hp < e.maxhp || V.sel.includes(e);
     if (!hurt && e.upT == null) continue;
-    const p = worldToScreen(e.x, e.y, modelHeight(e) + 0.15);
+    const p = worldToScreen(e.x, e.y, standLift(e) + modelHeight(e) + 0.15);
     if (!p.front) continue;
     const x0 = p.sx - r.left, y0 = p.sy - r.top;
     if (x0 < -40 || y0 < -20 || x0 > w + 40 || y0 > h + 20) continue;

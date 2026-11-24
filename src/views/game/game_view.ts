@@ -496,6 +496,7 @@ function testSetup(q: URLSearchParams): GameSetup {
   if (q.get('foes') === '3') s.foes = 3;
   if (q.get('fog') === 'off') s.fog = false;
   if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
+  if (q.has('seed')) s.seed = Number(q.get('seed')) || null;
   return s;
 }
 

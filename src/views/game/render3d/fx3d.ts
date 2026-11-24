@@ -10,7 +10,7 @@ import { M, mat } from './materials.ts';
 import { V } from '../view_state.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { midHeight } from './entities3d.ts';
-import { groundY, heightAt, surfaceY } from './heights.ts';
+import { groundY, heightAt, standLift, surfaceY } from './heights.ts';
 import { ORB_COL } from '../../../game/combat.ts';
 import { fiery } from './burn3d.ts';
 
@@ -212,7 +212,7 @@ function updateHits(): void {
     if (e.dead || e.flash <= 0 || e.kind === 'source' || !shownToPlayer(e)) continue;
     const k = Math.min(1, e.flash / 0.1);
     bc.setRGB(1, 0.55 + 0.35 * k, 0.4 + 0.3 * k).multiplyScalar(k * 0.9);
-    addPoint(e.kind === 'bld' ? clouds.bigHit : clouds.hit, e.x / TS, groundY(e.x, e.y) + midHeight(e), e.y / TS, bc);
+    addPoint(e.kind === 'bld' ? clouds.bigHit : clouds.hit, e.x / TS, groundY(e.x, e.y) + standLift(e) + midHeight(e), e.y / TS, bc);
   }
 }
 
