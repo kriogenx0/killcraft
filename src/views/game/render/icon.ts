@@ -25,8 +25,8 @@ const ANGLE = Math.PI / 5;
 export function makeIcons(team = 0): void {
   for (const t of UNIT_TYPES) {
     const big = UNIT[t].radius > 8;
-    // creatures of myth, spellcasters and cyborgs are pictured from their 3D models
-    const pic = UNIT[t].beast || UNIT[t].magic || UNIT[t].cyborg ? unitIcon(t, team) : null;
+    // pictured from the 3D model, with the flat sprite as a fallback without WebGL
+    const pic = unitIcon(t, team);
     ICON[t] = pic ?? make((g) => drawUnitArt(g, t, team, W / 2, H / 2 + (big ? 4 : 8), { f: ANGLE, tf: ANGLE, walk: 0, atk: 0, load: 0.8 }, big ? 1.35 : 2.2));
   }
   for (const t of [...BLD_TYPES, 'yard' as const])
@@ -137,6 +137,13 @@ export function makeIcons(team = 0): void {
     oline(g, -8, -15, -8, 16, 3, '#b08850');
     g.fillStyle = '#f0f0e8'; g.strokeStyle = '#000'; g.lineWidth = 2;
     g.beginPath(); g.moveTo(-7, -14); g.lineTo(13, -10); g.lineTo(9, -4); g.lineTo(13, 2); g.lineTo(-7, -1); g.closePath(); g.fill(); g.stroke();
+  });
+  ICON.follow = cmd((g) => {
+    // an eye: keep watching this one
+    g.fillStyle = '#f0f0e8'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(-16, 0); g.quadraticCurveTo(0, -17, 16, 0); g.quadraticCurveTo(0, 17, -16, 0); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#4a9ad8'; g.beginPath(); g.arc(0, 0, 6.5, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#000'; g.beginPath(); g.arc(0, 0, 3, 0, Math.PI * 2); g.fill();
   });
   ICON.cancel = cmd((g) => { oline(g, -11, -11, 11, 11, 4, '#e05040'); oline(g, 11, -11, -11, 11, 4, '#e05040'); });
   ICON.repair = cmd((g) => {

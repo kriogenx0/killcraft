@@ -25,7 +25,8 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, keyLabel } from './keyboard.ts';
+import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
 
 export interface HudEls {
@@ -83,11 +84,20 @@ function upgradeCommand(b: Ent): Command | null {
   };
 }
 
+/** Follow (or stop following) a selected unit with the camera. */
+function followCommand(): Command | null {
+  if (!followable()) return null;
+  const on = followingSelection();
+  return { id: 'follow', label: on ? 'Following' : 'Follow', hotkey: FOLLOW_KEY, icon: ICON.follow, active: on, tip: on ? 'Stop following this unit (panning the map stops it too)' : 'Keep the camera on this unit as it moves. Pan the map to let go' };
+}
+
 export function commandList(): Command[] {
   if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
-  if (!first) return [];
+  const follow = followCommand();
+  // enemy units you can see, and anything while spectating: nothing to order, but you can follow it
+  if (!first) return follow ? [follow] : [];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
     return [
@@ -97,6 +107,7 @@ export function commandList(): Command[] {
       ...STANCES.map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.every((u) => u.stance === st) })),
       // Workers: T, to tend the base
       ...(s.some((u) => u.type === 'worker') ? [{ id: 'tend', label: 'Fix, then harvest', hotkey: COMMAND_KEYS.tend, icon: ICON.repair, tip: `Fix everything damaged within ${TEND_RADIUS} tiles (buildings, building sites and wounded units), then go back to harvesting. Idle Workers do this for what's close by on their own`, active: s.every((u) => u.type !== 'worker' || u.tending) }] : []),
+      ...(follow ? [follow] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
     return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
@@ -123,6 +134,7 @@ export function runCommand(id: string): void {
   if (id === 'cancel') V.mode = null;
   else if (id === 'back') V.keyGroup = null;
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
+  else if (id === 'follow') toggleFollow();
   else if (id === 'move' || id === 'patrol') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'tend') dispatch({ c: 'tend', ids: ids(s.filter((u) => u.type === 'worker')) });

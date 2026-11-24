@@ -30,6 +30,8 @@ export const V = {
   mode: null as Mode,
   /** the production hotkey group open on the selected building (see hotkeys.ts), e.g. 'Walls' */
   keyGroup: null as string | null,
+  /** the unit the camera is following (see follow_cam.ts), by id */
+  follow: null as number | null,
   groups: new Map<string, number[]>(),
   /** hold: a finger pressed long enough to start a selection box */
   mouse: { x: 0, y: 0, down: false, drag: false, hold: false, sx: 0, sy: 0, inside: false },

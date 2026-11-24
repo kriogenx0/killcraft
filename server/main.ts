@@ -22,7 +22,7 @@ export function startServer(config: Config): Promise<RunningServer> {
   const matches = new MatchService({
     send: (id, msg) => sockets?.send(id, msg),
     finished: (id) => lobby.finished(id),
-  });
+  }, config.rejoinGrace);
   const lobby = new LobbyService({
     paired: (a, b, game) => matches.start(a, b, game),
     changed: () => sockets?.broadcastLobby(),
