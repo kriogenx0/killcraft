@@ -122,7 +122,7 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')];
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')].sort((a, b) => Number(b === 'worker') - Number(a === 'worker')); // Worker always first
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();

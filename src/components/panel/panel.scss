@@ -3,8 +3,9 @@
 // A carved-wood frame for docked interface areas.
 .ui-panel {
   color: var(--color-text);
+  // a parchment-and-grain texture (SVG noise, tiles seamlessly) over the theme's gradient
   background:
-    repeating-linear-gradient(90deg, rgb(0 0 0 / 8%) 0 3px, transparent 3px 11px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 -0.12'/%3E%3C/filter%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018 0.03' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.12 0 0 0 0 0.04 0 0 0 0.75 -0.3'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23m)'/%3E%3Crect width='240' height='240' filter='url(%23g)'/%3E%3C/svg%3E"),
     linear-gradient(var(--color-panel-top), var(--color-panel-bottom));
   border: 0 solid var(--color-rim);
   box-shadow: 0 0 10px rgb(0 0 0 / 60%);

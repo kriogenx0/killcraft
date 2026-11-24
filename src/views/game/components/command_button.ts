@@ -18,11 +18,13 @@ export function costText(cost: { g: number; w: number }): string {
 
 /** A square HUD button: icon, hotkey, name and (optionally) cost. */
 export function commandButtonHtml(c: Command, index: number): string {
+  // line glyphs are inline SVG in the text colour; pictures (a building's group) are a background
+  const glyph = c.icon.startsWith('<svg') ? c.icon : '', bg = glyph ? '' : ` style="background-image:url(${c.icon})"`;
   const cost = c.cost ? `<span class="command-button-cost">${costText(c.cost)}</span>` : '';
   return (
     `<button type="button" class="command-button${c.active ? ' command-button--active' : ''}" data-index="${index}" ${c.disabled ? 'disabled' : ''} ` +
     `${c.active != null ? `aria-pressed="${c.active}" ` : ''}` +
-    `aria-label="${c.label}"${c.hotkey ? ` aria-keyshortcuts="${c.hotkey}"` : ''} style="background-image:url(${c.icon})">` +
+    `aria-label="${c.label}"${c.hotkey ? ` aria-keyshortcuts="${c.hotkey}"` : ''}${bg}>${glyph}` +
     `<span class="command-button-key" aria-hidden="true">${keyLabel(c.hotkey)}</span><span class="command-button-label">${c.label}</span>${cost}</button>`
   );
 }
