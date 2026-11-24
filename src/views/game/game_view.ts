@@ -19,6 +19,7 @@ import type { ServerMsg, SideStock, SnapMsg } from '../../net/protocol.ts';
 import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net/snapshot.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
+import { setupCopyButton } from '../../components/copy_button/copy_button.ts';
 import { hostedGame, mountLobby, storedName } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
@@ -100,9 +101,10 @@ export function mountGameView(root: HTMLElement): void {
   /** Every game gets a UUID when it starts (online games use the server's match id). */
   const setGameId = (id: string) => {
     root.dataset.gameId = id;
-    for (const el of root.querySelectorAll<HTMLElement>('.game-id')) el.textContent = `Game ID ${id}`;
+    for (const el of root.querySelectorAll<HTMLElement>('.game-id-text')) el.textContent = `Game ID ${id}`;
     timeEl.title = `Game ID ${id}`;
   };
+  for (const b of root.querySelectorAll<HTMLButtonElement>('.game-id-copy')) setupCopyButton(b, () => root.dataset.gameId ?? '', 'Copy game ID');
   const show = (msg: string) => {
     message.textContent = msg;
     clearTimeout(messageTimer);

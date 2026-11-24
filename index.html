@@ -62,7 +62,7 @@
         <button type="button" class="ui-button ui-button--secondary game-paused-new">New Game</button>
         <button type="button" class="ui-button ui-button--secondary game-paused-quit">End Game</button>
       </div>
-      <span class="game-id"></span>
+      <span class="game-id"><span class="game-id-text"></span><button class="game-id-copy"></button></span>
     </section>
 
     <aside class="sidebar ui-panel" aria-label="Command sidebar">
@@ -84,6 +84,8 @@
     <div class="ui-tooltip game-tooltip" role="tooltip"></div>
 
     <section class="ui-modal ui-modal--open game-start" aria-label="Start">
+      <p class="game-version" aria-label="Version"></p>
+      <img class="game-logo" src="/favicon.svg" alt="" width="128" height="128">
       <h1 class="game-title">KILLCRAFT</h1>
       <p class="game-intro">Mine ore, build your base and destroy everything the enemy owns.</p>
       <div class="ui-modal-actions game-start-actions">
@@ -147,7 +149,7 @@
     <section class="ui-modal game-end" aria-label="Game over" aria-hidden="true">
       <h2 class="game-result"></h2>
       <p class="game-intro game-end-time"></p>
-      <p class="game-intro game-id game-end-id"></p>
+      <p class="game-intro game-id game-end-id"><span class="game-id-text"></span><button class="game-id-copy"></button></p>
       <div class="ui-modal-actions">
         <button type="button" class="ui-button game-end-again">Play again</button>
       </div>
