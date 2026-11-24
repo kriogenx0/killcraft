@@ -79,6 +79,16 @@ $sidebar-width: 248px;
     }
   }
 
+  // spectating: the side whose stock is showing; nothing until something is selected
+  .topbar-team {
+    padding: 0 $space-2;
+    border-radius: 3px;
+  }
+
+  .topbar .topbar-off {
+    display: none;
+  }
+
   .topbar .topbar-spacer {
     flex: 1;
   }
@@ -136,6 +146,51 @@ $sidebar-width: 248px;
     font-size: $font-sm;
     overflow-wrap: anywhere;
     user-select: text;
+  }
+
+  // once beaten, or while watching: each side's share of the armies, under the top bar
+  .army-bar {
+    position: absolute;
+    top: 32px + $space-1;
+    right: $sidebar-width + $gutter;
+    left: $gutter;
+    z-index: 5;
+    display: flex;
+    height: 18px;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    color: #fff;
+    text-shadow: 0 0 3px #000, 0 0 2px #000;
+    font-variant-numeric: tabular-nums;
+    pointer-events: auto;
+    user-select: none;
+    border: 1px solid rgb(0 0 0 / 60%);
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 50%);
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .army-bar-seg {
+    flex: 0 1 0;
+    min-width: 2px;
+    overflow: hidden;
+    text-align: center;
+    white-space: nowrap;
+    transition: flex-grow 0.6s ease;
+
+    & + & {
+      border-left: 1px solid rgb(0 0 0 / 45%);
+    }
+  }
+
+  // move the messages down out of the bar's way
+  .army-bar:not([hidden]) + .game-message {
+    margin-top: 20px;
   }
 
   .game-message {
@@ -221,6 +276,10 @@ $sidebar-width: 248px;
 
     .game-message {
       top: 60px;
+    }
+
+    .army-bar {
+      top: 48px + $space-1;
     }
   }
 
@@ -490,11 +549,21 @@ $sidebar-width: 248px;
       right: $gutter;
     }
 
+    .army-bar {
+      top: 48px + $space-1;
+      right: $space-2;
+      left: $space-2;
+    }
+
     .game-paused {
       top: 56px;
       left: 50%;
       transform: translateX(-50%);
       max-width: calc(100% - 2 * #{$gutter});
+    }
+
+    .army-bar:not([hidden]) ~ .game-paused {
+      top: 80px;
     }
 
     .ui-resource-label {

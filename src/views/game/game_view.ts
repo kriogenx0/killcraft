@@ -120,7 +120,7 @@ export function mountGameView(root: HTMLElement): void {
   initHud({
     credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), aether: must(root, '.topbar-aether'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
     speed: speedBtn, pause: pauseBtn,
-    details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'),
+    details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'), army: must(root, '.army-bar'), team: must(root, '.topbar-team'),
   });
   initSidebar(must(root, '.build-list--structure'), must(root, '.build-list--unit'), must(root, '.game-tooltip'));
   initInput(canvas, minimap);

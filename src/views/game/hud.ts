@@ -29,6 +29,8 @@ import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, keyLabel } from './keyboard.ts
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
+import { armyShares } from '../../game/army.ts';
+import { alive } from '../../game/world.ts';
 import { ELEMENT_DESC, ELEMENT_NAME, SPELL } from '../../data/spells.ts';
 
 export interface HudEls {
@@ -44,12 +46,16 @@ export interface HudEls {
   details: HTMLElement;
   commands: HTMLElement;
   tooltip: HTMLElement;
+  army: HTMLElement;
+  /** the side whose stock is showing, while spectating */
+  team: HTMLElement;
 }
 
 let els: HudEls;
 let commands: Command[] = [];
 let commandMarkup = '';
 let detailMarkup = '';
+let armyMarkup = '';
 
 const PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
 const PLAY_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
@@ -331,20 +337,59 @@ function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
 }
 
+/** Too thin a slice to fit its number: the number shows on hover instead. */
+const LABEL_MIN = 0.07;
+
+/**
+ * Once you are beaten, or while watching, a bar under the top bar: each side's share of all the
+ * armies on the map, by what the units cost, in that side's color.
+ */
+function refreshArmyBar(): void {
+  const show = V.started && (spectating() || !alive(V.team));
+  const shares = show ? armyShares() : [];
+  const markup = shares.map(({ team, share }) => {
+    const c = teamColors(team), pct = `${Math.round(share * 100)}%`;
+    return `<span class="army-bar-seg" style="flex-grow:${share.toFixed(3)};background:${c.m}" title="${c.name}: ${pct} of the armies">${share >= LABEL_MIN ? pct : ''}</span>`;
+  }).join('');
+  if (markup === armyMarkup) return;
+  armyMarkup = markup;
+  els.army.innerHTML = markup;
+  els.army.hidden = !markup;
+  els.army.setAttribute('aria-label', `Share of the armies: ${shares.map(({ team, share }) => `${teamColors(team).name} ${Math.round(share * 100)}%`).join(', ')}`);
+}
+
+/**
+ * Whose stock the top bar shows: your own; while spectating, the side of whatever is selected, or
+ * nobody (-1) until something is.
+ */
+export function hudTeam(): number {
+  if (!spectating()) return V.team;
+  return V.sel.find((e) => !e.dead && e.team >= 0 && e.team < G.teams)?.team ?? -1;
+}
+
+let resourceBoxes: HTMLElement[] = [];
+
 export function refreshHud(): void {
-  const p = power(V.team);
-  setText(els.credits, shortCount(G.credits[V.team]));
-  setText(els.wood, shortCount(G.wood[V.team] ?? 0));
-  setText(els.oil, shortCount(G.oil[V.team] ?? 0));
-  const box = els.aether.parentElement, found = !!G.aetherFound[V.team];
-  if (box && box.hidden === found) box.hidden = !found;
-  if (found) setText(els.aether, shortCount(G.aether[V.team] ?? 0));
-  setTitle(els.wood, `Wood. ${choppers(V.team)} Workers chopping. Right-click a tree with Workers: they chop it and carry the wood to a Lumber Mill, Refinery or the Town Hall.`);
-  setTitle(els.oil, `Oil +${perMin(oilRate(V.team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
-  setText(els.power, `${p.used}/${p.made}`);
-  els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
-  const era = ERA[eraOf(V.team)]?.name ?? '';
-  if (els.era.textContent !== era) els.era.textContent = era;
+  const team = hudTeam(), none = team < 0;
+  for (const box of resourceBoxes) box.classList.toggle('topbar-off', none);
+  const tag = spectating() && !none ? teamColors(team) : null, tagText = tag?.name ?? '';
+  if (els.team.hidden === !!tag) els.team.hidden = !tag;
+  if (tag && els.team.textContent !== tagText) { els.team.textContent = tagText; els.team.style.color = tag.l; els.team.style.background = tag.d; }
+  if (!none) {
+    const p = power(team);
+    setText(els.credits, shortCount(G.credits[team]));
+    setText(els.wood, shortCount(G.wood[team] ?? 0));
+    setText(els.oil, shortCount(G.oil[team] ?? 0));
+    const box = els.aether.parentElement, found = !!G.aetherFound[team];
+    if (box && box.hidden === found) box.hidden = !found;
+    if (found) setText(els.aether, shortCount(G.aether[team] ?? 0));
+    setTitle(els.wood, `Wood. ${choppers(team)} Workers chopping. Right-click a tree with Workers: they chop it and carry the wood to a Lumber Mill, Refinery or the Town Hall.`);
+    setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
+    setText(els.power, `${p.used}/${p.made}`);
+    els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
+    const era = ERA[eraOf(team)]?.name ?? '';
+    if (els.era.textContent !== era) els.era.textContent = era;
+  }
   els.time.textContent = formatTime(G.gameT);
   const speed = `${V.speed}x`;
   if (els.speed.textContent !== speed) els.speed.textContent = speed;
@@ -358,11 +403,13 @@ export function refreshHud(): void {
     detailMarkup = markup;
     els.details.innerHTML = markup;
   }
+  refreshArmyBar();
   refreshCommands();
 }
 
 export function initHud(e: HudEls): void {
   els = e;
+  resourceBoxes = [e.credits, e.wood, e.oil, e.aether, e.power, e.era].map((v) => v.parentElement).filter((b): b is HTMLElement => !!b);
   els.commands.addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
     const c = b && commands[Number(b.dataset.index)];
