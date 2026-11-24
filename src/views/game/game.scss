@@ -828,3 +828,27 @@ $sidebar-width: 248px;
     display: none;
   }
 }
+
+// small displays (phones upright or on their side): smaller messages so they cover less of the map
+@media (max-width: 760px), (max-height: 500px) {
+  .view-game {
+    .game-message {
+      font-size: $font-md;
+      line-height: 1.3;
+    }
+
+    .game-paused,
+    .game-paused .game-paused-title {
+      font-size: $font-lg;
+    }
+
+    .game-offline {
+      font-size: $font-xs;
+    }
+  }
+
+  body .update-prompt {
+    padding: 6px 12px;
+    font-size: $font-sm;
+  }
+}
