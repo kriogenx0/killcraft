@@ -66,13 +66,21 @@ export class SocketController {
         }
         case 'cmd': this.matches.command(id, msg.cmd); break;
         case 'resign': this.matches.quit(id, 'resigned'); break;
+        case 'rejoin': {
+          const me = this.lobby.players.get(id);
+          const opponent = me && me.status !== 'playing' ? this.matches.rejoin(me, String(msg.game), String(msg.key)) : null;
+          if (opponent) this.lobby.playing(id, opponent.name);
+          else this.send(id, { k: 'nogame' });
+          break;
+        }
       }
     });
 
     ws.on('close', () => {
       this.sockets.delete(id);
       if (!joined) return;
-      this.matches.quit(id, 'left');
+      // a dropped connection mid-match (usually a refresh) gets a while to rejoin before it counts as leaving
+      this.matches.away(id);
       this.lobby.remove(id);
     });
   }

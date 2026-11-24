@@ -38,7 +38,7 @@ const MARKUP = `
   <button type="button" class="ui-button ui-button--secondary lobby-back">Back</button>
 `;
 
-function storedName(): string {
+export function storedName(): string {
   try { return localStorage.getItem(NAME_KEY) ?? ''; } catch { return ''; }
 }
 

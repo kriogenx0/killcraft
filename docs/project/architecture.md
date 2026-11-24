@@ -22,7 +22,7 @@ src/
   net/                    protocol types, snapshot encoding/decoding, browser WebSocket client
   components/             shared UI components (ui-button, ui-bar, ui-chip, ui-modal, ...)
   styles/                 reset, theme tokens, typography and spacing scales
-  views/game/             the game view: frame loop, sidebar, HUD, input, camera_rig (orbit math), keyboard layout
+  views/game/             the game view: frame loop, sidebar, HUD, input, camera_rig (orbit math), keyboard layout, resume (game address and saves for picking a game back up after a refresh)
     render3d/             3D battlefield: scene + camera, world3d (ground, water, trees, ore, fog sheet),
                           models (procedural units/buildings), entities3d (sync, animation, picking), fx3d, overlay
     render/               2D canvas: terrain painting, minimap, and the icon art for the sidebar

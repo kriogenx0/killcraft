@@ -5,6 +5,8 @@ export interface Config {
   port: number;
   /** built frontend to serve (the Vite dist folder) */
   staticDir: string;
+  /** ms a player who dropped out of a match has to rejoin (tests make it short) */
+  rejoinGrace?: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {

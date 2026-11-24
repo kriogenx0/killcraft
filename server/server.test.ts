@@ -11,7 +11,7 @@ import type { ServerMsg, SnapMsg } from '../src/net/protocol.ts';
 let srv: RunningServer;
 
 beforeAll(async () => {
-  srv = await startServer({ port: 0, staticDir: '/nonexistent' });
+  srv = await startServer({ port: 0, staticDir: '/nonexistent', rejoinGrace: 1500 });
 });
 afterAll(async () => {
   await srv.close();
@@ -79,9 +79,43 @@ describe('game server', () => {
     expect(sites.every((r) => r[10] < 100)).toBe(true); // still going up
 
     b.ws.close();
+    // a dropped player gets a while to come back (a refresh) before the opponent wins
+    expect(await a.next('notice')).toMatchObject({ msg: expect.stringContaining('lost connection') });
     const end = await a.next('end');
     expect(end).toMatchObject({ k: 'end', winner: startA.team, reason: 'left' });
     a.ws.close();
+  }, 20000);
+
+  it('lets a player who refreshed rejoin their match with its key', async () => {
+    const a = await connect('Cat'), b = await connect('Dan');
+    await a.next('welcome');
+    a.ws.send(JSON.stringify({ k: 'quick' }));
+    await a.next('lobby', (m) => m.k === 'lobby' && m.waiting === 'quick');
+    b.ws.send(JSON.stringify({ k: 'quick' }));
+    const startA = await a.next('start'), startB = await b.next('start');
+    if (startA.k !== 'start' || startB.k !== 'start') throw new Error('expected start');
+    expect(startB.key).toBeTruthy();
+    await b.next('snap');
+
+    b.ws.close();
+    await a.next('notice', (m) => m.k === 'notice' && m.msg.includes('lost connection'));
+    const b2 = await connect('Dan');
+    await b2.next('welcome');
+    // a wrong key gets nothing
+    b2.ws.send(JSON.stringify({ k: 'rejoin', game: startB.game, key: 'nope' }));
+    expect(await b2.next('nogame')).toMatchObject({ k: 'nogame' });
+    b2.ws.send(JSON.stringify({ k: 'rejoin', game: startB.game, key: startB.key }));
+    expect(await b2.next('start')).toMatchObject({ team: startB.team, seed: startB.seed, game: startB.game, opponent: 'Cat', resumed: true });
+    expect(await a.next('notice', (m) => m.k === 'notice' && m.msg.endsWith('is back.'))).toMatchObject({ msg: 'Dan is back.' });
+    const snap = (await b2.next('snap')) as SnapMsg;
+    expect(snap.ents.some((r) => r[2] === startB.team)).toBe(true);
+    // well past the grace period, the match is still on
+    await new Promise((r) => setTimeout(r, 2000));
+    expect(a.msgs.some((m) => m.k === 'end')).toBe(false);
+
+    a.ws.close();
+    await b2.next('end');
+    b2.ws.close();
   }, 20000);
 
   it('shows who is online and starts a match from an accepted challenge', async () => {

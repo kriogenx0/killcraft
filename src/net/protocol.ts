@@ -49,7 +49,9 @@ export type ClientMsg =
   | { k: 'accept'; from: string }
   | { k: 'decline'; from: string }
   | { k: 'cmd'; cmd: Command }
-  | { k: 'resign' };
+  | { k: 'resign' }
+  /** come back to a match after a refresh or a dropped connection, with the key its start message gave */
+  | { k: 'rejoin'; game: string; key: string };
 
 export interface SnapMsg {
   k: 'snap';
@@ -82,11 +84,13 @@ export interface SnapMsg {
 export type ServerMsg =
   | { k: 'welcome'; id: string }
   | LobbyMsg
-  | { k: 'start'; team: number; seed: number; opponent: string; /** the match's UUID */ game?: string }
+  | { k: 'start'; team: number; seed: number; opponent: string; /** the match's UUID */ game?: string; /** secret this player sends to rejoin the match (see rejoin) */ key?: string; /** a rejoin: the match is already under way */ resumed?: boolean }
   | SnapMsg
   | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned' }
   | { k: 'error'; msg: string }
-  | { k: 'notice'; msg: string };
+  | { k: 'notice'; msg: string }
+  /** a rejoin found no such match: it has ended, or the key was wrong */
+  | { k: 'nogame' };
 
 /** Trim and clean a player name. */
 export function cleanName(raw: unknown): string {

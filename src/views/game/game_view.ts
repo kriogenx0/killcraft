@@ -19,7 +19,9 @@ import type { ServerMsg, SnapMsg } from '../../net/protocol.ts';
 import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net/snapshot.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
-import { mountLobby } from '../lobby/lobby_view.ts';
+import { mountLobby, storedName } from '../lobby/lobby_view.ts';
+import { captureWorld, restoreWorld } from '../../game/save.ts';
+import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
 import { mountSetup } from '../setup/setup_view.ts';
 import { BUILDING, isWall, type BldType } from '../../data/building.ts';
 import { canPlace } from '../../game/building.ts';
@@ -48,6 +50,11 @@ const MESSAGE_TIME = 2600;
 const FOG_INTERVAL = 0.2;
 const RESIGN_CONFIRM = 3000;
 const ORE_REFRESH = 0.5;
+/** seconds between saves of a solo game (it's also saved when the page is hidden or closed) */
+const SAVE_INTERVAL = 2;
+/** tries, and seconds apart, at getting back into an online match after the connection drops */
+const REJOIN_TRIES = 6;
+const REJOIN_WAIT = 3;
 
 /** A random UUID (crypto.randomUUID needs a secure context, so fall back to random bytes). */
 function newGameId(): string {
@@ -157,12 +164,43 @@ export function mountGameView(root: HTMLElement): void {
     });
     updFog();
     setGameId(newGameId());
+    enterGameUrl(root.dataset.gameId ?? '');
     setupWorldView();
     makeIcons(0);
     Object.assign(V, { team: 0, online: false, sel: [], mode: null, markers: [], pings: [], paused: false, speed: s.speed, started: true });
     (document.activeElement as HTMLElement | null)?.blur?.(); // keys go to the game, not a closed dialog's field
     home(0);
     setSelection([]);
+    saveNow();
+    void pruneGames().catch(() => {});
+  };
+
+  /** Save the solo game in progress, so a refresh comes back to it. */
+  const saveNow = () => {
+    const id = root.dataset.gameId;
+    if (!id || !V.started || V.online || G.over) return;
+    const g: SavedGame = { id, savedAt: Date.now(), world: captureWorld(), view: { team: V.team, speed: V.speed, paused: V.paused, cam: { ...V.cam } } };
+    saveGame(g).catch((err) => console.warn('Could not save the game', err));
+  };
+  window.addEventListener('pagehide', saveNow);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+
+  /** Pick a saved solo game back up. */
+  const resumeSolo = (g: SavedGame) => {
+    closeModal(startModal);
+    const w = g.world.g as { seed: number; teams: number };
+    initWorld(w.seed, w.teams);
+    if (!restoreWorld(g.world)) return false;
+    rebuildBlk();
+    updFog();
+    setGameId(g.id);
+    setupWorldView();
+    makeIcons(g.view.team);
+    Object.assign(V, { team: g.view.team, online: false, sel: [], mode: null, markers: [], pings: [], paused: g.view.paused, speed: g.view.speed, started: true });
+    Object.assign(V.cam, g.view.cam);
+    clampCam();
+    setSelection([]);
+    return true;
   };
 
   // ---- online ----
@@ -187,7 +225,9 @@ export function mountGameView(root: HTMLElement): void {
   };
 
   const onGameMessage = (m: ServerMsg) => {
+    if (m.k === 'nogame') { rejoinFailed('That game has ended.'); return; }
     if (!V.online) return;
+    if (m.k === 'notice' && V.started) show(m.msg);
     if (m.k === 'snap') onSnapshot(m);
     else if (m.k === 'end' && !G.over) {
       G.over = true;
@@ -198,8 +238,33 @@ export function mountGameView(root: HTMLElement): void {
   };
   net.onMessage(onGameMessage);
   net.onClose(() => {
-    if (V.online && V.started && !G.over) { G.over = true; G.winner = -1; endReason = 'Lost connection to the game server.'; }
+    // the server holds our side for a while: try to get back in before giving up
+    if (V.online && V.started && !G.over) rejoin(root.dataset.gameId ?? '', REJOIN_TRIES);
   });
+
+  /** Get back into an online match (after a refresh or a dropped connection) with the key the server gave us. */
+  let rejoining = 0;
+  const rejoin = (id: string, tries: number) => {
+    const key = onlineKey(id);
+    if (!key) { rejoinFailed('Lost connection to the game server.'); return; }
+    show(V.started ? 'Connection lost. Reconnecting…' : 'Rejoining your game…');
+    const attempt = rejoining = window.setTimeout(() => {
+      net.connect(storedName()).then(() => net.send({ k: 'rejoin', game: id, key }), () => {
+        if (attempt !== rejoining) return;
+        if (tries > 1) rejoin(id, tries - 1);
+        else rejoinFailed('Lost connection to the game server.');
+      });
+    }, V.started ? REJOIN_WAIT * 1000 : 0);
+  };
+  const rejoinFailed = (why: string) => {
+    clearTimeout(rejoining);
+    const id = root.dataset.gameId ?? gameIdFromUrl();
+    if (id) void forgetGame(id).catch(() => {});
+    if (V.online && V.started && !G.over) { G.over = true; G.winner = -1; endReason = why; return; }
+    leaveGameUrl();
+    openModal(startModal);
+    show(why);
+  };
 
   const startOnline = (m: Extract<ServerMsg, { k: 'start' }>) => {
     closeModal(startModal);
@@ -208,6 +273,10 @@ export function mountGameView(root: HTMLElement): void {
     for (const a of ais) a.on = false;
     initWorld(m.seed);
     setGameId(m.game ?? newGameId());
+    if (m.game) {
+      if (m.key) rememberOnline(m.game, m.key);
+      enterGameUrl(m.game);
+    }
     // the server owns every unit and building: start empty and fill in from snapshots
     Object.assign(G, { ents: [], projs: [], fx: [], decals: [], demo: false, visualOnly: true, viewer: m.team, human: [m.team === 0, m.team === 1] });
     G.byId.clear();
@@ -223,7 +292,7 @@ export function mountGameView(root: HTMLElement): void {
     againBtn.textContent = 'Back to lobby';
     home(m.team);
     setSelection([]);
-    show(`Match found: you vs ${m.opponent}`);
+    show(m.resumed ? `Back in your game vs ${m.opponent}` : `Match found: you vs ${m.opponent}`);
   };
 
   const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onBack: () => openModal(startModal) });
@@ -233,7 +302,9 @@ export function mountGameView(root: HTMLElement): void {
   must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
   must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
   must(root, '.game-start-online').addEventListener('click', () => { closeModal(startModal); lobby.open(); });
-  againBtn.addEventListener('click', () => { location.search = V.online ? '?online' : ''; });
+  againBtn.addEventListener('click', () => { location.href = V.online ? '/?online' : '/'; });
+  // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
+  window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });
   pauseBtn.addEventListener('click', () => { V.paused = !V.paused; });
   speedBtn.addEventListener('click', () => { V.speed = V.speed >= 4 ? 0.5 : V.speed * 2; });
   let resignArmed = 0;
@@ -245,9 +316,17 @@ export function mountGameView(root: HTMLElement): void {
     setTimeout(() => { resignBtn.textContent = 'Surrender'; }, RESIGN_CONFIRM);
   });
 
-  applyTestOptions(q, startSolo, (quick, join) => { closeModal(startModal); lobby.open(quick, join); });
+  openSaves();
+  const resumeId = gameIdFromUrl();
+  if (resumeId) {
+    // a refresh of a game's address: rejoin the online match, or load the saved solo game
+    closeModal(startModal);
+    root.dataset.gameId = resumeId;
+    if (onlineKey(resumeId)) rejoin(resumeId, 1);
+    else loadGame(resumeId).then((g) => { if (!g || !resumeSolo(g)) rejoinFailed('That game has ended.'); }, () => rejoinFailed("Couldn't load that game."));
+  } else applyTestOptions(q, startSolo, (quick, join) => { closeModal(startModal); lobby.open(quick, join); });
 
-  let last = performance.now(), acc = 0, fogT = 0, oreT = 0;
+  let last = performance.now(), acc = 0, fogT = 0, oreT = 0, savedAt = performance.now();
   const frame = (t: number) => {
     requestAnimationFrame(frame);
     const dt = Math.min(0.1, (t - last) / 1000 || 0);
@@ -270,8 +349,13 @@ export function mountGameView(root: HTMLElement): void {
     }
     const showPaused = V.started && V.paused && !G.over && !V.online;
     if (pausedBox.hidden === showPaused) pausedBox.hidden = !showPaused;
+    if (!V.online && V.started && !G.over) {
+      // real time, not game time: a slow machine still saves every few seconds
+      if (t - savedAt >= SAVE_INTERVAL * 1000) { savedAt = t; saveNow(); }
+    }
     if (G.over && !shownEnd) {
       shownEnd = true;
+      if (root.dataset.gameId) void forgetGame(root.dataset.gameId).catch(() => {});
       must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? 'Game over' : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       resignBtn.hidden = true;
