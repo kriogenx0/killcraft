@@ -8,7 +8,7 @@ import type { SavedWorld } from '../../src/game/save.ts';
 import { computerName, sidesTitle, type LiveGame, type MatchShape, type ServerMsg } from '../../src/net/protocol.ts';
 import { MODES, type Difficulty, type Mode } from '../../src/data/setup.ts';
 import type { Player, RoomStart } from './lobby_service.ts';
-import type { WorkerIn, WorkerOut } from '../workers/match_worker.ts';
+import type { MatchPerf, WorkerIn, WorkerOut } from '../workers/match_worker.ts';
 
 export interface MatchEvents {
   send: (playerId: string, msg: ServerMsg) => void;
@@ -54,6 +54,8 @@ interface Match {
   started: number;
   /** people watching, by player id */
   watchers: Set<string>;
+  /** its thread's latest perf report */
+  perf?: MatchPerf;
 }
 
 /**
@@ -92,6 +94,11 @@ export class MatchService {
 
   get count(): number {
     return this.matches.size;
+  }
+
+  /** Each running match's latest perf report from its thread, with how many people are in it. */
+  perf(): { id: string; people: number; perf: MatchPerf }[] {
+    return [...this.matches.values()].filter((m) => !m.over && m.perf).map((m) => ({ id: m.id, people: m.players.filter(Boolean).length + m.watchers.size, perf: m.perf as MatchPerf }));
   }
 
   /** Is a match with this id under way? */
@@ -327,6 +334,7 @@ export class MatchService {
     }
     else if (msg?.k === 'end') this.end(m, msg.winner, m.resigned.size ? 'resigned' : 'destroyed', msg.detail);
     else if (msg?.k === 'error') console.error('match error:', msg.msg);
+    else if (msg?.k === 'perf') m.perf = msg.perf;
   }
 
   private end(m: Match, winner: number, reason: 'destroyed' | 'left' | 'resigned', detail: string[] = []): void {

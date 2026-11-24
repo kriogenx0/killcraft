@@ -7,6 +7,7 @@ import { LobbyService } from './services/lobby_service.ts';
 import { MatchService } from './services/match_service.ts';
 import { SocketController } from './controllers/socket_controller.ts';
 import { httpController } from './controllers/http_controller.ts';
+import { PerfMonitor } from './services/perf_monitor.ts';
 
 const MAX_MESSAGE = 16 * 1024;
 
@@ -36,8 +37,11 @@ export function startServer(config: Config): Promise<RunningServer> {
     live: () => matches.live(),
   });
   sockets = new SocketController(lobby, matches);
+  const perf = new PerfMonitor({ matches: () => matches.perf(), players: () => lobby.players.size });
+  perf.start();
 
-  const server = createServer(httpController(config.staticDir, { players: () => lobby.players.size, matches: () => matches.count, lobby: () => lobby.summary() },
+  const server = createServer(httpController(config.staticDir, { players: () => lobby.players.size, matches: () => matches.count, lobby: () => lobby.summary(),
+    perf: () => perf.latest ?? perf.sample(), clientPerf: (r, ua) => perf.client(r, ua) },
     { hosts: config.redirectHosts, to: config.canonicalOrigin }));
   const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_MESSAGE });
   wss.on('connection', (ws) => sockets?.connect(ws));
@@ -51,6 +55,7 @@ export function startServer(config: Config): Promise<RunningServer> {
         matches: () => matches.count,
         saveMatches: () => { sockets?.broadcastRestart(); return matches.saveAll(); },
         close: () => new Promise<void>((done) => {
+          perf.stop();
           matches.stopAll();
           for (const c of wss.clients) c.terminate();
           wss.close();
