@@ -1,9 +1,10 @@
 // Flat things drawn over the 3D view: health bars and the drag-select box.
 import { G, haulOf, isHarvester, unitDef } from '../../../game/state.ts';
-import { V } from '../view_state.ts';
+import { TARGET_LIFE, V } from '../view_state.ts';
 import { standLift } from './heights.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { clamp } from '../../../util/math.ts';
+import { TS } from '../../../game/const.ts';
 import { S, worldToScreen } from './scene.ts';
 import { modelHeight } from './entities3d.ts';
 import { drawFloatText } from './float_text.ts';
@@ -18,6 +19,28 @@ function workBar(g: CanvasRenderingContext2D, cx: number, y: number, bw: number,
   g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x - 1, y - 1, bw + 2, 4);
   g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, y, bw, 2);
   g.fillStyle = 'rgba(240,200,90,.9)'; g.fillRect(x, y, bw * clamp(f, 0, 1), 2);
+}
+
+/** A box around each building just given as a target, from its footprint up to its roof; it blinks, then fades. */
+function drawTargets(g: CanvasRenderingContext2D, ox: number, oy: number): void {
+  for (const m of V.targets) {
+    const e = G.ents.find((x) => x.id === m.id);
+    if (!e || e.dead || !e.w) continue;
+    const x0 = e.tx * TS, y0 = e.ty * TS, x1 = (e.tx + e.w) * TS, y1 = (e.ty + e.h) * TS, top = modelHeight(e);
+    let l = Infinity, t = Infinity, rr = -Infinity, b = -Infinity, front = false;
+    for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) for (const z of [0, top]) {
+      const p = worldToScreen(x, y, z);
+      if (!p.front) continue;
+      front = true;
+      l = Math.min(l, p.sx); rr = Math.max(rr, p.sx); t = Math.min(t, p.sy); b = Math.max(b, p.sy);
+    }
+    if (!front) continue;
+    const k = m.t / TARGET_LIFE, pad = 4 + 6 * (1 - Math.min(1, k * 3));
+    g.globalAlpha = k < 0.5 ? (Math.floor(m.t * 8) % 2 ? 0.55 : 1) : 2 * (1 - k);
+    g.strokeStyle = m.color; g.lineWidth = 2.5;
+    g.strokeRect(l - ox - pad, t - oy - pad, rr - l + 2 * pad, b - t + 2 * pad);
+    g.globalAlpha = 1;
+  }
 }
 
 export function drawOverlay(g: CanvasRenderingContext2D): void {
@@ -50,6 +73,7 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     if (mm) { g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - 1, y0 + 4, bw + 2, 4); g.fillStyle = '#4a9cff'; g.fillRect(x, y0 + 5, bw * clamp((e.mana ?? 0) / mm, 0, 1), 2); }
   }
   drawFloatText(g, r.left, r.top);
+  drawTargets(g, r.left, r.top);
   if (V.mouse.down && V.mouse.drag) {
     const { sx, sy, x: mx, y: my } = V.mouse, x = Math.min(sx, mx) - r.left, y = Math.min(sy, my) - r.top, bw = Math.abs(mx - sx), bh = Math.abs(my - sy);
     g.fillStyle = 'rgba(80,255,80,.08)'; g.fillRect(x, y, bw, bh);

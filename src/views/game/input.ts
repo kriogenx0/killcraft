@@ -50,6 +50,8 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   if (!own.length) return;
   const units = own.filter((e) => e.kind === 'unit');
   const tx = tileOf(wx), ty = tileOf(wy);
+  // units ordered at a building: box it, red for an enemy's, blue for one of yours
+  if (units.length && hit?.kind === 'bld') V.targets = [{ id: hit.id, t: 0, color: isEnemy(hit) ? '#f44' : '#5cf' }];
   if (!units.length) {
     const b = own[0];
     if (b.kind === 'bld' && b.done && isUnitProducer(bldDef(b).produces)) { dispatch({ c: 'rally', id: b.id, x: Math.round(wx), y: Math.round(wy) }); mark(wx, wy, '#5f5'); }

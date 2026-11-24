@@ -16,6 +16,9 @@ export interface Marker extends Point { t: number; color: string }
 export interface Ping extends Point { t: number }
 
 export const MARKER_LIFE = 0.6;
+/** how long (s) the box around a building that was just given as a target stays up */
+export const TARGET_LIFE = 1;
+export interface TargetMark { id: number; t: number; color: string }
 export const PING_LIFE = 3;
 
 export const V = {
@@ -40,6 +43,8 @@ export const V = {
   /** touch: one-finger drags draw a selection box instead of panning, and taps add to the selection */
   touchBox: false,
   markers: [] as Marker[],
+  /** buildings just ordered at (attack, repair, drop off): boxed in red or blue for a moment */
+  targets: [] as TargetMark[],
   pings: [] as Ping[],
   started: false,
   paused: false,
@@ -71,6 +76,8 @@ export const selectedUnits = (): Ent[] => ownSelected().filter((e) => e.kind ===
 export function ageMarkers(dt: number): void {
   for (const m of V.markers) m.t += dt;
   V.markers = V.markers.filter((m) => m.t < MARKER_LIFE);
+  for (const m of V.targets) m.t += dt;
+  V.targets = V.targets.filter((m) => m.t < TARGET_LIFE);
   for (const p of V.pings) p.t += dt;
   V.pings = V.pings.filter((p) => p.t < PING_LIFE);
 }
