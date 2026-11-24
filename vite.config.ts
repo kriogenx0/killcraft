@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import { offlineServiceWorker } from './src/pwa/sw_plugin.ts';
 
 export default defineConfig({
+  plugins: [offlineServiceWorker()],
   server: {
     port: Number(process.env.PORT ?? 8000),
     strictPort: true,

@@ -1,7 +1,7 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
 import { G, say, tileOf, bldDef, type Ent, type Point, type Tile } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
-import { dropSalvage } from './economy.ts';
+import { dropSalvage, oilNear } from './economy.ts';
 import { BUILDING, BUILD_RADIUS, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
@@ -125,9 +125,24 @@ export function wallLine(x0: number, y0: number, x1: number, y1: number): Tile[]
   return out;
 }
 
+/** Oil Derricks go on an oil well, wherever it is: the well, not the base, decides where. */
+export const onWell = (type: BldType): boolean => type === 'derrick';
+
+/**
+ * Is a site here close enough to build? Most structures must be near the base (nearBase). An Oil
+ * Derrick instead must reach oil, and may stand on any well, however far from home.
+ */
+export function inReach(tx: number, ty: number, s: number, team: number, wall = false, well = false): boolean {
+  return well ? oilNear(tx, ty, s) > 0 : nearBase(tx, ty, s, team, wall);
+}
+
+/** Can this type of structure go here? */
+export const canPlaceType = (type: BldType, tx: number, ty: number, team: number, margin = false): boolean =>
+  canPlace(tx, ty, BUILDING[type].size, team, margin, isWall(type), onWell(type));
+
 /** With margin, keeps a one-tile lane free around other buildings (used by the computer player). */
-export function canPlace(tx: number, ty: number, s: number, team: number, margin = false, wall = false): boolean {
-  if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !nearBase(tx, ty, s, team, wall)) return false;
+export function canPlace(tx: number, ty: number, s: number, team: number, margin = false, wall = false, well = false): boolean {
+  if (tx < 0 || ty < 0 || tx + s > MW || ty + s > MH || !inReach(tx, ty, s, team, wall, well)) return false;
   for (let y = ty; y < ty + s; y++) for (let x = tx; x < tx + s; x++) if (!tileFree(x, y, team) || nearPortal(x, y)) return false;
   if (margin)
     for (let y = ty - 1; y <= ty + s; y++)
@@ -141,7 +156,7 @@ export function canPlace(tx: number, ty: number, s: number, team: number, margin
 
 /** Lay out a construction site (the caller has checked and paid for it). */
 export function placeBuilding(team: number, type: BldType, tx: number, ty: number, quiet = false): Ent | null {
-  if (!canPlace(tx, ty, BUILDING[type].size, team, false, isWall(type))) { if (!quiet) say(team, 'Cannot place there'); return null; }
+  if (!canPlaceType(type, tx, ty, team)) { if (!quiet) say(team, onWell(type) ? 'Build it on an oil well' : 'Cannot place there'); return null; }
   for (let y = ty; y < ty + BUILDING[type].size; y++) for (let x = tx; x < tx + BUILDING[type].size; x++) G.ore[y * MW + x] = 0;
   const b = addBuilding(type, team, tx, ty, true);
   b.hp = b.maxhp * SITE_HP;

@@ -266,6 +266,7 @@ describe('production', () => {
   it('pumps oil from a well until it runs dry, and nothing away from a well', () => {
     const [wx, wy] = OIL_WELLS[0];
     G.oil[0] = 0;
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // nobody hauls it off: idle Workers would
     const far = addBuilding('derrick', 0, 30, 4, false);
     expect(oilLeft(far)).toBe(0);
     const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
@@ -340,6 +341,7 @@ describe('production', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     for (const w of G.ents.filter((e) => e.team === 0 && e.type === 'worker')) kill(w); // no income meanwhile
+    addUnit('harvester', 0, 4 * TS, 60 * TS); // a unit that earns nothing, so the side isn't out of the game
     const cost = UNIT.swordsman.cost;
     G.credits[0] = cost - 1;
     expect(enqueue(0, 'swordsman')).toBe(false); // the computer's orders still need the money now

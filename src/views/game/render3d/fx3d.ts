@@ -12,6 +12,7 @@ import { shownToPlayer } from '../render/minimap.ts';
 import { midHeight } from './entities3d.ts';
 import { groundY, heightAt, surfaceY } from './heights.ts';
 import { ORB_COL } from '../../../game/combat.ts';
+import { fiery } from './burn3d.ts';
 
 const CAP = 1600;
 const layer = new THREE.Group();
@@ -190,6 +191,7 @@ function updateParticles(): void {
       slashes.setColorAt(ns++, (p.col ? bc.set(p.col) : bc.setRGB(1, 0.97, 0.85)).multiplyScalar((1 - k) * 1.4));
       continue;
     }
+    if (p.kind === 'fire') continue; // drawn as real flames: burn3d.ts
     const c = clouds[KIND_CLOUD[p.kind]];
     if (c.n >= CAP) continue;
     // smoke and dust drift upward as they age
@@ -238,7 +240,8 @@ const STREAK: Record<string, [number, number, number, number, number]> = {
 function updateProjectiles(): void {
   const used: Record<string, number> = { shell: 0, rocket: 0, bolt: 0, boulder: 0, orb: 0 };
   for (const p of G.projs) {
-    if (p.kind === 'melee' || !seenAt(p.x, p.y)) continue;
+    // fireballs, meteors and fire breath are drawn as flames: burn3d.ts
+    if (p.kind === 'melee' || !seenAt(p.x, p.y) || fiery(p)) continue;
     const key = p.kind === 'orb' ? `orb|${p.weapon}` : p.kind;
     const pool = (projPools[key] ??= []);
     used[key] ??= 0;

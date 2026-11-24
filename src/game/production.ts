@@ -17,13 +17,14 @@ import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, 
 import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
-import { cancelSite, canPlace, exitTile, placeBuilding, wallLine } from './building.ts';
+import { cancelSite, canPlaceType, exitTile, placeBuilding, wallLine } from './building.ts';
 import { orderFix, orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 
 export type Buildable = UnitType | BldType | TechType;
 
-const QUEUE_MAX = 5;
+/** Most orders of one unit type a building can have queued at once. */
+const QUEUE_MAX = 10;
 const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', air: 'airfield', tech: 'yard', hospital: 'hospital', armory: 'armory' };
 const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'air', 'tech', 'hospital', 'armory'];
 const FUNDS_NOTICE = 6;
@@ -153,8 +154,9 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
   if (atLimit(team, type)) { say(team, `Only ${UNIT[type as UnitType].limit} ${nameOf(type)} at a time`); return false; }
   const short = shortOf(team, type);
   if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
-  const research = line === 'tech' || line === 'hospital' || line === 'armory', max = research ? 1 : QUEUE_MAX;
-  if (q.length >= max) { say(team, research ? 'Already researching' : 'Queue is full'); return false; }
+  const research = line === 'tech' || line === 'hospital' || line === 'armory';
+  if (research && q.length) { say(team, 'Already researching'); return false; }
+  if (!research && q.filter((x) => x.type === type).length >= QUEUE_MAX) { say(team, `Only ${QUEUE_MAX} ${nameOf(type)} can be queued`); return false; }
   if (short && !wait) { fundsNotice(team, short); return false; }
   const it: ProductionItem = { type, prog: 0, spent: 0, ready: false, hold: false, paid: false };
   q.push(it);
@@ -188,7 +190,7 @@ export function payWaiting(team: number): void {
 
 /** Can the team lay out this structure here right now (available, affordable, and a free spot)? */
 export function canStartSite(team: number, type: BldType, tx: number, ty: number): boolean {
-  return available(team, 'structure').includes(type) && canAfford(team, type) && canPlace(tx, ty, BUILDING[type].size, team);
+  return available(team, 'structure').includes(type) && canAfford(team, type) && canPlaceType(type, tx, ty, team);
 }
 
 /**

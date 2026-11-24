@@ -1,11 +1,11 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import { isWall } from '../data/building.ts';
-import { G, hooks, unitDef } from './state.ts';
+import { G, hooks, say, unitDef } from './state.ts';
 import { MW, MH, TS } from './const.ts';
 import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
 import { START_ERA } from '../data/era.ts';
 import { generateMap, rebuildBlk } from './map.ts';
-import { addBuilding, addSource, addUnit } from './entity.ts';
+import { addBuilding, addSource, addUnit, kill } from './entity.ts';
 import { refreshHealRates, updUnit } from './unit.ts';
 import { updBld } from './building.ts';
 import { updProjs } from './combat.ts';
@@ -13,14 +13,15 @@ import { separate } from './move.ts';
 import { updFx } from './fx.ts';
 import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
-import { collect } from './economy.ts';
+import { collect, dropSalvage } from './economy.ts';
 import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
+import { initCows } from './cows.ts';
 import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
-import { emptyProduction, updProduction } from './production.ts';
+import { available, canAfford, emptyProduction, updProduction } from './production.ts';
 import { ais, aiThink, resetAi } from './ai.ts';
 import { AI_LEVEL } from '../data/setup.ts';
-import type { UnitType } from '../data/unit.ts';
+import { isUnitType, type UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
 
 const FOG_INTERVAL = 0.2;
@@ -64,11 +65,35 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   placeCreatures(G.seed);
   rebuildBlk();
+  initCows();
   updFog();
 }
 
 /** A side is still in the game while it has a building (walls don't count) or an armed unit. */
 export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon)));
+
+/** Seconds the last buildings burn before the match is called. */
+const FALL_SECONDS = 2.5;
+
+/**
+ * A side that can't come back: it has no units at all (counting units it has paid for and is training)
+ * and it can't train a Worker, either because it has no Town Hall or Barracks left or because it can't
+ * pay for one. With no one left to dig, chop or haul, nothing it owns can ever earn it ore again.
+ */
+export function stranded(team: number): boolean {
+  if (G.ents.some((e) => !e.dead && e.team === team && e.kind === 'unit')) return false;
+  if (Object.values(G.prod[team]).some((line) => line.some((it) => it.paid && isUnitType(it.type)))) return false;
+  return !available(team, 'infantry').includes('worker') || !canAfford(team, 'worker');
+}
+
+/** Every building a stranded side still has blows up, and the side is out of the game. */
+function fall(team: number): boolean {
+  const left = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
+  if (!left.length) return false;
+  for (const e of left) { kill(e); dropSalvage(e); }
+  for (let t = 0; t < G.teams; t++) say(t, t === team ? 'Your base is lost: no units left and no Worker to rebuild with' : 'An enemy base has fallen');
+  return true;
+}
 
 export function update(dt: number): void {
   G.gameT += dt;
@@ -110,6 +135,10 @@ export function update(dt: number): void {
   G.endT -= dt;
   if (G.endT <= 0 && G.gameT > 3 && !G.over) {
     G.endT = 1;
+    // stranded sides go up in flames; give the explosions a moment before calling the match
+    let fell = false;
+    for (let t = 0; t < G.teams; t++) if (stranded(t) && fall(t)) fell = true;
+    if (fell) { G.endT = FALL_SECONDS; return; }
     const left = Array.from({ length: G.teams }, (_, t) => t).filter(alive);
     if (left.length <= 1) { G.over = true; G.winner = left[0] ?? -1; }
   }

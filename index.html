@@ -31,6 +31,7 @@
     <canvas class="game-overlay" aria-hidden="true"></canvas>
 
     <header class="topbar ui-panel">
+      <b class="topbar-team" hidden></b>
       <span class="ui-resource"><i class="ui-resource-icon ui-resource-icon--ore" aria-hidden="true"></i><span class="ui-resource-label">Ore</span> <b class="ui-resource-value topbar-credits">0</b></span>
       <span class="ui-resource topbar-wood-box" title="Wood. Workers chop it at trees and carry it to a Lumber Mill."><i class="ui-resource-icon ui-resource-icon--wood" aria-hidden="true"></i><span class="ui-resource-label">Wood</span> <b class="ui-resource-value topbar-wood">0</b></span>
       <span class="ui-resource topbar-oil-box" title="Oil. Oil Derricks pump it from the Industrial age on."><i class="ui-resource-icon ui-resource-icon--oil" aria-hidden="true"></i><span class="ui-resource-label">Oil</span> <b class="ui-resource-value topbar-oil">0</b></span>
@@ -41,9 +42,11 @@
       <span class="topbar-time" aria-label="Game time">0:00</span>
       <button type="button" class="ui-button ui-button--small topbar-speed" title="Game speed ([ slower, ] faster)" aria-label="Game speed">1x</button>
       <button type="button" class="ui-button ui-button--small topbar-pause" title="Pause (P)" aria-label="Pause"></button>
+      <button type="button" class="ui-button ui-button--small topbar-fullscreen" title="Full screen" aria-label="Full screen"></button>
       <button type="button" class="ui-button ui-button--small topbar-resign" hidden>Surrender</button>
     </header>
 
+    <div class="army-bar" role="img" aria-label="Each side's share of the armies" hidden></div>
     <p class="game-message" role="status" aria-live="polite"></p>
     <nav class="touch-bar" aria-label="Touch selection">
       <button type="button" class="touch-bar-seg touch-bar-box" aria-label="Select mode" aria-pressed="false" title="Select mode: drag a finger to draw a selection box, tap units to add or remove them"><svg class="touch-bar-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/><path d="M10 9l8 4-3.4 1.2L16.5 18l-1.6.8-1.9-3.8L10 17z" fill="currentColor"/></svg></button>
@@ -52,7 +55,14 @@
       <button type="button" class="touch-bar-seg touch-bar-follow" aria-label="Follow unit" aria-pressed="false" title="Keep the camera on the selected unit as it moves; drag the map to let go"><svg class="touch-bar-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12c2.6-4.4 6-6.5 10-6.5s7.4 2.1 10 6.5c-2.6 4.4-6 6.5-10 6.5S4.6 16.4 2 12z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg></button>
       <button type="button" class="touch-bar-seg touch-bar-clear" aria-label="Clear selection" title="Select nothing"><svg class="touch-bar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </nav>
-    <p class="game-paused ui-panel" hidden>Paused <span class="game-id"></span></p>
+    <section class="game-paused ui-panel" aria-label="Paused" hidden>
+      <h2 class="game-paused-title">Paused</h2>
+      <div class="game-paused-actions">
+        <button type="button" class="ui-button game-paused-resume">Resume</button>
+        <button type="button" class="ui-button ui-button--secondary game-paused-new">New Game</button>
+      </div>
+      <span class="game-id"></span>
+    </section>
 
     <aside class="sidebar ui-panel" aria-label="Command sidebar">
       <canvas class="sidebar-minimap" width="160" height="160" aria-label="Radar: click or tap to move the view"></canvas>

@@ -11,6 +11,7 @@ import { applyCommand, parseCommand } from './command.ts';
 import { BUILDING } from '../data/building.ts';
 import { MEDIC_HEAL, WORKER_BUILD, WORKER_HEAL } from '../data/unit.ts';
 import { mulberry32 } from '../util/math.ts';
+import { IDLE_GRACE } from './autogather.ts';
 
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
@@ -100,10 +101,12 @@ describe('Workers', () => {
   it('repair a damaged building, paying ore for it', () => {
     const b = addBuilding('power', 0, 16, 50, false);
     b.hp = b.maxhp * 0.5;
+    for (const e of G.ents.filter((e) => e.type === 'worker')) kill(e); // the starting pair would bank ore meanwhile
     const w = addUnit('worker', 0, 19 * TS, 51 * TS), ore = G.credits[0];
     run(4);
     expect(w.order?.t).toBe('heal');
-    run(30);
+    // stop once it's mended: idle again, the Worker goes off to dig ore
+    for (let i = 0; i < 30 / STEP && b.hp < b.maxhp; i++) update(STEP);
     expect(b.hp).toBe(b.maxhp);
     expect(b.repairing).toBeFalsy(); // the Workers did it, not the Repair button
     expect(G.credits[0]).toBeLessThan(ore);
@@ -161,11 +164,12 @@ describe('Fix, then harvest', () => {
   it('sends Workers to fix everything damaged further off, then back to the ore', () => {
     addBuilding('power', 0, 12, 50, false);
     advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
-    const far = addBuilding('barracks', 0, 22, 50, false), wounded = addUnit('swordsman', 0, 21 * TS, 47 * TS);
+    const far = addBuilding('barracks', 0, 20, 50, false), wounded = addUnit('swordsman', 0, 19 * TS, 47 * TS);
     far.hp = far.maxhp * 0.5;
     wounded.hp = 20;
     const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
-    run(3);
+    run(IDLE_GRACE);
+    for (let i = 0; i < 1 / STEP && !w.order; i++) update(STEP); // idle a moment, then it goes to gather
     expect(w.order?.t).toBe('harvest'); // too far off to notice by itself
     const cmd = parseCommand({ c: 'tend', ids: [w.id] });
     expect(cmd).toEqual({ c: 'tend', ids: [w.id] });

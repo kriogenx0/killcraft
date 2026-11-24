@@ -29,6 +29,9 @@ function openField(): void {
   G.warpTeam.fill(-1);
   addBuilding('power', 0, 1, 61, false);
   addBuilding('power', 1, 61, 1, false);
+  // and a parked unit, so neither side counts as unable to recover (world.ts stranded)
+  addUnit('harvester', 0, 4 * TS, 62 * TS);
+  addUnit('harvester', 1, 62 * TS, 4 * TS);
   rebuildBlk();
 }
 

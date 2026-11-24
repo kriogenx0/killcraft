@@ -23,8 +23,9 @@ import { mountLobby, storedName } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
 import { mountSetup } from '../setup/setup_view.ts';
-import { BUILDING, isWall, type BldType } from '../../data/building.ts';
-import { canPlace } from '../../game/building.ts';
+import { autoFullscreen, mountFullscreenButton } from './fullscreen.ts';
+import { BUILDING, type BldType } from '../../data/building.ts';
+import { canPlaceType } from '../../game/building.ts';
 import { addBuilding, addUnit } from '../../game/entity.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { initTerrain } from './render/terrain.ts';
@@ -33,6 +34,7 @@ import { drawMinimap, initFog } from './render/minimap.ts';
 import { moodFor } from './render3d/mood.ts';
 import { initScene, setMood, renderScene, resizeScene, updateCamera, viewFootprint } from './render3d/scene.ts';
 import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
+import { updateCows3d } from './render3d/cows3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { initBurning, updateBurning } from './render3d/burn3d.ts';
@@ -120,7 +122,7 @@ export function mountGameView(root: HTMLElement): void {
   initHud({
     credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), aether: must(root, '.topbar-aether'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
     speed: speedBtn, pause: pauseBtn,
-    details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'),
+    details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'), army: must(root, '.army-bar'), team: must(root, '.topbar-team'),
   });
   initSidebar(must(root, '.build-list--structure'), must(root, '.build-list--unit'), must(root, '.game-tooltip'));
   initInput(canvas, minimap);
@@ -169,6 +171,7 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(0);
     Object.assign(V, { team: 0, online: false, sel: [], mode: null, markers: [], pings: [], paused: false, speed: s.speed, started: true });
+    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.(); // keys go to the game, not a closed dialog's field
     home(0);
     setSelection([]);
@@ -198,6 +201,7 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(g.view.team);
     Object.assign(V, { team: g.view.team, online: false, sel: [], mode: null, markers: [], pings: [], paused: g.view.paused, speed: g.view.speed, started: true });
+    autoFullscreen();
     Object.assign(V.cam, g.view.cam);
     clampCam();
     setSelection([]);
@@ -286,6 +290,7 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(m.team);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
+    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.(); // the lobby's name box would swallow every key
     root.classList.add('view-game--online');
     resignBtn.hidden = false;
@@ -298,15 +303,42 @@ export function mountGameView(root: HTMLElement): void {
 
   const lobby = mountLobby(must(root, '.view-lobby'), { onStart: startOnline, onBack: () => openModal(startModal) });
 
-  const setup = mountSetup(must(root, '.view-setup'), { onStart: (s, watch) => startSolo(watch, s), onBack: () => openModal(startModal) });
+  const setupEl = must<HTMLElement>(root, '.view-setup');
+  const setup = mountSetup(setupEl, {
+    onStart: (s, watch) => {
+      // a new game from the pause menu replaces the paused one: drop its save and its address
+      if (V.started && !V.online) {
+        const old = root.dataset.gameId;
+        if (old) void forgetGame(old).catch(() => {});
+        delete root.dataset.gameId;
+        leaveGameUrl();
+      }
+      startSolo(watch, s);
+    },
+    // Back from the pause menu's New Game returns to the paused game, otherwise to the main menu
+    onBack: () => { if (!(V.started && !V.online && !G.over)) openModal(startModal); },
+  });
+  must(root, '.game-paused-resume').addEventListener('click', () => { V.paused = false; });
+  must(root, '.game-paused-new').addEventListener('click', () => { V.paused = true; setup.open(false); });
 
   must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
   must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
-  must(root, '.game-start-online').addEventListener('click', () => { closeModal(startModal); lobby.open(); });
+  const onlineBtn = must<HTMLButtonElement>(root, '.game-start-online');
+  onlineBtn.addEventListener('click', () => { closeModal(startModal); lobby.open(); });
+  // with no connection only solo play works (the game itself is cached by the service worker)
+  const showConnection = () => {
+    onlineBtn.disabled = !navigator.onLine;
+    onlineBtn.textContent = navigator.onLine ? 'Play Online' : 'Play Online (offline)';
+    onlineBtn.title = navigator.onLine ? '' : 'No internet connection. You can still play against the computer.';
+  };
+  showConnection();
+  window.addEventListener('online', showConnection);
+  window.addEventListener('offline', showConnection);
   againBtn.addEventListener('click', () => { location.href = V.online ? '/?online' : '/'; });
   // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
   window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });
   pauseBtn.addEventListener('click', () => { V.paused = !V.paused; });
+  mountFullscreenButton(must<HTMLButtonElement>(root, '.topbar-fullscreen'));
   speedBtn.addEventListener('click', () => { V.speed = V.speed >= 4 ? 0.5 : V.speed * 2; });
   let resignArmed = 0;
   resignBtn.addEventListener('click', () => {
@@ -348,7 +380,7 @@ export function mountGameView(root: HTMLElement): void {
       if (n >= MAX_STEPS_PER_FRAME) acc = 0;
       ageMarkers(dt * V.speed);
     }
-    const showPaused = V.started && V.paused && !G.over && !V.online;
+    const showPaused = V.started && V.paused && !G.over && !V.online && !setupEl.classList.contains('ui-modal--open');
     if (pausedBox.hidden === showPaused) pausedBox.hidden = !showPaused;
     if (!V.online && V.started && !G.over) {
       // real time, not game time: a slow machine still saves every few seconds
@@ -365,13 +397,14 @@ export function mountGameView(root: HTMLElement): void {
     scrollCamera(dt);
     clampCam();
     updateFollow(dt);
-    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team, false, isWall(V.mode.type)), (t) => BUILDING[t as BldType].size);
+    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlaceType(V.mode.type, tx, ty, V.team), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
     oreT -= dt;
     if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); }
     try {
       updateCamera();
       syncEntities(dt);
+      updateCows3d();
       updateFx3d();
       updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);

@@ -1040,38 +1040,50 @@ function engineWorks(team: number): Model {
   return { root, parts, height: 1.45 };
 }
 
-/** Oil Derrick: a pump jack whose walking beam nods (the `pump` part), with a storage tank. */
+/**
+ * Oil Derrick: a big pump jack that fills most of its pad and stands well above the buildings
+ * around it. Its walking beam nods (the `pump` part) on a tall A-frame, with a heavy horse head
+ * over the wellhead and a counterweight over the gearbox. A small storage tank sits at the back.
+ */
 function derrick(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
   root.add(pad(2));
   kerb(root, 2);
-  // storage tank with a team band and a ladder
-  root.add(mesh(cyl(0.3, 0.3, 0.7, 18), M.steel(), 0.5, 0.41, -0.45));
-  root.add(mesh(cyl(0.31, 0.31, 0.08, 18), tm, 0.5, 0.55, -0.45));
-  root.add(mesh(cyl(0.31, 0.29, 0.06, 18), M.darkSteel(), 0.5, 0.79, -0.45));
-  root.add(mesh(box(0.06, 0.7, 0.02), M.darkSteel(), 0.5, 0.41, -0.14));
-  // samson post (A-frame)
-  for (const z of [-0.14, 0.14]) {
-    root.add(rod([-0.42, 0.06, z], [-0.25, 0.72, 0], 0.025, M.darkSteel(), 6));
-    root.add(rod([-0.08, 0.06, z], [-0.25, 0.72, 0], 0.025, M.darkSteel(), 6));
+  // storage tank with a team band and a ladder, tucked into the back corner
+  root.add(mesh(cyl(0.24, 0.24, 0.6, 18), M.steel(), 0.66, 0.36, -0.66));
+  root.add(mesh(cyl(0.25, 0.25, 0.07, 18), tm, 0.66, 0.48, -0.66));
+  root.add(mesh(cyl(0.25, 0.23, 0.05, 18), M.darkSteel(), 0.66, 0.68, -0.66));
+  root.add(mesh(box(0.05, 0.6, 0.02), M.darkSteel(), 0.66, 0.36, -0.41));
+  // skid the jack stands on
+  root.add(mesh(box(1.9, 0.08, 0.5), M.darkSteel(), -0.02, 0.1, 0.15));
+  // samson post: a tall braced A-frame
+  const px = -0.06, top = 1.42;
+  for (const z of [-0.04, 0.34]) {
+    root.add(rod([px - 0.38, 0.12, z], [px, top, 0.15], 0.045, M.darkSteel(), 6));
+    root.add(rod([px + 0.38, 0.12, z], [px, top, 0.15], 0.045, M.darkSteel(), 6));
+    root.add(rod([px - 0.26, 0.55, z], [px + 0.26, 0.55, z], 0.025, M.darkSteel(), 6));
   }
+  root.add(mesh(box(0.14, 0.1, 0.46), M.darkSteel(), px, top, 0.15));
   // walking beam, horse head and counterweight, pivoting on the post
-  const pump = group(-0.25, 0.75, 0,
-    mesh(box(1.1, 0.08, 0.08), M.hazard(), 0.05, 0, 0),
-    mesh(box(0.1, 0.28, 0.1), M.hazard(), -0.52, -0.08, 0),
-    mesh(cyl(0.13, 0.13, 0.06, 14), M.darkSteel(), 0.5, -0.12, 0).rotateX(Math.PI / 2),
-    mesh(box(0.06, 0.06, 0.12), M.dark(), 0, 0, 0));
+  const pump = group(px, top + 0.07, 0.15,
+    mesh(box(1.66, 0.14, 0.13), M.hazard(), 0, 0, 0),
+    mesh(box(0.2, 0.5, 0.18), M.hazard(), -0.78, -0.12, 0),
+    mesh(box(0.08, 0.36, 0.18), M.hazard(), -0.9, -0.12, 0),
+    mesh(cyl(0.22, 0.22, 0.09, 18), M.darkSteel(), 0.76, -0.22, 0).rotateX(Math.PI / 2),
+    mesh(box(0.1, 0.1, 0.2), M.dark(), 0, 0, 0),
+    mesh(box(0.05, 0.5, 0.05), M.darkSteel(), 0.76, -0.46, 0));
   parts.pump = pump;
   root.add(pump);
   // gearbox and motor under the counterweight
-  root.add(mesh(box(0.24, 0.24, 0.22), M.darkSteel(), 0.25, 0.18, 0));
-  root.add(mesh(box(0.16, 0.14, 0.16), tm, 0.25, 0.37, 0));
-  // wellhead, polished rod and the pipe to the tank
-  root.add(mesh(cyl(0.06, 0.08, 0.14, 10), M.darkSteel(), -0.77, 0.13, 0));
-  root.add(mesh(cyl(0.012, 0.012, 0.5, 6), M.steel(), -0.77, 0.4, 0));
-  root.add(rod([-0.77, 0.1, 0], [0.5, 0.1, -0.15], 0.03, M.darkSteel(), 8));
-  root.add(mesh(box(0.3, 0.12, 0.2), M.darkSteel(), 0.55, 0.12, 0.5));
-  return { root, parts, height: 1.0 };
+  root.add(mesh(box(0.36, 0.42, 0.34), M.darkSteel(), 0.7, 0.35, 0.15));
+  root.add(mesh(cyl(0.12, 0.12, 0.38, 14), M.steel(), 0.7, 0.42, 0.15).rotateX(Math.PI / 2));
+  root.add(mesh(box(0.26, 0.2, 0.24), tm, 0.7, 0.66, 0.15));
+  // wellhead under the horse head, the polished rod, and the pipe to the tank
+  root.add(mesh(cyl(0.08, 0.11, 0.24, 10), M.darkSteel(), -0.96, 0.18, 0.15));
+  root.add(mesh(cyl(0.09, 0.09, 0.05, 10), tm, -0.96, 0.3, 0.15));
+  root.add(mesh(cyl(0.016, 0.016, 0.8, 6), M.steel(), -0.96, 0.7, 0.15));
+  root.add(rod([-0.96, 0.12, 0.15], [0.66, 0.12, -0.42], 0.035, M.darkSteel(), 8));
+  return { root, parts, height: 1.75 };
 }
 
 /** A Hospital is a barracks-sized ward with a red-cross sign out front. */

@@ -1,5 +1,5 @@
 // How spells and elements show on a unit (game/spells.ts): a coloured glow over its model, a block
-// of ice around it while frozen, and flames, fumes, drips or sparks rising off it.
+// of ice around it while frozen, and fumes, drips or sparks rising off it.
 import * as THREE from 'three';
 import { altOf, type Ent } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
@@ -36,7 +36,7 @@ const iceGeo = new THREE.IcosahedronGeometry(1, 1);
 const iceMat = new THREE.MeshStandardMaterial({ color: '#cff4ff', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.45, emissive: '#5ac8ff', emissiveIntensity: 0.35, flatShading: true, depthWrite: false });
 
 /** Particles a second for each effect. */
-const RATE = { burning: 14, poisoned: 6, sludge: 4, wet: 3, lust: 5, frozen: 2 };
+const RATE = { poisoned: 6, sludge: 4, wet: 3, lust: 5, frozen: 2 };
 
 const chance = (perSec: number, dt: number): boolean => Math.random() < perSec * dt;
 
@@ -59,7 +59,7 @@ export function statusFx(m: Model, e: Ent, dt: number): void {
   }
   if (V.paused) return;
   const z = altOf(e), jx = () => e.x + (Math.random() - 0.5) * 10, jy = () => e.y + (Math.random() - 0.5) * 6;
-  if (burning(e) && chance(RATE.burning, dt)) part('fire', jx(), jy() - 4, { z: z + 6 + Math.random() * 6, vz: 30 + Math.random() * 20, max: 0.45 + Math.random() * 0.3, size: 3 + Math.random() * 2 });
+  // flames on burning units: burn3d.ts
   if (poisoned(e) && chance(RATE.poisoned, dt)) part('smoke', jx(), jy() - 4, { z: z + 8, vz: 10, max: 1, size: 3, soft: true, col: '#8adf50' });
   if (sludged(e) && chance(RATE.sludge, dt)) part('chip', jx(), jy(), { z: z + 6, vz: -10, max: 0.6, size: 2, col: '#2a1a08' });
   if (wet(e) && chance(RATE.wet, dt)) part('spark', jx(), jy(), { z: z + 10, vz: -30, max: 0.4, size: 1.2, col: '#80c8ff' });

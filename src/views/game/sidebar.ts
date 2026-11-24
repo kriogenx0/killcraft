@@ -1,4 +1,4 @@
-// The production sidebar: one column of structures, one of units. Cells are created when the
+// The production sidebar: Buildings and Units tabs, each a list of items. Cells are created when the
 // available list changes and updated in place every frame, so clicks are never lost.
 import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
@@ -24,7 +24,7 @@ interface Cell {
 }
 
 let structureList: HTMLElement, unitList: HTMLElement;
-/** Phones show one list at a time, picked with the Buildings / Units tabs. */
+/** One list shows at a time, picked with the Buildings / Units tabs. */
 type Tab = 'structure' | 'unit';
 let tab: Tab = 'structure', lastProducer: BldType | null = null;
 let tabs: Record<Tab, { btn: HTMLElement; busy: HTMLElement }> | null = null;

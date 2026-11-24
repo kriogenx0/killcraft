@@ -79,6 +79,16 @@ $sidebar-width: 248px;
     }
   }
 
+  // spectating: the side whose stock is showing; nothing until something is selected
+  .topbar-team {
+    padding: 0 $space-2;
+    border-radius: 3px;
+  }
+
+  .topbar .topbar-off {
+    display: none;
+  }
+
   .topbar .topbar-spacer {
     flex: 1;
   }
@@ -90,7 +100,7 @@ $sidebar-width: 248px;
   // shown while a solo game is paused, with the game's ID
   .game-paused {
     position: absolute;
-    bottom: $space-5;
+    top: 50%;
     left: calc((100% - #{$sidebar-width}) / 2);
     z-index: 5;
     display: flex;
@@ -102,10 +112,26 @@ $sidebar-width: 248px;
     font-size: $font-xl;
     color: var(--color-gold);
     text-align: center;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
 
     &[hidden] {
       display: none;
+    }
+
+    .game-paused-title {
+      margin: 0;
+      font-size: $font-xl;
+    }
+
+    // Resume and New Game, stacked like the main menu
+    .game-paused-actions {
+      display: flex;
+      flex-direction: column;
+      gap: $space-2;
+      align-self: stretch;
+      width: 220px;
+      max-width: 100%;
+      margin: $space-1 auto;
     }
 
     .game-id {
@@ -120,6 +146,51 @@ $sidebar-width: 248px;
     font-size: $font-sm;
     overflow-wrap: anywhere;
     user-select: text;
+  }
+
+  // once beaten, or while watching: each side's share of the armies, under the top bar
+  .army-bar {
+    position: absolute;
+    top: 32px + $space-1;
+    right: $sidebar-width + $gutter;
+    left: $gutter;
+    z-index: 5;
+    display: flex;
+    height: 18px;
+    overflow: hidden;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    color: #fff;
+    text-shadow: 0 0 3px #000, 0 0 2px #000;
+    font-variant-numeric: tabular-nums;
+    pointer-events: auto;
+    user-select: none;
+    border: 1px solid rgb(0 0 0 / 60%);
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgb(0 0 0 / 50%);
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .army-bar-seg {
+    flex: 0 1 0;
+    min-width: 2px;
+    overflow: hidden;
+    text-align: center;
+    white-space: nowrap;
+    transition: flex-grow 0.6s ease;
+
+    & + & {
+      border-left: 1px solid rgb(0 0 0 / 45%);
+    }
+  }
+
+  // move the messages down out of the bar's way
+  .army-bar:not([hidden]) + .game-message {
+    margin-top: 20px;
   }
 
   .game-message {
@@ -206,6 +277,10 @@ $sidebar-width: 248px;
     .game-message {
       top: 60px;
     }
+
+    .army-bar {
+      top: 48px + $space-1;
+    }
   }
 
   // command sidebar, docked right
@@ -261,28 +336,92 @@ $sidebar-width: 248px;
     }
   }
 
+  // production: Buildings / Units tabs, then the chosen tab's items in two columns
   .sidebar-build {
-    display: grid;
+    display: flex;
     flex: 1;
-    grid-template-columns: 1fr 1fr;
+    flex-direction: column;
     gap: $space-2;
-    align-content: start;
     min-height: 0;
     overflow-y: auto;
   }
 
-  // Buildings / Units tabs: phones only (wide screens show both columns side by side)
   .build-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex: none;
+    overflow: hidden;
+    border: 2px solid var(--color-rim);
+    border-radius: $radius;
+  }
+
+  .build-tab {
+    position: relative;
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    padding: 0;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    background: var(--color-button-bottom);
+    border: 0;
+    appearance: none;
+
+    & + .build-tab {
+      border-left: 1px solid var(--color-rim);
+    }
+
+    &[aria-selected='true'] {
+      color: var(--color-button-text);
+      background: linear-gradient(var(--color-rim-hover), var(--color-button-top));
+      box-shadow: inset 0 0 0 1px var(--color-gold);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--color-focus);
+    }
+  }
+
+  .build-tab-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  // something under way on the other tab
+  .build-tab-busy {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 22px);
+    width: 8px;
+    height: 8px;
+    background: var(--color-gold);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px #000;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .sidebar-build--structure .build-list--unit,
+  .sidebar-build--unit .build-list--structure {
     display: none;
   }
 
   .build-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: $space-1;
+    align-content: start;
   }
 
   .build-empty {
+    grid-column: 1 / -1;
     font-size: $font-xs;
     color: var(--color-text-muted);
   }
@@ -474,11 +613,21 @@ $sidebar-width: 248px;
       right: $gutter;
     }
 
+    .army-bar {
+      top: 48px + $space-1;
+      right: $space-2;
+      left: $space-2;
+    }
+
     .game-paused {
       top: 56px;
-      bottom: auto;
       left: 50%;
+      transform: translateX(-50%);
       max-width: calc(100% - 2 * #{$gutter});
+    }
+
+    .army-bar:not([hidden]) ~ .game-paused {
+      top: 80px;
     }
 
     .ui-resource-label {
@@ -530,73 +679,6 @@ $sidebar-width: 248px;
       gap: $space-1;
       min-width: 0;
       overflow: visible;
-    }
-
-    .build-tabs {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      display: flex;
-      flex: none;
-      overflow: hidden;
-      border: 2px solid var(--color-rim);
-      border-radius: $radius;
-    }
-
-    .build-tab {
-      position: relative;
-      display: flex;
-      flex: 1;
-      align-items: center;
-      justify-content: center;
-      height: 40px;
-      padding: 0;
-      color: var(--color-text-muted);
-      cursor: pointer;
-      background: var(--color-button-bottom);
-      border: 0;
-      appearance: none;
-
-      & + .build-tab {
-        border-left: 1px solid var(--color-rim);
-      }
-
-      &[aria-selected='true'] {
-        color: var(--color-button-text);
-        background: linear-gradient(var(--color-rim-hover), var(--color-button-top));
-        box-shadow: inset 0 0 0 1px var(--color-gold);
-      }
-
-      &:focus-visible {
-        outline: none;
-        box-shadow: inset 0 0 0 2px var(--color-focus);
-      }
-    }
-
-    .build-tab-icon {
-      width: 24px;
-      height: 24px;
-    }
-
-    // something under way on the other tab
-    .build-tab-busy {
-      position: absolute;
-      top: 6px;
-      right: calc(50% - 22px);
-      width: 8px;
-      height: 8px;
-      background: var(--color-gold);
-      border-radius: 50%;
-      box-shadow: 0 0 0 1px #000;
-
-      &[hidden] {
-        display: none;
-      }
-    }
-
-    .sidebar-build--structure .build-list--unit,
-    .sidebar-build--unit .build-list--structure {
-      display: none;
     }
 
     .build-list {
