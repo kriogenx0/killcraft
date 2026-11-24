@@ -7,7 +7,7 @@
 // pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
 // only orders what it can pay for now. Production runs at half speed on low power.
 import { aiPace } from './ai.ts';
-import { LEADER_SPEED } from '../data/economy.ts';
+import { ARMY_SLOW_FROM, ARMY_SLOW_STEP, LEADER_SPEED } from '../data/economy.ts';
 import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
@@ -306,8 +306,20 @@ function advance(team: number, type: TechType): void {
   say(team, `${ERA[G.era[team]].name} age reached`);
 }
 
+/** A unit that fights (not a Worker, Harvester or Medic): these count toward the army and train slower as it grows. */
+export const isFighter = (t: UnitType): boolean => !!UNIT[t].weapon && t !== 'worker' && !UNIT[t].haul;
+
+/** Fighting units a side has on the field. */
+export const armySize = (team: number): number => G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && isFighter(e.type as UnitType)).length;
+
+/** How many times longer a new fighter takes to train for this side (1 up to ARMY_SLOW_FROM fighters). */
+export function armySlow(team: number, size = armySize(team)): number {
+  return 1 + Math.max(0, size - ARMY_SLOW_FROM) * ARMY_SLOW_STEP;
+}
+
 export function updProduction(team: number, dt: number): void {
   const speed = (lowPower(team) ? 0.5 : 1) * (team === G.leader ? LEADER_SPEED : 1) * aiPace(team);
+  let slow = 0; // worked out only when a fighter is in training
   payWaiting(team);
   for (const line of LINES) {
     const q = G.prod[team][line], it = q[0];
@@ -316,7 +328,8 @@ export function updProduction(team: number, dt: number): void {
     // gone, or only a yard left, which trains nothing but Workers: refunded
     if (!at || (at.type === 'yard' && line === 'infantry' && !YARD_INFANTRY.includes(it.type as UnitType))) { cancel(team, it.type); continue; }
     if (!it.paid) continue; // waiting until the side can pay for it
-    it.prog += Math.min((speed * refitBonus(at) * dt) / timeOf(it.type), 1 - it.prog);
+    const big = isUnitType(it.type) && isFighter(it.type) ? (slow ||= armySlow(team)) : 1;
+    it.prog += Math.min((speed * refitBonus(at) * dt) / (timeOf(it.type) * big), 1 - it.prog);
     if (it.prog < 1 - 1e-9) continue;
     if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }
     else { q.shift(); deliver(team, it.type as UnitType); }

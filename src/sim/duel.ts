@@ -52,6 +52,8 @@ function arena(seed: number): void {
   rebuildBlk();
   // plenty of power far off, so defenses fire at full rate
   for (let t = 0; t < 2; t++) for (let i = 0; i < 4; i++) addBuilding('power', t, 2 + i * 3, t ? MH - 4 : 2, false);
+  // and a Town Hall each, so neither side counts as beaten (world.ts stranded) while it still fights
+  for (let t = 0; t < 2; t++) addBuilding('yard', t, MW - 5, t ? MH - 5 : 2, false);
   rebuildBlk();
 }
 

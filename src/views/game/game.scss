@@ -431,6 +431,10 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  .hud-warn {
+    color: var(--color-gold);
+  }
+
   .hud-desc {
     margin: 2px 0 $space-1;
     font-size: $font-sm;

@@ -1,6 +1,6 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
 import { G, STANCES, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
-import { UNIT, type UnitType } from '../../data/unit.ts';
+import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
@@ -8,7 +8,7 @@ import { TEND_RADIUS } from '../../game/unit.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { available, eraOf, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, eraOf, isFighter, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -303,7 +303,10 @@ export function productionDetails(e: Ent): string {
   const head = queue[0], need = !head.paid && waitingFor(e.team, head.type);
   const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
   const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
-  return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}`;
+  // a big army trains slower (ARMY_SLOW_FROM)
+  const size = armySize(e.team), slow = isUnitType(head.type) && isFighter(head.type) ? armySlow(e.team, size) : 1;
+  const slowNote = slow > 1 ? `<p class="hud-stats hud-warn">Army of ${size}: new troops take ${Math.round((slow - 1) * 100)}% longer</p>` : '';
+  return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}${slowNote}`;
 }
 
 function detailsMarkup(s: Ent[]): string {

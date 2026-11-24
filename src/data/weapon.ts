@@ -63,7 +63,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   ballista: { dmg: 20, range: 5.5, cd: 1.5, proj: 'bolt', speed: 560, splash: 0, vs: { none: 1, light: 1, heavy: 0.35, building: 0.3, air: 0.8 } },
   catapult: { dmg: 60, range: 7.5, cd: 3.5, proj: 'boulder', speed: 230, splash: 22, vs: { none: 0.9, light: 0.8, heavy: 0.6, building: 2.2, air: 0 } },
   // air war: bombs dropped from above, aircraft guns and missiles, and flak to bring them down
-  bomb: { dmg: 32, range: 0.7, cd: 3.5, proj: 'shell', speed: 260, splash: 18, vs: { none: 0.8, light: 0.8, heavy: 0.6, building: 1.2, air: 0 } },
+  bomb: { dmg: 38, range: 0.7, cd: 3.5, proj: 'shell', speed: 260, splash: 18, vs: { none: 0.8, light: 0.8, heavy: 0.6, building: 1.2, air: 0 } },
   planegun: { dmg: 8, range: 4, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.6, heavy: 0.25, building: 0.3, air: 1.2 } },
   missile: { dmg: 42, range: 5.5, cd: 1.8, proj: 'rocket', speed: 240, splash: 20, vs: { none: 0.25, light: 1, heavy: 1.1, building: 0.6, air: 0.7 } },
   flak: { dmg: 34, range: 7.5, cd: 1.1, proj: 'shell', speed: 760, splash: 0, vs: { none: 0, light: 0, heavy: 0, building: 0, air: 1.5 } },
