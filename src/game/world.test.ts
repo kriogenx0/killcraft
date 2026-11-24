@@ -19,6 +19,9 @@ import { BUILDING, SCRAP_SHARE } from '../data/building.ts';
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { mulberry32 } from '../util/math.ts';
 
+// these tests time production exactly: switch off the leader's handicaps (one side always ends up far ahead here)
+vi.mock('../data/economy.ts', async (orig) => ({ ...(await orig<typeof import('../data/economy.ts')>()), LEADER_SPEED: 1, LEADER_PLANTS: 1 }));
+
 function run(seconds: number): void {
   for (let i = 0; i < seconds / STEP && !G.over; i++) update(STEP);
 }
@@ -116,8 +119,6 @@ describe('production', () => {
 
   it('finds oil, builds the Engine Works to reach World War, and pays oil for Modern', () => {
     addBuilding('power', 0, 10, 50, false);
-    // side 0 ends up far ahead, so it's the leader and draws extra power (LEADER_POWER): a second plant keeps it powered
-    addBuilding('power', 0, 10, 53, false);
     addBuilding('barracks', 0, 13, 50, false);
     addBuilding('refinery', 0, 6, 46, false);
     expect(available(0, 'structure')).toContain('derrick');

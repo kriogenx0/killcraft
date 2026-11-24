@@ -44,13 +44,13 @@ export const SALVAGE_SHARE = 0.3;
  */
 export const BOUNTY_LEAD = 1.3;
 export const BOUNTY_SHARE = 0.5;
-/** The leader's buildings draw this much more power, so it needs more Power Plants (and goes short when they fall). */
-export const LEADER_POWER = 1.5;
+/** The leader's Power Plants make this share of their power, so it needs more of them (and goes short when they fall). */
+export const LEADER_PLANTS = 0.5;
 /**
  * A big army trains slower (Alex's rule): above ARMY_SLOW_FROM fighting units (Workers, Harvesters and
  * Medics don't count), each one more adds ARMY_SLOW_STEP to the time a new fighter takes.
  */
 export const ARMY_SLOW_FROM = 50;
 export const ARMY_SLOW_STEP = 0.02;
-/** The leader's factories, Barracks and building sites work at this speed. */
-export const LEADER_SPEED = 1;
+/** The leader's factories, Barracks, research and building sites work at this speed. */
+export const LEADER_SPEED = 0.75;
