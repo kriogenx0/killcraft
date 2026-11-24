@@ -138,6 +138,13 @@ export function makeIcons(team = 0): void {
     g.fillStyle = '#f0f0e8'; g.strokeStyle = '#000'; g.lineWidth = 2;
     g.beginPath(); g.moveTo(-7, -14); g.lineTo(13, -10); g.lineTo(9, -4); g.lineTo(13, 2); g.lineTo(-7, -1); g.closePath(); g.fill(); g.stroke();
   });
+  ICON.follow = cmd((g) => {
+    // an eye: keep watching this one
+    g.fillStyle = '#f0f0e8'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(-16, 0); g.quadraticCurveTo(0, -17, 16, 0); g.quadraticCurveTo(0, 17, -16, 0); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#4a9ad8'; g.beginPath(); g.arc(0, 0, 6.5, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#000'; g.beginPath(); g.arc(0, 0, 3, 0, Math.PI * 2); g.fill();
+  });
   ICON.cancel = cmd((g) => { oline(g, -11, -11, 11, 11, 4, '#e05040'); oline(g, 11, -11, -11, 11, 4, '#e05040'); });
   ICON.repair = cmd((g) => {
     g.rotate(-Math.PI / 4);

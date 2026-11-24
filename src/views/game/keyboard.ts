@@ -51,6 +51,12 @@ export function isTyping(target: unknown): boolean {
 /** Keys that work whatever is selected: P pauses, H selects the Town Hall and looks at it. */
 export const GLOBAL_KEYS = { pause: 'P', home: 'H' } as const;
 
+/**
+ * Follow the selected unit with the camera. Every letter is some building's or unit's key, so it's
+ * Shift+F; plain F works too while spectating, where nothing else uses it.
+ */
+export const FOLLOW_KEY = 'Shift+F';
+
 /** Letters no command or production hotkey may take: the camera keys and the global keys. */
 export const RESERVED_KEYS: ReadonlySet<string> = new Set([
   ...Object.keys(SCROLL_KEYS), ...Object.keys(ROTATE_KEYS), ...Object.values(GLOBAL_KEYS).map((k) => k.toLowerCase()),
@@ -80,7 +86,8 @@ export function assignKeys(items: readonly Keyed[], taken: Iterable<string> = []
 }
 
 /** What a key reads as on a button: "Delete" is "Del", "Escape" is "Esc". */
-export const keyLabel = (k: string): string => ({ delete: 'Del', escape: 'Esc', backspace: 'Del' } as Record<string, string>)[k.toLowerCase()] ?? k;
+export const keyLabel = (k: string): string =>
+  /^shift\+/i.test(k) ? `⇧${k.slice(6)}` : ({ delete: 'Del', escape: 'Esc', backspace: 'Del' } as Record<string, string>)[k.toLowerCase()] ?? k;
 
 /** The key a keydown means for hotkeys: Mac keyboards send Backspace from the key labelled delete. */
 export const normalizeKey = (k: string): string => {
