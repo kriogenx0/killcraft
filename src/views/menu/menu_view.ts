@@ -6,7 +6,8 @@ import type { LobbySummary, ServerMsg } from '../../net/protocol.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { liveText, mountLobby } from '../lobby/lobby_view.ts';
 import { mountSetup } from '../setup/setup_view.ts';
-import { gameIdFromUrl } from '../game/resume.ts';
+import { gameIdFromUrl, rememberOnline } from '../game/resume.ts';
+import { takeUpdate } from '../../pwa/register.ts';
 import type { GameBoot, GameView } from '../game/game_view.ts';
 
 /** how often the lobby summary is fetched while the menu is showing */
@@ -60,8 +61,11 @@ export function mountMenu(root: HTMLElement): Promise<void> {
     return mounting;
   };
 
-  /** Run `start` on the game view, loading it first if need be. */
-  const toGame = (start: (g: GameView) => void) => {
+  /**
+   * Run `start` on the game view, loading it first if need be. If the game's code can't be loaded (a
+   * deploy replaced it under this page), `rescue` gets there on the new version instead, if it can.
+   */
+  const toGame = (start: (g: GameView) => void, rescue?: () => boolean) => {
     if (game) { start(game); return; }
     buffering = true;
     root.classList.add('view-game--loading');
@@ -73,6 +77,7 @@ export function mountMenu(root: HTMLElement): Promise<void> {
       console.error(err);
       buffering = false;
       buffered.length = 0;
+      if (rescue?.()) return;
       net.close();
       openMenu();
       status.textContent = "Couldn't load the game. Check your connection and try again.";
@@ -82,7 +87,13 @@ export function mountMenu(root: HTMLElement): Promise<void> {
   // ---- the menu's screens ----
   const openMenu = () => { status.textContent = ''; openModal(startModal); };
   const lobby = mountLobby(must(root, '.view-lobby'), {
-    onStart: (m) => toGame((g) => g.startOnline(m)),
+    // a match that started: rejoin it from its own address, which loads the new version
+    onStart: (m) => toGame((g) => g.startOnline(m), () => {
+      if (!m.game || !m.key) return false;
+      rememberOnline(m.game, m.key);
+      location.href = `/game/${m.game}`;
+      return true;
+    }),
     onSpectate: (m) => toGame((g) => g.startSpectate(m)),
     onBack: openMenu,
   });
@@ -94,9 +105,10 @@ export function mountMenu(root: HTMLElement): Promise<void> {
   const openSetup = (watch: boolean) => { closeModal(startModal); setup.open(watch); void loadGameModule().catch(() => {}); };
   const openLobby = (o?: Parameters<typeof lobby.open>[0]) => { closeModal(startModal); lobby.open(o); void loadGameModule().catch(() => {}); };
 
-  must(root, '.game-start-play').addEventListener('click', () => openSetup(false));
-  must(root, '.game-start-watch').addEventListener('click', () => openSetup(true));
-  onlineBtn.addEventListener('click', () => openLobby());
+  // with a new version waiting, each of these opens on it instead (see takeUpdate)
+  must(root, '.game-start-play').addEventListener('click', () => { if (!takeUpdate('/?setup')) openSetup(false); });
+  must(root, '.game-start-watch').addEventListener('click', () => { if (!takeUpdate('/?setup=watch')) openSetup(true); });
+  onlineBtn.addEventListener('click', () => { if (!takeUpdate('/?online')) openLobby(); });
 
   // ---- who's online and what's being played ----
   const box = must<HTMLElement>(root, '.game-lobby'), count = must<HTMLElement>(root, '.game-lobby-online'), list = must<HTMLElement>(root, '.game-lobby-list');
@@ -180,6 +192,7 @@ export function mountMenu(root: HTMLElement): Promise<void> {
     return mountGame('resume').then(() => {}, (err) => { console.error(err); openMenu(); });
   }
   if (TEST_STARTS.some((k) => q.has(k))) return mountGame('test').then(() => {}, (err) => { console.error(err); });
+  if (q.has('setup')) { history.replaceState(null, '', '/'); openSetup(q.get('setup') === 'watch'); return Promise.resolve(); }
   if (q.has('online') || q.has('join')) openLobby({ quick: q.get('online') === 'quick', join: q.get('join') ?? undefined });
   return Promise.resolve();
 }
