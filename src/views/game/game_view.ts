@@ -64,6 +64,11 @@ const REJOIN_WAIT = 2;
 const REJOIN_WAIT_MAX = 15;
 /** tries at getting back to watching a game after the connection drops */
 const REJOIN_TRIES = 6;
+/**
+ * After the server restarts (a deploy) or drops us mid-match, keep trying to get back into the game this
+ * long: the new server picks a saved match up when its players return (it keeps them 15 minutes).
+ */
+const RESTART_WAIT_MS = 14 * 60_000;
 /** the online game this tab is watching, so a refresh keeps watching it */
 const WATCHING_KEY = 'killcraft.watching';
 
@@ -106,7 +111,7 @@ export function mountGameView(root: HTMLElement): void {
 
   let errors = 0, messageTimer = 0, endReason = '', shownEnd = false, quitting = false;
   /** the server said it's restarting, or dropped us mid-match: if the game is then lost, say so rather than "Game over" */
-  let serverRestarting = false, droppedMidGame = false, restartEnd = false;
+  let serverRestarting = false, droppedMidGame = false, restartEnd = false, lostAt = 0;
   const pausedBox = must<HTMLElement>(root, '.game-paused'), timeEl = must<HTMLElement>(root, '.topbar-time');
   /** Every game gets a UUID when it starts (online games use the server's match id). */
   const setGameId = (id: string) => {
@@ -259,7 +264,7 @@ export function mountGameView(root: HTMLElement): void {
 
   const onGameMessage = (m: ServerMsg) => {
     setOffline(false); // hearing from the server: we're connected
-    if (m.k === 'restarting') { serverRestarting = true; if (V.online && V.started && !G.over) show('The server is restarting for an update. Reconnecting…'); return; }
+    if (m.k === 'restarting') { serverRestarting = true; lostAt = Date.now(); if (V.online && V.started && !G.over) show('The server is restarting for an update. Reconnecting…'); return; }
     if (m.k === 'nogame') { rejoinFailed('That game has ended.'); return; }
     if (!V.online) return;
     if (m.k === 'notice' && V.started) show(m.msg);
@@ -278,7 +283,7 @@ export function mountGameView(root: HTMLElement): void {
   net.onMessage(onGameMessage);
   net.onClose(() => {
     // a game the server loses after dropping us mid-match went down with a server restart (a deploy)
-    if (V.online && V.started && !G.over) { setOffline(true); droppedMidGame = true; }
+    if (V.online && V.started && !G.over) { setOffline(true); if (!droppedMidGame) lostAt = Date.now(); droppedMidGame = true; }
     // the computer plays our side on the server until we're back: keep trying to get back in
     // (a failed reconnect closes too: that try already lined up the next)
     if (V.online && V.started && !G.over && !rejoinPending) {
@@ -319,15 +324,23 @@ export function mountGameView(root: HTMLElement): void {
   };
   const rejoinFailed = (why: string) => {
     clearTimeout(rejoining);
-    setOffline(false);
     rejoinPending = false;
     const id = root.dataset.gameId ?? gameIdFromUrl();
-    if (id) void forgetGame(id).catch(() => {});
+    // a restart or a dropped connection never ends the game here: keep trying to get back in
+    if (V.online && V.started && !G.over && !watchingNames && (serverRestarting || droppedMidGame) && Date.now() - lostAt < RESTART_WAIT_MS) {
+      show('The server is restarting. Reconnecting to your game…');
+      rejoin(id ?? '', 0, REJOIN_WAIT_MAX);
+      return;
+    }
+    setOffline(false);
+    const restarted = V.online && V.started && !G.over && !watchingNames && (serverRestarting || droppedMidGame);
+    if (id && !restarted) void forgetGame(id).catch(() => {}); // keep the key, so Reconnect can try again
     if (V.online && V.started && !G.over) {
       G.over = true;
       G.winner = -1;
       restartEnd = serverRestarting || droppedMidGame;
-      endReason = restartEnd ? 'The game server restarted for an update and this game could not be carried on.' : why;
+      endReason = restartEnd ? 'The game server restarted for an update and could not get this game back. Reconnect to try again.' : why;
+      if (restartEnd) againBtn.textContent = 'Reconnect';
       return;
     }
     leaveGameUrl();
@@ -455,7 +468,8 @@ export function mountGameView(root: HTMLElement): void {
     delete root.dataset.gameId;
     lobby.open(hostedGame() === id ? { host: id } : { join: id });
   };
-  againBtn.addEventListener('click', () => { location.href = V.online ? '/?online' : '/'; });
+  // after a restart, reloading the game's page tries to rejoin it once more
+  againBtn.addEventListener('click', () => { if (restartEnd) location.reload(); else location.href = V.online ? '/?online' : '/'; });
   // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
   window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });
   pauseBtn.addEventListener('click', () => { V.paused = !V.paused; });
@@ -520,7 +534,7 @@ export function mountGameView(root: HTMLElement): void {
       shownEnd = true;
       // a game this screen ran: say who was knocked out, when and why
       if (!endReason && !V.online) endReason = outReasons((t) => `${watchingNames?.[t] ?? teamColors(t).name}${t === V.team && !G.demo ? ' (you)' : ''}`).join(' ');
-      if (root.dataset.gameId) void forgetGame(root.dataset.gameId).catch(() => {});
+      if (root.dataset.gameId && !restartEnd) void forgetGame(root.dataset.gameId).catch(() => {});
       must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${watchingNames?.[G.winner] ?? teamColors(G.winner).name} wins`) : G.winner === V.team ? 'Victory' : G.winner < 0 ? (restartEnd ? 'Restarting Server' : 'Game over') : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       resignBtn.hidden = true;
