@@ -15,7 +15,7 @@ import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, 
 import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
-import { cancelSite, canPlace, exitTile, placeBuilding, wallLine } from './building.ts';
+import { cancelSite, canPlaceType, exitTile, placeBuilding, wallLine } from './building.ts';
 import { orderFix, orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 
@@ -188,7 +188,7 @@ export function payWaiting(team: number): void {
 
 /** Can the team lay out this structure here right now (available, affordable, and a free spot)? */
 export function canStartSite(team: number, type: BldType, tx: number, ty: number): boolean {
-  return available(team, 'structure').includes(type) && canAfford(team, type) && canPlace(tx, ty, BUILDING[type].size, team);
+  return available(team, 'structure').includes(type) && canAfford(team, type) && canPlaceType(type, tx, ty, team);
 }
 
 /**

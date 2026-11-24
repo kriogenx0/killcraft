@@ -24,8 +24,8 @@ import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
 import { mountSetup } from '../setup/setup_view.ts';
 import { autoFullscreen, mountFullscreenButton } from './fullscreen.ts';
-import { BUILDING, isWall, type BldType } from '../../data/building.ts';
-import { canPlace } from '../../game/building.ts';
+import { BUILDING, type BldType } from '../../data/building.ts';
+import { canPlaceType } from '../../game/building.ts';
 import { addBuilding, addUnit } from '../../game/entity.ts';
 import { UNIT, type UnitType } from '../../data/unit.ts';
 import { initTerrain } from './render/terrain.ts';
@@ -397,7 +397,7 @@ export function mountGameView(root: HTMLElement): void {
     scrollCamera(dt);
     clampCam();
     updateFollow(dt);
-    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team, false, isWall(V.mode.type)), (t) => BUILDING[t as BldType].size);
+    updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlaceType(V.mode.type, tx, ty, V.team), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
     oreT -= dt;
     if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); }

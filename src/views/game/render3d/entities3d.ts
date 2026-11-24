@@ -6,7 +6,7 @@ import { MH, MW, TS } from '../../../game/const.ts';
 import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
-import { nearBase, tileFree, wallLine } from '../../../game/building.ts';
+import { inReach, nearBase, onWell, tileFree, wallLine } from '../../../game/building.ts';
 import { nearPortal } from '../../../game/map.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -303,7 +303,7 @@ function updateGhost(): void {
   const m = V.mode;
   updateWallLine();
   if (m?.t !== 'place') { if (ghost) ghost.group.visible = false; return; }
-  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = nearBase(m.tx, m.ty, s, V.team, isWall(m.type));
+  const g = ghostFor(m.type), s = BUILDING[m.type].size, near = inReach(m.tx, m.ty, s, V.team, isWall(m.type), onWell(m.type));
   g.group.visible = true;
   const base = footprintY(m.tx, m.ty, s, s);
   g.group.position.set(m.tx + s / 2, base, m.ty + s / 2);

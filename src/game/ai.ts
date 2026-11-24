@@ -291,14 +291,14 @@ function footprint(tx: number, ty: number, s: number): number[] {
   return out;
 }
 
-/** The placeable spot near the base that reaches the most oil, if any reaches some. */
+/** The placeable spot that reaches the most oil, the nearest of those if several tie, if any reaches some. */
 function wellSite(team: number, s: number, yard: Ent): Tile | null {
-  let best: Tile | null = null, most = 0;
+  let best: Tile | null = null, most = 0, near = Infinity;
   const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
   for (let ty = cy - 16; ty <= cy + 16; ty++)
     for (let tx = cx - 16; tx <= cx + 16; tx++) {
-      const oil = oilNear(tx, ty, s);
-      if (oil > most && canPlace(tx, ty, s, team, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; best = [tx, ty]; }
+      const oil = oilNear(tx, ty, s), d = Math.hypot(tx - cx, ty - cy);
+      if ((oil > most || (oil === most && oil > 0 && d < near)) && canPlace(tx, ty, s, team, true, false, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; near = d; best = [tx, ty]; }
     }
   return best;
 }
