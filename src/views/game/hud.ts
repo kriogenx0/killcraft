@@ -31,6 +31,7 @@ import { V, ownSelected, spectating } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
+import { REVIVE_PRICE, canPayRevive, fallenAllies } from '../../game/revive.ts';
 import { ELEMENT_DESC, ELEMENT_NAME, SPELL } from '../../data/spells.ts';
 
 export interface HudEls {
@@ -131,6 +132,15 @@ export function commandList(): Command[] {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
     if (up) list.push(up);
+    // team games: a Town Hall can give a teammate who has lost theirs a new one
+    if (first.type === 'yard' && first.done && !G.over) for (const t of fallenAllies(V.team)) {
+      const who = teamColors(t).name;
+      list.push({
+        id: `revive:${t}`, label: `Revive ${who}`, hotkey: '', icon: ICON.yard ?? ICON.upgrade, cost: { g: REVIVE_PRICE.ore, w: REVIVE_PRICE.wood },
+        tip: `${who} has no Town Hall. Give them a new one and two Workers, back at their corner, so they can rebuild and fight again`,
+        disabled: !canPayRevive(V.team),
+      });
+    }
     const rally = rallyCommand();
     if (rally && first.done && isUnitProducer(bldDef(first).produces)) list.push(rally);
     // Delete, away from the letters, so scrapping is hard to hit by accident
@@ -158,6 +168,7 @@ export function runCommand(id: string): void {
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });
+  else if (id.startsWith('revive:')) dispatch({ c: 'revive', team: Number(id.slice(7)) });
   else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }
   refreshCommands(true);
 }

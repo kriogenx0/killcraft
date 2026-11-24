@@ -123,6 +123,18 @@ function fall(team: number): boolean {
   return true;
 }
 
+/** A side in a team game that can't rebuild but has a teammate who can: say so once. */
+function down(team: number): void {
+  if (G.outLog?.some((o) => o.team === team)) return;
+  knockOut(team, 'no Town Hall, no units and no way to train a Worker');
+  const who = teamColors(team).name;
+  for (let t = 0; t < G.teams; t++) {
+    if (t === team) say(t, 'You are down: no Town Hall and no units. A teammate can revive you from their Town Hall');
+    else if (allied(t, team)) say(t, `${who} is down: select your Town Hall and press Revive ${who}`);
+    else say(t, `${who} is down`);
+  }
+}
+
 /** A player gave up: everything their side has is destroyed and it's out of the game. */
 export function surrender(team: number): void {
   knockOut(team, 'surrendered');
@@ -185,7 +197,13 @@ export function update(dt: number): void {
     // stranded sides go up in flames; give the explosions a moment before calling the match
     let fell = false;
     const playing = Array.from({ length: G.teams }, (_, t) => t).filter((t) => !G.absent?.[t]);
-    for (const t of playing) if (stranded(t) && fall(t)) fell = true;
+    const beaten = playing.filter(stranded);
+    for (const t of beaten) {
+      // a team loses only when none of it can rebuild: while a teammate still can, a beaten side
+      // holds on (what's left of its base stands) and that teammate can revive it (revive.ts)
+      if (playing.some((a) => !beaten.includes(a) && a !== t && allied(a, t))) down(t);
+      else if (fall(t)) fell = true;
+    }
     if (fell) { G.endT = FALL_SECONDS; return; }
     const left = playing.filter(alive);
     for (const t of playing) if (!left.includes(t)) knockOut(t, 'no buildings and no fighting units left');

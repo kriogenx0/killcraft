@@ -11,6 +11,7 @@ import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
 import { forgetResume } from './autogather.ts';
+import { revive } from './revive.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
@@ -31,7 +32,9 @@ export type Command =
   | { c: 'place'; type: BldType; tx: number; ty: number; ex?: number; ey?: number }
   | { c: 'repair'; id: number }
   | { c: 'scrap'; id: number }
-  | { c: 'upgrade'; id: number };
+  | { c: 'upgrade'; id: number }
+  /** give a fallen ally a new Town Hall and two Workers (team games) */
+  | { c: 'revive'; team: number };
 
 const MAX_IDS = 200;
 const BUILDABLE = new Set<string>([...UNIT_TYPES, ...BLD_TYPES, ...TECH_TYPES]);
@@ -77,6 +80,8 @@ export function parseCommand(raw: unknown): Command | null {
     case 'scrap':
     case 'upgrade':
       return isInt(o.id) ? { c: o.c, id: o.id } : null;
+    case 'revive':
+      return isInt(o.team) && o.team >= 0 && o.team < 4 ? { c: 'revive', team: o.team } : null;
     default:
       return null;
   }
@@ -169,5 +174,8 @@ export function applyCommand(team: number, cmd: Command): void {
       if (b) toggleRefit(b);
       break;
     }
+    case 'revive':
+      revive(team, cmd.team);
+      break;
   }
 }

@@ -1,6 +1,7 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
+import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
 import { G, haulOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
@@ -711,8 +712,18 @@ function military(team: number): void {
   }
 }
 
+/** Revive a teammate who has lost their Town Hall as soon as the bank allows, saving up for it meanwhile. */
+function revival(team: number): void {
+  const t = fallenAllies(team)[0];
+  if (t == null || !G.ents.some((e) => !e.dead && e.team === team && e.type === 'yard' && e.done)) return;
+  if (G.credits[team] - REVIVE_PRICE.ore >= workerKeep() && revive(team, t)) return;
+  ais[team].reserve = Math.max(ais[team].reserve, REVIVE_PRICE.ore);
+  ais[team].reserveWood = Math.max(ais[team].reserveWood ?? 0, REVIVE_PRICE.wood);
+}
+
 export function aiThink(team: number): void {
   construction(team);
+  revival(team);
   assignHaulers(team);
   research(team);
   refits(team);
