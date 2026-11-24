@@ -4,7 +4,7 @@ import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
-import { atLimit, available, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { atLimit, available, unitNeeds, unitSlots, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -24,6 +24,8 @@ interface Cell {
 }
 
 let structureList: HTMLElement, unitList: HTMLElement;
+/** units shown in their place but not trainable yet */
+const locked = new Set<Buildable>();
 /** One list shows at a time, picked with the Buildings / Units tabs. */
 type Tab = 'structure' | 'unit';
 let tab: Tab = 'structure', lastProducer: BldType | null = null;
@@ -97,7 +99,7 @@ export function productionHotkey(key: string): boolean {
  * queue or resume an order (it waits in the queue until the side can pay for it).
  */
 function activate(type: Buildable): void {
-  if (spectating()) return;
+  if (spectating() || locked.has(type)) return;
   showTab(tabOf(type));
   if (lineOf(type) === 'structure') {
     V.mode = { t: 'place', type: type as BldType, tx: 0, ty: 0, ok: false };
@@ -122,7 +124,9 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units = [...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')].sort((a, b) => Number(b === 'worker') - Number(a === 'worker')); // Worker always first
+  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units: Buildable[] = unitSlots(V.team);
+  // every unit of the age keeps its place (Worker first); ones it can't train yet are greyed out
+  const trainable = new Set<Buildable>([...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')]);
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
@@ -144,10 +148,14 @@ export function refreshSidebar(): void {
     // an order (or a placed site) waiting until the side can pay for it
     const unpaid = structure ? sites.some((e) => e.unpaid) && !sites.some((e) => !e.unpaid) : !!first && head === first && !first.paid;
     const need = unpaid ? waitingFor(V.team, type) : null;
-    const status = placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : '';
+    const needs = isUnitType(type) && !trainable.has(type) ? unitNeeds(V.team, type) ?? 'yard' : null;
+    locked.add(type);
+    if (!needs) locked.delete(type);
+    const status = needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : '';
     if (c.status.textContent !== status) c.status.textContent = status;
     const count = (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
+    c.root.classList.toggle('build-cell--locked', !!needs);
     c.root.classList.toggle('build-cell--active', items.length > 0);
     if (items.length) busy[tabOf(type)] = true;
     c.root.classList.toggle('build-cell--ready', placing);

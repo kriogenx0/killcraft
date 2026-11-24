@@ -179,6 +179,20 @@
     letter-spacing: 0;
   }
 
+  // in its place in the list, but nothing trains it yet
+  &.build-cell--locked .build-cell-main {
+    cursor: not-allowed;
+    filter: grayscale(1) brightness(0.5);
+  }
+
+  &--locked .build-cell-status {
+    top: 30%;
+    font-size: $font-xs;
+    line-height: 1.2;
+    letter-spacing: 0;
+    white-space: pre-line;
+  }
+
   &--short .build-cell-main {
     filter: grayscale(0.5) brightness(0.75);
   }
