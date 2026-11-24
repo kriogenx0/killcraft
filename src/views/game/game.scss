@@ -316,9 +316,11 @@ $sidebar-width: 248px;
 
   // title and result screens
   .game-title {
-    font-size: $font-title;
+    max-width: 100%;
+    // shrinks on narrow phones so the title never runs off the screen
+    font-size: min(#{$font-title}, 12vw);
     color: var(--color-title);
-    letter-spacing: 8px;
+    letter-spacing: min(8px, 1.5vw);
     text-shadow: 0 5px 0 #6a3a10, 0 0 40px #000;
   }
 
@@ -439,24 +441,32 @@ $sidebar-width: 248px;
       left: 0;
       display: grid;
       // a fixed height, so selecting something doesn't resize (and blank) the map canvas
-      grid-template-rows: minmax(0, 1fr) auto;
+      // the panel scrolls up and down as one (selection, then build items); the radar stays put
+      grid-template-rows: auto 1fr;
       grid-template-columns: 96px minmax(0, 1fr);
+      align-content: start;
       width: auto;
       height: min(40vh, 320px);
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       padding: $space-2 $gutter;
       border-top-width: 3px;
       border-left-width: 0;
     }
 
     .sidebar-minimap {
+      position: sticky;
+      top: 0;
       grid-row: span 2;
+      align-self: start;
       width: 96px;
     }
 
     .sidebar-selection {
+      min-width: 0;
       min-height: 0;
       padding: $space-1 $space-2;
-      overflow-y: auto;
     }
 
     .selection-commands {
@@ -464,19 +474,23 @@ $sidebar-width: 248px;
       grid-auto-rows: 48px;
     }
 
+    // no sideways scrolling on phones: the items wrap into rows and the panel scrolls up and down
     .sidebar-build {
       display: flex;
+      flex-direction: column;
       gap: $space-1;
-      overflow-x: auto;
-      overflow-y: hidden;
+      min-width: 0;
+      overflow: visible;
     }
 
     .build-list {
-      flex-direction: row;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      gap: $space-1;
+      min-width: 0;
 
       .build-cell {
-        flex: none;
-        width: 72px;
+        min-width: 0;
       }
     }
 

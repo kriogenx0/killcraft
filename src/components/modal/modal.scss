@@ -9,8 +9,11 @@
   flex-direction: column;
   gap: $space-3;
   align-items: center;
-  justify-content: center;
+  // safe: a modal taller than a phone screen scrolls from its top instead of being cut off; never sideways
+  justify-content: safe center;
   padding: $space-3;
+  overflow-x: hidden;
+  overflow-y: auto;
   text-align: center;
   background: var(--color-overlay);
 
