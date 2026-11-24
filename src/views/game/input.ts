@@ -158,7 +158,9 @@ function tap(sx: number, sy: number, add = false): void {
     else setSelection([e]);
     return;
   }
-  if (ownSelected().length && w) worldCommand(w.x, w.y, e);
+  // only units take orders from a tap; with just a building selected, tapping the ground lets go of it
+  // (its rally point is set with the Rally army command)
+  if (ownSelected().some((x) => x.kind === 'unit') && w) worldCommand(w.x, w.y, e);
   else setSelection(e ? [e] : []);
 }
 
