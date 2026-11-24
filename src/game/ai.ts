@@ -53,6 +53,9 @@ export const ais: AiState[] = [
 
 const lvl = (team: number): AiLevel => AI_LEVEL[ais[team]?.level ?? 'normal'];
 
+/** How fast a side's production and building sites work: the computer's difficulty pace, full speed for players. */
+export const aiPace = (team: number): number => (ais[team]?.on && !G.human[team] ? AI_LEVEL[ais[team].level].pace : 1);
+
 /** Set every computer player's difficulty (after resetAi, which puts them back to Normal). */
 export function setAiLevel(level: Difficulty): void {
   for (const a of ais) { a.level = level; a.attackAt = AI_LEVEL[level].firstWave; }

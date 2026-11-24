@@ -1,7 +1,8 @@
 // Choices for a new game against the computer (the setup screen), and what each computer difficulty
 // means. Difficulty changes how the computer plays (how often it thinks, how many Workers it keeps,
-// how fast it trains and builds, how big its army gets, and how early and how big it attacks). Only
-// Brutal also gets a head start: a quarter more starting ore and wood.
+// how fast it trains and builds, how big its army gets, and how early and how big it attacks). Easy
+// and Normal also work slower than a player can (pace); Brutal works faster and gets a head start: a
+// quarter more starting ore and wood.
 import type { UnitType } from './unit.ts';
 
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'brutal';
@@ -31,24 +32,26 @@ export interface AiLevel {
   defendRange: number;
   /** starting ore and wood, as a share of the normal amount */
   bonus: number;
+  /** how fast its Barracks, factories, research and building sites work (1 = full speed) */
+  pace: number;
 }
 
 export const AI_LEVEL: Record<Difficulty, AiLevel> = {
   easy: {
-    name: 'Easy', desc: 'Slow to react, a small economy and at most 12 troops. Attacks in small groups from 6 minutes.',
-    think: 2.5, firstWave: 5, waveStep: 1, firstAttack: 360, workers: 2, maxWorkers: 9, harvesters: 1, sites: 1, queue: 1, armyCap: 12, defendRange: 10, bonus: 1,
+    name: 'Easy', desc: 'Slow to react and to build, a small economy and at most 10 troops. Leaves you alone for 10 minutes, then attacks in small groups.',
+    think: 3, firstWave: 4, waveStep: 1, firstAttack: 600, workers: 2, maxWorkers: 7, harvesters: 1, sites: 1, queue: 1, armyCap: 10, defendRange: 9, bonus: 1, pace: 0.6,
   },
   normal: {
-    name: 'Normal', desc: 'A balanced opponent.',
-    think: 1, firstWave: 8, waveStep: 3, firstAttack: 0, workers: 3, maxWorkers: 18, harvesters: 2, sites: 2, queue: 2, armyCap: 80, defendRange: 14, bonus: 1,
+    name: 'Normal', desc: 'A fair opponent. Builds a little slower than you can, and gives you 5 minutes before its first attack.',
+    think: 1.5, firstWave: 6, waveStep: 2, firstAttack: 300, workers: 3, maxWorkers: 14, harvesters: 2, sites: 2, queue: 2, armyCap: 40, defendRange: 12, bonus: 1, pace: 0.85,
   },
   hard: {
-    name: 'Hard', desc: 'Reacts twice as fast, runs a bigger economy, builds three sites at once and attacks in larger waves.',
-    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 22, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1,
+    name: 'Hard', desc: 'Reacts fast, runs a bigger economy, builds three sites at once and attacks early in larger waves.',
+    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 22, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1, pace: 1,
   },
   brutal: {
-    name: 'Brutal', desc: 'Plays like Hard and starts with 25% more ore and wood.',
-    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 22, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1.25,
+    name: 'Brutal', desc: 'Plays like Hard, builds 15% faster and starts with 25% more ore and wood.',
+    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 0, workers: 4, maxWorkers: 22, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1.25, pace: 1.15,
   },
 };
 

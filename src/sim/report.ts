@@ -37,10 +37,11 @@ export function report(results: MatchResult[]): string {
   const levelNames = [...new Set(results.flatMap((r) => r.levels ?? []))];
   if (levelNames.length > 1) {
     out.push('', '## Win rate by computer difficulty', '');
-    out.push(table(['Difficulty', 'Sides', 'Wins', 'Win rate', 'Avg place'], levelNames.map((l) => {
+    out.push(table(['Difficulty', 'Sides', 'Wins', 'Win rate', 'Avg place', 'Army at 5:00', 'Army at 10:00', 'Ore harvested by 10:00'], levelNames.map((l) => {
       const mine = results.flatMap((r) => r.stats.filter((s) => r.levels[s.team] === l));
       const wins = decided.filter((r) => r.levels[r.winner] === l).length;
-      return [l, mine.length, wins, pct(wins, decided.length), f1(mean(mine.map((s) => s.place)))];
+      const at = (i: number, k: 'army' | 'income') => Math.round(quantile(mine.flatMap((s) => (s.timeline[i] ? [s.timeline[i][k]] : [])), 0.5));
+      return [l, mine.length, wins, pct(wins, decided.length), f1(mean(mine.map((s) => s.place))), at(0, 'army'), at(1, 'army'), at(1, 'income')];
     })));
   }
   out.push('', '## Win rate by starting corner', '');

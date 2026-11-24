@@ -6,6 +6,8 @@
 // can't afford yet waits (in the queue, or as a placed site) and starts on its own once the side can
 // pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
 // only orders what it can pay for now. Production runs at half speed on low power.
+import { aiPace } from './ai.ts';
+import { LEADER_SPEED } from '../data/economy.ts';
 import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
 import { TS } from './const.ts';
@@ -303,7 +305,7 @@ function advance(team: number, type: TechType): void {
 }
 
 export function updProduction(team: number, dt: number): void {
-  const speed = lowPower(team) ? 0.5 : 1;
+  const speed = (lowPower(team) ? 0.5 : 1) * (team === G.leader ? LEADER_SPEED : 1) * aiPace(team);
   payWaiting(team);
   for (const line of LINES) {
     const q = G.prod[team][line], it = q[0];

@@ -46,3 +46,5 @@ export const BOUNTY_LEAD = 1.3;
 export const BOUNTY_SHARE = 0.5;
 /** The leader's buildings draw this much more power, so it needs more Power Plants (and goes short when they fall). */
 export const LEADER_POWER = 1.5;
+/** The leader's factories, Barracks and building sites work at this speed. */
+export const LEADER_SPEED = 1;
