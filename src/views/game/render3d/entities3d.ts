@@ -29,6 +29,8 @@ interface Obj { model: Model; key: string }
 
 /** Units are drawn larger than life so they read clearly next to buildings. */
 const UNIT_SCALE = 1.4;
+/** creatures of myth stand half as big again as everyone else, so they read as monsters on the field */
+const CREATURE_SCALE = 1.5;
 
 const holder = new THREE.Group();
 const overlays = new THREE.Group();
@@ -90,7 +92,7 @@ function create(e: Ent, wallMask: number): Model {
     const kit = armorKit(e.type as UnitType, e.team, armorLevel(e.type as UnitType, e.team));
     if (kit) { m.root.add(kit.root); if (kit.turret) (m.parts.turret ?? m.root).add(kit.turret); }
   }
-  if (e.kind === 'unit') { m.root.scale.setScalar(UNIT_SCALE); m.height *= UNIT_SCALE; }
+  if (e.kind === 'unit') { const k = UNIT_SCALE * (UNIT[e.type as UnitType]?.beast ? CREATURE_SCALE : 1); m.root.scale.setScalar(k); m.height *= k; }
   for (const p of Object.values(m.parts)) p.userData.rest = p.position.clone();
   const foot = e.kind === 'bld' ? foundation(e) : null;
   if (foot) { m.root.add(foot); m.parts.foundation = foot; }
