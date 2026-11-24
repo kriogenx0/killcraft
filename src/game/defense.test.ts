@@ -91,6 +91,8 @@ describe('walls', () => {
   });
 
   it('block movement until destroyed', () => {
+    for (const e of G.ents) if (e.wild) e.dead = true; // no lair creature joining in
+    G.ents = G.ents.filter((e) => !e.dead);
     const [tx, ty] = openSquare(9);
     // a closed ring of concrete around a soldier
     for (let x = tx; x < tx + 9; x++) for (const y of [ty, ty + 8]) addBuilding('concretewall', 1, x, y, false);
