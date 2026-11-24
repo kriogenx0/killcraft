@@ -42,6 +42,7 @@ import { drawOverlay } from './render3d/overlay.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
 import { initInput, scrollCamera, updatePlacement } from './input.ts';
+import { updateFollow } from './follow_cam.ts';
 import { initTouchBar, refreshTouchBar } from './touch_bar.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
 
@@ -363,6 +364,7 @@ export function mountGameView(root: HTMLElement): void {
     }
     scrollCamera(dt);
     clampCam();
+    updateFollow(dt);
     updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlace(tx, ty, BUILDING[V.mode.type].size, V.team, false, isWall(V.mode.type)), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
     oreT -= dt;
