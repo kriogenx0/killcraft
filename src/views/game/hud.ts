@@ -25,7 +25,7 @@ import { chipHtml } from '../../components/chip/chip.ts';
 import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
-import { commandButtonHtml, type Command } from './components/command_button.ts';
+import { commandsHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
@@ -80,6 +80,9 @@ const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
   tend: { label: 'Fix, then harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
 
+/** caption over the stance buttons, which are drawn joined as one pick-one bar */
+const STANCE_GROUP = 'Attack mode';
+
 const isStance = (id: string): id is Stance => (STANCES as readonly string[]).includes(id);
 
 /** Upgrading a building to its side's age, or cancelling one under way. */
@@ -123,7 +126,7 @@ export function commandList(): Command[] {
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       // Fix, then harvest is for Workers only (and is theirs by default)
       ...STANCES.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
-        .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
+        .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
@@ -183,7 +186,7 @@ export function runHotkey(key: string): boolean {
 
 export function refreshCommands(force = false): void {
   commands = commandList();
-  const markup = commands.map(commandButtonHtml).join('');
+  const markup = commandsHtml(commands);
   if (markup !== commandMarkup || force) {
     commandMarkup = markup;
     els.commands.innerHTML = markup;

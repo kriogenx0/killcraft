@@ -389,7 +389,7 @@ $sidebar-width: 248px;
   .selection-commands {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: 58px; // the icon above a two-line label
+    grid-auto-rows: minmax(58px, auto); // the icon above a two-line label (the attack-mode bar adds a caption)
     gap: $space-1;
     margin-top: $space-2;
 
@@ -786,7 +786,7 @@ $sidebar-width: 248px;
     // tall enough for the icon above a two-line label ("Stop & attack") without overlap
     .selection-commands {
       grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-      grid-auto-rows: 60px;
+      grid-auto-rows: minmax(60px, auto);
 
       .command-button {
         background-size: 24px;
