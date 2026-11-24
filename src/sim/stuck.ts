@@ -6,7 +6,7 @@ import { STEP, TS } from '../game/const.ts';
 import { ais } from '../game/ai.ts';
 import { initWorld, update } from '../game/world.ts';
 import { edgeDist } from '../game/path.ts';
-import { nearestOwn } from '../game/query.ts';
+import { ORE_BANKS, bankAt } from '../game/haul.ts';
 import { mulberry32 } from '../util/math.ts';
 
 /** How long (seconds) a unit may sit still with an order before it counts as stuck. */
@@ -61,7 +61,7 @@ function distToGoal(u: Ent): number | null {
   if (!o) return null;
   if (o.t === 'move') return Math.hypot((o.gx + 0.5) * TS - u.x, (o.gy + 0.5) * TS - u.y) / TS;
   if (o.t === 'harvest') {
-    const ref = o.st === 'ret' ? nearestOwn(u, 'refinery') : null;
+    const ref = o.st === 'ret' ? bankAt(u, ORE_BANKS) : null;
     return ref ? edgeDist(u, ref) / TS : Math.hypot((o.tx + 0.5) * TS - u.x, (o.ty + 0.5) * TS - u.y) / TS;
   }
   const t = valid(o.tgt);
@@ -85,7 +85,7 @@ function pathLeft(u: Ent): number | null {
  * waiting with a load because its side has no refinery left.
  */
 const busy = (u: Ent): boolean =>
-  u.atkT > 0 || (u.order?.t === 'harvest' && (u.order.st === 'gather' || u.order.st === 'unload' || (u.order.st === 'ret' && !nearestOwn(u, 'refinery'))));
+  u.atkT > 0 || (u.order?.t === 'harvest' && (u.order.st === 'gather' || u.order.st === 'unload' || (u.order.st === 'ret' && !bankAt(u, ORE_BANKS))));
 
 /**
  * Play a computer-only match and report every unit that held an order for STUCK_AFTER seconds

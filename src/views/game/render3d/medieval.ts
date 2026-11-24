@@ -740,6 +740,46 @@ function sawmill(L: Look): Model {
   return { root, parts, height: 1.0 };
 }
 
+/**
+ * Mining Camp: an open timber lean-to over an ore bin, an ore heap and a mine cart on a short run of
+ * rails, picks racked by the post. Stone footings and a shingled roof once the town grows up.
+ */
+function miningCamp(L: Look): Model {
+  const root = new THREE.Group(), parts: Parts = {}, team = L.team;
+  ground(root, 2, 57);
+  // lean-to: four posts, a sloped roof, a plank floor
+  const z0 = -0.3, T = M.timber();
+  root.add(mesh(box(1.1, 0.04, 0.7), M.wood(), -0.15, 0.07, z0));
+  for (const [x, z, h] of [[-0.66, -0.6, 0.72], [0.36, -0.6, 0.72], [-0.66, 0.02, 0.5], [0.36, 0.02, 0.5]] as const) {
+    if (L.gun) root.add(mesh(box(0.1, 0.1, 0.1), L.wall, x, 0.1, z));
+    root.add(mesh(box(0.06, h, 0.06), T, x, 0.05 + h / 2, z));
+  }
+  root.add(rot(mesh(box(1.24, 0.04, 0.82), L.thatch, -0.15, 0.68, z0), Math.atan2(0.22, 0.62), 0, 0));
+  // back wall of planks
+  root.add(mesh(box(1.02, 0.5, 0.03), M.darkWood(), -0.15, 0.32, -0.6));
+  banner(root, team, -0.15, 0.46, -0.58, 0.18, 0.24);
+  // ore bin under the roof
+  root.add(mesh(box(0.5, 0.18, 0.36), M.darkWood(), -0.35, 0.18, z0 + 0.02));
+  root.add(scl(mesh(sph(0.18, 10, 6), M.ore(), -0.35, 0.27, z0 + 0.02), 1.3, 0.45, 0.9));
+  // ore heap out front, where loads are tipped
+  root.add(scl(mesh(sph(0.24, 10, 6), M.ore(), 0.5, 0.06, 0.45), 1.2, 0.55, 1));
+  root.add(scl(mesh(sph(0.12, 8, 6), M.ore(), 0.25, 0.05, 0.62), 1.2, 0.5, 1));
+  // rails and a mine cart
+  for (const x of [-0.56, -0.44]) root.add(mesh(box(0.025, 0.025, 0.85), M.iron(), x, 0.07, 0.42));
+  for (let i = 0; i < 5; i++) root.add(mesh(box(0.22, 0.02, 0.05), M.darkWood(), -0.5, 0.055, 0.05 + i * 0.18));
+  const cart = group(-0.5, 0.08, 0.5);
+  cart.add(mesh(box(0.2, 0.13, 0.26), L.gun ? M.iron() : M.darkWood(), 0, 0.11, 0));
+  cart.add(scl(mesh(sph(0.09, 8, 6), M.ore(), 0, 0.18, 0), 1, 0.5, 1.3));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) cart.add(rot(mesh(cyl(0.04, 0.04, 0.02, 8), M.iron(), sx * 0.11, 0.04, sz * 0.08), 0, 0, Math.PI / 2));
+  root.add(cart);
+  // picks leaning on the post
+  for (const dz of [0, 0.08]) {
+    root.add(rot(mesh(box(0.025, 0.4, 0.025), M.wood(), 0.46, 0.25, 0.05 + dz), 0, 0, -0.25));
+    root.add(rot(mesh(box(0.18, 0.03, 0.03), M.iron(), 0.51, 0.44, 0.05 + dz), 0, 0, 0.2));
+  }
+  return { root, parts, height: 0.9 };
+}
+
 export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld | 'palisade' | 'stonewall' | 'concretewall' | 'pillbox' | 'atturret' | 'bertha'>, team: number, stage: 'wood' | 'stone'): Model {
   if (stage === 'wood') {
     switch (type) {
@@ -751,6 +791,7 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
       case 'tower': return woodTower(team);
       case 'turret': break;
       case 'mill': return sawmill(look(team, false));
+      case 'camp': return miningCamp(look(team, false));
       case 'derrick': case 'works': break;
     }
   }
@@ -764,6 +805,7 @@ export function medievalBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'h
     case 'turret': return bastion(L);
     case 'tower': return watchtower(L);
     case 'mill': return sawmill(L);
+    case 'camp': return miningCamp(L);
     case 'derrick': case 'works': throw new Error(`${type} has no medieval look`);
   }
 }

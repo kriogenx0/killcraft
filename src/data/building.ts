@@ -2,7 +2,7 @@ import type { WeaponType } from './weapon.ts';
 import type { Producer } from './unit.ts';
 import { LAST_ERA } from './era.ts';
 
-export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'works' | 'airfield' | 'flak' | 'hospital' | 'armory'
+export type BldType = 'yard' | 'power' | 'mill' | 'refinery' | 'camp' | 'barracks' | 'factory' | 'tower' | 'turret' | 'derrick' | 'works' | 'airfield' | 'flak' | 'hospital' | 'armory'
   | 'shrine' | 'wardstone' | 'waygate'
   | 'palisade' | 'stonewall' | 'concretewall' | 'pillbox' | 'atturret' | 'bertha';
 
@@ -49,10 +49,11 @@ export interface BldDef {
 }
 
 export const BUILDING: Record<BldType, BldDef> = {
-  yard: { name: 'Town Hall', size: 3, top: 40, hp: 1400, cost: 3000, t: 60, era: 0, power: 15, sight: 6, requires: [], produces: 'structure', buildable: false, desc: 'The heart of your town: plans every structure and researches the ages. Upgrade it to rebuild it in each new age.' },
+  yard: { name: 'Town Hall', size: 3, top: 40, hp: 1400, cost: 3000, wood: 300, t: 60, era: 0, power: 15, sight: 6, requires: [], produces: 'structure', buildable: true, group: 'Expand', desc: 'The heart of your town: plans every structure, researches the ages and takes ore, oil and wood. Build another by distant ore to start a new base: it can go anywhere you have explored, and you stay in the game while any Town Hall stands.' },
   power: { name: 'Power Plant', size: 2, top: 38, hp: 400, cost: 300, wood: 50, t: 8, era: 0, power: 100, sight: 4, requires: [], buildable: true, desc: 'Powers your base (+100). Short on power, everything builds at half speed and defenses fire slower.' },
   mill: { name: 'Lumber Mill', size: 2, top: 30, hp: 450, cost: 400, t: 10, era: 0, power: -10, sight: 5, requires: [], buildable: true, desc: 'Where Workers drop off the wood they chop. Place it by the woods to shorten their trips. Right-click it with Workers to set them chopping nearby.' },
   refinery: { name: 'Refinery', size: 3, top: 34, hp: 900, cost: 2000, wood: 200, t: 18, era: 0, power: -40, sight: 5, requires: ['power'], buildable: true, desc: 'Ore is unloaded here. Comes with two free Workers, or a Harvester in the Modern age.' },
+  camp: { name: 'Mining Camp', size: 2, top: 28, hp: 500, cost: 300, wood: 150, t: 12, era: 0, power: 0, sight: 5, requires: [], buildable: true, group: 'Expand', desc: 'A small drop-off for ore and oil. Build it by a far ore field or Oil Derrick so Workers and Harvesters stop walking all the way home. Can go anywhere you have explored.' },
   barracks: { name: 'Barracks', size: 2, top: 22, hp: 500, cost: 300, wood: 100, t: 8, era: 0, power: -20, sight: 5, requires: ['power'], produces: 'infantry', buildable: true, desc: 'Trains foot soldiers and Workers. New troops unlock with each age.' },
   factory: { name: 'War Factory', size: 3, top: 34, hp: 1000, cost: 2000, wood: 300, t: 18, era: 0, power: -30, sight: 5, requires: ['refinery'], produces: 'vehicle', buildable: true, desc: 'Builds vehicles: Catapults, then jeeps and tanks in later ages.' },
   hospital: { name: 'Hospital', size: 2, top: 30, hp: 500, cost: 500, wood: 150, t: 12, era: 0, power: -20, sight: 5, requires: ['barracks'], produces: 'hospital', buildable: true, desc: 'Tends the wounded: your infantry and knights heal a little faster while you have one. Researches faster healing, and the Barracks can train Medics.' },
@@ -82,7 +83,7 @@ export const BUILDING: Record<BldType, BldDef> = {
 export const isUnitProducer = (p: BldDef['produces']): p is Producer => p === 'infantry' || p === 'vehicle' || p === 'air';
 
 /** Order the structures appear in the sidebar. */
-export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'barracks', 'hospital', 'armory', 'factory', 'tower', 'turret', 'derrick', 'works', 'airfield', 'flak', 'pillbox', 'bertha', 'atturret', 'palisade', 'stonewall', 'concretewall', 'shrine', 'wardstone', 'waygate'];
+export const BLD_TYPES: BldType[] = ['power', 'mill', 'refinery', 'camp', 'yard', 'barracks', 'hospital', 'armory', 'factory', 'tower', 'turret', 'derrick', 'works', 'airfield', 'flak', 'pillbox', 'bertha', 'atturret', 'palisade', 'stonewall', 'concretewall', 'shrine', 'wardstone', 'waygate'];
 
 export const WALL_TYPES: BldType[] = ['palisade', 'stonewall', 'concretewall'];
 export const isWall = (t: string): boolean => !!BUILDING[t as BldType]?.wall;
@@ -90,6 +91,14 @@ export const isWall = (t: string): boolean => !!BUILDING[t as BldType]?.wall;
 export const WALL_RADIUS = 8;
 /** Most segments in one dragged wall line. The first is built at the yard; the rest are paid for as they're laid. */
 export const WALL_LINE_MAX = 16;
+
+/**
+ * Structures that start a new base away from home: they go anywhere the side has explored, as long
+ * as no enemy structure stands within EXPAND_GAP tiles.
+ */
+export const EXPANSION: readonly BldType[] = ['yard', 'camp'];
+export const isExpansion = (t: string): boolean => (EXPANSION as readonly string[]).includes(t);
+export const EXPAND_GAP = 8;
 
 /**
  * New structures must be placed within this many tiles of an existing one (it was 3; Alex asked for

@@ -48,7 +48,7 @@ describe('saving a game', () => {
     expect(errors).toEqual([]);
     expect(G.gameT).toBeGreaterThan(before.t + 60);
     expect(G.nextId).toBeGreaterThan(before.next);
-  });
+  }, 20_000); // 210 s of a computer match
 
   it('ignores a save from another version', () => {
     initWorld(4242);

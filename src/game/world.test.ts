@@ -61,7 +61,7 @@ describe('production', () => {
   });
 
   it('places a structure first, pays for it then, and builds it on site', () => {
-    expect(available(0, 'structure')).toEqual(['power', 'mill', 'palisade', 'stonewall']);
+    expect(available(0, 'structure')).toEqual(['power', 'mill', 'camp', 'yard', 'palisade', 'stonewall']);
     expect(enqueue(0, 'power')).toBe(false); // structures don't queue: they start when placed
     expect(G.credits[0]).toBe(START_CREDITS);
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');

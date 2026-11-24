@@ -5,7 +5,7 @@
 import { G, tileOf, type Ent, type HarvestOrder } from './state.ts';
 import { MH, MW, TREE } from './const.ts';
 import { CHOP_WORTH } from '../data/economy.ts';
-import { bankAt } from './haul.ts';
+import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS } from './chop.ts';
 import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
@@ -58,8 +58,9 @@ function near(b: Ent, test: (i: number) => boolean): boolean {
 /** The resources this Worker could go and gather right now: something to take and somewhere to bring it. */
 export function options(u: Ent): Res[] {
   const out: Res[] = [];
-  const oreHome = bankAt(u, ['refinery', 'yard']);
-  if (oreHome && near(oreHome, (i) => G.ore[i] > 0)) out.push('ore');
+  // ore by any drop-off counts: a Mining Camp or second Town Hall by a far field keeps Workers digging
+  const oreHome = bankAt(u, ORE_BANKS);
+  if (banksOf(u.team, ORE_BANKS).some((b) => near(b, (i) => G.ore[i] > 0))) out.push('ore');
   if (u.type === 'worker') {
     const woodHome = bankAt(u, [...WOOD_BANKS]);
     if (woodHome && near(woodHome, (i) => G.terr[i] === TREE && G.treeWood[i] >= CHOP_WORTH)) out.push('wood');
@@ -132,7 +133,7 @@ function gather(u: Ent, r: Res): void {
  * ore nearest the base (unit.ts pickOre) rather than digging wherever it stands.
  */
 function oreStart(u: Ent): [number, number] {
-  const b = bankAt(u, ['refinery', 'yard']);
+  const b = bankAt(u, ORE_BANKS);
   return b ? [b.tx, b.ty] : [tileOf(u.x), tileOf(u.y)];
 }
 
@@ -142,7 +143,7 @@ const computer = (team: number): boolean => !!ais[team]?.on;
 /** An idle gatherer goes to work. Returns true if it was given a job. */
 export function autoGather(u: Ent): boolean {
   if (u.type !== 'worker' || computer(u.team)) {
-    if (!bankAt(u, ['refinery', 'yard'])) return false;
+    if (!bankAt(u, ORE_BANKS)) return false;
     const [tx, ty] = oreStart(u);
     setOrder(u, { t: 'harvest', st: u.carry > 0 && (u.cargo ?? 'ore') === 'ore' ? 'ret' : 'go', tx, ty, wait: 0 });
     return true;
@@ -150,7 +151,7 @@ export function autoGather(u: Ent): boolean {
   const r = pickResource(u);
   if (r) gather(u, r);
   // nothing worth gathering close by: take any load home and dig ore wherever it's left, rather than stand about
-  if (!u.order && bankAt(u, ['refinery', 'yard'])) { const [tx, ty] = oreStart(u); setOrder(u, { t: 'harvest', st: u.carry > 0 ? 'ret' : 'go', tx, ty, wait: 0, auto: true }); }
+  if (!u.order && bankAt(u, ORE_BANKS)) { const [tx, ty] = oreStart(u); setOrder(u, { t: 'harvest', st: u.carry > 0 ? 'ret' : 'go', tx, ty, wait: 0, auto: true }); }
   return !!u.order;
 }
 

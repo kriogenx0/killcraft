@@ -5,10 +5,14 @@ import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
 import { G, haulOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
-import { BUILDING, isWall, type BldType } from '../data/building.ts';
+import { BUILDING, EXPAND_GAP, isExpansion, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
-import { canPlace, wallLine } from './building.ts';
+import { canPlace, clearOfFoes, exitTile, wallLine } from './building.ts';
+import { ORE_BANKS, banksOf } from './haul.ts';
+import { ORE_WORTH } from '../data/ore.ts';
+import { walkDist } from './ore.ts';
+import { findPath } from './path.ts';
 import { atLimit, available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear, woodNear } from './economy.ts';
 import { CHOPPERS_PER_MILL } from '../data/economy.ts';
@@ -78,6 +82,7 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 export function resetAi(teams = 2): void {
   while (ais.length < teams) ais.push({ on: true, level: 'normal', thinkT: 0, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
   wallPause.length = 0;
+  scouted.length = 0;
   ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.big = null; a.bigDone = false; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
@@ -119,6 +124,8 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   const aether = G.aether[team] ?? 0;
   if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.type === 'phantom')) return 'wardstone';
   if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
+  const grow = expansion(team, can);
+  if (grow) return grow;
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
@@ -280,6 +287,11 @@ function findSite(team: number, type: BldType): Tile | null {
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;
   if (type === 'derrick') return wellSite(team, s, yard);
+  if (isExpansion(type)) {
+    const at = scouted[team]?.site ?? expandSite(team, BUILDING.yard.size, yard);
+    scouted[team] = undefined; // look afresh next time
+    return at && canPlace(at[0], at[1], s, team, true, false, 'far') ? at : null;
+  }
   const foe = G.ents.find((e) => !e.dead && e.team === ais[team]?.foe && e.kind === 'bld');
   // a mill goes wherever it reaches the most trees
   let best: Tile | null = null, bestTrees = -1;
@@ -314,6 +326,95 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
       if ((oil > most || (oil === most && oil > 0 && d < near)) && canPlace(tx, ty, s, team, true, false, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; near = d; best = [tx, ty]; }
     }
   return best;
+}
+
+/** Ore (in tiles worth a trip) within r tiles of a tile. */
+function oreWithin(cx: number, cy: number, r: number): number {
+  let sum = 0;
+  for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
+    for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) if (G.ore[y * MW + x] >= ORE_WORTH) sum += G.ore[y * MW + x];
+  return sum;
+}
+
+/** How far (tiles) around a drop-off its Workers dig before the trips count as long. */
+const DIG_REACH = 8;
+/** Below this much ore around all its drop-offs, the computer goes looking for a new field. */
+const LOW_ORE = 2500;
+/** The least ore a far field must hold to be worth a camp. */
+const FIELD_ORE = 1200;
+/** Most Mining Camps and Town Halls the computer adds beyond its first hall. */
+const MAX_EXPANSIONS = 2;
+/** The computer keeps its new bases this much further from the enemy than the rule requires. */
+const SAFE_GAP = EXPAND_GAP + 4;
+/** The computer only expands this far (tiles) from its first Town Hall, where its army can cover it. */
+const HOME_REACH = 22;
+
+/**
+ * A new drop-off by far ore once the fields by the current ones run low: a Mining Camp, or a second
+ * Town Hall once well off in a later age. One at a time.
+ */
+function expansion(team: number, can: readonly string[]): BldType | null {
+  if (!can.includes('camp') || countOf(team, 'barracks') < 1 || countOf(team, 'refinery') < 1) return null;
+  if (sitesOf(team).some((e) => isExpansion(e.type))) return null;
+  if (countOf(team, 'camp') + countOf(team, 'yard') - 1 >= MAX_EXPANSIONS) return null;
+  const banks = banksOf(team, ORE_BANKS);
+  const left = banks.reduce((s, b) => s + oreWithin(b.tx + (b.w >> 1), b.ty + (b.h >> 1), DIG_REACH), 0);
+  if (left >= LOW_ORE) return null;
+  // only worth it once the nearest ore left is a long walk away
+  if (nearestTrip(team, banks) < LONG_TRIP) return null;
+  // only with somewhere to put it: looked for now and then, not every think
+  const yard = homeOf(team);
+  if (!yard) return null;
+  const look = scouted[team];
+  if (!look || G.gameT - look.t > EXPAND_LOOK) scouted[team] = { t: G.gameT, site: expandSite(team, BUILDING.yard.size, yard) };
+  if (!scouted[team]?.site) return null;
+  const hall = can.includes('yard') && countOf(team, 'yard') < 2 && G.era[team] >= 1 && G.credits[team] > costOf('yard') + 2500;
+  return hall ? 'yard' : G.credits[team] > costOf('camp') + 400 ? 'camp' : null;
+}
+
+/** Tiles of walking from a drop-off to the nearest ore worth a trip that make a new drop-off worth building. */
+const LONG_TRIP = 14;
+/** Walking distance from the side's drop-offs to the nearest ore worth a trip (Infinity if none). */
+function nearestTrip(team: number, banks: Ent[]): number {
+  const walk = walkDist(banks);
+  let best = Infinity;
+  for (let i = 0; i < MW * MH; i++) if (G.ore[i] >= ORE_WORTH && !G.blk[i] && walk[i] < best) best = walk[i];
+  return best;
+}
+
+/** Seconds between the computer's looks for a far ore field. */
+const EXPAND_LOOK = 15;
+/** Where each computer side last found a spot for a new drop-off (sized for a Town Hall, so a camp fits too). */
+const scouted: ({ t: number; site: Tile | null } | undefined)[] = [];
+
+/** The richest ore field away from the side's drop-offs and the enemy that its Workers can walk to, nearer home breaking ties. */
+function expandSite(team: number, s: number, yard: Ent): Tile | null {
+  const banks = banksOf(team, ORE_BANKS);
+  const cx = Math.floor(yard.x / TS), cy = Math.floor(yard.y / TS);
+  let best: Tile | null = null, bs = -Infinity;
+  const halls = G.ents.filter((e) => !e.dead && e.type === 'yard' && e.team >= 0 && e.team !== team).map((e) => [Math.floor(e.x / TS), Math.floor(e.y / TS)]);
+  for (let ty = 1; ty + s < MH - 1; ty++)
+    for (let tx = 1; tx + s < MW - 1; tx++) {
+      // far enough from every drop-off that it shortens trips, not just doubles up
+      if (banks.some((b) => Math.max(b.tx - (tx + s), tx - (b.tx + b.w), b.ty - (ty + s), ty - (b.ty + b.h)) < DIG_REACH)) continue;
+      const ore = oreWithin(tx + (s >> 1), ty + (s >> 1), 5);
+      if (ore < FIELD_ORE) continue;
+      // don't bury ore under the camp
+      let onOre = false;
+      for (let y = ty; y < ty + s && !onOre; y++) for (let x = tx; x < tx + s; x++) if (G.ore[y * MW + x] > 0) { onOre = true; break; }
+      if (onOre) continue;
+      // on our side of the map: nearer our Town Hall than any enemy's, by a good margin
+      const mine = Math.hypot(tx - cx, ty - cy);
+      if (mine > HOME_REACH || halls.some((h) => Math.hypot(tx - h[0], ty - h[1]) * 0.6 < mine)) continue;
+      const score = ore - mine * 60;
+      if (score <= bs || !clearOfFoes(tx, ty, s, team, SAFE_GAP) || !canPlace(tx, ty, s, team, true, false, 'far')) continue;
+      bs = score; best = [tx, ty];
+    }
+  if (!best) return null;
+  // Workers must be able to walk there (not across water or cliffs)
+  const [sx, sy] = exitTile(yard), path = findPath(sx, sy, best[0], best[1], team), end = path[path.length - 1];
+  if (!end || Math.max(Math.abs(end[0] - best[0]), Math.abs(end[1] - best[1])) > 1) return null;
+  return sealsIn(team, yard, footprint(best[0], best[1], s)) ? null : best;
 }
 
 /** Sites the computer keeps going at once: one, or more (by difficulty) with money in the bank. */
