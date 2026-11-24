@@ -1,7 +1,7 @@
 // Who is online, who is looking for a game, and pairing players into matches.
 // Knows nothing about sockets or game simulation.
 import { randomUUID } from 'node:crypto';
-import type { LiveGame, LobbyMsg, OnlinePlayer, OpenGame, PlayerStatus } from '../../src/net/protocol.ts';
+import type { LiveGame, LobbyMsg, LobbySummary, OnlinePlayer, OpenGame, PlayerStatus } from '../../src/net/protocol.ts';
 
 export type { PlayerStatus };
 
@@ -164,6 +164,11 @@ export class LobbyService {
 
   games(): OpenGame[] {
     return [...this.open].map(([id, host]) => ({ id, host: this.players.get(host)?.name ?? '?' }));
+  }
+
+  /** What the main menu shows before connecting: how many are online, open games and matches to watch. */
+  summary(): LobbySummary {
+    return { online: this.players.size, games: this.games().slice(0, MAX_LISTED), live: (this.events.live?.() ?? []).slice(0, MAX_LISTED) };
   }
 
   /** The lobby as player `id` sees it. */

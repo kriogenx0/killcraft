@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { promisify } from 'node:util';
 import { brotliCompress, constants, gzip } from 'node:zlib';
+import type { LobbySummary } from '../../src/net/protocol.ts';
 
 const brotli = promisify(brotliCompress), gz = promisify(gzip);
 /** Text files are sent compressed (the game's script is about a megabyte, a quarter of that compressed). */
@@ -17,6 +18,8 @@ const TYPES: Record<string, string> = {
 export interface StatusSource {
   players: () => number;
   matches: () => number;
+  /** who's online, open games and matches to watch, for the main menu (no connection or name needed) */
+  lobby?: () => LobbySummary;
 }
 
 export interface RedirectOptions {
@@ -82,6 +85,11 @@ export function httpController(staticDir: string, status: StatusSource, redirect
     if (path === '/status') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ lobby: 'ok', players: status.players(), matches: status.matches() }));
+      return;
+    }
+    if (path === '/lobby' && status.lobby) {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(status.lobby()));
       return;
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }

@@ -46,6 +46,20 @@ describe('game server', () => {
     expect((await status.json()).lobby).toBe('ok');
   });
 
+  it('sums up the lobby for the main menu', async () => {
+    const a = await connect('Hana');
+    await a.next('welcome');
+    a.ws.send(JSON.stringify({ k: 'create' }));
+    await a.next('lobby', (m) => m.k === 'lobby' && !!m.hosting);
+    const res = await fetch(`http://localhost:${srv.port}/lobby`);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const body = await res.json();
+    expect(body.online).toBeGreaterThanOrEqual(1);
+    expect(body.games.some((g: { host: string }) => g.host === 'Hana')).toBe(true);
+    expect(Array.isArray(body.live)).toBe(true);
+    a.ws.close();
+  });
+
   it('matches two players, runs their commands, and the computer plays a side whose player dropped', async () => {
     const a = await connect('Alice'), b = await connect('<b>Bob</b>');
     await a.next('welcome');
