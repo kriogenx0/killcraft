@@ -10,6 +10,7 @@ import { cancel, enqueue, startSite, toggleHold, type Buildable } from './produc
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
+import { forgetResume } from './autogather.ts';
 
 export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number }
@@ -94,7 +95,7 @@ function ownBuilding(team: number, id: number): Ent | null {
 /** Carry out a command for a team. Silently ignores anything the team isn't allowed to do. */
 export function applyCommand(team: number, cmd: Command): void {
   // any other order for a Worker ends "fix, then harvest"
-  if ('ids' in cmd && cmd.c !== 'tend') for (const u of ownUnits(team, cmd.ids)) u.tending = false;
+  if ('ids' in cmd && cmd.c !== 'tend') for (const u of ownUnits(team, cmd.ids)) { u.tending = false; forgetResume(u); }
   switch (cmd.c) {
     case 'tend':
       // Workers fix everything damaged nearby (buildings, sites, wounded units), then go back to harvesting

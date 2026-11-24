@@ -96,10 +96,13 @@ describe('stances', () => {
     G.ents = G.ents.filter((e) => !e.dead);
   });
 
+  /** Hold a harvester where it is (left idle it would drive off to dig straight away). */
+  const parked = (e: Ent): Ent => { e.order = { t: 'harvest', st: 'go', tx: 0, ty: 0, wait: 1e9 }; return e; };
+
   /** A unit walks the length of a strip of open ground, past an enemy harvester beside its path. */
   function walkPast(type: UnitType, stance: 'engage' | 'skirmish' | 'passive', seconds: number): { u: Ent; prey: Ent; gx: number } {
     const [x, y] = openGround(16);
-    const u = addUnit(type, 0, x, y), prey = addUnit('harvester', 1, x + 6 * TS, y + TS);
+    const u = addUnit(type, 0, x, y), prey = parked(addUnit('harvester', 1, x + 6 * TS, y + TS));
     setStance(u, stance);
     const gx = Math.floor(x / TS) + 15;
     groupMove([u], gx, Math.floor(y / TS));
@@ -109,7 +112,7 @@ describe('stances', () => {
 
   it('fights back against an attacker before a building or harvester that can’t', () => {
     const [x, y] = openGround(10);
-    const u = addUnit('tank', 0, x + 4 * TS, y), prey = addUnit('harvester', 1, x + 7 * TS, y);
+    const u = addUnit('tank', 0, x + 4 * TS, y), prey = parked(addUnit('harvester', 1, x + 7 * TS, y));
     orderAttack(u, prey);
     run(2);
     expect(prey.hp).toBeLessThan(prey.maxhp);
@@ -129,7 +132,7 @@ describe('stances', () => {
     expect(u.order?.t).toBe('move'); // and is still patrolling
     run(8);
     expect(Math.abs(u.x - x)).toBeLessThan(3 * TS); // back near the start by now, or on the way
-    const prey = addUnit('harvester', 1, x + 4 * TS, y + TS);
+    const prey = parked(addUnit('harvester', 1, x + 4 * TS, y + TS));
     run(10);
     expect(prey.hp).toBeLessThan(prey.maxhp);
   });

@@ -178,9 +178,10 @@ describe('Fix, then harvest', () => {
     const far = addBuilding('barracks', 0, 20, 50, false), wounded = addUnit('swordsman', 0, 19 * TS, 47 * TS);
     far.hp = far.maxhp * 0.5;
     wounded.hp = 20;
-    const w = G.ents.find((e) => e.type === 'worker' && e.team === 0) as Ent;
+    const ws = G.ents.filter((e) => e.type === 'worker' && e.team === 0), w = ws[0];
     run(1);
-    expect(w.order).toMatchObject({ t: 'heal', tgt: far.id }); // buildings first, without being told
+    // without being told: one repairs the building, the other patches up the swordsman (one each, not both on one)
+    expect(ws.map((x) => x.order?.t === 'heal' && x.order.tgt).filter(Boolean).sort()).toEqual([far.id, wounded.id].sort());
     run(60);
     expect(far.hp).toBe(far.maxhp);
     expect(wounded.hp).toBeGreaterThan(20 + 15);
