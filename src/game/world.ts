@@ -15,6 +15,7 @@ import { updFog } from './fog.ts';
 import { regrowOre } from './ore.ts';
 import { collect, dropSalvage } from './economy.ts';
 import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
+import { initCows } from './cows.ts';
 import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { available, canAfford, emptyProduction, updProduction } from './production.ts';
@@ -64,6 +65,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   placeCreatures(G.seed);
   rebuildBlk();
+  initCows();
   updFog();
 }
 
