@@ -11,7 +11,7 @@ import { inReach, nearBase, onWell, tileFree, wallLine } from '../../../game/bui
 import { nearPortal } from '../../../game/map.ts';
 import { lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
-import { MARKER_LIFE, V } from '../view_state.ts';
+import { MARKER_LIFE, V, spectating } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
 import { S, onBeforeDraw, raycastObjects, worldToScreen } from './scene.ts';
 import { borrowMaterial, instanceModels, resetInstances, returnMaterial, SHADOW_ONLY_LAYER } from './instancer.ts';
@@ -60,6 +60,7 @@ export function resetEntities3d(): void {
   markerPool.length = 0;
   ghost = null;
   rally = null;
+  armyFlag = null;
   S.scene.add(holder, overlays, batched);
 }
 
@@ -263,6 +264,8 @@ const ringPool: THREE.Mesh[] = [];
 const markerPool: THREE.Mesh[] = [];
 const ringMats = { own: basic('#5f5'), enemy: basic('#f55'), neutral: basic('#ff5'), ally: basic('#5cf') };
 let rally: THREE.Group | null = null;
+/** the army rally point (game/rally.ts) */
+let armyFlag: THREE.Group | null = null;
 let ghost: { type: BldType; look: number; group: THREE.Group; tiles: THREE.Mesh[]; foot: THREE.Mesh } | null = null;
 
 function basic(color: string, opacity = 0.9): THREE.MeshBasicMaterial {
@@ -326,6 +329,25 @@ function updateRally(): void {
   line.geometry = new THREE.BufferGeometry().setFromPoints(pts);
   line.computeLineDistances();
   onGround(flag, bx, bz, 0);
+}
+
+function updateArmyFlag(): void {
+  const r = spectating() ? null : G.rally?.[V.team];
+  if (!armyFlag) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.2, 6).translate(0, 0.6, 0), basic('#333', 1));
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.28, 0.015).translate(0.27, 1.04, 0), teamMat(V.team));
+    const ring = new THREE.Mesh(ringGeo, basic('#fff', 0.55));
+    ring.scale.setScalar(0.4);
+    ring.position.y = 0.06;
+    ring.renderOrder = 3;
+    armyFlag = new THREE.Group().add(pole, flag, ring);
+    overlays.add(armyFlag);
+  }
+  armyFlag.visible = !!r;
+  if (!r) return;
+  onGround(armyFlag, r.x / TS, r.y / TS, 0);
+  // the cloth sways a little so the eye finds it
+  armyFlag.children[1].rotation.y = Math.sin(performance.now() / 400) * 0.25;
 }
 
 function ghostFor(type: BldType): NonNullable<typeof ghost> {
@@ -456,6 +478,7 @@ export function syncEntities(dt: number): void {
   updateRings();
   updateMarkers();
   updateRally();
+  updateArmyFlag();
   updateGhost();
 }
 

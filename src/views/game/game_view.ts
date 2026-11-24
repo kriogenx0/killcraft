@@ -281,6 +281,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     G.aetherFound[team] = !!s.aetherFound;
     G.tamed[team] = s.tamed ?? [];
     G.ward[team] = !!s.ward;
+    G.rally[team] = s.rally ?? null;
     G.era[team] = s.era ?? 0;
     G.heal[team] = s.heal ?? 0;
     G.upg[team] = { ...noUpgrades(), ...s.upg };

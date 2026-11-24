@@ -97,6 +97,12 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
     return;
   }
   V.mode = null;
+  if (m.t === 'rally') {
+    dispatch({ c: 'muster', x: Math.round(wx), y: Math.round(wy), send: true });
+    mark(wx, wy, '#5f5');
+    refreshCommands(true);
+    return;
+  }
   const us = selectedUnits();
   dispatch({ c: m.t, ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
   mark(wx, wy, m.t === 'patrol' ? '#5af' : isEnemy(hit) ? '#f44' : '#5f5');
@@ -172,6 +178,13 @@ export function selectSameTypes(): void {
 }
 
 /** All your fighting units, wherever they are (the touch bar's Army button). */
+/** Pick the army rally point with the next click or tap (again to cancel). */
+export function startRally(): void {
+  V.keyGroup = null;
+  V.mode = V.mode?.t === 'rally' ? null : { t: 'rally' };
+  refreshCommands(true);
+}
+
 export function selectArmy(): void {
   setSelection(G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && !isHarvester(e)));
 }
@@ -436,6 +449,7 @@ function onKey(ev: KeyboardEvent): void {
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (k === 'f' && (ev.shiftKey || spectating())) { toggleFollow(); refreshCommands(true); return; }
+  if (k === 'r' && ev.shiftKey) { if (!spectating()) startRally(); return; }
   const hk = normalizeKey(ev.key);
   // the command card first, so a unit's M, X, G, F and V beat the Town Hall's letters
   if (runHotkey(hk) || productionHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }

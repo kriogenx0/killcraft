@@ -25,7 +25,7 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandButtonHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
@@ -99,13 +99,19 @@ function followCommand(): Command | null {
   return { id: 'follow', label: on ? 'Following' : 'Follow', hotkey: FOLLOW_KEY, icon: ICON.follow, active: on, tip: on ? 'Stop following this unit (panning the map stops it too)' : 'Keep the camera on this unit as it moves. Pan the map to let go' };
 }
 
+/** Rally the army: every fighter heads to one spot, and new troops from every producer follow. */
+function rallyCommand(): Command | null {
+  if (spectating() || G.over) return null;
+  return { id: 'rally', label: 'Rally army', hotkey: RALLY_KEY, icon: ICON.rally, tip: 'Pick a spot: your whole army heads there now, and new troops from every Barracks, Factory and Airfield follow. Workers keep working' };
+}
+
 export function commandList(): Command[] {
-  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: 'Cancel the current command' }];
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
-  const follow = followCommand();
-  // enemy units you can see, and anything while spectating: nothing to order, but you can follow it
-  if (!first) return follow ? [follow] : [];
+  const follow = followCommand(), rally = rallyCommand();
+  // nothing of yours selected: rally the army; enemy units you can see, and anything while spectating, can be followed
+  if (!first) return [...(follow ? [follow] : []), ...(rally && !V.sel.length ? [rally] : [])];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
     return [
@@ -116,6 +122,7 @@ export function commandList(): Command[] {
       // Workers: T, to tend the base
       ...(s.some((u) => u.type === 'worker') ? [{ id: 'tend', label: 'Fix, then harvest', hotkey: COMMAND_KEYS.tend, icon: ICON.repair, tip: `Fix everything damaged within ${TEND_RADIUS} tiles (buildings, building sites and wounded units), then go back to harvesting. Idle Workers do this for what's close by on their own`, active: s.every((u) => u.type !== 'worker' || u.tending) }] : []),
       ...(follow ? [follow] : []),
+      ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
     return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
@@ -123,6 +130,8 @@ export function commandList(): Command[] {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
     if (up) list.push(up);
+    const rally = rallyCommand();
+    if (rally && first.done && isUnitProducer(bldDef(first).produces)) list.push(rally);
     // Delete, away from the letters, so scrapping is hard to hit by accident
     // sub-menus of production hotkeys, such as the yard's walls and defenses
     for (const [g, key] of first.done ? groupsOf(first.type as BldType) : []) {
@@ -143,7 +152,7 @@ export function runCommand(id: string): void {
   else if (id === 'back') V.keyGroup = null;
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'follow') toggleFollow();
-  else if (id === 'move' || id === 'patrol') V.mode = { t: id };
+  else if (id === 'move' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'tend') dispatch({ c: 'tend', ids: ids(s.filter((u) => u.type === 'worker')) });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
@@ -291,7 +300,7 @@ function buildingDetails(e: Ent): string {
   if (yieldText) rows.push(['Output', yieldText, true]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
-    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set a rally point.</p>' : '');
+    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
 }
 
 /** What a producing building's side is making on its lines (one queue per line, shared by every building of the type). */
