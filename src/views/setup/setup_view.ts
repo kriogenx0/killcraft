@@ -7,9 +7,14 @@ const SETUP_KEY = 'killcraft.setup';
 
 interface Choice { value: string; label: string; title?: string }
 
-const group = (name: string, label: string, choices: Choice[]): string => `
+// Each setting is one row at every width; phones show the short label so the row fits in 320px.
+const legend = (label: string, short = label): string => short === label
+  ? `<legend class="setup-label">${label}</legend>`
+  : `<legend class="setup-label"><span class="setup-label-full">${label}</span><span class="setup-label-short">${short}</span></legend>`;
+
+const group = (name: string, label: string, choices: Choice[], short?: string): string => `
   <fieldset class="setup-row setup-row--${name}">
-    <legend class="setup-label">${label}</legend>
+    ${legend(label, short)}
     <div class="ui-segmented" role="radiogroup" aria-label="${label}">
       ${choices.map((c) => `<label class="ui-segmented-option"${c.title ? ` title="${c.title}"` : ''}><input type="radio" name="setup-${name}" value="${c.value}"><span>${c.label}</span></label>`).join('')}
     </div>
@@ -18,13 +23,13 @@ const group = (name: string, label: string, choices: Choice[]): string => `
 const MARKUP = `
   <h2 class="setup-title">New game</h2>
   <form class="setup-form">
-    ${group('difficulty', 'Computer difficulty', Object.entries(AI_LEVEL).map(([value, l]) => ({ value, label: l.name, title: l.desc })))}
+    ${group('difficulty', 'Computer difficulty', Object.entries(AI_LEVEL).map(([value, l]) => ({ value, label: l.name, title: l.desc })), 'Difficulty')}
     <p class="setup-hint setup-difficulty-desc"></p>
     ${group('foes', 'Opponents', [{ value: '1', label: 'One', title: 'One against one' }, { value: '3', label: 'Three', title: 'Four-player free-for-all, one base in each corner' }])}
-    ${group('resources', 'Starting resources', Object.entries(START_RESOURCES).map(([value, r]) => ({ value, label: r.name })))}
-    ${group('army', 'Starting units', Object.entries(START_ARMY).map(([value, a]) => ({ value, label: a.name, title: a.desc })))}
-    ${group('speed', 'Game speed', SPEEDS.map((s) => ({ value: String(s), label: `${s}x` })))}
-    ${group('fog', 'Fog of war', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off', title: 'See the whole map' }])}
+    ${group('resources', 'Starting resources', Object.entries(START_RESOURCES).map(([value, r]) => ({ value, label: r.name })), 'Resources')}
+    ${group('army', 'Starting units', Object.entries(START_ARMY).map(([value, a]) => ({ value, label: a.name, title: a.desc })), 'Units')}
+    ${group('speed', 'Game speed', SPEEDS.map((s) => ({ value: String(s), label: `${s}x` })), 'Speed')}
+    ${group('fog', 'Fog of war', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off', title: 'See the whole map' }], 'Fog')}
     <fieldset class="setup-row">
       <legend class="setup-label">Map</legend>
       <div class="setup-map">

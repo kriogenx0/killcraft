@@ -28,9 +28,12 @@
     border-radius: $radius;
   }
 
+  // one row per setting at every width: label on the left, control on the right, never wrapping
   .setup-row {
+    --setup-label-w: 170px;
+
     display: grid;
-    grid-template-columns: 170px 1fr;
+    grid-template-columns: var(--setup-label-w) minmax(0, 1fr);
     gap: $space-3;
     align-items: center;
     min-width: 0;
@@ -47,12 +50,27 @@
   .setup-label {
     float: left; // lets a legend sit in a grid cell
     padding: 0;
+    overflow: hidden;
     color: #e8d8a8;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .setup-label-short {
+    display: none;
+  }
+
+  .ui-segmented {
+    flex-wrap: nowrap;
+
+    .ui-segmented-option span {
+      white-space: nowrap;
+    }
   }
 
   .setup-hint {
     min-height: 1.4em;
-    margin: -$space-2 0 0 182px;
+    margin: -$space-2 0 0 calc(170px + #{$space-3});
     font-size: $font-sm;
     color: #cfc093;
     text-align: left;
@@ -64,7 +82,9 @@
     align-items: center;
 
     .setup-seed {
+      flex: 0 1 120px;
       width: 120px;
+      min-width: 0;
       min-height: 36px;
       padding: $space-1 $space-2;
       font: inherit;
@@ -80,18 +100,57 @@
     }
   }
 
+  .setup-reroll {
+    white-space: nowrap;
+  }
+
   .ui-modal-actions {
     margin-top: 0;
   }
 
+  // phones: short labels and snug options so each row still fits on one line, down to 320px wide
   @media (max-width: 560px) {
+    .setup-form {
+      gap: $space-2;
+      padding: $space-3 $space-2;
+    }
+
     .setup-row {
-      grid-template-columns: 1fr;
-      gap: $space-1;
+      --setup-label-w: 76px;
+
+      gap: $space-2;
+    }
+
+    .setup-label {
+      font-size: $font-sm;
+    }
+
+    .setup-label-full {
+      display: none;
+    }
+
+    .setup-label-short {
+      display: inline;
+    }
+
+    .ui-segmented {
+      display: flex;
+
+      .ui-segmented-option {
+        flex: 1 1 auto;
+        min-width: 0;
+
+        span {
+          justify-content: center;
+          width: 100%;
+          padding: 0 $space-1;
+          font-size: $font-sm;
+        }
+      }
     }
 
     .setup-hint {
-      margin: -$space-2 0 0;
+      margin: -$space-1 0 0 calc(76px + #{$space-2});
     }
   }
 }
