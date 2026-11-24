@@ -9,7 +9,7 @@ import { findPath, knownUnreachable, pathReached } from './path.ts';
 /** Can this unit knock down a wall at all? */
 export function canBreach(u: Ent): boolean {
   const w = unitDef(u).weapon;
-  return !!w && !isAir(u) && u.stance === 'engage' && WEAPON[w].vs.building > 0;
+  return !!w && !isAir(u) && (u.stance === 'engage' || u.stance === 'skirmish') && WEAPON[w].vs.building > 0;
 }
 
 /** An enemy wall standing on a tile, if any. */

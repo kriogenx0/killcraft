@@ -128,7 +128,8 @@ describe('Workers', () => {
   it('start on "Fix, then harvest", a stance only Workers can take', () => {
     const w = addUnit('worker', 0, 20 * TS, 50 * TS), s = addUnit('swordsman', 0, 20 * TS, 50 * TS);
     expect(w.stance).toBe('tend');
-    expect(s.stance).toBe('engage');
+    expect(s.stance).toBe('skirmish'); // a person's troops start on Move & attack
+    expect(addUnit('swordsman', 1, 30 * TS, 50 * TS).stance).toBe(G.human[1] ? 'skirmish' : 'engage'); // the computer's on Stop & attack
     applyCommand(0, { c: 'stance', ids: [w.id, s.id], stance: 'passive' });
     expect([w.stance, s.stance]).toEqual(['passive', 'passive']);
     applyCommand(0, { c: 'stance', ids: [w.id, s.id], stance: 'tend' });

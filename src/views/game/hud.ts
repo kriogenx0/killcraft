@@ -74,14 +74,17 @@ export function setSelection(list: Ent[]): void {
 }
 
 const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
-  engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on (default)' },
-  skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping' },
+  engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on' },
+  skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping (default)' },
   passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies. Workers just keep harvesting' },
   tend: { label: 'Fix, then harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
 
 /** caption over the stance buttons, which are drawn joined as one pick-one bar */
 const STANCE_GROUP = 'Attack mode';
+
+/** the attack-mode bar, default first */
+const STANCE_ORDER: Stance[] = ['skirmish', 'engage', 'passive', 'tend'];
 
 const isStance = (id: string): id is Stance => (STANCES as readonly string[]).includes(id);
 
@@ -125,7 +128,7 @@ export function commandList(): Command[] {
       ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       // Fix, then harvest is for Workers only (and is theirs by default)
-      ...STANCES.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
+      ...STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
         .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),

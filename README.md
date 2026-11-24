@@ -71,10 +71,10 @@ The live game runs on Coolify from this repo's `main` branch:
   - Only weapons that can aim up hit aircraft: crossbows, ballista towers, rifles, machine guns, rockets, aircraft guns and flak. Swords, lances, catapults and tank cannons can't. Rocket Soldiers and the Flak Cannon are the best answers to helicopters.
   - Rockets beat armor, rifles beat unarmored infantry, swords beat rifles, crossbows pierce plate, tanks beat almost everything.
 - **Orders:** left-click or drag to select. Right-click to move, send harvesters to ore or a refinery, or set a factory's rally point. Units that can fight can **Patrol** (`O`, then click a point): they walk back and forth between where they are and that point, fighting by their stance on the way. Select a building to repair or scrap it (scrapping leaves part of its price on the ground as ore for your Workers to carry home).
-- **Stances:** there is no separate attack order. Units only move, and each unit's stance decides how it fights. Pick one from the **Attack mode** bar on the command card (one pick-one bar: `G` Stop & attack, `F` Move & attack, `V` Don't attack, and `T` Fix, then harvest for Workers) for a unit or a whole selection:
+- **Stances:** there is no separate attack order. Units only move, and each unit's stance decides how it fights. Pick one from the **Attack mode** bar on the command card (one pick-one bar: `F` Move & attack, `G` Stop & attack, `V` Don't attack, and `T` Fix, then harvest for Workers) for a unit or a whole selection:
   - Units that fight always turn on whoever attacks them first, and never keep hitting a building or harvester that can't fight back while an armed enemy is within reach.
-  - **Stop & attack** (default): the unit stops to fight enemies it meets, then carries on to where it was going. Idle units engage anything in sight.
-  - **Move & attack** (attack while moving): the unit shoots whatever is in range without stopping or turning aside. Idle, it holds its ground and fires.
+  - **Move & attack** (default for your troops): the unit shoots whatever is in range without stopping or turning aside, and only stops for an enemy wall it has to break through. Idle, it fires at what's in range and goes after enemies it can see.
+  - **Stop & attack** (what computer players use): the unit stops to fight enemies it meets, then carries on to where it was going. Idle units engage anything in sight.
   - **Don't attack:** the unit holds fire and runs away from armed enemies that come close or shoot at it.
 - **Touch:** tap to select; with something selected, tap elsewhere to give an order. Drag to scroll.
 - **Surrender** (online): the button in the top bar, clicked twice.

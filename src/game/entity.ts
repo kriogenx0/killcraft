@@ -1,7 +1,7 @@
 // Creating, destroying and counting entities (units, buildings, ore crystal rocks).
 import { initMana } from './spells.ts';
 import { bldHp, refitBonus } from './refit.ts';
-import { G, hooks, bldDef, isOrganic, unitDef, type Ent, type EntKind, type EntType } from './state.ts';
+import { G, hooks, bldDef, defaultStance, isOrganic, unitDef, type Ent, type EntKind, type EntType } from './state.ts';
 import { TS } from './const.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -10,13 +10,13 @@ import { setBlk } from './map.ts';
 import { burst, explosion } from './fx.ts';
 import { dropAether } from './aether.ts';
 
-/** Workers start on "Fix, then harvest" (they never attack); everyone else on engage. */
+/** Workers start on "Fix, then harvest" (they never attack); a player's troops on Move & attack, the computer's on engage. */
 function baseEnt(kind: EntKind, type: EntType, team: number, x: number, y: number, hp: number): Ent {
   return {
     id: G.nextId++, kind, type, team, x, y, hp, maxhp: hp, dead: false, flash: 0,
     tx: 0, ty: 0, w: 0, h: 0,
     order: null, path: null, goal: null, cd: 0, face: Math.PI / 2, tface: Math.PI / 2, carry: 0,
-    scan: Math.random() * 0.3, rep: 0, px: x, py: y, stkT: 0.5, walk: 0, moving: false, atkT: 0, stance: type === 'worker' ? 'tend' : 'engage', shot: null, breach: null, foe: null, foeT: -99,
+    scan: Math.random() * 0.3, rep: 0, px: x, py: y, stkT: 0.5, walk: 0, moving: false, atkT: 0, stance: defaultStance(type, team), shot: null, breach: null, foe: null, foeT: -99,
     done: true, prog: 1, repairing: false, rally: null,
   };
 }

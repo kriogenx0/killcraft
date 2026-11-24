@@ -22,6 +22,12 @@ export type EntType = UnitType | BldType | 'source' | 'aether' | 'shard';
 export const STANCES = ['engage', 'skirmish', 'passive', 'tend'] as const;
 export type Stance = (typeof STANCES)[number];
 
+/**
+ * The stance a new unit starts on: Workers fix, then harvest; a person's troops move & attack
+ * (Alex, 2026-11-24); the computer's troops engage, which its attacks and wall-breaching rely on.
+ */
+export const defaultStance = (type: string, team: number): Stance => (type === 'worker' ? 'tend' : G.human[team] ? 'skirmish' : 'engage');
+
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
 /** `pat`: on patrol, the other end of the beat; on arriving the unit turns back toward it. */
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile }

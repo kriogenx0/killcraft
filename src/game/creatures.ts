@@ -1,6 +1,6 @@
 // Wild creatures of Greek myth: placing their lairs, how they guard them, beating one down until it
 // kneels, and capturing it. Tuning lives in data/creatures.ts.
-import { G, isOrganic, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, defaultStance, isOrganic, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
@@ -167,7 +167,7 @@ function capture(u: Ent, team: number): void {
   u.wild = undefined;
   u.team = team;
   u.hp = Math.max(u.hp, u.maxhp * RISE_HP);
-  u.stance = 'engage';
+  u.stance = defaultStance(u.type, team);
   setOrder(u, null);
   const tamed = (G.tamed[team] ??= []), first = !tamed.includes(type);
   if (first) tamed.push(type);

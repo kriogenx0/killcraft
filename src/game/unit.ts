@@ -469,7 +469,9 @@ export function updUnit(u: Ent, dt: number): void {
   const o = u.order;
   if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {
-    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); return; } // holds its ground and shoots what's in range
+    // a skirmisher shoots what's in range from where it stands; with nothing in range it goes after
+    // enemies it can see and fights back like any other, so idle troops aren't picked off from afar
+    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); if (u.shot) return; }
     if (busy.delete(u)) u.scan = 0; // just finished something: look for the next thing straight away
     u.scan -= dt;
     if (u.scan > 0) return;
@@ -517,10 +519,23 @@ export function updUnit(u: Ent, dt: number): void {
   busy.add(u);
   switch (o.t) {
     case 'move': {
-      if (u.stance === 'skirmish' || u.stance === 'passive' || u.stance === 'tend' || !d.weapon) {
-        // keep going; a skirmisher shoots along the way
+      if (u.stance === 'skirmish' && d.weapon) {
+        // keep going and shoot along the way; only an enemy wall it must get through stops it
+        const wall = valid(o.sub);
+        if (wall) { if (!combatStep(u, wall, dt)) { o.sub = null; u.path = null; } break; }
+        if (o.sub) { o.sub = null; u.path = null; }
+        if (!u.path) { u.goal = [o.gx, o.gy]; u.path = pathFor(u, o.gx, o.gy); }
+        if (followPath(u, dt)) {
+          const short = Math.hypot(u.x - (o.gx + 0.5) * TS, u.y - (o.gy + 0.5) * TS) > 1.5 * TS;
+          const w = sentToWall(u, o.gx, o.gy, d.sight) ?? (short && canBreach(u) ? wallInWay(u, o.gx, o.gy) : null);
+          if (w) { o.sub = w.id; u.path = null; } else arrive(u);
+        }
+        fireOnTheMove(u, dt);
+        break;
+      }
+      if (u.stance === 'passive' || u.stance === 'tend' || !d.weapon) {
+        // keep going
         if (followPath(u, dt)) arrive(u);
-        if (u.stance === 'skirmish') fireOnTheMove(u, dt);
         break;
       }
       // engage: stop to fight anything met on the way, then carry on
