@@ -17,7 +17,7 @@ const group = (name: string, label: string, choices: Choice[], short?: string): 
   <div class="setup-row setup-row--${name}">
     ${rowLabel(label, short)}
     <div class="ui-segmented" role="radiogroup" aria-label="${label}">
-      ${choices.map((c) => `<label class="ui-segmented-option"${c.title ? ` title="${c.title}"` : ''}><input type="radio" name="setup-${name}" value="${c.value}"><span>${c.label}</span></label>`).join('')}
+      ${choices.map((c) => `<label class="ui-segmented-option"${c.title ? ` title="${c.title}"` : ''}><input type="radio" autocomplete="off" name="setup-${name}" value="${c.value}"><span>${c.label}</span></label>`).join('')}
     </div>
   </div>`;
 
@@ -34,7 +34,7 @@ const MARKUP = `
     <div class="setup-row" role="group" aria-label="Map">
       <span class="setup-label">Map</span>
       <div class="setup-map">
-        <input class="ui-text-field-input setup-seed" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="Random" aria-label="Map number (blank for a random map)">
+        <input class="ui-text-field-input setup-seed" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="Random" aria-label="Map number (blank for a random map)">
         <button type="button" class="ui-button ui-button--small ui-button--secondary setup-reroll" title="Pick a random map number">New map</button>
       </div>
     </div>

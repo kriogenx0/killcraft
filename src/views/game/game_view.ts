@@ -24,7 +24,7 @@ import { hostedGame, mountLobby, storedName } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
 import { mountSetup } from '../setup/setup_view.ts';
-import { autoFullscreen, mountFullscreenButton } from './fullscreen.ts';
+import { mountFullscreenButton } from './fullscreen.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
 import { canPlaceType } from '../../game/building.ts';
 import { addBuilding, addUnit } from '../../game/entity.ts';
@@ -192,7 +192,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(0);
     Object.assign(V, { team: 0, online: false, sel: [], mode: null, markers: [], pings: [], paused: false, speed: s.speed, started: true });
-    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.(); // keys go to the game, not a closed dialog's field
     home(0);
     setSelection([]);
@@ -222,7 +221,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(g.view.team);
     Object.assign(V, { team: g.view.team, online: false, sel: [], mode: null, markers: [], pings: [], paused: g.view.paused, speed: g.view.speed, started: true });
-    autoFullscreen();
     Object.assign(V.cam, g.view.cam);
     clampCam();
     setSelection([]);
@@ -348,7 +346,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(m.team);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
-    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.(); // the lobby's name box would swallow every key
     root.classList.add('view-game--online');
     resignBtn.hidden = false;
@@ -380,7 +377,6 @@ export function mountGameView(root: HTMLElement): void {
     setupWorldView();
     makeIcons(0);
     Object.assign(V, { sel: [], mode: null, markers: [], pings: [], paused: false, speed: 1, started: true });
-    autoFullscreen();
     (document.activeElement as HTMLElement | null)?.blur?.();
     root.classList.add('view-game--online', 'view-game--watching');
     resignBtn.hidden = false;
