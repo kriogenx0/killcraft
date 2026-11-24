@@ -1,9 +1,21 @@
 {
+  "id": "/",
   "name": "Killcraft",
   "short_name": "Killcraft",
+  "description": "A real-time strategy game. Play against the computer, even offline.",
+  "start_url": "/",
+  "scope": "/",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ],
   "theme_color": "#17120b",
   "background_color": "#000000",

@@ -318,7 +318,17 @@ export function mountGameView(root: HTMLElement): void {
 
   must(root, '.game-start-play').addEventListener('click', () => { closeModal(startModal); setup.open(false); });
   must(root, '.game-start-watch').addEventListener('click', () => { closeModal(startModal); setup.open(true); });
-  must(root, '.game-start-online').addEventListener('click', () => { closeModal(startModal); lobby.open(); });
+  const onlineBtn = must<HTMLButtonElement>(root, '.game-start-online');
+  onlineBtn.addEventListener('click', () => { closeModal(startModal); lobby.open(); });
+  // with no connection only solo play works (the game itself is cached by the service worker)
+  const showConnection = () => {
+    onlineBtn.disabled = !navigator.onLine;
+    onlineBtn.textContent = navigator.onLine ? 'Play Online' : 'Play Online (offline)';
+    onlineBtn.title = navigator.onLine ? '' : 'No internet connection. You can still play against the computer.';
+  };
+  showConnection();
+  window.addEventListener('online', showConnection);
+  window.addEventListener('offline', showConnection);
   againBtn.addEventListener('click', () => { location.href = V.online ? '/?online' : '/'; });
   // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
   window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });

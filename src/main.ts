@@ -1,8 +1,10 @@
 import './styles/app.scss';
 import { mountGameView } from './views/game/game_view.ts';
 import { blockBrowserZoom } from './no_browser_zoom.ts';
+import { registerServiceWorker } from './pwa/register.ts';
 
 blockBrowserZoom();
+registerServiceWorker();
 
 const root = document.querySelector<HTMLElement>('.view-game');
 if (root) mountGameView(root);
