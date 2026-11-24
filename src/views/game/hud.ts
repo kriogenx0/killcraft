@@ -199,7 +199,9 @@ export function unitAction(e: Ent): string {
   if (o.t === 'attack') return `Attacking ${entName(o.tgt)}`;
   if (o.t === 'heal') return `Healing ${entName(o.tgt)}`;
   if (o.res === 'wood' && o.st === 'gather') return 'Chopping wood';
-  return `${HARVEST_STEP[o.st]} ${o.res ?? 'ore'}`;
+  // on the way home it's what it carries that counts, which may not be what it's off to gather next
+  const what = o.st === 'ret' || o.st === 'unload' ? e.cargo ?? 'ore' : o.res ?? 'ore';
+  return `${HARVEST_STEP[o.st]} ${what}`;
 }
 
 /** One row of the stats table: a label, a value, and whether the value needs the full width. */

@@ -5,7 +5,8 @@ import { G, hooks, type Ent } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { rebuildBlk } from './map.ts';
-import { orderMove } from './order.ts';
+import { orderHaul, orderMove } from './order.ts';
+import { applyCommand } from './command.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { IDLE_GRACE, jobOf, pickResource } from './autogather.ts';
@@ -136,5 +137,61 @@ describe('idle Workers', () => {
     }
     expect(worst).toBeLessThan(5);
     expect(G.oil[0]).toBeGreaterThan(250);
+  });
+
+  describe('switching resource, a Worker first takes home what it carries', () => {
+    /** Run, failing if any Worker's load turns into another resource before it's been dropped off. */
+    function watch(ws: Ent[], seconds: number): void {
+      const was = new Map(ws.map((w) => [w, { cargo: w.cargo ?? 'ore', carry: w.carry }]));
+      for (let i = 0; i < seconds / STEP; i++) {
+        update(STEP);
+        for (const w of ws) {
+          const p = was.get(w);
+          if (p && p.carry > 0.01 && (w.cargo ?? 'ore') !== p.cargo) throw new Error(`Worker ${w.id} started on ${w.cargo} still holding ${p.carry.toFixed(0)} ${p.cargo}`);
+          was.set(w, { cargo: w.cargo ?? 'ore', carry: w.carry });
+        }
+      }
+    }
+    const tree = (): [number, number] => {
+      let best = -1, bd = Infinity;
+      for (let i = 0; i < G.terr.length; i++) if (G.terr[i] === TREE && G.treeWood[i] > 0) { const d = Math.hypot((i % MW) - yard.tx, ((i / MW) | 0) - yard.ty); if (d < bd) { bd = d; best = i; } }
+      return [best % MW, (best / MW) | 0];
+    };
+
+    it('sent to chop wood with ore in hand, it banks the ore first', () => {
+      const [w] = workers(1);
+      w.carry = 150; w.cargo = 'ore';
+      const ore = G.credits[0];
+      const [tx, ty] = tree();
+      applyCommand(0, { c: 'harvest', ids: [w.id], tx, ty });
+      watch([w], 30);
+      expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 150);
+      expect(jobOf(w)).toBe('wood');
+      expect((w.cargo as string) === 'wood' || G.wood[0] > 0).toBe(true); // chopping now
+    });
+
+    it('sent to haul oil with wood in hand, it banks the wood first', () => {
+      const [wx, wy] = OIL_WELLS[0];
+      const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
+      d.carry = 300;
+      const [w] = workers(1);
+      w.carry = 40; w.cargo = 'wood';
+      const wood = G.wood[0];
+      orderHaul(w, d);
+      watch([w], 90);
+      expect(G.wood[0]).toBeGreaterThanOrEqual(wood + 40);
+      expect(G.oil[0]).toBeGreaterThan(0);
+    });
+
+    it('moving between ore and wood on its own as the bank changes, it never mixes loads', () => {
+      const ws = workers(4);
+      G.credits[0] = 5000; G.wood[0] = 0;
+      watch(ws, 40);
+      G.credits[0] = 0; G.wood[0] = 5000;
+      watch(ws, 40);
+      expect(ws.filter((w) => jobOf(w) === 'ore').length).toBeGreaterThanOrEqual(2); // some moved over
+      G.credits[0] = 5000; G.wood[0] = 0;
+      watch(ws, 40);
+    });
   });
 });
