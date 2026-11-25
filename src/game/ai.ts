@@ -16,7 +16,7 @@ import { findPath } from './path.ts';
 import { atLimit, available, canAfford, costOf, enqueue, priceOf, sitesOf, startSite } from './production.ts';
 import { oilLeft, oilNear, treesNear, woodNear } from './economy.ts';
 import { CHOPPERS_PER_MILL } from '../data/economy.ts';
-import { orderFix, orderHarvest, orderMove, setStance, orderHaul } from './order.ts';
+import { orderFix, orderHarvest, orderMove, setStance, orderHaul, setOrder } from './order.ts';
 import { deposits, holderOf } from './aether.ts';
 import { wildBeasts } from './creatures.ts';
 import { canAttack } from './combat.ts';
@@ -757,11 +757,11 @@ function upkeep(team: number): void {
 }
 
 /** Workers a computer lends, at most, to a teammate that's short of hands. */
-const LEND = 2;
+const LEND = 4;
 /** A teammate with this many Workers or fewer gets help building (it's starting over). */
-const SHORT_HANDED = 3;
+const SHORT_HANDED = 5;
 /** A computer keeps at least this many Workers of its own before lending any. */
-const LEND_KEEP = 5;
+const LEND_KEEP = 4;
 
 /**
  * Lend Workers to a teammate that's rebuilding (a revived or hard-hit side with few Workers): they
@@ -774,7 +774,8 @@ function lendHands(team: number): void {
   for (let t = 0; t < G.teams && lent < LEND; t++) {
     if (t === team || !allied(t, team) || G.absent[t]) continue;
     if (G.ents.filter((e) => !e.dead && e.team === t && e.type === 'worker').length > SHORT_HANDED) continue;
-    for (const b of sitesOf(t)) {
+    const hurtHalls = G.ents.filter((e) => !e.dead && e.team === t && e.type === 'yard' && e.done && e.hp < e.maxhp * 0.5 && G.credits[t] >= 1);
+    for (const b of [...sitesOf(t), ...hurtHalls]) {
       if (lent >= LEND) return;
       if (b.unpaid) continue;
       const crew = G.ents.filter((w) => !w.dead && w.type === 'worker' && w.order?.t === 'heal' && w.order.tgt === b.id).length;
@@ -859,13 +860,56 @@ function raiderNear(team: number, base: Ent): Ent | undefined {
   return G.ents.find((e) => !e.dead && hostile(e.team, base.team) && e.kind === 'unit' && Math.hypot(e.x - base.x, e.y - base.y) < r);
 }
 
-/** A teammate (computer or person) with enemy troops at its base, and the nearest of those raiders. */
-function allyInTrouble(team: number): { ally: number; foe: Ent } | undefined {
-  for (let t = 0; t < G.ally.length; t++) {
-    if (t === team || !allied(t, team) || G.absent[t]) continue;
+/** Seconds after a teammate's building or unit was hit that it still counts as calling for help. */
+const CALL_FOR_HELP = 6;
+/** A teammate's troops this far (tiles) from its Town Hall are out on the attack. */
+const OUT_ON_ATTACK = 20;
+/** Fewest of a teammate's troops out together that count as an attack worth joining. */
+const JOIN_PARTY = 4;
+/** An enemy building this close (tiles) to a teammate's army is what that army is going for. */
+const JOIN_REACH = 18;
+
+const teammates = (team: number): number[] =>
+  Array.from({ length: G.ally.length }, (_, t) => t).filter((t) => t !== team && allied(t, team) && !G.absent[t]);
+
+/**
+ * A teammate (computer or person) under attack: enemy troops at its Town Hall, or any of its
+ * buildings or troops hit lately. Returns the attacker nearest to `from` (our army).
+ */
+function allyInTrouble(team: number, from: { x: number; y: number }): { ally: number; foe: Ent } | undefined {
+  let best: { ally: number; foe: Ent } | undefined, bd = Infinity;
+  const consider = (ally: number, foe: Ent | undefined) => {
+    if (!foe || foe.dead || !hostile(foe.team, ally) || foe.kind !== 'unit') return;
+    const d = Math.hypot(foe.x - from.x, foe.y - from.y);
+    if (d < bd) { bd = d; best = { ally, foe }; }
+  };
+  for (const t of teammates(team)) {
     const base = homeOf(t);
-    const foe = base && raiderNear(team, base);
-    if (foe) return { ally: t, foe };
+    if (base) consider(t, raiderNear(team, base));
+    for (const e of G.ents)
+      if (!e.dead && e.team === t && (e.kind === 'bld' || e.kind === 'unit') && e.foe != null && G.gameT - e.foeT < CALL_FOR_HELP) consider(t, valid(e.foe) ?? undefined);
+  }
+  return best;
+}
+
+/**
+ * A teammate's army out on the attack (a person's push, or a computer's wave): where to join it.
+ * Goes for the enemy building nearest that army, else to the army itself.
+ */
+function allyPush(team: number): { ally: number; x: number; y: number } | undefined {
+  for (const t of teammates(team)) {
+    const base = homeOf(t);
+    const out = G.ents.filter((e) => !e.dead && e.team === t && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e) &&
+      (!base || Math.hypot(e.x - base.x, e.y - base.y) > OUT_ON_ATTACK * TS));
+    if (out.length < JOIN_PARTY) continue;
+    const cx = out.reduce((a, e) => a + e.x, 0) / out.length, cy = out.reduce((a, e) => a + e.y, 0) / out.length;
+    let tgt: Ent | undefined, bd = JOIN_REACH * TS;
+    for (const e of G.ents) {
+      if (e.dead || e.kind !== 'bld' || !hostile(e.team, t) || isWall(e.type)) continue;
+      const d = Math.hypot(e.x - cx, e.y - cy);
+      if (d < bd) { bd = d; tgt = e; }
+    }
+    return { ally: t, x: tgt?.x ?? cx, y: tgt?.y ?? cy };
   }
   return undefined;
 }
@@ -887,11 +931,24 @@ function military(team: number): void {
       if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));
   // our own base is safe: go and help a teammate whose base is under attack (this is the army's
   // whole job until the raiders there are gone, so the waves and the muster wait)
+  // the hunting party drops the hunt for it too
   if (!threat && army.length) {
-    const call = allyInTrouble(team);
+    const mid = { x: army.reduce((a, u) => a + u.x, 0) / army.length, y: army.reduce((a, u) => a + u.y, 0) / army.length };
+    const call = allyInTrouble(team, mid);
     if (call) {
-      aiNote(team, `helping side ${call.ally + 1} against an attack on its base`, `help ${call.ally}`);
-      for (const u of army) if (!u.order || u.order.t === 'move') advance(u, tileOf(call.foe.x), tileOf(call.foe.y));
+      aiNote(team, `helping side ${call.ally + 1} against an attack`, `help ${call.ally}`);
+      for (const u of all) {
+        if (A.guards.has(u.id)) continue;
+        if (A.hunters.delete(u.id)) setOrder(u, null);
+        if (!u.order || u.order.t === 'move') advance(u, tileOf(call.foe.x), tileOf(call.foe.y));
+      }
+      return;
+    }
+    // a teammate is on the attack: join it rather than go our own way
+    const push = army.length >= 3 ? allyPush(team) : undefined;
+    if (push) {
+      aiNote(team, `joining side ${push.ally + 1}'s attack with ${army.length} troops`, `join ${push.ally}`);
+      for (const u of army) if (!u.order || u.order.t === 'move') advance(u, tileOf(push.x), tileOf(push.y));
       return;
     }
   }
