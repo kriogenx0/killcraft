@@ -654,7 +654,7 @@ function showcase(what: string): void {
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
  * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
  * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3 (free-for-all), ?mode=1v1|2v2|ffa, ?res=low|high, ?army=squad|army,
- * ?fog=off|regrow|show, ?speed=2.
+ * ?fog=reveal|regrow|off, ?speed=2.
  */
 function testSetup(q: URLSearchParams): GameSetup {
   const s: GameSetup = { ...DEFAULT_SETUP, seed: null };
@@ -666,7 +666,7 @@ function testSetup(q: URLSearchParams): GameSetup {
   const mode = q.get('mode');
   if (isMode(mode)) s.mode = mode;
   const fog = q.get('fog');
-  if (fog === 'off' || fog === 'regrow' || fog === 'show') s.fog = fog;
+  if (fog === 'off' || fog === 'regrow' || fog === 'reveal') s.fog = fog;
   if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
   if (q.has('seed')) s.seed = Number(q.get('seed')) || null;
   return s;

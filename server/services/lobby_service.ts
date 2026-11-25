@@ -20,7 +20,7 @@ export interface Player {
 export type Seat = { kind: 'person'; id: string } | { kind: 'computer'; level: Difficulty } | { kind: 'open' } | { kind: 'closed' };
 
 /** A game about to start from a room: how the sides line up and who sits where (by team; null for a closed seat). */
-export interface RoomStart { id: string; mode: Mode; seats: (Player | Difficulty | null)[]; /** fog of war; Always show if left out */ fog?: FogMode }
+export interface RoomStart { id: string; mode: Mode; seats: (Player | Difficulty | null)[]; /** fog of war; Reveal if left out */ fog?: FogMode }
 
 interface Room { id: string; host: string; mode: Mode; seats: Seat[]; fog: FogMode }
 
@@ -93,7 +93,7 @@ export class LobbyService {
     this.leave(id);
     p.status = 'host';
     const gid = game && GAME_ID.test(game) && !this.rooms.has(game) ? game : randomUUID();
-    this.rooms.set(gid, { id: gid, host: id, mode: '1v1', seats: newSeats(id), fog: 'show' });
+    this.rooms.set(gid, { id: gid, host: id, mode: '1v1', seats: newSeats(id), fog: 'reveal' });
     this.events.changed();
     return gid;
   }
@@ -168,7 +168,7 @@ export class LobbyService {
     const people = seats.flatMap((s) => (s.kind === 'person' ? [this.players.get(s.id)] : [])).filter((p): p is Player => !!p);
     this.rooms.delete(r.id);
     // a plain game between two people (with the usual fog) is the classic match
-    if (r.mode === '1v1' && people.length === 2 && seats[0].kind === 'person' && r.fog === 'show') { this.pair(people[0], people[1], r.id); return true; }
+    if (r.mode === '1v1' && people.length === 2 && seats[0].kind === 'person' && r.fog === 'reveal') { this.pair(people[0], people[1], r.id); return true; }
     for (const p of people) {
       p.status = 'playing';
       p.opponent = seats.filter((s) => s.kind === 'person' && s.id !== p.id).map((s) => this.players.get((s as { id: string }).id)?.name ?? '?').join(', ') || 'the computer';

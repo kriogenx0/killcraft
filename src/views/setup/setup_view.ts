@@ -62,7 +62,7 @@ function load(): GameSetup {
     if (!(out.resources in START_RESOURCES)) out.resources = DEFAULT_SETUP.resources;
     if (!(out.army in START_ARMY)) out.army = DEFAULT_SETUP.army;
     if (!SPEEDS.includes(out.speed)) out.speed = DEFAULT_SETUP.speed;
-    // fog was on/off before Regrow: on was today's Always show
+    // fog was on/off at first, then 'show' (now Reveal)
     const fog = out.fog as unknown;
     out.fog = fog === false ? 'off' : isFogMode(fog) ? fog : DEFAULT_SETUP.fog;
     return out;

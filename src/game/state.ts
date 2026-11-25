@@ -338,8 +338,8 @@ export const G = {
   demo: false,
   /** reveal the whole map (fog of war Off, watching, or testing) */
   reveal: false,
-  /** fog of war: 'regrow' covers ground nobody on the side can see again; 'show' keeps explored ground revealed */
-  fog: 'show' as FogMode,
+  /** fog of war: 'reveal' keeps explored ground fully visible; 'regrow' fogs it over again (troops hidden) once nobody on the side sees it */
+  fog: 'reveal' as FogMode,
   alertT: [-99, -99],
   /** last place the viewer's team was attacked */
   lastAlert: null as Point | null,

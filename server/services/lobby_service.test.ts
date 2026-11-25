@@ -168,7 +168,7 @@ describe('lobby', () => {
   it('lets the host pick the fog of war, which the room shows everyone and the match gets', () => {
     const { lobby, pairs, rooms } = setup();
     const id = lobby.create('a')!;
-    expect(lobby.view('a')?.room?.fog).toBe('show');
+    expect(lobby.view('a')?.room?.fog).toBe('reveal');
     lobby.join('b', id);
     expect(lobby.configure('b', { fog: 'off' })).toBe(false); // not the host
     expect(lobby.configure('a', { fog: 'sometimes' })).toBe(false);

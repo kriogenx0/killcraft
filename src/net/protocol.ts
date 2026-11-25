@@ -177,7 +177,7 @@ export interface MatchShape {
   absent?: boolean[];
   /** every team's player: a name, "Computer (Hard)", or '' for a closed seat */
   names?: string[];
-  /** fog of war, when it isn't Always show */
+  /** fog of war, when it isn't Reveal (the default) */
   fog?: FogMode;
 }
 

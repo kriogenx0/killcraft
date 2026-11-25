@@ -1,4 +1,4 @@
-// Fog of war settings: Regrow covers ground nobody sees again, Always show keeps it explored, Off shows everything.
+// Fog of war settings: Reveal keeps explored ground visible, Regrow fogs it over again (troops hidden), Off shows everything.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
 import { MW, TS } from './const.ts';
@@ -36,10 +36,16 @@ function scoutAndLeave(fog: FogMode): { tile: number; bld: ReturnType<typeof add
 }
 
 describe('fog of war', () => {
-  it('Always show (the default) keeps ground explored, hiding enemy troops there', () => {
+  it('Reveal (the default) keeps explored ground fully visible, enemy troops too', () => {
     initWorld(11, 2);
-    expect(G.fog).toBe('show');
-    const { tile, bld: enemy } = scoutAndLeave('show');
+    expect(G.fog).toBe('reveal');
+    const { tile, bld: enemy } = scoutAndLeave('reveal');
+    expect(G.sight[0][tile]).toBe(2);
+    expect(visibleTo(enemy, 0)).toBe(true);
+  });
+
+  it('Regrow fogs explored ground over again: still mapped, but enemy troops there are hidden', () => {
+    const { tile, bld: enemy } = scoutAndLeave('regrow');
     expect(G.sight[0][tile]).toBe(1);
     expect(visibleTo(enemy, 0)).toBe(false);
     const yard = G.ents.find((e) => e.team === 1 && e.type === 'yard');
@@ -47,16 +53,6 @@ describe('fog of war', () => {
     // an enemy building on ground explored earlier stays shown
     G.sight[0][Math.floor(yard.y / TS) * MW + Math.floor(yard.x / TS)] = 1;
     expect(visibleTo(yard, 0)).toBe(true);
-  });
-
-  it('Regrow covers ground again once nobody on the side can see it, buildings too', () => {
-    const { tile, bld: enemy } = scoutAndLeave('regrow');
-    expect(G.sight[0][tile]).toBe(0);
-    expect(visibleTo(enemy, 0)).toBe(false);
-    // ground your own base sees stays visible
-    const home = G.ents.find((e) => e.team === 0 && e.type === 'yard');
-    if (!home) throw new Error('no yard');
-    expect(G.sight[0][Math.floor(home.y / TS) * MW + Math.floor(home.x / TS)]).toBe(2);
   });
 
   it('Off shows the whole map', () => {

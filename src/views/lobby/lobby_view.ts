@@ -198,7 +198,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     roomMode.hidden = !r.host;
     roomMode.querySelectorAll<HTMLInputElement>('input').forEach((i) => { i.checked = i.value === r.mode; });
     // everyone sees the fog the host picked; only the host can change it
-    roomFog.querySelectorAll<HTMLInputElement>('input').forEach((i) => { i.checked = i.value === (r.fog ?? 'show'); i.disabled = !r.host; });
+    roomFog.querySelectorAll<HTMLInputElement>('input').forEach((i) => { i.checked = i.value === (r.fog ?? 'reveal'); i.disabled = !r.host; });
     roomSeats.innerHTML = seatRows(r.mode, r.seats.map((s) => ({ ...s, editable: r.host && s.kind !== 'person', openable: true })), me);
     roomSeats.querySelectorAll<HTMLSelectElement>('.seat-select').forEach((sel) => {
       if (r.mode === '1v1') sel.querySelector('option[value="closed"]')?.remove();
