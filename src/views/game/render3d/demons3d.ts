@@ -6,7 +6,8 @@ import { G, type Ent } from '../../../game/state.ts';
 import { lerp } from '../../../util/math.ts';
 import type { UnitType } from '../../../data/unit.ts';
 import { group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { box, cone, cyl, mat, sph } from './materials.ts';
+import { box, cone, cyl, mat } from './materials.ts';
+import { ball } from './shapes.ts';
 
 const C = {
   hide: () => mat('#9a1e14', { rough: 0.75 }),
@@ -34,20 +35,20 @@ function fiendFrame(root: THREE.Object3D, parts: Parts, k: number, skin: Mat, da
     root.add(leg);
   }
   root.add(mesh(box(0.16 * k, 0.1 * k, 0.22 * k), dark, 0, 0.38 * k, 0)); // loins
-  root.add(scl(mesh(sph(0.16 * k, 12, 8), skin, 0.02 * k, 0.55 * k, 0), 0.85, 1.15, 1.2)); // chest
-  root.add(scl(mesh(sph(0.15 * k, 12, 8), skin, 0.03 * k, 0.68 * k, 0), 0.8, 0.75, 1.45)); // hunched shoulders
+  root.add(scl(mesh(ball(0.16 * k), skin, 0.02 * k, 0.55 * k, 0), 0.85, 1.15, 1.2)); // chest
+  root.add(scl(mesh(ball(0.15 * k), skin, 0.03 * k, 0.68 * k, 0), 0.8, 0.75, 1.45)); // hunched shoulders
   for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
     const arm = limb(0.02 * k, 0.7 * k, s * 0.22 * k, 0.34 * k, 0.08 * k, skin);
-    arm.add(mesh(sph(0.055 * k, 8, 6), dark, 0, -0.36 * k, 0));
+    arm.add(mesh(ball(0.055 * k), dark, 0, -0.36 * k, 0));
     for (let i = -1; i <= 1; i++) arm.add(rot(mesh(cone(0.012 * k, 0.07 * k, 5), C.claw(), 0.03 * k, -0.41 * k, i * 0.025 * k), 0, 0, Math.PI));
     parts[name] = arm;
     root.add(arm);
   }
   const top = 0.8 * k, head = group(0.06 * k, top, 0);
-  head.add(scl(mesh(sph(0.085 * k, 12, 8), skin, 0, 0.04 * k, 0), 1.15, 1, 0.95));
+  head.add(scl(mesh(ball(0.085 * k), skin, 0, 0.04 * k, 0), 1.15, 1, 0.95));
   head.add(mesh(box(0.08 * k, 0.05 * k, 0.09 * k), dark, 0.07 * k, 0.0, 0)); // jaw
   for (let i = -1; i <= 1; i += 2) {
-    head.add(mesh(sph(0.016 * k, 6, 4), C.eye(), 0.085 * k, 0.06 * k, i * 0.035 * k));
+    head.add(mesh(ball(0.016 * k), C.eye(), 0.085 * k, 0.06 * k, i * 0.035 * k));
     // horns sweeping up and back
     head.add(rod([0, 0.1 * k, i * 0.05 * k], [-0.04 * k, 0.2 * k, i * 0.11 * k], 0.022 * k, C.horn(), 6));
     head.add(rod([-0.04 * k, 0.2 * k, i * 0.11 * k], [-0.12 * k, 0.26 * k, i * 0.12 * k], 0.013 * k, C.horn(), 6));
@@ -101,7 +102,7 @@ function imp(): Model {
   const top = fiendFrame(root, parts, k, C.hide(), C.darkHide());
   batWings(root, parts, k, 0.68 * k, 0.4);
   // a ball of fire cupped in its claw, which it spits
-  const fire = mesh(sph(0.05, 8, 6), C.fire(), 0, -0.24, 0);
+  const fire = mesh(ball(0.05), C.fire(), 0, -0.24, 0);
   parts.fire = fire;
   parts.armR.add(fire);
   parts.armR.rotation.z = 0.9;
