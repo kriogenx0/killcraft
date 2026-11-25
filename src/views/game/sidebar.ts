@@ -12,6 +12,7 @@ import { V, ownSelected, spectating } from './view_state.ts';
 import { hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
+import { techLevel } from '../../data/era.ts';
 import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { priceText } from './components/build_cell.ts';
 import { keyLabel } from './keyboard.ts';
@@ -56,7 +57,7 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   }
   const html = (list: Buildable[]) => list.map((t) => {
     const p = producerOfType(t);
-    return buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], withDps(t), hotkeyOf(t), p ? BUILDING[p].name : '');
+    return buildCellHtml(t, nameOf(t), priceOf(t), ICON[t], withDps(t), hotkeyOf(t), p ? BUILDING[p].name : '', techLevel(t));
   }).join('');
   structureList.innerHTML = html(structures) || '<p class="build-empty">Needs a Town Hall</p>';
   unitList.innerHTML = html(units) || '<p class="build-empty">Build a Barracks or War Factory</p>';

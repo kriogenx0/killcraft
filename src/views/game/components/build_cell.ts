@@ -10,14 +10,14 @@ export const priceText = (p: Price): string => RES.filter((k) => p[k] > 0).map((
  * `producer` (the building that makes it) is selected. The description shows in the game tooltip on hover
  * (see sidebar.ts), so there's no native title to double it up.
  */
-export function buildCellHtml(type: string, name: string, price: Price, icon: string, desc = '', hotkey = '', producer = ''): string {
+export function buildCellHtml(type: string, name: string, price: Price, icon: string, desc = '', hotkey = '', producer = '', level: number | null = null): string {
   const cost = RES.filter((k) => price[k] > 0 || (k === 'ore' && RES.every((r) => price[r] <= 0))).map((k) => `<i class="build-cell-res build-cell-res--${k}" aria-hidden="true"></i>${price[k]}`).join(' ');
   const text = priceText(price);
   const keyTip = hotkey ? ` · Hotkey ${hotkey.split(' ').join(' then ')}${producer ? ` with the ${producer} selected` : ''}` : '';
   return (
     `<div class="build-cell" data-type="${type}">` +
-    `<button type="button" class="build-cell-main" aria-label="${name}, ${text}"${hotkey ? ` aria-keyshortcuts="${hotkey}"` : ''} aria-description="${desc}${keyTip}" style="background-image:url(${icon})">` +
-    `<span class="build-cell-progress"></span><span class="build-cell-name">${name}</span><span class="build-cell-cost">${cost}</span>` +
+    `<button type="button" class="build-cell-main" aria-label="${name}${level ? `, level ${level}` : ''}, ${text}"${hotkey ? ` aria-keyshortcuts="${hotkey}"` : ''} aria-description="${desc}${keyTip}" style="background-image:url(${icon})">` +
+    `<span class="build-cell-progress"></span>${level ? `<span class="build-cell-lvl">Lvl ${level}</span>` : ''}<span class="build-cell-name">${name}</span><span class="build-cell-cost">${cost}</span>` +
     `${hotkey ? `<kbd class="build-cell-key" aria-hidden="true">${hotkey}</kbd>` : ''}<span class="build-cell-status"></span><span class="build-cell-count"></span></button>` +
     `<button type="button" class="build-cell-cancel" aria-label="Cancel ${name}" title="Cancel">×</button></div>`
   );

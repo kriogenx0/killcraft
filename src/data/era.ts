@@ -96,3 +96,6 @@ export const TECH: Record<TechType, TechDef> = {
 export const TECH_TYPES = Object.keys(TECH) as TechType[];
 
 export const isTechType = (t: string): t is TechType => t in TECH;
+
+/** The level a weapon, armor or healing research reaches (1–3), or null for other research. */
+export const techLevel = (t: string): number | null => (isTechType(t) ? TECH[t].upg?.level ?? TECH[t].heal ?? null : null);
