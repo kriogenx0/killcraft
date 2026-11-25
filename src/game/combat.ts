@@ -34,6 +34,12 @@ export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unit
 export const canHit = (wt: WeaponType | null, t: Ent): boolean => !!wt && t.kind !== 'source' && WEAPON[wt].vs[armorOf(t)] > 0;
 /** Can this unit or turret attack this target? */
 export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
+/**
+ * Is `t` still fair game for `s`: alive, not on its side, and a real enemy or a wild creature that's
+ * still fighting? A creature changes sides when it's captured, so a target picked a moment ago may
+ * have become a friend since.
+ */
+export const isFoe = (s: { team: number }, t: Ent): boolean => !t.dead && !allied(s.team, t.team) && (t.team >= 0 || !!t.wild) && !kneeling(t);
 
 /** `dot`: a tick of burning or poison, which neither sprays sparks nor sends the unit after whoever caused it. */
 export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): void {
@@ -152,7 +158,7 @@ const FOE_MEMORY = 4;
 /** The enemy that is attacking this unit, if it hit lately and can be fought back. */
 export function attacker(u: Ent): Ent | null {
   const f = valid(u.foe);
-  if (!f || G.gameT - u.foeT > FOE_MEMORY || !canAttack(u, f) || cloakedFrom(f, u.team) || kneeling(f)) return null;
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team)) return null;
   return f;
 }
 
@@ -207,7 +213,7 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
-  if (!d.weapon || !canHit(d.weapon, t) || cloakedFrom(t, u.team) || kneeling(t)) return false;
+  if (!d.weapon || !isFoe(u, t) || !canHit(d.weapon, t) || cloakedFrom(t, u.team)) return false;
   // walled off from the target: break through the wall in the way first
   const via = valid(u.breach);
   if (!via) u.breach = null;
@@ -228,7 +234,7 @@ export function fireOnTheMove(u: Ent, dt: number): void {
   if (!d.weapon) return;
   const w = WEAPON[d.weapon];
   let t = valid(u.shot);
-  if (t && (edgeDist(u, t) > w.range * TS || cloakedFrom(t, u.team))) t = null;
+  if (t && (!isFoe(u, t) || edgeDist(u, t) > w.range * TS || cloakedFrom(t, u.team))) t = null;
   u.scan -= dt;
   if (!t) u.shot = null;
   if (u.scan <= 0) {
@@ -260,7 +266,7 @@ export function updTurret(b: Ent, dt: number): void {
   b.cd -= dt;
   b.scan -= dt;
   let t = valid(b.order?.t === 'attack' ? b.order.tgt : null);
-  if (t && (edgeDist(b, t) > w.range * TS || edgeDist(b, t) < (w.minRange ?? 0) * TS || cloakedFrom(t, b.team))) t = null;
+  if (t && (!isFoe(b, t) || edgeDist(b, t) > w.range * TS || edgeDist(b, t) < (w.minRange ?? 0) * TS || cloakedFrom(t, b.team))) t = null;
   if (!t && b.scan <= 0) {
     b.scan = 0.3;
     t = acquire(b, w.range, !w.ground, false, w.minRange);
@@ -321,7 +327,7 @@ export function updProjs(dt: number): void {
       else { p.x += (dx / dist) * st; p.y += (dy / dist) * st; }
       continue;
     }
-    if (!t) { p.dead = true; continue; }
+    if (!t || allied(p.team, t.team)) { p.dead = true; continue; } // gone, or a creature captured while the shot was in the air
     if (p.kind === 'melee') { landBlow(p, t, dt); continue; }
     const dx = t.x - p.x, dy = t.y - 6 - p.y, dist = Math.hypot(dx, dy), st = p.sp * dt;
     p.a = Math.atan2(dy, dx);

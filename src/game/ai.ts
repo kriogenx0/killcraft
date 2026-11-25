@@ -746,7 +746,7 @@ function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
     const h = G.byId.get(id);
     if (!h || h.order?.t === 'attack') continue;
     const d = Math.hypot(h.x - prey.x, h.y - prey.y);
-    if (prey.wild.down) { if (!h.order && d > CAPTURE_REACH * TS * 0.6) orderMove(h, tileOf(prey.x), tileOf(prey.y) + 1); }
+    if (prey.wild.down) { if (!h.order && d > CAPTURE_REACH * TS * 0.75) orderMove(h, tileOf(prey.x), tileOf(prey.y) + 1); }
     else if (!h.order) orderMove(h, tileOf(prey.x), tileOf(prey.y));
   }
 }

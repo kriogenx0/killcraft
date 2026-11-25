@@ -149,6 +149,27 @@ describe('creatures of myth', () => {
     expect(b.team).toBe(0);
   });
 
+  it("isn't shot down by its captors once it joins their side (Move & attack troops)", () => {
+    for (const type of ['centaur', 'griffin', 'minotaur'] as UnitType[]) {
+      initWorld(1234);
+      for (const w of wildBeasts()) { w.dead = true; G.byId.delete(w.id); }
+      G.ents = G.ents.filter((e) => !e.dead);
+      G.human[0] = true;
+      const b = beast(type);
+      // a mixed army on the human player's default stance beats it down, then keeps standing about it
+      const army = ['rifleman', 'crossbowman', 'crossbowman', 'knight', 'knight', 'swordsman'].map((t, i) => addUnit(t as UnitType, 0, MID.x - 3 * TS, MID.y + (i - 3) * 14));
+      for (const u of army) expect(u.stance).toBe('skirmish');
+      run(40);
+      expect(errors).toEqual([]);
+      expect(b.team).toBe(0);
+      const alive = army.filter((u) => !u.dead);
+      run(20);
+      expect(b.dead).toBe(false);
+      expect(b.hp).toBeGreaterThan(b.maxhp * 0.5);
+      for (const u of alive) expect(u.dead).toBe(false); // and it doesn't turn on them either
+    }
+  });
+
   it('comes back wild at its lair a minute after a captured one dies', () => {
     const b = beast('griffin');
     dealDamage(b, b.maxhp, null);

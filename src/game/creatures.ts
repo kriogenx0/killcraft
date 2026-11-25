@@ -169,6 +169,10 @@ function capture(u: Ent, team: number): void {
   u.hp = Math.max(u.hp, u.maxhp * RISE_HP);
   u.stance = defaultStance(u.type, team);
   setOrder(u, null);
+  // a fresh start on its new side: no grudges against its captors, and the fire and poison they left on it go out
+  u.foe = u.shot = null;
+  u.burnT = u.poisonT = 0;
+  for (const e of G.ents) if (e.team === team && (e.foe === u.id || e.shot === u.id)) { if (e.foe === u.id) e.foe = null; if (e.shot === u.id) e.shot = null; }
   const tamed = (G.tamed[team] ??= []), first = !tamed.includes(type);
   if (first) tamed.push(type);
   const where = UNIT[type].producer === 'air' ? 'Airfield' : 'Barracks';
