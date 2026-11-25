@@ -141,7 +141,7 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'gather': {
       let sent = 0;
       for (const u of ownUnits(team, cmd.ids)) if (sendGather(u, cmd.res)) sent++;
-      if (!sent && ownUnits(team, cmd.ids).some((u) => u.type === 'worker')) say(team, cmd.res === 'oil' ? 'No Oil Derrick with oil to haul' : cmd.res === 'aether' ? 'No Aether left on the map' : cmd.res === 'wood' ? 'Nowhere to take wood' : cmd.res === 'auto' ? 'Nothing to gather near a drop-off' : 'Nowhere to take ore');
+      if (!sent && ownUnits(team, cmd.ids).some((u) => u.type === 'worker')) say(team, cmd.res === 'oil' ? 'Build an Oil Derrick first' : cmd.res === 'aether' ? 'No Aether left on the map' : cmd.res === 'wood' ? 'Nowhere to take wood' : cmd.res === 'auto' ? 'Nothing to gather near a drop-off' : 'Nowhere to take ore');
       break;
     }
     case 'haul': {

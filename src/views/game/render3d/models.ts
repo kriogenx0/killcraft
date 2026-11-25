@@ -249,10 +249,13 @@ function greatHelm(root: THREE.Object3D, team: number, x: number, y: number, plu
 function swordsman(team: number): Model {
   const m = soldier({ torso: M.steel(), legs: M.mail(), arms: M.mail(), boots: M.darkSteel(), hands: M.steel() });
   const r = m.root;
-  r.add(mesh(box(0.142, 0.19, 0.142), teamMat(team), 0.005, 0.3, 0)); // tabard
-  r.add(mesh(box(0.144, 0.022, 0.144), M.gold(), 0.005, 0.215, 0)); // tabard hem
-  r.add(mesh(box(0.004, 0.09, 0.03), M.white(), 0.077, 0.32, 0)); // device on the tabard
-  r.add(mesh(box(0.004, 0.03, 0.08), M.white(), 0.077, 0.34, 0));
+  // the tabard wraps the whole steel chest (narrower, the chest and belt stuck out through it as boxes)
+  r.add(mesh(box(0.15, 0.19, 0.21), teamMat(team), 0.002, 0.3, 0)); // tabard
+  r.add(mesh(box(0.154, 0.022, 0.214), M.gold(), 0.002, 0.215, 0)); // tabard hem
+  r.add(mesh(box(0.004, 0.09, 0.03), M.white(), 0.079, 0.32, 0)); // device on the tabard
+  r.add(mesh(box(0.004, 0.03, 0.08), M.white(), 0.079, 0.34, 0));
+  r.add(mesh(box(0.158, 0.028, 0.218), M.leather(), 0.002, 0.235, 0)); // sword belt cinching the tabard
+  r.add(mesh(box(0.012, 0.024, 0.03), M.gold(), 0.083, 0.235, 0)); // its buckle
   r.add(mesh(box(0.12, 0.05, 0.18), M.mail(), 0, 0.2, 0)); // mail skirt
   r.add(mesh(box(0.08, 0.04, 0.17), M.steel(), 0, 0.41, 0)); // gorget
   for (const side of [-1, 1]) r.add(scl(mesh(dome(0.06), M.steel(), 0, 0.39, side * 0.115), 1, 0.7, 1.1)); // pauldrons
@@ -288,7 +291,7 @@ function crossbowman(team: number): Model {
   // quilted gambeson: stitch lines
   for (const y of [0.27, 0.31, 0.35]) r.add(mesh(box(0.134, 0.006, 0.194), mat('#8a7c56'), 0, y, 0));
   r.add(mesh(box(0.14, 0.05, 0.2), teamMat(team), 0, 0.385, 0)); // team collar
-  r.add(mesh(box(0.15, 0.12, 0.21), teamMat(team, 'd'), 0, 0.2, 0)); // tunic skirt
+  r.add(mesh(box(0.162, 0.12, 0.222), teamMat(team, 'd'), 0, 0.2, 0)); // tunic skirt (covers the belt and buckle)
   // kettle hat over a mail coif
   r.add(scl(mesh(sph(0.066, 10, 8), M.mail(), -0.018, 0.47, 0), 1, 1.05, 1.02));
   r.add(mesh(cyl(0.115, 0.115, 0.01, 16), M.darkSteel(), 0, 0.505, 0));
