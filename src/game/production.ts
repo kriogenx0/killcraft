@@ -45,7 +45,7 @@ export const costOf = (t: Buildable): number => defOf(t).cost;
 export interface Price { ore: number; wood: number; oil: number; aether: number }
 export const priceOf = (t: Buildable): Price => { const d = defOf(t); return { ore: d.cost, wood: d.wood ?? 0, oil: d.oil ?? 0, aether: 'aether' in d ? d.aether ?? 0 : 0 }; };
 /** Does the team have enough of every resource for the whole price? */
-export const canAfford = (team: number, t: Buildable): boolean => { const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
+export const canAfford = (team: number, t: Buildable): boolean => { if (freeWorker(team, t)) return true; const p = priceOf(t); return G.credits[team] >= p.ore && G.wood[team] >= p.wood && G.oil[team] >= p.oil && (G.aether[team] ?? 0) >= p.aether; };
 /**
  * Things that cost Aether stay hidden until the side first finds some. Creatures of myth only show
  * once the side has captured one of their kind (data/creatures.ts).
@@ -166,7 +166,22 @@ export function unitNeeds(team: number, t: UnitType): BldType | null {
 }
 
 /** The first resource the team lacks for the whole price, or null if it can pay. */
+/**
+ * A side with a Town Hall but no Worker left (none alive, none paid for in training) that can't
+ * afford one gets the next one free, so losing every Worker never leaves it unable to gather again.
+ */
+export function freeWorker(team: number, t: Buildable): boolean {
+  if (t !== 'worker') return false;
+  // a Town Hall's own gift: a side that has lost its Town Hall too is on its own
+  if (!G.ents.some((e) => !e.dead && e.team === team && e.type === 'yard' && e.done)) return false;
+  if (G.ents.some((e) => !e.dead && e.team === team && e.type === 'worker')) return false;
+  if (Object.values(G.prod[team] ?? {}).some((line) => line.some((it) => it.paid && it.type === 'worker'))) return false;
+  const p = priceOf(t);
+  return G.credits[team] < p.ore || G.wood[team] < p.wood || G.oil[team] < p.oil;
+}
+
 export function shortOf(team: number, t: Buildable): keyof typeof SHORT_MSG | null {
+  if (freeWorker(team, t)) return null;
   const p = priceOf(t);
   return G.credits[team] < p.ore ? 'ore' : G.wood[team] < p.wood ? 'wood' : G.oil[team] < p.oil ? 'oil' : (G.aether[team] ?? 0) < p.aether ? 'aether' : null;
 }
@@ -181,12 +196,15 @@ function fundsNotice(team: number, short: keyof typeof SHORT_MSG, waiting = fals
 /** The resource a waiting order is short of, as the player reads it ("ore", "Aether"), or null. */
 export const waitingFor = (team: number, t: Buildable): string | null => { const s = shortOf(team, t); return s && RES_NAME[s]; };
 
-function pay(team: number, type: Buildable): void {
+/** Pay for an order; returns true if it came free (see freeWorker). */
+function pay(team: number, type: Buildable): boolean {
+  if (freeWorker(team, type)) { say(team, 'Out of Workers: the Town Hall trains one for free'); return true; }
   const p = priceOf(type);
   G.credits[team] -= p.ore;
   G.wood[team] -= p.wood;
   G.oil[team] -= p.oil;
   if (p.aether) G.aether[team] -= p.aether;
+  return false;
 }
 
 /**
@@ -208,7 +226,7 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
   const it: ProductionItem = { type, prog: 0, spent: 0, ready: false, hold: false, paid: false };
   q.push(it);
   // the computer pays up front for everything it queues, so it never counts the same ore twice
-  if (!wait) { pay(team, type); it.paid = true; it.spent = priceOf(type).ore; }
+  if (!wait) { it.free = pay(team, type); it.paid = true; it.spent = it.free ? 0 : priceOf(type).ore; }
   else payWaiting(team);
   if (!it.paid && q[0] === it && short) fundsNotice(team, short, true);
   return true;
@@ -225,9 +243,9 @@ export function payWaiting(team: number): void {
     for (const it of G.prod[team][line]) {
       if (it.paid || it.hold) continue;
       if (shortOf(team, it.type)) break;
-      pay(team, it.type);
+      it.free = pay(team, it.type);
       it.paid = true;
-      it.spent = priceOf(it.type).ore;
+      it.spent = it.free ? 0 : priceOf(it.type).ore;
     }
   }
   for (const b of G.ents) {
@@ -308,7 +326,7 @@ export function cancel(team: number, type: Buildable, item?: ProductionItem): bo
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
     if (item ? q[i] === item : q[i].type === type) {
-      if (!q[i].paid) { q.splice(i, 1); return true; } // still waiting for funds: nothing to give back
+      if (!q[i].paid || q[i].free) { q.splice(i, 1); return true; } // still waiting for funds, or free: nothing to give back
       const p = priceOf(q[i].type);
       G.credits[team] += p.ore;
       G.wood[team] += p.wood;

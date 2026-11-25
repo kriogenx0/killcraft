@@ -402,3 +402,24 @@ describe('idle Workers', () => {
     });
   });
 });
+
+describe('a side that has lost every Worker', () => {
+  it('gets one free from the Town Hall when it can’t afford one, and only that one', () => {
+    G.credits[0] = 10; G.wood[0] = 0;
+    applyCommand(0, { c: 'build', type: 'worker' });
+    applyCommand(0, { c: 'build', type: 'worker' });
+    const q = G.prod[0].infantry;
+    expect(q[0]?.paid && q[0].free).toBe(true);
+    expect(q.length).toBe(1); // a second one isn't free
+    expect(G.credits[0]).toBe(10);
+    // cancelling the free one gives nothing back
+    applyCommand(0, { c: 'cancel', type: 'worker' });
+    expect(q.length).toBe(0);
+    expect(G.credits[0]).toBe(10);
+    // with a Worker alive, it pays as usual
+    workers(1);
+    applyCommand(0, { c: 'build', type: 'worker' });
+    expect(G.prod[0].infantry.some((it) => it.free)).toBe(false);
+    expect(G.credits[0]).toBe(10);
+  });
+});

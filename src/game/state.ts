@@ -58,6 +58,8 @@ export interface ProductionItem {
   spent: number;
   /** paid for and started; an order the side can't afford yet waits in the queue until it can */
   paid: boolean;
+  /** a Worker given free to a side that had none left and couldn't pay: cancelling it refunds nothing */
+  free?: boolean;
   /** finished structure waiting to be placed */
   ready: boolean;
   /** paused by the player */
