@@ -373,7 +373,7 @@ function buildingDetails(e: Ent): string {
   if (own && e.type === 'hospital') rows.push(['Healing', `Lvl ${healOf(e.team)}`]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
-    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
+    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats hud-hint">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
 }
 
 /** What a producing building is making (each Barracks trains its own order; the queue is shared by every building of the type). */
