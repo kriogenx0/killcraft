@@ -8,9 +8,9 @@ import { availableParallelism } from 'node:os';
 import { writeFileSync } from 'node:fs';
 import { playMatch, type MatchResult } from './match.ts';
 import { report } from './report.ts';
-import type { Difficulty } from '../data/setup.ts';
+import { START_RESOURCES, type Difficulty, type StartResources } from '../data/setup.ts';
 
-interface Job { seed: number; teams: number; maxSeconds: number; level: Difficulty | Difficulty[] }
+interface Job { seed: number; teams: number; maxSeconds: number; level: Difficulty | Difficulty[]; share?: number; ally?: number[] }
 
 if (!isMainThread) {
   const port = parentPort;
@@ -30,7 +30,10 @@ if (!isMainThread) {
   // so no difficulty always gets the same corner
   const levels = (args.get('level') ?? 'normal').split(',') as Difficulty[];
   const levelFor = (i: number): Difficulty | Difficulty[] => levels.length === 1 ? levels[0] : levels.map((_, t) => levels[(t + i) % levels.length]);
-  const jobs: Job[] = Array.from({ length: matches }, (_, i) => ({ seed: firstSeed + i * 7919, teams, maxSeconds, level: levelFor(i) }));
+  // --res low|standard|high: starting resources; --ally 0,0,2,2: alliances (two against two)
+  const share = args.has('res') ? START_RESOURCES[args.get('res') as StartResources].share : undefined;
+  const ally = args.get('ally')?.split(',').map(Number);
+  const jobs: Job[] = Array.from({ length: matches }, (_, i) => ({ seed: firstSeed + i * 7919, teams, maxSeconds, level: levelFor(i), share, ally }));
   const results: MatchResult[] = [];
   const t0 = performance.now();
   let next = 0, running = 0;

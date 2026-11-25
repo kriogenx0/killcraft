@@ -80,11 +80,15 @@ export interface MatchOptions {
   maxSeconds?: number;
   /** every computer player's difficulty (default Normal), or one per side */
   level?: Difficulty | Difficulty[];
+  /** starting ore and wood, as a share of the normal amount */
+  share?: number;
+  /** each side's alliance (e.g. [0, 0, 2, 2] for two against two) */
+  ally?: number[];
 }
 
 const bump = (r: Record<string, number>, k: string, n = 1) => { r[k] = (r[k] ?? 0) + n; };
 
-export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal' }: MatchOptions): MatchResult {
+export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal', share, ally }: MatchOptions): MatchResult {
   G.headless = true;
   G.demo = true;
   G.reveal = false;
@@ -95,7 +99,7 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
   // the computer players and combat roll dice; seed them so a match can be replayed
   Math.random = mulberry32(seed ^ 0x5eed);
   hooks.error = () => { errors++; };
-  initWorld(seed, teams);
+  initWorld(seed, teams, { share, ally });
   G.viewer = -1;
   for (let t = 0; t < G.teams; t++) ais[t].on = true;
   if (Array.isArray(level)) level.forEach((l, t) => { if (ais[t]) { ais[t].level = l; ais[t].attackAt = AI_LEVEL[l].firstWave; } });
