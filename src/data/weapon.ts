@@ -3,7 +3,7 @@ import type { Element } from './spells.ts';
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak'
-  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
+  | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha' | 'howitzer'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
   | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'rainbow';
@@ -53,6 +53,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   turretcannon: { dmg: 30, range: 5.5, cd: 1.5, proj: 'shell', speed: 700, splash: 12, vs: { none: 0.5, light: 1, heavy: 1, building: 0.5, air: 0 } },
   pillboxmg: { dmg: 9, range: 5.5, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.7, heavy: 0.15, building: 0.2, air: 0.35 } },
   atmissile: { dmg: 80, range: 7, cd: 2.8, proj: 'rocket', speed: 240, splash: 18, vs: { none: 0.2, light: 0.9, heavy: 1.25, building: 0.5, air: 0 } },
+  // the Artillery Tank's howitzer: lobbed at a spot from far off, a wide blast that wrecks packed troops and
+  // defenses but rarely catches anything that keeps moving; it can't drop a shell right beside itself
+  howitzer: { dmg: 70, range: 10, minRange: 3, cd: 4.5, proj: 'shell', speed: 230, splash: 30, ground: true, vs: { none: 0.9, light: 0.85, heavy: 0.6, building: 1.4, air: 0 } },
   bertha: { dmg: 260, range: 22, minRange: 4, cd: 7, proj: 'shell', speed: 200, splash: 48, ground: true, vs: { none: 0.8, light: 0.9, heavy: 0.9, building: 1.3, air: 0 } },
   // medieval arms
   // a Worker's pick: a last resort, not a weapon of war

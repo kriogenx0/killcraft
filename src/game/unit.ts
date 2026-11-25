@@ -7,7 +7,7 @@ import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
-import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
+import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH } from '../data/aether.ts';
@@ -507,6 +507,8 @@ export function updUnit(u: Ent, dt: number): void {
   u.cd = Math.max(0, u.cd - dt * reloadRate(u));
   u.flash = Math.max(0, u.flash - dt);
   u.atkT = Math.max(0, u.atkT - dt);
+  // a gun that must dig in counts the time it has stood still (moving is still last tick's here)
+  if (d.deploy) u.setT = u.moving ? 0 : (u.setT ?? 0) + dt;
   u.moving = false;
   tickStatus(u, dt);
   if (u.dead) return;
@@ -548,7 +550,7 @@ export function updUnit(u: Ent, dt: number): void {
     // (a passive one only when no enemy is about), and only then goes back to gathering
     if (u.type === 'worker' && fixNext(u)) return;
     // a Worker only fights back, or an enemy that comes right up to it
-    const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
+    const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, lookRange(u));
     // a passive unit runs from enemies, but a gatherer sticks to its work with them about
     const threat = u.stance === 'passive' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
     if (threat) orderFlee(u, threat);
@@ -604,7 +606,7 @@ export function updUnit(u: Ent, dt: number): void {
         u.scan = 0.3;
         // fight back against whoever is attacking first, and armed enemies before buildings; a wall
         // only if it was sent to one, once it's close
-        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight) ?? sentToWall(u, o.gx, o.gy, d.sight);
+        const b = t ? betterTarget(u, t, lookRange(u)) : attacker(u) ?? acquire(u, lookRange(u)) ?? sentToWall(u, o.gx, o.gy, d.sight);
         if (b) { t = b; o.sub = b.id; u.path = null; }
       }
       if (t) {
@@ -627,7 +629,7 @@ export function updUnit(u: Ent, dt: number): void {
       // a target the player picked is kept unless something hits back; one the unit found itself gives way to a better one
       if (t && u.scan <= 0) {
         u.scan = 0.3;
-        const b = betterTarget(u, t, d.sight, !o.auto);
+        const b = betterTarget(u, t, lookRange(u), !o.auto);
         if (b) { t = b; o.tgt = b.id; u.path = null; }
       }
       const strayed = o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE;

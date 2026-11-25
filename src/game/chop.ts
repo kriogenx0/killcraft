@@ -42,11 +42,22 @@ function giveUpOn(u: Ent, i: number): void {
   bad.add(i);
 }
 
-/** How many of the team's other choppers are working or heading for this tree. */
+/**
+ * A walk that goes a long way round to reach a tree close by in a straight line (it's on the far
+ * side of a building or rock): another tree will do, unless the Worker has already tried several.
+ */
+function roundabout(u: Ent, p: [number, number][], tree: Target): boolean {
+  if ((cantReach.get(u)?.size ?? 0) >= 8) return false;
+  let len = 0, x = u.x, y = u.y;
+  for (const [tx, ty] of p) { const nx = (tx + 0.5) * TS, ny = (ty + 0.5) * TS; len += Math.hypot(nx - x, ny - y); x = nx; y = ny; }
+  return len > 2 * Math.hypot(tree.x - u.x, tree.y - u.y) + 8 * TS;
+}
+
+/** How many of the team's other choppers are working this tree, heading for it, or taking a load home from it to come back. */
 function choppersAt(i: number, u: Ent): number {
   let n = 0;
   for (const e of G.ents)
-    if (e !== u && !e.dead && e.team === u.team && e.order?.t === 'harvest' && e.order.res === 'wood' && e.order.ty * MW + e.order.tx === i && e.order.st !== 'ret' && e.order.st !== 'unload') n++;
+    if (e !== u && !e.dead && e.team === u.team && e.order?.t === 'harvest' && e.order.res === 'wood' && e.order.ty * MW + e.order.tx === i) n++;
   return n;
 }
 
@@ -71,8 +82,8 @@ export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: En
   return best;
 }
 
-/** How many tiles further a Worker will walk for a tree of its own rather than share one. */
-const CROWD = 3;
+/** How many tiles further a Worker will walk for a tree of its own rather than share one: one to a tree while there are enough. */
+const CROWD = 40;
 
 /**
  * Pick the next tree: the closest to the Worker's mill if it has one, else to its nearest drop-off
@@ -93,6 +104,7 @@ function pickAnother(u: Ent, o: HarvestOrder): void {
   const t = nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2) ?? nextTree(u, o);
   if (t !== null) { o.tx = t % MW; o.ty = (t / MW) | 0; }
   u.path = null;
+  if (u.carry > woodLoad(u) * 0.5 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) > 5 * TS) o.st = 'ret';
 }
 
 /** Walk to a tree and chop it until the load is full; the caller takes it home once `o.st` is 'ret'. */
@@ -100,21 +112,23 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
   let i = o.ty * MW + o.tx;
   const good = G.terr[i] === TREE && G.treeWood[i] >= Math.min(CHOP_WORTH, 1) && reachable(i);
   if (!good || (o.st === 'go' && G.treeWood[i] < CHOP_WORTH)) {
-    // most of the way to a tree someone else has stripped: one right here will do
+    // on the way to a tree someone else has stripped: one right here, or by that one, will do
     const close = Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < 4 * TS;
-    const t = (close ? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2) : null) ?? nextTree(u, o);
+    const t = (close ? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2) : null) ?? (o.st === 'go' && u.path ? nearestTree(u, o.tx, o.ty, 3) : null) ?? nextTree(u, o);
     if (t === null) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; u.path = null; return; }
     i = t;
     o.tx = i % MW; o.ty = (i / MW) | 0;
-    o.st = 'go';
     u.path = null;
+    // most of a load and the next tree is a walk away: bank it first, then set out afresh
+    if (u.carry > woodLoad(u) * 0.5 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) > 5 * TS) { o.st = 'ret'; return; }
+    o.st = 'go';
   }
   const tree = treeTarget(i);
   if (o.st === 'go') {
     if (!u.path) {
       // check there's a way all the way up to the tree before setting off, not after the walk
       const p = pathTo(u, tree), end = p?.[p.length - 1] ?? [Math.floor(u.x / TS), Math.floor(u.y / TS)];
-      if (!p || Math.max(Math.abs(end[0] - tree.tx), Math.abs(end[1] - tree.ty)) > 1) { giveUpOn(u, i); o.wait = 0.2; pickAnother(u, o); return; }
+      if (!p || Math.max(Math.abs(end[0] - tree.tx), Math.abs(end[1] - tree.ty)) > 1 || roundabout(u, p, tree)) { giveUpOn(u, i); o.wait = 0.2; pickAnother(u, o); return; }
       u.path = p;
       u.rep = 0.5;
     }
