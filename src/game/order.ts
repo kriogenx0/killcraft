@@ -99,13 +99,13 @@ export function orderReturn(u: Ent): void {
 export function groupMove(us: Ent[], gx: number, gy: number, patrol = false, form = false): void {
   const n = us.length;
   if (!n) return;
-  const pace = form && n > 1 ? Math.min(...us.map((u) => unitDef(u).spd)) : undefined;
+  const pace = form && n > 1 ? Math.min(...us.map((u) => unitDef(u).spd)) : undefined, fid = pace ? G.nextId++ : undefined;
   const send = (u: Ent, t: Tile) => {
     const from: Tile = [tileOf(u.x), tileOf(u.y)];
     orderMove(u, t[0], t[1]);
     if (u.order?.t !== 'move') return;
     if (patrol) u.order.pat = from;
-    if (pace) u.order.pace = pace;
+    if (pace) { u.order.pace = pace; u.order.fid = fid; }
   };
   if (n === 1) { send(us[0], [gx, gy]); return; }
   const tiles: Tile[] = [], seen = new Set<number>([gy * MW + gx]), q: Tile[] = [[gx, gy]];

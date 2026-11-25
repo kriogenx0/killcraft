@@ -82,6 +82,19 @@ describe('formation', () => {
     for (let i = 0; i < 4; i++) expect(tileOf(us[i * 2 + 1].x) - tileOf(us[i * 2].x)).toBe(2);
   });
 
+  it('a unit left behind speeds up to join the pack, then keeps its pace', () => {
+    openField();
+    const rifles = [0, 1, 2, 3].map((i) => addUnit('rifleman', 0, 16.5 * TS, (28.5 + i) * TS));
+    const jeep = addUnit('jeep', 0, 5.5 * TS, 30 * TS);
+    groupMove([...rifles, jeep], 45, 30, false, true);
+    const gap = () => rifles.reduce((s, u) => s + u.x, 0) / rifles.length - jeep.x;
+    expect(gap()).toBeGreaterThan(10 * TS);
+    run(6);
+    expect(gap()).toBeLessThan(5 * TS); // caught up, to its place a couple of tiles behind (at the riflemen's pace it would still be 11 tiles back)
+    run(6);
+    expect(gap()).toBeGreaterThan(0); // and then stays with them rather than running ahead
+  });
+
   it('without it, the fast units go on ahead', () => {
     openField();
     const us = squad();

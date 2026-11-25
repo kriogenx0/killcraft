@@ -165,7 +165,38 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
 }
 
 /** How far a unit may move this step, in px. */
-export const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, (u.order?.t === 'move' && !u.order.sub && u.order.pace) || Infinity) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
+/** How far behind the pack (tiles still to go, beyond the pack's) a unit in formation runs at full speed to catch up. */
+const STRAGGLER = 1.5;
+/** each formation's pack: the middle unit's distance (tiles) still to go, worked out once a tick */
+const packs = new Map<number, number>();
+let packsAt = -1;
+
+function packLeft(fid: number): number | undefined {
+  if (packsAt !== G.gameT) {
+    packsAt = G.gameT;
+    packs.clear();
+    const left = new Map<number, number[]>();
+    for (const e of G.ents) {
+      const o = e.order;
+      if (e.dead || o?.t !== 'move' || o.fid == null) continue;
+      const l = left.get(o.fid) ?? [];
+      l.push(Math.hypot((o.gx + 0.5) * TS - e.x, (o.gy + 0.5) * TS - e.y) / TS);
+      left.set(o.fid, l);
+    }
+    for (const [f, l] of left) packs.set(f, l.sort((a, b) => a - b)[Math.floor(l.length / 2)]);
+  }
+  return packs.get(fid);
+}
+
+/** In formation: the group's pace, unless the unit has fallen behind the pack and runs to catch up. */
+function formationPace(u: Ent): number {
+  const o = u.order;
+  if (o?.t !== 'move' || o.sub || !o.pace) return Infinity;
+  const pack = o.fid != null ? packLeft(o.fid) : undefined, mine = Math.hypot((o.gx + 0.5) * TS - u.x, (o.gy + 0.5) * TS - u.y) / TS;
+  return pack != null && mine > pack + STRAGGLER ? Infinity : o.pace;
+}
+
+export const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, formationPace(u)) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
 
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {
