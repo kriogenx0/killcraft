@@ -13,6 +13,9 @@ beforeEach(() => {
   G.reveal = true;
   G.demo = true;
   initWorld(1234);
+  // no lair creatures or demons wandering in to fight the new recruits
+  for (const e of G.ents) if (e.kind === 'unit' && e.team < 0) { e.dead = true; G.byId.delete(e.id); }
+  G.ents = G.ents.filter((e) => !e.dead);
   G.leader = -1;
   addBuilding('power', 0, 10, 50, false);
   addBuilding('power', 0, 10, 53, false);
