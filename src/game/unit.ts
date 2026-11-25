@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
-import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
+import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
@@ -410,15 +410,42 @@ function woundedNear(u: Ent, r: number): Ent | null {
 function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
   if (!t || t.team !== u.team || !medicCanHeal(t) || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  if (tend(u, t, dt) === null) setOrder(u, null);
+}
+
+/** Walk until `t` is within a Medic's reach, then heal it. Returns null if it can't be reached, false while walking. */
+function tend(u: Ent, t: Ent, dt: number): boolean | null {
   // heals from a distance: stops as soon as the patient is within reach, rather than walking up to it
   const r = approach(u, t, MEDIC_REACH, dt);
-  if (r === null) { setOrder(u, null); return; }
-  if (!r) return;
+  if (!r) return r;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // tends from afar: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
   // a soft green ray to the patient now and then, so you can see who is being healed
   if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: '#7dff9a', size: 2 });
+  return true;
+}
+
+/**
+ * A Medic on patrol: heals the wounded it comes across (anyone within sight), then walks on along
+ * its beat. Returns true while it's busy with a patient.
+ */
+function medicOnPatrol(u: Ent, o: MoveOrder, dt: number): boolean {
+  // back to the beat
+  const resume = () => { o.sub = null; u.goal = [o.gx, o.gy]; u.path = pathFor(u, o.gx, o.gy); };
+  let t = valid(o.sub);
+  if (o.sub && (!t || t.team !== u.team || !medicCanHeal(t) || t.hp >= t.maxhp - 0.5)) { t = null; resume(); }
+  if (!t) {
+    u.scan -= dt;
+    if (u.scan > 0) return false;
+    u.scan = 0.4;
+    t = woundedNear(u, unitDef(u).sight * TS);
+    if (!t) return false;
+    o.sub = t.id;
+    u.path = null;
+  }
+  if (tend(u, t, dt) === null) { resume(); return false; }
+  return true;
 }
 
 /** Something a Worker can mend: its side's site or damaged building (if the bank can pay), or a hurt unit on the ground. */
@@ -600,6 +627,7 @@ function act(u: Ent, dt: number): void {
         break;
       }
       if (u.stance === 'passive' || u.stance === 'tend' || !d.weapon) {
+        if (u.type === 'medic' && o.pat && medicOnPatrol(u, o, dt)) break;
         // keep going
         if (followPath(u, dt)) arrive(u);
         break;

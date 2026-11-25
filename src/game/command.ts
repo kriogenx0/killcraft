@@ -122,8 +122,8 @@ export function applyCommand(team: number, cmd: Command): void {
       groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty, false, cmd.form);
       break;
     case 'patrol':
-      // only units that can fight patrol
-      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon), cmd.tx, cmd.ty, true, cmd.form);
+      // only units that can fight patrol, and Medics (they heal the wounded along the way)
+      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon || u.type === 'medic'), cmd.tx, cmd.ty, true, cmd.form);
       break;
     case 'stance':
       for (const u of ownUnits(team, cmd.ids)) setStance(u, cmd.stance);

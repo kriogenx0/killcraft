@@ -217,6 +217,19 @@ describe('production', () => {
     expect(Math.hypot(m.x - s.x, m.y - s.y)).toBeGreaterThan(2.5 * TS);
   });
 
+  it('a medic on patrol heals the wounded it passes, then carries on along its beat', () => {
+    const m = addUnit('medic', 0, 20 * TS, 50 * TS), s = addUnit('swordsman', 0, 26 * TS, 53 * TS);
+    s.hp = 20;
+    applyCommand(0, { c: 'patrol', ids: [m.id], tx: 32, ty: 50 });
+    expect(m.order?.t === 'move' && !!m.order.pat).toBe(true);
+    run(12);
+    expect(s.hp).toBeGreaterThan(20 + 30);
+    expect(m.order?.t === 'move' && !!m.order.pat).toBe(true);
+    run(40);
+    expect(s.hp).toBeGreaterThan(s.maxhp - 1);
+    expect(m.order?.t === 'move' && !!m.order.pat && m.order.sub === null).toBe(true);
+  });
+
   it('a medic heals flying units too', () => {
     const f = addUnit('griffin', 0, 22 * TS, 50 * TS), m = addUnit('medic', 0, 25 * TS, 50 * TS);
     f.hp = 40;
