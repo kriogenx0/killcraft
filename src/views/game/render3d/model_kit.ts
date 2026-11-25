@@ -1,6 +1,7 @@
 // Building blocks for the procedural models: placing meshes, groups, limbs and rods.
 import * as THREE from 'three';
-import { box, cyl } from './materials.ts';
+import { cyl } from './materials.ts';
+import { taper } from './shapes.ts';
 
 export interface Model {
   root: THREE.Group;
@@ -39,9 +40,9 @@ export function scl<T extends THREE.Object3D>(o: T, x: number, y: number, z: num
   return o;
 }
 
-/** A limb hanging from a pivot (so it can swing). */
+/** A limb hanging from a pivot (so it can swing): a faceted taper, thicker at the pivot. */
 export function limb(x: number, y: number, z: number, len: number, thick: number, m: Mat): THREE.Group {
-  return group(x, y, z, mesh(box(thick, len, thick), m, 0, -len / 2, 0));
+  return group(x, y, z, mesh(taper(len, +(thick * 1.12).toFixed(4), +(thick * 0.8).toFixed(4)), m));
 }
 
 export const along = <T extends THREE.Object3D>(o: T): T => { o.rotation.z = -Math.PI / 2; return o; }; // cylinder axis → +x
