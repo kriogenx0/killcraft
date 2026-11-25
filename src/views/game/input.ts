@@ -7,7 +7,7 @@ import { exploredAt, seenAt } from '../../game/fog.ts';
 import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { toggleFollow } from './follow_cam.ts';
-import { centerCam, clampCam, ownSelected, selectedUnits, spectating, V } from './view_state.ts';
+import { centerCam, clampCam, inFormation, ownSelected, selectedUnits, spectating, toggleFormation, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, SPEED_KEYS, isTyping, zoomKey, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
 import { productionHotkey } from './sidebar.ts';
@@ -58,13 +58,13 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     return;
   }
   const harvesters = units.filter(isHarvester), rest = units.filter((u) => !isHarvester(u));
-  const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty });
+  const moveRest = () => rest.length && dispatch({ c: 'move', ids: ids(rest), tx, ty, ...inFormation(rest) });
   // Workers mend your own damaged buildings, building sites and wounded units
   const workers = harvesters.filter((u) => u.type === 'worker');
   if (workers.length && hit && hit.team === V.team && hit.kind !== 'source' && !workers.includes(hit) && (hit.kind === 'bld' ? !hit.done || hit.hp < hit.maxhp : hit.hp < hit.maxhp)) {
     dispatch({ c: 'fix', ids: ids(workers), target: hit.id });
     const others = units.filter((u) => !workers.includes(u));
-    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty });
+    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty, ...inFormation(others) });
     mark(wx, wy, '#5cf');
     return;
   }
@@ -74,12 +74,12 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   if (workers.length && G.terr[ty * MW + tx] === TREE && G.vis[ty * MW + tx]) {
     dispatch({ c: 'harvest', ids: ids(workers), tx, ty });
     const others = units.filter((u) => !workers.includes(u));
-    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty });
+    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty, ...inFormation(others) });
     mark(wx, wy, '#ff5');
     return;
   }
   if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
-  dispatch({ c: 'move', ids: ids(units), tx, ty });
+  dispatch({ c: 'move', ids: ids(units), tx, ty, ...inFormation(units) });
   mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
 }
 
@@ -106,7 +106,7 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
     return;
   }
   const us = selectedUnits();
-  dispatch({ c: m.t, ids: ids(us), tx: tileOf(wx), ty: tileOf(wy) });
+  dispatch({ c: m.t, ids: ids(us), tx: tileOf(wx), ty: tileOf(wy), ...inFormation(us) });
   mark(wx, wy, m.t === 'patrol' ? '#5af' : isEnemy(hit) ? '#f44' : '#5f5');
   refreshCommands(true);
 }
@@ -454,6 +454,7 @@ function onKey(ev: KeyboardEvent): void {
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (k === 'f' && (ev.shiftKey || spectating())) { toggleFollow(); refreshCommands(true); return; }
   if (k === 'r' && ev.shiftKey) { if (!spectating()) startRally(); return; }
+  if (k === 'm' && ev.shiftKey) { if (ownSelected().filter((e) => e.kind === 'unit').length > 1) { toggleFormation(); refreshCommands(true); } return; }
   const hk = normalizeKey(ev.key);
   // the command card first, so a unit's M, X, G, F and V beat the Town Hall's letters
   if (runHotkey(hk) || productionHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }

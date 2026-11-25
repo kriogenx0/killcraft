@@ -14,8 +14,8 @@ import { forgetResume } from './autogather.ts';
 import { revive } from './revive.ts';
 
 export type Command =
-  | { c: 'move'; ids: number[]; tx: number; ty: number }
-  | { c: 'patrol'; ids: number[]; tx: number; ty: number }
+  | { c: 'move'; ids: number[]; tx: number; ty: number; form?: boolean }
+  | { c: 'patrol'; ids: number[]; tx: number; ty: number; form?: boolean }
   | { c: 'stance'; ids: number[]; stance: Stance }
   | { c: 'stop'; ids: number[] }
   | { c: 'tend'; ids: number[] }
@@ -51,7 +51,7 @@ export function parseCommand(raw: unknown): Command | null {
   switch (o.c) {
     case 'move':
     case 'patrol':
-      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
+      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number, ...(o.form === true ? { form: true } : {}) } : null;
     case 'stance':
       return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
     case 'stop':
@@ -109,11 +109,11 @@ export function applyCommand(team: number, cmd: Command): void {
       for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker') { setStance(u, 'tend'); u.scan = 0; }
       break;
     case 'move':
-      groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty);
+      groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty, false, cmd.form);
       break;
     case 'patrol':
       // only units that can fight patrol
-      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon), cmd.tx, cmd.ty, true);
+      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon), cmd.tx, cmd.ty, true, cmd.form);
       break;
     case 'stance':
       for (const u of ownUnits(team, cmd.ids)) setStance(u, cmd.stance);

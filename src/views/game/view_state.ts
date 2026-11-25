@@ -21,6 +21,21 @@ export const TARGET_LIFE = 1;
 export interface TargetMark { id: number; t: number; color: string }
 export const PING_LIFE = 3;
 
+const FORMATION_KEY = 'killcraft.formation';
+
+function loadFormation(): boolean {
+  try { return localStorage.getItem(FORMATION_KEY) === '1'; } catch { return false; }
+}
+
+/** Turn moving in formation on or off, and remember it on this device. */
+export function toggleFormation(): void {
+  V.formation = !V.formation;
+  try { localStorage.setItem(FORMATION_KEY, V.formation ? '1' : '0'); } catch { /* private mode: it just isn't remembered */ }
+}
+
+/** The formation flag for a move order to these units (only a group can keep formation). */
+export const inFormation = (us: readonly Ent[]): { form?: true } => (V.formation && us.length > 1 ? { form: true } : {});
+
 export const V = {
   /** orbit camera: target on the ground (px), yaw, pitch, distance */
   cam: defaultRig(),
@@ -51,6 +66,8 @@ export const V = {
   speed: 1,
   /** the team this screen plays */
   team: 0,
+  /** move groups of units in formation: together at the slowest one's pace, keeping their shape (remembered on this device) */
+  formation: loadFormation(),
   /** playing a person over the network */
   online: false,
 };

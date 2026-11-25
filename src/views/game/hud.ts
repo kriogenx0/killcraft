@@ -26,9 +26,9 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandsHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
-import { V, ownSelected, spectating } from './view_state.ts';
+import { V, ownSelected, spectating, toggleFormation } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
@@ -108,6 +108,12 @@ function followCommand(): Command | null {
   return { id: 'follow', label: on ? 'Following' : 'Follow', hotkey: FOLLOW_KEY, icon: ICON.follow, active: on, tip: on ? 'Stop following this unit (panning the map stops it too)' : 'Keep the camera on this unit as it moves. Pan the map to let go' };
 }
 
+/** Keep formation: a group of units moves together, at its slowest unit's pace, and keeps its shape. */
+function formationCommand(): Command {
+  const on = V.formation;
+  return { id: 'formation', label: 'Formation', hotkey: FORMATION_KEY, icon: ICON.formation, active: on, tip: on ? 'On: groups move together at the slowest unit\'s pace and keep their shape. Turn off to let everyone go at full speed' : 'Move groups in formation: together at the slowest unit\'s pace, keeping their shape, so they arrive at once' };
+}
+
 /** Rally the army: every fighter heads to one spot, and new troops from every producer follow. */
 function rallyCommand(): Command | null {
   if (spectating() || G.over) return null;
@@ -130,6 +136,7 @@ export function commandList(): Command[] {
       // Fix, then harvest is for Workers only (and is theirs by default)
       ...STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
         .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
+      ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
@@ -170,6 +177,7 @@ export function runCommand(id: string): void {
   else if (id === 'back') V.keyGroup = null;
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'follow') toggleFollow();
+  else if (id === 'formation') toggleFormation();
   else if (id === 'move' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });

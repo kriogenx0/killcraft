@@ -60,6 +60,9 @@ export const FOLLOW_KEY = 'Shift+F';
 /** Rally the army: pick a spot every fighting unit heads to, and new troops from every producer follow. */
 export const RALLY_KEY = 'Shift+R';
 
+/** Keep formation: a group moves together at its slowest unit's pace and keeps its shape. */
+export const FORMATION_KEY = 'Shift+M';
+
 /** Letters no command or production hotkey may take: the camera keys and the global keys. */
 export const RESERVED_KEYS: ReadonlySet<string> = new Set([
   ...Object.keys(SCROLL_KEYS), ...Object.keys(ROTATE_KEYS), ...Object.values(GLOBAL_KEYS).map((k) => k.toLowerCase()),

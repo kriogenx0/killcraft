@@ -17,6 +17,8 @@ export const COMMAND_GLYPH: Record<string, string> = {
   passive: svg('<path d="M6 21V3"/><path d="M6 4h12l-3 4.5 3 4.5H6"/>'),
   // Fix, then harvest: a hammer over a nugget of ore
   tend: svg('<path d="M3.5 20.5l9-9"/><path d="M11.8 6.6l5.6 5.6-2.2 2.2-5.6-5.6z"/><path d="M19 15.5l2.5 2.5-2.5 2.5-2.5-2.5z"/>'),
+  // keep formation: a tidy block of troops
+  formation: svg('<rect x="2.5" y="5" width="19" height="14" rx="2" stroke-dasharray="3 2.5"/>' + [7, 12, 17].flatMap((x) => [9.5, 14.5].map((y) => `<circle cx="${x}" cy="${y}" r="1.8" fill="currentColor" stroke="none"/>`)).join('')),
   rally: svg('<path d="M6 21V3"/><path d="M6 4l13 4.5L6 13"/><path d="M3 21h7"/>'),
   follow: svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   cancel: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
