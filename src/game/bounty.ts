@@ -5,6 +5,7 @@
 // turret earns, or a carrier drops when it dies, is left on the ground as ore for gatherers.
 // Tuning lives in data/economy.ts.
 import { G, allied, teamGame, hooks, say, type Ent } from './state.ts';
+import { noteGathered } from './stats.ts';
 import { TS } from './const.ts';
 import { AETHER_BANK_REACH } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
@@ -57,6 +58,7 @@ export function bankLoot(): void {
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.credits[u.team] += u.loot;
     hooks.gain(u.team, u.x, u.y, 'ore', u.loot, u.id);
+    noteGathered(u.team, 'ore', u.loot);
     hooks.bounty(u.team, u.loot);
     say(u.team, `Bounty brought home: ${Math.round(u.loot)} ore`);
     u.loot = 0;

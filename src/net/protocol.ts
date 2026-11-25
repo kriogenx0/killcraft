@@ -3,6 +3,7 @@ import type { Command } from '../game/command.ts';
 import type { EntRow, FxEvent } from './snapshot.ts';
 import type { Production } from '../game/state.ts';
 import type { UpgradeTrack } from '../data/era.ts';
+import type { SideSummary } from '../game/stats.ts';
 import type { Difficulty, Mode, SeatPick } from '../data/setup.ts';
 
 export const MAX_NAME = 20;
@@ -179,7 +180,7 @@ export type ServerMsg =
   | SnapMsg
   /** you're now watching this match (sent again on a reconnect) */
   | ({ k: 'spectate'; game: string; seed: number; players: string[] } & MatchShape)
-  | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned'; /** how each side was knocked out */ detail?: string[] }
+  | { k: 'end'; winner: number; reason: 'destroyed' | 'left' | 'resigned'; /** how each side was knocked out */ detail?: string[]; /** each side's record of the match, for the end screen */ stats?: SideSummary[] }
   /** `live`: the game asked for is a match under way, which can be watched instead */
   | { k: 'error'; msg: string; live?: LiveGame }
   | { k: 'notice'; msg: string }

@@ -187,6 +187,91 @@ $sidebar-width: 248px;
     user-select: text;
   }
 
+  // end of game: each side's record, one column per side
+  .game-end-stats {
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 640px;
+    // four sides fit a 320px phone; anything wider scrolls inside the box, never the page
+    overflow-x: auto;
+    border: 1px solid var(--color-rim);
+    border-radius: $radius;
+    background: linear-gradient(var(--color-panel-top), var(--color-panel-bottom));
+    box-shadow: 0 4px 16px rgb(0 0 0 / 60%);
+
+    &[hidden] { display: none; }
+  }
+
+  .end-stats {
+    width: 100%;
+    font-size: $font-sm;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text);
+    border-collapse: collapse;
+
+    th, td {
+      padding: 3px $space-2;
+      white-space: nowrap;
+    }
+
+    td { text-align: center; }
+
+    tbody th {
+      position: sticky;
+      left: 0;
+      font-weight: normal;
+      color: var(--color-text-muted);
+      text-align: left;
+      background: var(--color-panel-bottom);
+    }
+
+    // the first row of each group is its heading, so even rows are every other line of numbers
+    tbody tr:nth-child(even) td { background: var(--color-inset); }
+
+    .end-stats-section {
+      padding-top: $space-3;
+      font-size: $font-xs;
+      color: var(--color-gold);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      background: none;
+    }
+
+    thead th:first-child {
+      position: sticky;
+      left: 0;
+      background: var(--color-panel-top);
+    }
+  }
+
+  .end-stats-side {
+    max-width: 96px;
+    padding-top: $space-2;
+    overflow: hidden;
+    font-weight: bold;
+    color: var(--color-text);
+    text-overflow: ellipsis;
+    // the side's color as a thick underline: readable on light and dark panels alike
+    border-bottom: 4px solid var(--side);
+
+    &--won::before { content: '★ '; color: var(--color-gold); }
+  }
+
+  .end-stats-best {
+    font-weight: bold;
+    color: var(--color-gold);
+  }
+
+  @media (width <= 420px) {
+    .end-stats {
+      font-size: $font-xs;
+
+      th, td { padding: 2px $space-1; }
+    }
+
+    .end-stats-side { max-width: 64px; }
+  }
+
   // once beaten, or while watching: each side's share of the armies, under the top bar
   .army-bar {
     position: absolute;

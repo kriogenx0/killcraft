@@ -5,6 +5,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path';
 import { deserialize, serialize } from 'node:v8';
 import type { SavedWorld } from '../../src/game/save.ts';
+import type { SideSummary } from '../../src/game/stats.ts';
 import { computerName, sidesTitle, type LiveGame, type MatchShape, type ServerMsg } from '../../src/net/protocol.ts';
 import { MODES, type Difficulty, type Mode } from '../../src/data/setup.ts';
 import type { Player, RoomStart } from './lobby_service.ts';
@@ -56,6 +57,8 @@ interface Match {
   watchers: Set<string>;
   /** its thread's latest perf report */
   perf?: MatchPerf;
+  /** each side's record, as the match thread last reported it */
+  stats?: SideSummary[];
 }
 
 /**
@@ -313,7 +316,7 @@ export class MatchService {
     m.worker.postMessage({ k: 'resign', team } satisfies WorkerIn);
     // they're out: a side they're not on wins, as far as they're concerned
     const foe = m.setup.ally.findIndex((a, t) => a !== m.setup.ally[team] && !m.setup.absent[t]);
-    this.events.send(playerId, { k: 'end', winner: foe, reason });
+    this.events.send(playerId, { k: 'end', winner: foe, reason, stats: m.stats });
     if (player) this.events.finished(player.id);
     for (const p of this.present(m)) this.events.send(p.id, { k: 'notice', msg: `${m.names[team]} surrendered.` });
     if (!this.present(m).length) m.abandon ??= setTimeout(() => this.end(m, -1, 'left', ['Every player left.']), this.abandonAfter);
@@ -332,7 +335,8 @@ export class MatchService {
       if (msg.team < 0) { if (m.watchers.size) { const json = JSON.stringify(msg.snap); for (const w of m.watchers) this.events.sendRaw(w, json); } }
       else { const p = m.players[msg.team]; if (p) this.events.send(p.id, msg.snap); }
     }
-    else if (msg?.k === 'end') this.end(m, msg.winner, m.resigned.size ? 'resigned' : 'destroyed', msg.detail);
+    else if (msg?.k === 'stats') m.stats = msg.stats;
+    else if (msg?.k === 'end') { m.stats = msg.stats; this.end(m, msg.winner, m.resigned.size ? 'resigned' : 'destroyed', msg.detail); }
     else if (msg?.k === 'error') console.error('match error:', msg.msg);
     else if (msg?.k === 'perf') m.perf = msg.perf;
   }
@@ -348,12 +352,12 @@ export class MatchService {
     for (const p of m.players) {
       if (!p) continue;
       this.byPlayer.delete(p.id);
-      this.events.send(p.id, { k: 'end', winner, reason, detail });
+      this.events.send(p.id, { k: 'end', winner, reason, detail, stats: m.stats });
       this.events.finished(p.id);
     }
     for (const w of m.watchers) {
       this.byWatcher.delete(w);
-      this.events.send(w, { k: 'end', winner, reason, detail });
+      this.events.send(w, { k: 'end', winner, reason, detail, stats: m.stats });
       this.events.finished(w);
     }
     m.watchers.clear();

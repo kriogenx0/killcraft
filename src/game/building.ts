@@ -1,5 +1,6 @@
 // Building behaviour (rising, repair, turrets, effects) and placement rules.
 import { G, say, tileOf, bldDef, isAir, type Ent, type Point, type Tile } from './state.ts';
+import { noteBuilt } from './stats.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { dropSalvage, oilNear } from './economy.ts';
 import { DERRICK_REACH } from '../data/economy.ts';
@@ -38,6 +39,7 @@ function completed(b: Ent): void {
   burst('dust', b.x, b.y + (b.h * TS) / 2, 14, 40, 100);
   if (!G.visualOnly) say(b.team, `${bldDef(b).name} complete`);
   if (!G.visualOnly) joinRally(b);
+  noteBuilt(b);
   const to = bldDef(b).advances;
   if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
     G.era[b.team] = Math.min(LAST_ERA, to);

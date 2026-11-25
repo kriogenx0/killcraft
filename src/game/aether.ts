@@ -1,6 +1,7 @@
 // Aether deposits: placing them on the map, drawing Aether from a held deposit, and the tricks the
 // hidden units use (slowing hexes and cloaks). Tuning lives in data/aether.ts.
 import { G, allied, hooks, say, unitDef, type Ent, type Tile } from './state.ts';
+import { noteGathered } from './stats.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
@@ -143,6 +144,7 @@ export function bankAether(): void {
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.aether[u.team] = (G.aether[u.team] ?? 0) + u.ae;
     hooks.gain(u.team, u.x, u.y, 'aether', u.ae, u.id);
+    noteGathered(u.team, 'aether', u.ae);
     u.ae = 0;
     if (!G.aetherFound[u.team]) { G.aetherFound[u.team] = true; say(u.team, 'Aether found! Hidden units revealed'); }
   }

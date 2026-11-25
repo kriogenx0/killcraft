@@ -7,6 +7,7 @@ import { BUILDING, type BldType } from '../data/building.ts';
 import type { TechType, UpgradeTrack } from '../data/era.ts';
 import { MW, MH, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
+import type { SideStats } from './stats.ts';
 
 export type Tile = [number, number];
 export type EntKind = 'unit' | 'bld' | 'source';
@@ -283,6 +284,8 @@ export const G = {
   winner: -1,
   /** each side knocked out so far, in order: when and why (shown on the end screen) */
   outLog: [] as { team: number; t: number; why: string }[],
+  /** each side's record of the match, for the end screen (see stats.ts) */
+  stats: [] as SideStats[],
   /** both sides are computer-controlled */
   demo: false,
   /** reveal the whole map (testing) */

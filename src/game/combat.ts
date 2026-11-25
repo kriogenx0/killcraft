@@ -1,5 +1,6 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
 import { G, allied, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
+import { noteKill } from './stats.ts';
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { CHAIN_FALLOFF, CHAIN_REACH, WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
@@ -61,7 +62,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): v
   }
   if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
   if (t.hp <= 0 && riseFromAshes(t)) return; // a Phoenix bursts alight and rises again, once
-  if (t.hp <= 0) { hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
+  if (t.hp <= 0) { noteKill(t, src); hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
   if (dot || t.kind !== 'unit' || !src || src.dead || allied(src.team, t.team) || (src.team < 0 && !src.wild)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }

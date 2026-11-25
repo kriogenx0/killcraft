@@ -12,6 +12,7 @@ import { aiPace } from './ai.ts';
 import { ARMY_SLOW_FROM, ARMY_SLOW_STEP, LEADER_SPEED } from '../data/economy.ts';
 import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
+import { noteTrained } from './stats.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, BLD_TYPES, isWall, type BldType } from '../data/building.ts';
@@ -320,6 +321,7 @@ function deliver(team: number, type: UnitType, b: Ent): void {
   const haul = !!UNIT[type].haul, rally = haul ? null : b.rally;
   const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
+  noteTrained(team);
   say(team, `${UNIT[type].name} ready`);
   // a new Worker starts on Auto: off to whatever the side has least of
   if (type === 'worker') { if (!autoGather(u)) orderHarvest(u, x, y); }

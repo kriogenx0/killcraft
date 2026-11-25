@@ -7,6 +7,7 @@ import { ais } from '../../src/game/ai.ts';
 import { AI_LEVEL, type Difficulty } from '../../src/data/setup.ts';
 import { updFog } from '../../src/game/fog.ts';
 import { initWorld, outReasons, surrender, update } from '../../src/game/world.ts';
+import { summarize, type SideSummary } from '../../src/game/stats.ts';
 import { captureWorld, restoreWorld, type SavedWorld } from '../../src/game/save.ts';
 import { applyCommand, parseCommand } from '../../src/game/command.ts';
 import { encodeEnt, encodeOre, visibleTo, weaponIndex, type FxEvent } from '../../src/net/snapshot.ts';
@@ -19,7 +20,9 @@ export type WorkerIn = { team: number; cmd: unknown } | { k: 'watchers'; n: numb
   /** a player surrendered: their side is knocked out, and the game goes on for the rest */
   | { k: 'resign'; team: number };
 /** team -1: the snapshot for people watching, which shows everything */
-export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number; detail: string[] } | { k: 'error'; msg: string }
+export type WorkerOut = { k: 'snap'; team: number; snap: SnapMsg } | { k: 'end'; winner: number; detail: string[]; stats: SideSummary[] }
+  /** each side's record so far, so a match that ends without the engine (a player leaves) still has it */
+  | { k: 'stats'; stats: SideSummary[] } | { k: 'error'; msg: string }
   /** the whole match as it stands, for the server to keep through a restart */
   | { k: 'saved'; world: SavedWorld }
   | { k: 'perf'; perf: MatchPerf };
@@ -38,6 +41,7 @@ export interface MatchPerf {
 
 const SNAP_EVERY = 6; // steps (10 snapshots a second)
 const ORE_EVERY = 10; // snapshots
+const STATS_EVERY = 60; // steps (once a second)
 const setup: MatchSetup = workerData?.setup ?? { teams: 2, ally: [0, 1], absent: [false, false], levels: [null, null] };
 /** the sides people play (the computer plays the rest, and closed seats have nobody) */
 const TEAMS = Array.from({ length: setup.teams }, (_, t) => t).filter((t) => !setup.absent[t] && !setup.levels[t]);
@@ -123,10 +127,11 @@ const timer = setInterval(() => {
     const ms = performance.now() - t0;
     perf.steps++; perf.stepMs += ms; perf.stepMax = Math.max(perf.stepMax, ms);
     acc -= STEP;
+    if (steps % STATS_EVERY === 0) port.postMessage({ k: 'stats', stats: summarize() } satisfies WorkerOut);
     if (++steps % SNAP_EVERY === 0) { const t1 = performance.now(); sendSnapshots(); perf.snapMs += performance.now() - t1; }
     if (G.over) {
       sendSnapshots();
-      port.postMessage({ k: 'end', winner: G.winner, detail: outReasons() } satisfies WorkerOut);
+      port.postMessage({ k: 'end', winner: G.winner, detail: outReasons(), stats: summarize() } satisfies WorkerOut);
       clearInterval(timer);
       return;
     }

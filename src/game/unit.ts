@@ -2,6 +2,7 @@
 import { aiPace } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
+import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
@@ -226,6 +227,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   else if (cargo === 'oil') G.oil[u.team] += a;
   else { G.credits[u.team] += a; hooks.income(u.team, a); }
   hooks.gain(u.team, u.x, u.y, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a, u.id);
+  noteGathered(u.team, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a);
   if (u.carry <= 0.01) {
     u.carry = 0;
     o.st = 'go';

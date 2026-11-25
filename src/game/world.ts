@@ -1,6 +1,7 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import { isWall } from '../data/building.ts';
 import { G, allied, hooks, say, unitDef } from './state.ts';
+import { markStartStock, resetStats, sampleStats } from './stats.ts';
 import { MW, MH, TS } from './const.ts';
 import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
 import { START_ERA } from '../data/era.ts';
@@ -53,6 +54,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   while (G.sight.length < n) G.sight.push(new Uint8Array(MW * MH));
   G.sight.length = n;
   G.byId.clear();
+  resetStats();
   for (const s of G.sight) s.fill(0);
   resetAi(n);
   generateMap(seed);
@@ -155,6 +157,7 @@ export const outReasons = (name: (team: number) => string = (t) => teamColors(t)
   (G.outLog ?? []).map((o) => `${name(o.team)} was knocked out at ${clock(o.t)}: ${o.why}.`);
 
 export function update(dt: number): void {
+  if (G.gameT === 0) markStartStock();
   G.gameT += dt;
   refreshHealRates();
   for (const e of G.ents) {
@@ -180,7 +183,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); unicornCleanse(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); unicornCleanse(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows

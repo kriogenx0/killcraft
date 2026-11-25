@@ -43,6 +43,8 @@ import { initBurning, updateBurning } from './render3d/burn3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
 import { updateAetherBeams, updateAetherGlows } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
+import { renderEndStats } from './end_stats.ts';
+import { summarize, type SideSummary } from '../../game/stats.ts';
 import { formatTime, initHud, refreshHud, setSelection } from './hud.ts';
 import { initSidebar, refreshSidebar } from './sidebar.ts';
 import { initInput, scrollCamera, updatePlacement } from './input.ts';
@@ -138,6 +140,8 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   const q = new URLSearchParams(location.search);
 
   let errors = 0, messageTimer = 0, endReason = '', shownEnd = false, quitting = false;
+  /** each side's record from the server, when an online game ends */
+  let endStats: SideSummary[] | null = null;
   /** the server said it's restarting, or dropped us mid-match: if the game is then lost, say so rather than "Game over" */
   let serverRestarting = false, droppedMidGame = false, restartEnd = false, lostAt = 0;
   const pausedBox = must<HTMLElement>(root, '.game-paused'), timeEl = must<HTMLElement>(root, '.topbar-time');
@@ -309,6 +313,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     else if (m.k === 'end' && !G.over) {
       G.over = true;
       G.winner = m.winner;
+      endStats = m.stats ?? null;
       setWatchedGame(null);
       const loser = watchingNames?.[1 - m.winner] ?? 'A player', won = m.winner >= 0 && allied(m.winner, V.team);
       if (watchingNames) endReason = m.reason === 'left' ? `${loser} left the game.` : m.reason === 'resigned' ? `${loser} surrendered.` : '';
@@ -558,6 +563,8 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       if (root.dataset.gameId && !restartEnd) void forgetGame(root.dataset.gameId).catch(() => {});
       must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${winners(G.winner)} ${teamGame() ? 'win' : 'wins'}`) : G.winner >= 0 && allied(G.winner, V.team) ? 'Victory' : G.winner < 0 ? (restartEnd ? 'Restarting Server' : 'Game over') : 'Defeat';
       must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
+      const sideName = (t: number) => `${watchingNames?.[t] || onlineNames?.[t] || teamColors(t).name}${t === V.team && !G.demo && !watchingNames ? ' (you)' : ''}`;
+      renderEndStats(must(root, '.game-end-stats'), V.online ? endStats : summarize(), sideName, G.winner);
       resignBtn.hidden = true;
       openModal(endModal);
     }
