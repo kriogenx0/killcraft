@@ -18,7 +18,7 @@ import { regrowOre } from './ore.ts';
 import { collect, dropSalvage } from './economy.ts';
 import { bankAether, drawAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { initCows } from './cows.ts';
-import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong, unicornCleanse } from './creatures.ts';
+import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { available, emptyProduction, priceOf, updProduction, type Price } from './production.ts';
 import { refitPrice } from './refit.ts';
@@ -188,7 +188,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); unicornCleanse(); updHell(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); updHell(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows

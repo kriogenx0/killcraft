@@ -220,25 +220,48 @@ function cyclops(team: number): Model {
   return { root, parts, height: top + 0.3 };
 }
 
+/**
+ * A serpent's body through these points: a smooth chain of scaled segments tapering from r0 to r1,
+ * with a pale belly band at each joint. Returns the group it built.
+ */
+function serpent(pts: [number, number, number][], r0: number, r1: number, sc: Mat, belly: Mat, stripe?: Mat): THREE.Group {
+  const g = new THREE.Group(), n = pts.length - 1;
+  for (let k = 0; k < n; k++) {
+    const ra = lerp(r0, r1, k / n), rb = lerp(r0, r1, (k + 1) / n), [x, y, z] = pts[k];
+    g.add(rod(pts[k], pts[k + 1], (ra + rb) / 2, stripe && k % 2 ? stripe : sc, 10));
+    g.add(mesh(sph(ra, 10, 8), sc, x, y, z));
+    g.add(scl(mesh(sph(ra * 0.92, 8, 6), belly, x, y - ra * 0.25, z), 1, 0.6, 1)); // belly scales
+  }
+  g.add(mesh(sph(r1, 8, 6), sc, ...pts[n]));
+  return g;
+}
+
 function hydra(team: number): Model {
-  const root = new THREE.Group(), parts: Parts = {}, sc = C.scale(), belly = C.belly();
-  // coiled body and tail on the ground
-  root.add(scl(mesh(sph(0.26, 14, 10), sc, -0.05, 0.2, 0), 1.25, 0.75, 1));
-  root.add(scl(mesh(sph(0.2, 12, 8), belly, 0.05, 0.15, 0), 1, 0.6, 0.9));
-  root.add(mesh(cyl(0.27, 0.27, 0.05, 16), colour(team), -0.05, 0.32, 0));
-  for (let i = 0; i < 5; i++) root.add(mesh(sph(0.09 - i * 0.015, 8, 6), sc, -0.32 - i * 0.08, 0.1 - i * 0.012, Math.sin(i) * 0.08));
-  // three necks, each with a head that sways and strikes
-  for (let i = 0; i < 3; i++) {
-    const z = (i - 1) * 0.15, neck = group(0.08, 0.32, z);
-    neck.rotation.x = -(i - 1) * 0.5;
-    neck.scale.setScalar(i === 1 ? 1.35 : 1.15);
-    neck.add(rod([0, 0, 0], [0.1, 0.28, 0], 0.045, sc, 8));
-    neck.add(rod([0.1, 0.28, 0], [0.18, 0.46, 0], 0.038, sc, 8));
-    neck.add(scl(mesh(sph(0.06, 10, 8), sc, 0.24, 0.5, 0), 1.5, 0.8, 1));
-    neck.add(mesh(box(0.06, 0.02, 0.07), belly, 0.3, 0.47, 0)); // jaw
-    for (const s of [-1, 1]) {
-      neck.add(mesh(sph(0.012, 6, 4), mat('#ffd020', { emissive: '#c09000', emissiveIntensity: 0.8 }), 0.27, 0.53, s * 0.035));
-      neck.add(rot(mesh(cone(0.012, 0.06, 4), sc, 0.18, 0.56, s * 0.03), 0, 0, 0.9)); // crest spike
+  const root = new THREE.Group(), parts: Parts = {}, sc = C.scale(), belly = C.belly(), dark = mat('#2e5a2a', { rough: 0.55, metal: 0.15 });
+  const eye = mat('#ffd020', { emissive: '#c09000', emissiveIntensity: 0.8 }), fang = M.white();
+  // a great serpent's body lying on the ground: a thick chest where the necks rise, and a long
+  // tail snaking away behind
+  root.add(scl(mesh(sph(0.16, 14, 10), sc, 0, 0.16, 0), 1.5, 0.8, 1));
+  root.add(scl(mesh(sph(0.13, 12, 8), belly, 0.05, 0.11, 0), 1.4, 0.55, 0.95));
+  root.add(rot(mesh(torus(0.15, 0.025, Math.PI * 2, 6, 18), colour(team), 0.02, 0.2, 0), Math.PI / 2, 0, -0.25)); // band
+  const tail = serpent([[-0.2, 0.13, 0], [-0.36, 0.09, 0.1], [-0.52, 0.07, 0.04], [-0.64, 0.05, -0.1], [-0.78, 0.04, -0.06], [-0.9, 0.035, 0.06]], 0.14, 0.02, sc, belly, dark);
+  parts.tail = tail;
+  root.add(tail);
+  // five long necks fanning out of its chest, each curving up to a fanged head (the middle one biggest)
+  const HEADS = 5;
+  for (let i = 0; i < HEADS; i++) {
+    const f = i - (HEADS - 1) / 2, neck = group(0.1, 0.22, f * 0.07);
+    neck.rotation.x = -f * 0.32;
+    neck.scale.setScalar(f === 0 ? 1.2 : 1 - Math.abs(f) * 0.06);
+    neck.add(serpent([[0, 0, 0], [0.08, 0.16, 0], [0.06, 0.32, 0], [0.13, 0.46, 0], [0.22, 0.5, 0]], 0.055, 0.035, sc, belly, i % 2 ? dark : undefined));
+    // the head: long snout, a gaping jaw with fangs, golden eyes and a crest of spines
+    neck.add(scl(mesh(sph(0.055, 10, 8), sc, 0.27, 0.51, 0), 1.6, 0.75, 0.95));
+    neck.add(mesh(box(0.1, 0.022, 0.06), belly, 0.3, 0.47, 0)); // lower jaw, hanging open
+    neck.add(mesh(box(0.05, 0.012, 0.05), mat('#a02020', { rough: 0.6 }), 0.3, 0.485, 0)); // mouth
+    for (const s2 of [-1, 1]) {
+      neck.add(mesh(sph(0.013, 6, 4), eye, 0.3, 0.535, s2 * 0.033));
+      neck.add(rot(mesh(cone(0.006, 0.03, 4), fang, 0.335, 0.47, s2 * 0.02), Math.PI, 0, 0)); // fangs
+      for (let k = 0; k < 3; k++) neck.add(rot(mesh(cone(0.01, 0.05 - k * 0.01, 4), dark, 0.22 - k * 0.04, 0.56 - k * 0.012, s2 * 0.012), 0, 0, 0.9));
     }
     parts[`head${i}`] = neck;
     root.add(neck);
@@ -275,46 +298,48 @@ function cerberus(team: number): Model {
 }
 
 function medusa(team: number): Model {
-  const root = new THREE.Group(), parts: Parts = {}, sc = C.gorgon(), skin = C.gorgonSkin();
-  // a serpent's coils on the ground, the tail curling out behind and swaying
-  root.add(scl(mesh(sph(0.2, 14, 10), sc, -0.02, 0.12, 0), 1.3, 0.55, 1.1));
-  root.add(mesh(cyl(0.16, 0.2, 0.06, 14), C.belly(), 0.02, 0.2, 0));
-  const tail = group(-0.18, 0.08, 0);
-  for (let i = 0; i < 6; i++) tail.add(mesh(sph(0.075 - i * 0.01, 8, 6), sc, -i * 0.07, -i * 0.006, Math.sin(i * 0.9) * 0.07));
+  const root = new THREE.Group(), parts: Parts = {}, sc = C.gorgon(), skin = C.gorgonSkin(), belly = C.belly(), dark = mat('#3e6a32', { rough: 0.55 });
+  // from the waist down she is all serpent: a thick scaled body that bends to the ground and
+  // trails out behind her in a long, swaying S
+  root.add(serpent([[0.03, 0.33, 0], [0.06, 0.2, 0.02], [0.02, 0.09, 0.05], [-0.1, 0.06, 0.07]], 0.07, 0.062, sc, belly, dark));
+  const tail = serpent([[-0.1, 0.06, 0.07], [-0.24, 0.05, 0.01], [-0.36, 0.04, -0.08], [-0.5, 0.035, -0.06], [-0.6, 0.03, 0.04], [-0.7, 0.025, 0.08], [-0.78, 0.02, 0.03]], 0.06, 0.012, sc, belly, dark);
   parts.tail = tail;
   root.add(tail);
-  // a woman's body rising from the coils
-  root.add(scl(mesh(sph(0.09, 10, 8), skin, 0.04, 0.34, 0), 0.9, 1.3, 1));
-  root.add(mesh(box(0.1, 0.16, 0.14), skin, 0.05, 0.47, 0));
-  root.add(rot(mesh(box(0.11, 0.04, 0.16), colour(team), 0.05, 0.47, 0), 0.6, 0, 0)); // sash
-  root.add(mesh(box(0.09, 0.05, 0.15), M.gold(), 0.05, 0.55, 0)); // breastplate edge
-  for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
-    const arm = limb(0.05, 0.55, s * 0.09, 0.18, 0.04, skin);
-    arm.rotation.x = s * 0.25;
+  // a woman's body above: slim waist, a chiton in the side's colour held by a gold belt, bare arms
+  root.add(scl(mesh(sph(0.065, 10, 8), skin, 0.035, 0.39, 0), 0.9, 1.2, 1.05));
+  root.add(scl(mesh(sph(0.075, 10, 8), colour(team), 0.04, 0.48, 0), 0.85, 1.1, 1.2));
+  root.add(mesh(cyl(0.062, 0.062, 0.02, 12), M.gold(), 0.035, 0.42, 0)); // belt
+  root.add(scl(mesh(sph(0.06, 10, 8), skin, 0.04, 0.55, 0), 0.9, 0.6, 1.5)); // shoulders
+  for (const [name, s2] of [['armL', -1], ['armR', 1]] as const) {
+    const arm = limb(0.04, 0.56, s2 * 0.085, 0.17, 0.032, skin);
+    arm.add(mesh(cyl(0.022, 0.022, 0.015, 8), M.gold(), 0, -0.06, 0)); // armlet
+    arm.rotation.x = s2 * 0.3;
     parts[name] = arm;
     root.add(arm);
   }
-  root.add(mesh(sph(0.06, 10, 8), skin, 0.06, 0.65, 0));
-  for (const z of [-0.02, 0.02]) root.add(mesh(sph(0.012, 6, 4), C.gaze(), 0.115, 0.665, z)); // the deadly eyes
+  root.add(mesh(cyl(0.025, 0.03, 0.04, 8), skin, 0.045, 0.6, 0)); // neck
+  root.add(scl(mesh(sph(0.055, 12, 10), skin, 0.055, 0.66, 0), 1.05, 1.1, 0.95));
+  for (const z of [-0.02, 0.02]) root.add(mesh(sph(0.012, 6, 4), C.gaze(), 0.103, 0.672, z)); // the deadly eyes
+  root.add(mesh(box(0.006, 0.006, 0.03), mat('#5a2030', { rough: 0.6 }), 0.106, 0.635, 0)); // a thin, cold mouth
   // a crown of living snakes: each one a tapering, S-curved body rising from her scalp, with a
   // flat wedge of a head, glowing eyes and a forked red tongue, all writhing (see animateCreature)
-  const hair = group(0.05, 0.68, 0), belly = C.belly(), tongue = mat('#d02020', { rough: 0.6 }), eye = C.gaze();
+  const hair = group(0.05, 0.68, 0), tongue = mat('#d02020', { rough: 0.6 }), eye = C.gaze();
   const SNAKES = 11;
   for (let i = 0; i < SNAKES; i++) {
     const a = (i / SNAKES) * Math.PI * 2 + 0.3, snake = group(Math.cos(a) * 0.045, 0.01, Math.sin(a) * 0.045);
     snake.rotation.y = -a; // its local +x points away from her head
-    const len = i % 3 === 0 ? 1.15 : i % 3 === 1 ? 1 : 0.85;
+    const len = (i % 3 === 0 ? 1.15 : i % 3 === 1 ? 1 : 0.85) * 1.25;
     // an S-curve out and up, thinning toward the head
     const pts: [number, number, number][] = [[0, 0, 0], [0.035, 0.02, 0.01], [0.065, 0.05, -0.01], [0.08, 0.085, 0.008], [0.075, 0.115, -0.004]]
       .map(([x, y, z]) => [x * len, y * len, z * len]);
     for (let k = 0; k < pts.length - 1; k++) {
-      const r = 0.012 - k * 0.0018;
+      const r = 0.016 - k * 0.0025;
       snake.add(rod(pts[k], pts[k + 1], r, k % 2 ? sc : C.gorgon(), 6));
       snake.add(mesh(sph(r, 6, 4), sc, ...pts[k + 1])); // round the joints
     }
     // the head: a flattened wedge looking outward, eyes either side, tongue flicking out
     const [hx, hy, hz] = pts[pts.length - 1], head = group(hx, hy, hz);
-    head.add(scl(mesh(sph(0.016, 8, 6), sc, 0.012, 0, 0), 1.6, 0.7, 1.1));
+    head.add(scl(mesh(sph(0.021, 8, 6), sc, 0.015, 0, 0), 1.6, 0.7, 1.1));
     head.add(scl(mesh(sph(0.011, 6, 4), belly, 0.014, -0.006, 0), 1.5, 0.4, 0.9)); // pale jaw
     for (const z of [-0.009, 0.009]) head.add(mesh(sph(0.0045, 5, 4), eye, 0.02, 0.005, z));
     for (const z of [-0.003, 0.003]) head.add(rot(mesh(box(0.016, 0.002, 0.002), tongue, 0.04, -0.003, z), 0, z * 60, 0));
@@ -522,10 +547,11 @@ function dragon(team: number): Model {
   return { root, parts, height: 0.8 };
 }
 
-/** The colours of the rainbow, red on the outside, glowing a little so they read at any hour. */
-const RAINBOW = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '#9a60ff'].map((c) => mat(c, { rough: 0.5, emissive: c, emissiveIntensity: 0.45 }));
+/** The colours of the rainbow (also the unicorns' rainbows, unicorns3d.ts), red on the outside, glowing a little so they read at any hour. */
+export const RAINBOW = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '#9a60ff'].map((c) => mat(c, { rough: 0.5, emissive: c, emissiveIntensity: 0.45 }));
 
-function unicorn(team: number): Model {
+/** A unicorn: harmless scenery that wanders the meadows under its own rainbow (unicorns3d.ts). */
+export function unicornModel(): Model {
   const root = new THREE.Group(), parts: Parts = {}, coat = C.white(), pink = mat('#ffb0d8', { rough: 0.6 });
   // a white horse with a rainbow mane, a rainbow tail and a spiral golden horn
   root.add(scl(mesh(sph(0.2, 14, 10), coat, 0, 0.48, 0), 1.6, 0.68, 0.62));
@@ -549,15 +575,6 @@ function unicorn(team: number): Model {
     root.add(mesh(sph(0.014, 6, 4), pink, 0.52, 0.745, z * 0.95));
   }
   root.add(rot(mesh(torus(0.022, 0.004, Math.PI, 4, 8), M.dark(), 0.592, 0.7, 0), 0, Math.PI / 2, Math.PI)); // smile
-  // saddle blanket in the side's colour, with a heart
-  root.add(mesh(box(0.22, 0.03, 0.27), colour(team), 0, 0.62, 0));
-  for (const z of [-0.136, 0.136]) root.add(mesh(sph(0.025, 8, 6), pink, 0, 0.58, z));
-  // a rainbow that arcs out behind it as it gallops
-  const arc = group(-0.62, 0.12, 0);
-  RAINBOW.forEach((m, i) => arc.add(mesh(torus(0.46 - i * 0.03, 0.016, Math.PI, 4, 24), m, 0, 0, 0)));
-  arc.visible = false;
-  parts.rainbow = arc;
-  root.add(arc);
   return { root, parts, height: 1.0 };
 }
 
@@ -579,7 +596,6 @@ export function creatureModel(type: UnitType, team: number): Model | null {
     case 'chimera': return chimera(team);
     case 'phoenix': return phoenix(team);
     case 'dragon': return dragon(team);
-    case 'unicorn': return unicorn(team);
     default: return null;
   }
 }
@@ -606,10 +622,8 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
     case 'hydra':
     case 'cerberus':
     case 'chimera':
-      for (let i = 0; i < 3; i++) {
-        const h = P[`head${i}`];
-        if (h) h.rotation.z = Math.sin(t * 2 + i * 2.1) * 0.12 - strike * 0.5;
-      }
+      for (let i = 0; P[`head${i}`]; i++) P[`head${i}`].rotation.z = Math.sin(t * 2 + i * 2.1) * 0.12 - strike * (i % 2 ? 0.3 : 0.5);
+      if (e.type === 'hydra' && P.tail) P.tail.rotation.y = Math.sin(t * 1.3) * 0.2;
       break;
     case 'medusa':
       if (P.tail) P.tail.rotation.y = Math.sin(t * 1.6) * 0.35;
@@ -635,11 +649,6 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
       m.root.rotation.x = Math.sin(t * 3) * 0.05;
       break;
     }
-    case 'unicorn':
-      // it prances, head high, and leaves a rainbow behind it at a gallop
-      if (P.rainbow) { P.rainbow.visible = e.moving; P.rainbow.scale.setScalar(0.9 + Math.sin(t * 5) * 0.05); }
-      m.root.position.y += e.moving ? Math.abs(Math.sin(w * 1.3)) * 0.05 : 0;
-      break;
     case 'phoenix':
       if (P.tail) P.tail.rotation.y = Math.sin(t * 4) * 0.2;
       break;

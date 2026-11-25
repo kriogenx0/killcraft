@@ -57,7 +57,7 @@ export function pasture(x: number, y: number): boolean {
 }
 
 /** Fully open meadow around a spot, for a herd's home. */
-function meadow(x: number, y: number, r: number): boolean {
+export function meadow(x: number, y: number, r: number): boolean {
   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r && !pasture(x + dx + 0.5, y + dy + 0.5)) return false;
   return !nearPortal(x, y, 3);
 }

@@ -6,7 +6,7 @@ import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { available } from './production.ts';
 import { acquire, dealDamage, fire } from './combat.ts';
-import { addBeast, captorOf, satyrSong, stone, unicornCleanse, wildBeasts } from './creatures.ts';
+import { addBeast, captorOf, satyrSong, stone, wildBeasts } from './creatures.ts';
 import { START_YARDS } from '../data/map.ts';
 import { BEASTS, CAPTURE_TIME, PETRIFY_IMMUNE, RESPAWN_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
 import { WEAPON } from '../data/weapon.ts';
@@ -285,19 +285,6 @@ describe('creatures of myth', () => {
     expect(near.hp - near.maxhp / 2).toBeGreaterThan(near.maxhp * 0.08);
     expect(far.hp).toBe(far.maxhp / 2);
     expect(foe.hp).toBe(foe.maxhp / 2);
-  });
-
-  it('lets a Unicorn cure friends nearby of stone, ice and burns, but not foes', () => {
-    addUnit('unicorn', 0, MID.x, MID.y);
-    const friend = addUnit('swordsman', 0, MID.x + TS, MID.y), far = addUnit('swordsman', 0, MID.x + 10 * TS, MID.y);
-    const foe = addUnit('swordsman', 1, MID.x, MID.y + TS);
-    for (const u of [friend, far, foe]) { u.stoneT = G.gameT + 5; u.burnT = G.gameT + 5; u.frozenT = G.gameT + 5; }
-    unicornCleanse();
-    expect(stone(friend)).toBe(false);
-    expect(friend.burnT).toBe(0);
-    expect(friend.frozenT).toBe(0);
-    expect(stone(far)).toBe(true);
-    expect(stone(foe)).toBe(true);
   });
 
   it('the computer sends a party to capture a creature', () => {

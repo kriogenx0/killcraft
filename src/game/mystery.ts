@@ -9,7 +9,7 @@ import { countOf } from './entity.ts';
 export const MYSTERY_POOL: readonly UnitType[] = [
   'wraith', 'phantom', 'starfall',
   'giant', 'juggernaut', 'titan',
-  'centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'medusa', 'nemean', 'sphinx', 'chimera', 'unicorn',
+  'centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'medusa', 'nemean', 'sphinx', 'chimera',
   'pegasus', 'griffin', 'phoenix', 'dragon',
 ];
 /** Chance an egg hatches a Titan Chicken instead. */

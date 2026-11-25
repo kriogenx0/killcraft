@@ -261,17 +261,3 @@ export function satyrSong(dt: number): void {
     if (rate) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
   }
 }
-
-/** Unicorns lift every harmful spell and element off the friendly units around them. Call about once a second. */
-export function unicornCleanse(): void {
-  const healers = G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team >= 0 && !!unitDef(e).cleanse && !stone(e));
-  if (!healers.length) return;
-  for (const u of G.ents) {
-    if (u.dead || u.kind !== 'unit' || u.team < 0) continue;
-    if (!healers.some((h) => h.team === u.team && Math.hypot(h.x - u.x, h.y - u.y) <= (unitDef(h).cleanse ?? 0) * TS)) continue;
-    const cursed = [u.burnT, u.poisonT, u.wetT, u.sludgeT, u.frozenT, u.curseT, u.slowT, u.stoneT].some((t) => (t ?? 0) > G.gameT);
-    if (!cursed) continue;
-    u.burnT = u.poisonT = u.wetT = u.sludgeT = u.frozenT = u.curseT = u.slowT = u.stoneT = 0;
-    part('flash', u.x, u.y, { max: 0.3, size: 14, z: 10, col: '#ffd0f4' });
-  }
-}

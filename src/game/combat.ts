@@ -28,7 +28,7 @@ export const MELEE_LAND = 0.15;
 /** how far a target may step away mid-swing and still be struck (px) */
 const MELEE_SLACK = 12;
 /** tracer and flash colours for weapons that don't fire plain lead */
-const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a', lightning: '#bfe4ff', railgun: '#8ad8ff', gaze: '#b8ff70', rainbow: '#ff9ae0' };
+const BEAM_COL: Partial<Record<WeaponType, string>> = { starbeam: '#c9a8ff', hexrifle: '#9dff8a', lightning: '#bfe4ff', railgun: '#8ad8ff', gaze: '#b8ff70' };
 
 export const armorOf = (e: Ent): ArmorClass => (e.kind === 'unit' ? unitDef(e).armor : 'building');
 export const weaponOf = (e: Ent): WeaponType | null => (e.kind === 'unit' ? unitDef(e).weapon : e.kind === 'bld' ? bldDef(e).weapon ?? null : null);

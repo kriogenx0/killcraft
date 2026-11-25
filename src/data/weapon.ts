@@ -6,7 +6,7 @@ export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha' | 'howitzer'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
-  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'rainbow' | 'peck'
+  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'peck'
   | 'impfire' | 'fiendclaw' | 'hellblade';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
@@ -116,7 +116,6 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   phoenixfire: { element: 'fire', dmg: 20, range: 3.5, cd: 1.3, proj: 'orb', speed: 300, splash: 10, vs: { none: 1.1, light: 0.9, heavy: 0.4, building: 0.8, air: 0.7 } },
   // the Dragon's breath: a slow, heavy gout of flame that splashes wide and melts armor and walls alike, but can't reach up at flyers
   dragonfire: { element: 'fire', dmg: 42, range: 3.5, cd: 2.4, proj: 'orb', speed: 280, splash: 24, vs: { none: 0.55, light: 0.85, heavy: 1.1, building: 1.5, air: 0.35 } },
-  rainbow: { dmg: 22, range: 4, cd: 1.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 1, heavy: 0.6, building: 0.4, air: 1 } },
   // demons from the Gate of Hell (data/hell.ts): an imp's spat fire, a fiend's claws, the Archfiend's burning blade
   impfire: { element: 'fire', dmg: 12, range: 3, cd: 1.2, proj: 'orb', speed: 300, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.35, building: 0.6, air: 0.8 } },
   fiendclaw: { dmg: 30, range: 0.9, cd: 1.2, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.7, building: 1.1, air: 0 } },

@@ -16,6 +16,7 @@ import { M } from './materials.ts';
 import { surface } from './surfaces.ts';
 import { animateTrees, initTrees, refreshTrees } from './trees3d.ts';
 import { initCows3d } from './cows3d.ts';
+import { initUnicorns3d } from './unicorns3d.ts';
 import { initBuildZone } from './build_zone3d.ts';
 
 const ORE_PER_TILE = 5;
@@ -165,6 +166,7 @@ export function initWorld3d(): void {
   layer.add(water);
   initTrees(layer);
   initCows3d(layer);
+  initUnicorns3d(layer);
   // ore crystals
   ore = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.09).scale(0.8, 1.7, 0.8), M.ore(), 5000);
   ore.castShadow = true;

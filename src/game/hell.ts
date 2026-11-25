@@ -220,6 +220,8 @@ export function updDemon(u: Ent, dt: number): void {
     const goal = raidGoal(u, dm.raid);
     if (!goal) { goHome(u); return; }
     const gx = tileOf(goal.x), gy = tileOf(goal.y);
+    // at the prey's door with nothing it can get at for now: wait here rather than circling the spot
+    if (edgeDist(u, goal) <= 1.5 * TS) { if (u.order) setOrder(u, null); return; }
     if (u.order?.t !== 'move' || Math.hypot(u.order.gx - gx, u.order.gy - gy) > 2) orderMove(u, gx, gy);
     if (followPath(u, dt)) setOrder(u, null);
     return;
