@@ -13,14 +13,14 @@ import type { Model } from './models.ts';
 /** About the size of a cow. */
 const S = 0.55;
 /** The rainbow's span (tiles, outer radius) and its bands' thickness. */
-const ARC_R = 0.85, BAND = 0.045;
+const ARC_R = 2.6, BAND = 0.13;
 
 const group = new THREE.Group();
 const shown: { model: Model; arc: THREE.Group }[] = [];
 
 function rainbow(): THREE.Group {
   const g = new THREE.Group();
-  RAINBOW.forEach((m, i) => g.add(mesh(torus(ARC_R - i * BAND * 1.6, BAND, Math.PI, 6, 36), m)));
+  RAINBOW.forEach((m, i) => g.add(mesh(torus(ARC_R - i * BAND * 1.6, BAND, Math.PI, 8, 64), m)));
   g.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = false; });
   return g;
 }
