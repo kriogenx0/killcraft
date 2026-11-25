@@ -7,7 +7,8 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
-  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'unicorn';
+  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'unicorn'
+  | 'mystery' | 'chicken';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -72,6 +73,15 @@ export interface UnitDef {
    * never fires on the move, and it backs off from anything inside its weapon's minRange
    */
   deploy?: number;
+  /**
+   * the Mystery Egg (game/mystery.ts): trained slowly like a unit, but what walks out of it is a random
+   * special unit of the side's age, and now and then a Titan Chicken
+   */
+  hatches?: boolean;
+  /** only ever comes out of a Mystery Egg: it can't be trained on its own (the Titan Chicken) */
+  hatched?: boolean;
+  /** enemies within this many tiles can't help going for it first, whatever else is about (the Titan Chicken) */
+  lure?: number;
   /** a side may have at most this many alive or in training at once */
   limit?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
@@ -158,6 +168,12 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // with Aether. It smashes everything around it with a broken temple column; only aircraft are
   // safe from it, and massed rockets and anti-tank fire are the way to bring it down.
   giant: { name: 'Titan', cls: 'infantry', armor: 'heavy', hp: 3200, spd: 1.5, turn: 2.2, weapon: 'quake', cost: 2800, wood: 400, aether: 150, t: 50, era: 1, sight: 8, producer: 'infantry', turret: false, radius: 24, giant: true, limit: 1, group: 'Magic', desc: 'An elder giant of bronze and stone, woken with Aether. Its column smashes everything around the blow and crushes buildings. Only one at a time. Can\'t hit aircraft.' },
+  // the Mystery Egg: a slow gamble on Aether. It hatches into a random special unit (game/mystery.ts):
+  // a Titan, a Dragon, a Cyborg Colossus... or a Titan Chicken. One at a time.
+  mystery: { name: 'Mystery Egg', cls: 'infantry', armor: 'none', hp: 1, spd: 0, turn: 0, weapon: null, cost: 600, aether: 80, t: 90, era: 0, sight: 1, producer: 'infantry', turret: false, radius: 8, hatches: true, limit: 1, group: 'Magic', desc: 'A glowing egg warmed slowly on Aether. Hatches into a random special unit of your age: maybe a Titan, a Dragon or a Cyborg Colossus, maybe something cheaper. Now and then it\'s a Titan Chicken. One at a time, and it takes a long while.' },
+  // the Titan Chicken: what sometimes comes out of a Mystery Egg instead. A barn-sized chicken that
+  // every enemy nearby can't help going for, so the army behind it walks in untouched.
+  chicken: { name: 'Titan Chicken', cls: 'infantry', armor: 'light', hp: 1600, spd: 3.4, turn: 4, weapon: 'peck', cost: 600, aether: 80, t: 90, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 22, hatched: true, lure: 5, regen: 0.004, desc: 'A chicken the size of a barn. Only ever hatches from a Mystery Egg. Every enemy within 5 tiles can\'t help going for it, so it soaks up the fire while your army does the work, and its stomping peck scatters infantry. Feathers stop nothing, but there are a lot of them. It can\'t reach anything that flies.' },
   // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 260, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 300, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 17, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry and fliers.' },

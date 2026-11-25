@@ -171,11 +171,28 @@ export function attacker(u: Ent): Ent | null {
  * harvester) while an armed enemy is within reach.
  */
 export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number, picked = false): Ent | null {
+  // a Titan Chicken close by pulls every eye off whatever else it was fighting
+  const lure = picked || (cur?.kind === 'unit' && unitDef(cur).lure) ? null : lurer(u, radiusTiles);
+  if (lure) return lure;
   const a = attacker(u);
   if (a && a !== cur && edgeDist(u, a) <= radiusTiles * TS) return a;
   // a target the player picked isn't dropped just because something armed is about
   if (cur && !picked && !weaponOf(cur)) return acquire(u, radiusTiles, false, true);
   return null;
+}
+
+/** An enemy that lures foes (the Titan Chicken) close enough to this unit to draw it, and within the radius. */
+const lures = { t: -1, ents: G.ents, list: [] as Ent[] };
+function lurer(u: Ent, radiusTiles: number): Ent | null {
+  // the lurers on the field, gathered once a tick (there are rarely any)
+  if (lures.t !== G.gameT || lures.ents !== G.ents) { lures.t = G.gameT; lures.ents = G.ents; lures.list = G.ents.filter((e) => !e.dead && e.kind === 'unit' && unitDef(e).lure); }
+  let best: Ent | null = null, bd = Infinity;
+  for (const e of lures.list) {
+    if (e.dead || !isFoe(u, e) || cloakedFrom(e, u.team) || !canAttack(u, e)) continue;
+    const d = edgeDist(u, e);
+    if (d <= Math.min(radiusTiles, unitDef(e).lure!) * TS && d < bd) { bd = d; best = e; }
+  }
+  return best;
 }
 
 /**
@@ -194,7 +211,8 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
     if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
-    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40);
+    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40)
+      - (e.kind === 'unit' && dist <= (unitDef(e).lure ?? 0) * TS ? 400 : 0); // the Titan Chicken: nobody can look away
     if (score < bs) { bs = score; best = e; }
   }
   return best;
