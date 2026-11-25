@@ -283,6 +283,22 @@ describe('idle Workers', () => {
       expect(left()).toBeLessThan(before);
     });
 
+    it('come before anything else: an Auto Worker on wood goes for it, then back to the trees', () => {
+      const [w] = workers(1);
+      G.credits[0] = 5000; G.wood[0] = 0; // wood is what the side lacks
+      run(1);
+      expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
+      wreckAt(yard.tx + 1, yard.ty + 10);
+      let went = false;
+      for (let i = 0; i < 120 / STEP && !went; i++) { update(STEP); went = onScrap(w); }
+      expect(went).toBe(true);
+      const left = () => { let n = 0; for (let i = 0; i < MW * MW; i++) if (G.scrap[i]) n += G.ore[i]; return n; };
+      for (let i = 0; i < 400 / STEP && left() > 0; i++) update(STEP);
+      expect(left()).toBe(0);
+      run(30);
+      expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
+    });
+
     it('but not while an enemy is standing over it', () => {
       const [w] = workers(1);
       G.credits[0] = 5000; G.wood[0] = 5000;

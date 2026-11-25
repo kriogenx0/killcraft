@@ -97,30 +97,39 @@ function pickOre(u: Ent, underway = false, around: Tile | null = null): [number,
   return scrapFor(u, walk, best, free) ?? best;
 }
 
-/** How many tiles further from base a gatherer will walk to pick over what's left of something destroyed. */
-const SCRAP_PULL = 14;
-/** Salvage this close (tiles) to an armed enemy is left until the fighting's over. */
+/**
+ * How far (tiles walked from the side's drop-offs) gatherers go for what's left of something
+ * destroyed. Salvage comes first: within this, it beats any ordinary ore.
+ */
+const SALVAGE_REACH = 36;
+/** Salvage this close (tiles) to an armed enemy (or enemy tower) is left until the fighting's over. */
 const SCRAP_DANGER = 7;
 
 /**
- * Salvage worth going for instead of `best`: the ore left by destroyed units and structures lies
- * where they fell, so gatherers go out of their way for it (within SCRAP_PULL tiles of a walk),
- * but not into a fight.
+ * Salvage to dig before anything else: the ore left by destroyed units and structures lies where
+ * they fell, so gatherers go for it first (the nearest to base, within SALVAGE_REACH, or a little
+ * past `best` if that's further), but not into a fight.
  */
 function scrapFor(u: Ent, walk: Float32Array | null, best: Tile | null, taken: (i: number) => boolean): Tile | null {
   if (!walk) return null;
-  const limit = (best ? walk[best[1] * MW + best[0]] : Infinity) + SCRAP_PULL;
+  const limit = Math.max(SALVAGE_REACH, best ? walk[best[1] * MW + best[0]] : 0);
   let foes: Ent[] | null = null, pick = -1, bd = Infinity;
   for (let i = 0; i < MW * MH; i++) {
     if (!G.scrap[i] || G.ore[i] < 1 || G.blk[i]) continue;
     const d = walk[i];
     if (d >= Math.min(bd, limit) || taken(i)) continue;
-    foes ??= G.ents.filter((e) => !e.dead && e.kind === 'unit' && !allied(e.team, u.team) && !!unitDef(e).weapon && e.type !== 'worker');
+    foes ??= G.ents.filter((e) => !e.dead && !allied(e.team, u.team) && e.team >= 0 && (e.kind === 'unit' ? !!unitDef(e).weapon && e.type !== 'worker' : e.kind === 'bld' && !!bldDef(e)?.weapon));
     const x = (i % MW + 0.5) * TS, y = (((i / MW) | 0) + 0.5) * TS;
     if (foes.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_DANGER * TS)) continue;
     bd = d; pick = i;
   }
   return pick < 0 ? null : [pick % MW, (pick / MW) | 0];
+}
+
+/** Salvage a gatherer could go and dig right now (see scrapFor), or null. */
+export function salvageFor(u: Ent): Tile | null {
+  const bad = cantReach.get(u);
+  return scrapFor(u, walkOf(u.team, banksOf(u.team, ORE_BANKS)), null, (i) => !!bad?.has(i) || oreTaken(i, u, true));
 }
 
 /** How far (tiles) a gatherer with part of a load looks for more before heading off elsewhere. */
