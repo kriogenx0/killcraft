@@ -32,8 +32,8 @@ interface Obj { model: Model; key: string }
 
 /** Units are drawn larger than life so they read clearly next to buildings. */
 const UNIT_SCALE = 1.4;
-/** creatures of myth stand half as big again as everyone else, so they read as monsters on the field */
-const CREATURE_SCALE = 1.5;
+/** creatures of myth stand twice as big as everyone else, so they read as monsters on the field */
+const CREATURE_SCALE = 2.1;
 
 const holder = new THREE.Group();
 const overlays = new THREE.Group();
