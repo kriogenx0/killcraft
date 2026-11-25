@@ -2,12 +2,16 @@
 import { G, hooks, type Tile } from './state.ts';
 import { MW, MH, GRASS } from './const.ts';
 import { ORE_REGROW, ORE_REGROW_RADIUS, ORE_REGROW_TILES, ORE_TILE_MAX } from '../data/ore.ts';
+import { GATE_SIZE, GATE_TILE } from '../data/hell.ts';
+
+/** The Gate of Hell stands where the middle field's crystal rock was (data/hell.ts), and the ore grows back round it the same. */
+const GATE_ROCK = { tx: GATE_TILE[0] + (GATE_SIZE >> 1), ty: GATE_TILE[1] + (GATE_SIZE >> 1) };
 
 /** Add ore near every crystal rock. Called once per second. */
 export function regrowOre(): void {
   let changed = false;
-  for (const s of G.ents) {
-    if (s.dead || s.type !== 'source') continue;
+  for (const s of G.hell?.gate ? [...G.ents, GATE_ROCK] : G.ents) {
+    if (('dead' in s && s.dead) || ('type' in s && s.type !== 'source')) continue;
     for (let k = 0; k < ORE_REGROW_TILES; k++) {
       const a = Math.random() * Math.PI * 2, r = 1 + Math.random() * ORE_REGROW_RADIUS;
       const x = Math.round(s.tx + Math.cos(a) * r), y = Math.round(s.ty + Math.sin(a) * r);

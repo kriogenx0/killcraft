@@ -50,7 +50,7 @@ export const canAfford = (team: number, t: Buildable): boolean => { const p = pr
  * once the side has captured one of their kind (data/creatures.ts).
  */
 const revealed = (team: number, t: Buildable): boolean =>
-  isUnitType(t) && UNIT[t].beast ? !!G.tamed[team]?.includes(t) : priceOf(t).aether <= 0 || !!G.aetherFound[team];
+  isUnitType(t) && UNIT[t].demon ? false : isUnitType(t) && UNIT[t].beast ? !!G.tamed[team]?.includes(t) : priceOf(t).aether <= 0 || !!G.aetherFound[team];
 const timeOf = (t: Buildable): number => defOf(t).t;
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
@@ -326,7 +326,7 @@ function deliver(team: number, type: UnitType, b: Ent): void {
   const haul = !!UNIT[type].haul, rally = haul ? null : b.rally;
   const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
-  noteTrained(team);
+  noteTrained(team, type);
   say(team, `${UNIT[type].name} ready`);
   // a new Worker starts on Auto: off to whatever the side has least of
   if (type === 'worker') { if (!autoGather(u)) orderHarvest(u, x, y); }

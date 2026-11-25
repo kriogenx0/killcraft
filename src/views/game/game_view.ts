@@ -41,6 +41,7 @@ import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { initBurning, updateBurning } from './render3d/burn3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
+import { animateHellGate3d, initHellGate3d } from './render3d/hellgate3d.ts';
 import { updateAetherBeams, updateAetherGlows } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { renderEndStats } from './end_stats.ts';
@@ -168,6 +169,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     initFog(refreshFog);
     initWorld3d();
     initPortals3d();
+    initHellGate3d();
     resetEntities3d();
     initFx3d();
     initBurning();
@@ -584,6 +586,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       updateFx3d();
       updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);
+      animateHellGate3d(dt);
       updateAetherBeams();
       updateAetherGlows();
       animateWater(dt);

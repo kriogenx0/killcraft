@@ -4,6 +4,7 @@ import { MW, MH, TS } from '../../../game/const.ts';
 import { exploredAt, seenAt } from '../../../game/fog.ts';
 import { teamColors } from '../../../data/team.ts';
 import { PORTAL_COLORS } from '../../../data/map.ts';
+import { GATE_SIZE, GATE_TILE } from '../../../data/hell.ts';
 import { TAU } from '../../../util/math.ts';
 import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { MINI, terrain } from './terrain.ts';
@@ -59,13 +60,18 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
       m.beginPath(); m.arc((x + 0.5) * k, (y + 0.5) * k, 3, 0, TAU); m.fill();
     }
   });
+  // the Gate of Hell, once explored
+  if (G.hell?.gate && G.vis[(GATE_TILE[1] + 1) * MW + GATE_TILE[0] + 1]) {
+    m.fillStyle = '#2a0806'; m.fillRect(GATE_TILE[0] * k, GATE_TILE[1] * k, GATE_SIZE * k, GATE_SIZE * k);
+    m.fillStyle = '#ff4a10'; m.beginPath(); m.arc((GATE_TILE[0] + GATE_SIZE / 2) * k, (GATE_TILE[1] + GATE_SIZE / 2) * k, 2, 0, TAU); m.fill();
+  }
   for (const e of G.ents) {
     if (e.dead) continue;
     if (e.type === 'aether') continue; // drawn over the fog below
     if (e.type === 'shard') { if (G.vis[tileOf(e.y) * MW + tileOf(e.x)] === 2) { m.fillStyle = '#d8a0ff'; m.fillRect((e.x / TS) * k - 1, (e.y / TS) * k - 1, 2, 2); } continue; }
     if (!spectating() && cloakedFrom(e, V.team)) continue;
     if (e.team !== V.team && G.vis[tileOf(e.y) * MW + tileOf(e.x)] < (e.kind === 'unit' ? 2 : 1)) continue;
-    m.fillStyle = e.team < 0 ? '#fff0a0' : teamColors(e.team).l;
+    m.fillStyle = e.demon ? '#ff3a1a' : e.team < 0 ? '#fff0a0' : teamColors(e.team).l;
     const s = e.w ? e.w * k : 3, x = (e.x / TS) * k - s / 2, y = (e.y / TS) * k - s / 2;
     m.fillRect(x, y, s, s);
     if (e.w) { m.strokeStyle = 'rgba(0,0,0,.6)'; m.lineWidth = 1; m.strokeRect(x, y, s, s); }

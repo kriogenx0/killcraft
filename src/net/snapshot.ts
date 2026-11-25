@@ -58,7 +58,8 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
 
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
 export function visibleTo(e: Ent, team: number): boolean {
-  if (e.team < 0 || allied(e.team, team)) return true;
+  // demons go unseen in the fog like enemy troops; ore, Aether and wild creatures at their lairs always show
+  if ((e.team < 0 && !e.demon) || allied(e.team, team)) return true;
   if (cloakedFrom(e, team)) return false;
   const v = G.sight[team][Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)];
   return e.kind === 'unit' ? v === 2 : v > 0;
@@ -152,10 +153,11 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
       e.stoneT = flags & STONE ? G.gameT + 0.4 : 0;
       if (maxMana(e)) e.mana = (((flags >> MANA_SHIFT) & 127) / 127) * maxMana(e);
     }
-    // a unit with no side is a wild creature guarding its lair; captured ones join a side
+    // a unit with no side is a demon from the Gate of Hell, or a wild creature guarding its lair; captured ones join a side
     if (e.kind === 'unit') {
       e.team = team;
       if (team >= 0) e.wild = undefined;
+      else if (UNIT[type as UnitType].demon) e.demon ??= { raid: -1, hx: x, hy: y };
       else { e.wild ??= { lx: x, ly: y, down: false, downT: 0, by: -1, held: 0 }; e.wild.down = (flags & KNEELING) !== 0; }
     }
     e.prog = prog / 100;

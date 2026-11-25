@@ -4,7 +4,7 @@
 // Slow and Freeze on an enemy, Douse on a friend that's burning or poisoned. Elements stick to what
 // they hit: fire burns, poison eats at living things, sludge slows and makes fire worse, water puts
 // out fire and poison and washes off sludge but leaves its target wet, and lightning punishes wet.
-import { G, allied, altOf, isAir, unitDef, valid, type Ent } from './state.ts';
+import { G, allied, fair, altOf, isAir, unitDef, valid, type Ent } from './state.ts';
 import { TS } from './const.ts';
 import { burst, part } from './fx.ts';
 import { cloakedFrom, hex } from './aether.ts';
@@ -136,8 +136,9 @@ function spellTarget(u: Ent, s: SpellType): Ent | null {
       }
       if (score > bs) { bs = score; best = e; }
     } else {
-      if (allied(e.team, u.team) || (e.team < 0 && !e.wild) || kneeling(e) || cloakedFrom(e, u.team) || frozen(e)) continue;
-      if (!unitDef(e).weapon && !e.wild) continue; // don't waste spells on workers and harvesters
+      if (allied(e.team, u.team) || !fair(e) || kneeling(e) || cloakedFrom(e, u.team) || frozen(e)) continue;
+      if (!unitDef(e).weapon && !e.wild && !e.demon) continue;
+      if (e.demon && e.demon.raid < 0 && e.foe !== u.id && u.foe !== e.id) continue; // let demons lurking by the gate be // don't waste spells on workers and harvesters
       if (s === 'freeze' && priceOf(e) < FREEZE_WORTH && e.maxhp < FREEZE_HP) continue;
       if (s === 'slow' && on(e.slowT)) continue;
       const score = priceOf(e) + e.maxhp;

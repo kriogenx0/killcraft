@@ -1,6 +1,7 @@
 // Seeded terrain generation: lakes and woods from smoothed noise, ore fields around crystal rocks,
 // and clearings for the bases.
 import { G, type Tile } from './state.ts';
+import { GATE_SIZE, GATE_TILE } from '../data/hell.ts';
 import { MW, MH, GRASS, WATER, TREE, SHALLOW, ROCK, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import {
@@ -266,6 +267,8 @@ export function generateMap(seed: number): number {
 
 export function rebuildBlk(): void {
   for (let i = 0; i < MW * MH; i++) G.blk[i] = walkable(G.terr[i]) ? 0 : 1;
+  // the Gate of Hell in the middle (data/hell.ts)
+  if (G.hell?.gate) for (let y = GATE_TILE[1]; y < GATE_TILE[1] + GATE_SIZE; y++) for (let x = GATE_TILE[0]; x < GATE_TILE[0] + GATE_SIZE; x++) G.blk[y * MW + x] = 1;
   for (const e of G.ents) if (!e.dead && e.w) setBlk(e, true);
 }
 

@@ -27,6 +27,7 @@ import { ais, aiThink, resetAi } from './ai.ts';
 import { AI_LEVEL } from '../data/setup.ts';
 import { isUnitType, type UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
+import { onGate, placeGate, updHell } from './hell.ts';
 
 const FOG_INTERVAL = 0.2;
 const ORE_INTERVAL = 1;
@@ -61,8 +62,9 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   for (const s of G.sight) s.fill(0);
   resetAi(n);
   generateMap(seed);
+  placeGate();
   const { yards, ore } = layoutFor(n);
-  for (const [x, y] of ore) addSource(x, y);
+  for (const [x, y] of ore) if (!onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
   yards.forEach(([x, y], team) => {
     if (G.absent[team]) return;
     addBuilding('yard', team, x, y, false);
@@ -186,7 +188,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); unicornCleanse(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); unicornCleanse(); updHell(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows
