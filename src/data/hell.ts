@@ -63,6 +63,12 @@ export const LEADER_TRAINED = 20;
 export const RAID_EVERY: [number, number] = [150, 240];
 /** Seconds after a side first becomes the leader before the first raid sets out. */
 export const FIRST_RAID = 60;
+/** The leader has to be well ahead (Alex 2026-11-25: raiding it until it lost was unfair): its army is worth at least LEAD_MARGIN times the next strongest side's to become the leader, and stays the leader only while it's KEEP_MARGIN times ahead. Raiders go home once it isn't. */
+export const LEAD_MARGIN = 1.5;
+export const KEEP_MARGIN = 1.25;
+/** After RAID_LIMIT raids in a row on the same side, the gate rests RAID_REST seconds before raiding again. */
+export const RAID_LIMIT = 2;
+export const RAID_REST = 480;
 
 /** The giant demon: it climbs out with the first raid at least this many seconds after a leader appears, then with the first raid after each ARCHFIEND_EVERY. Only one at a time. */
 export const ARCHFIEND_FIRST = 240;

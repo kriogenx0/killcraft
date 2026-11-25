@@ -201,6 +201,9 @@ export interface Hell {
   stay?: number;
   /** the gate is letting out a raid that sets out at raidT */
   stir?: boolean;
+  /** raids in a row on the current leader, and when the gate's rest after RAID_LIMIT of them ends */
+  raids?: number;
+  restT?: number;
   /** game time each side was last sent help in a last stand */
   rescued?: number[];
   /** game time the next raid sets out (Infinity while there's no leader) */

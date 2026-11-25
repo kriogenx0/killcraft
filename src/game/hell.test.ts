@@ -7,7 +7,7 @@ import { addUnit } from './entity.ts';
 import { acquire, dealDamage } from './combat.ts';
 import { demonPrey, demons, gateCentre, onBrink, onGate, spawnDemon, updHell } from './hell.ts';
 import { addBuilding } from './entity.ts';
-import { BRINK_AFTER, RESCUE_COOLDOWN, RESCUE_DRAKES } from '../data/hell.ts';
+import { BRINK_AFTER, RAID_LIMIT, RAID_REST, RESCUE_COOLDOWN, RESCUE_DRAKES } from '../data/hell.ts';
 import { wildBeasts } from './creatures.ts';
 import { visibleTo } from '../net/snapshot.ts';
 import { ARCHFIEND_FIRST, BURST_GAP, DEMON_CAP, GATE_OPENS, GATE_SIZE, GATE_TILE, LEADER_TRAINED, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY } from '../data/hell.ts';
@@ -109,12 +109,19 @@ describe('the Gate of Hell', () => {
     expect(errors).toEqual([]);
   });
 
-  it('has no leader until a side has trained 20 fighting units; then it is the strongest army', () => {
+  it('has no leader until a side has trained 20 fighting units; then it is the strongest army, if well ahead', () => {
     army(0, LEADER_TRAINED - 1, 12, 'knight');
     army(1, LEADER_TRAINED + 5, 4);
-    expect(demonPrey()).toBe(1); // only side 1 has trained enough, though side 0 is stronger
+    expect(demonPrey()).toBe(-1); // side 1 has trained enough, but side 0 is stronger
+    for (const u of G.ents) if (u.team === 0 && u.type === 'knight') u.dead = true; // side 0's army falls
+    G.ents = G.ents.filter((e) => !e.dead);
+    army(1, 0, 12);
+    expect(demonPrey()).toBe(1); // now only side 1 has trained enough and it's well ahead
+    for (const u of G.ents) if (u.team === 1) u.dead = true;
+    G.ents = G.ents.filter((e) => !e.dead);
+    army(0, 0, 12, 'knight');
     noteTrained(0, 'worker'); // Workers don't count
-    expect(demonPrey()).toBe(1);
+    expect(demonPrey()).toBe(-1);
     noteTrained(0, 'knight');
     expect(demonPrey()).toBe(0);
     updHell();
@@ -157,6 +164,31 @@ describe('the Gate of Hell', () => {
     expect(hurt).toBeGreaterThan(0);
     for (const [e, hp] of theirs) expect(e.hp).toBe(hp);
     expect(errors).toEqual([]);
+  });
+
+  it('eases off: only raids a leader well ahead, sends raiders home once it is not, and rests after a couple of raids', () => {
+    const mine = army(0, LEADER_TRAINED, 8, 'knight');
+    for (const u of mine) u.stance = 'passive';
+    const theirs = army(1, LEADER_TRAINED, 4, 'knight');
+    for (const u of theirs) u.stance = 'passive';
+    updHell();
+    expect(G.hell.prey).toBe(0); // twice the army: the leader
+    // raid twice, then the gate rests
+    for (let i = 0; i < RAID_LIMIT; i++) { G.hell.raidT = G.gameT; updHell(); }
+    expect(G.hell.raidT).toBeGreaterThanOrEqual(G.gameT + RAID_REST);
+    // its lead shrinks (it lost troops): no longer the leader, and raiders head home
+    const d = spawnDemon('imp');
+    d.demon!.raid = 0;
+    for (const u of mine.slice(0, 4)) { u.dead = true; G.byId.delete(u.id); }
+    G.ents = G.ents.filter((e) => !e.dead);
+    updHell();
+    expect(G.hell.prey).toBe(-1);
+    expect(d.demon!.raid).toBe(-1);
+    // becoming the leader again doesn't cut the rest short
+    army(0, 0, 4, 'knight');
+    updHell();
+    expect(G.hell.prey).toBe(0);
+    expect(G.hell.raidT).toBeGreaterThanOrEqual(G.gameT + RAID_REST - 1);
   });
 
   it('can be fought by the side it raids, and sends the giant Archfiend out now and then', () => {

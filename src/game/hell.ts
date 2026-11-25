@@ -8,7 +8,7 @@ import { UNIT, type UnitType } from '../data/unit.ts';
 import { isWall } from '../data/building.ts';
 import {
   ARCHFIEND, ARCHFIEND_EVERY, ARCHFIEND_FIRST, BURST_GAP, DEMON_CAP, FIEND_SHARE, FIRST_RAID, GATE_CLEAR, GATE_LEASH, GATE_OPENS, GATE_SIZE, GATE_TILE,
-  BRINK_AFTER, BRINK_FOES, BRINK_REACH, BRINK_SHARE, DRAKE_SHARE, LEADER_TRAINED, LINGER, RESCUE_COOLDOWN, RESCUE_DRAKES, RESCUE_SIZE, RESCUE_STAY, LURK_RADIUS, LURK_REGEN, RAID_EVERY, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY,
+  BRINK_AFTER, BRINK_FOES, BRINK_REACH, BRINK_SHARE, DRAKE_SHARE, LEADER_TRAINED, LEAD_MARGIN, KEEP_MARGIN, LINGER, RAID_LIMIT, RAID_REST, RESCUE_COOLDOWN, RESCUE_DRAKES, RESCUE_SIZE, RESCUE_STAY, LURK_RADIUS, LURK_REGEN, RAID_EVERY, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY,
 } from '../data/hell.ts';
 import { eachInDisk } from './map.ts';
 import { addUnit } from './entity.ts';
@@ -77,14 +77,17 @@ function armyWorth(team: number): number {
   return w;
 }
 
-/** Who the demons hunt: of the sides that have trained enough troops, the one with the strongest army; -1 if none has yet. */
+/** Who the demons hunt: of the sides that have trained enough troops, the one with the strongest army, but only while it is well ahead of everyone else; -1 if none is. */
 export function demonPrey(): number {
-  let best = -1, bw = 0;
+  const cur = G.hell?.prey ?? -1;
+  let best = -1, bw = 0, next = 0;
   for (let t = 0; t < G.teams; t++) {
-    if (G.absent?.[t] || G.outLog?.some((o) => o.team === t) || trainedFighters(t) < LEADER_TRAINED) continue;
+    if (G.absent?.[t] || G.outLog?.some((o) => o.team === t)) continue;
     const w = armyWorth(t);
-    if (w > bw) { bw = w; best = t; }
+    if (trainedFighters(t) >= LEADER_TRAINED && w > bw) { next = Math.max(next, bw); bw = w; best = t; }
+    else next = Math.max(next, w);
   }
+  if (best < 0 || bw < next * (best === cur ? KEEP_MARGIN : LEAD_MARGIN)) return -1;
   return best;
 }
 
@@ -151,7 +154,8 @@ export function updHell(): void {
     const was = H.prey;
     H.prey = prey;
     if (prey >= 0) {
-      if (was < 0) { H.raidT = now + FIRST_RAID; H.archT = now + ARCHFIEND_FIRST; }
+      if (was < 0) { H.raidT = Math.max(now + FIRST_RAID, H.restT ?? 0); H.archT = now + ARCHFIEND_FIRST; }
+      H.raids = 0;
       for (let t = 0; t < G.teams; t++)
         say(t, t === prey ? 'The Gate of Hell stirs: its demons hunt the strongest army, and that is yours' : `The Gate of Hell stirs: its demons hunt ${teamColors(prey).name}, the strongest army`);
     } else {
@@ -189,7 +193,10 @@ export function updHell(): void {
   }
   // the raid sets out
   if (prey >= 0 && now >= H.raidT) {
-    H.raidT = now + between(RAID_EVERY);
+    H.raids = (H.raids ?? 0) + 1;
+    // a couple of raids in a row, then the gate rests a good while, so it can't grind the leader down to nothing
+    if (H.raids >= RAID_LIMIT) { H.raids = 0; H.restT = now + RAID_REST; H.raidT = H.restT; }
+    else H.raidT = now + between(RAID_EVERY);
     H.stir = false;
     H.burst = 0;
     const waiting = demons().filter((d) => d.demon?.raid === -1 && (d.demon.aid ?? -1) < 0);
