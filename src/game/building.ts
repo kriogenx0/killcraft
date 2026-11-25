@@ -2,7 +2,7 @@
 import { G, say, tileOf, bldDef, isAir, type Ent, type Point, type Tile } from './state.ts';
 import { noteBuilt } from './stats.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
-import { dropSalvage, oilNear } from './economy.ts';
+import { oilNear } from './economy.ts';
 import { DERRICK_REACH } from '../data/economy.ts';
 import { BUILDING, BUILD_RADIUS, EXPAND_GAP, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isExpansion, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
@@ -251,14 +251,31 @@ export function cancelSite(b: Ent): void {
   kill(b);
 }
 
-/** Tear a building down: nothing is refunded, but its scrap is left on the ground as ore to carry home. */
+/**
+ * Tear a building down and get part of its price back, straight into the bank: SCRAP_SHARE of
+ * each resource it cost, times its remaining health. A derrick's tank of oil comes back too.
+ */
 export function scrap(b: Ent): void {
   if (b.dead || b.kind !== 'bld' || (b.type === 'yard' && !extraHall(b))) return;
   if (!b.done) { cancelSite(b); return; }
-  const ore = Math.round(bldDef(b).cost * SCRAP_SHARE * (b.hp / b.maxhp) + b.carry);
+  const back = scrapRefund(b);
+  G.credits[b.team] += back.ore;
+  G.wood[b.team] += back.wood;
+  G.oil[b.team] += back.oil;
+  if (back.aether) G.aether[b.team] = (G.aether[b.team] ?? 0) + back.aether;
   burst('dust', b.x, b.y, 20, 40, 120);
   kill(b);
-  dropSalvage(b, ore);
+}
+
+/** What scrapping this building pays back right now. */
+export function scrapRefund(b: Ent): { ore: number; wood: number; oil: number; aether: number } {
+  const d = bldDef(b), k = SCRAP_SHARE * Math.max(0, b.hp / b.maxhp);
+  return {
+    ore: Math.round(d.cost * k),
+    wood: Math.round((d.wood ?? 0) * k),
+    oil: Math.round((d.oil ?? 0) * k + (b.type === 'derrick' ? b.carry : 0)),
+    aether: Math.round((d.aether ?? 0) * k),
+  };
 }
 
 /** A Town Hall the side could lose and keep another: only extra ones can be scrapped. */

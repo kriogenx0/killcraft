@@ -667,8 +667,7 @@ function pick(team: number, line: 'infantry' | 'vehicle' | 'air', options: [Unit
 }
 
 function training(team: number): void {
-  // troops always leave the price of a Worker in hand. Nothing else brings ore home (scrapped
-  // buildings leave ore on the ground), so a side that loses them all must be able to train one.
+  // troops always leave the price of a Worker in hand. Nothing else reliably brings ore home, so a side that loses them all must be able to train one.
   const keep = workerKeep();
   const prod = G.prod[team], credits = G.credits[team] - Math.max(ais[team].reserve, keep) - (ais[team].refitSave ?? 0);
   // saving up for the next structure

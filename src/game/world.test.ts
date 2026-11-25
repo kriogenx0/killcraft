@@ -367,14 +367,19 @@ describe('production', () => {
     expect(salvageOf(tank)).toBeGreaterThan(0);
   });
 
-  it('scrapping a building refunds nothing but leaves ore on the ground to carry home', () => {
+  it('scrapping a building pays half its price back into the bank, less if damaged', () => {
     const b = addBuilding('barracks', 0, 20, 40, false);
     const before = { ore: G.credits[0], wood: G.wood[0] }, groundBefore = G.ore.reduce((a, v) => a + v, 0);
     scrap(b);
     expect(b.dead).toBe(true);
-    expect(G.credits[0]).toBe(before.ore);
-    expect(G.wood[0]).toBe(before.wood);
-    expect(G.ore.reduce((a, v) => a + v, 0) - groundBefore).toBeCloseTo(BUILDING.barracks.cost * SCRAP_SHARE, -1);
+    expect(G.credits[0] - before.ore).toBe(Math.round(BUILDING.barracks.cost * SCRAP_SHARE));
+    expect(G.wood[0] - before.wood).toBe(Math.round((BUILDING.barracks.wood ?? 0) * SCRAP_SHARE));
+    expect(G.ore.reduce((a, v) => a + v, 0)).toBe(groundBefore); // nothing left on the ground
+    const hurt = addBuilding('barracks', 0, 20, 50, false);
+    hurt.hp = hurt.maxhp / 2;
+    const ore = G.credits[0];
+    scrap(hurt);
+    expect(G.credits[0] - ore).toBe(Math.round(BUILDING.barracks.cost * SCRAP_SHARE * 0.5));
   });
 
   it("won't start an order it can't pay for in full, and refunds all of it on cancel", () => {

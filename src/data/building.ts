@@ -107,10 +107,10 @@ export const EXPAND_GAP = 8;
 export const BUILD_RADIUS = 4;
 
 /**
- * Scrapping a building leaves this share of its ore price (times its remaining health) on the ground
- * as ore, for Workers and Harvesters to carry home. A bit more than battle salvage (SALVAGE_SHARE).
+ * Scrapping a building pays this share of its whole price (ore, wood, oil and Aether, times its
+ * remaining health) straight back into the bank (Alex, 2026-11-25: "Scrapping returns funds").
  */
-export const SCRAP_SHARE = 0.4;
+export const SCRAP_SHARE = 0.5;
 
 /** Repairs restore this much health per second and cost proportionally to the building's price. */
 export const REPAIR_RATE = 25;
