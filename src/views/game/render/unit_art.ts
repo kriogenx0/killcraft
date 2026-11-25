@@ -133,6 +133,25 @@ function tank(g: G2, T: TeamColors, p: UnitPose, heavy: boolean): void {
   g.restore();
 }
 
+/** The Artillery Tank from above: tank tracks, a boxy gun house set back and a long howitzer. */
+function artillery(g: G2, T: TeamColors, p: UnitPose): void {
+  const L = 30, W = 18, tw = 6;
+  g.save();
+  g.rotate(p.f);
+  treads(g, L, tw, W / 2 - tw / 2 + 1, p.walk);
+  panel(g, -L / 2 + 2, -W / 2 + tw - 1, L - 4, W - tw * 2 + 2, 2, T.l, T.d);
+  g.restore();
+  g.save();
+  g.rotate(p.tf);
+  const recoil = p.atk > 0 ? (1 - p.atk) * 4 : 0;
+  barrel(g, 2 - recoil, 0, 22, 2.6);
+  barrel(g, 23 - recoil, 0, 3, 4.4);
+  panel(g, -9, -7, 13, 14, 2, T.l, T.d);
+  g.fillStyle = '#e8c020';
+  g.fillRect(-7, -1, 9, 2);
+  g.restore();
+}
+
 /** A Worker: tunic, hood, a basket on the back and a pick over the shoulder. */
 function worker(g: G2, T: TeamColors, p: UnitPose): void {
   const cs = Math.cos(p.f), sn = Math.sin(p.f), sw = Math.sin(p.walk * TAU) * 2.6;
@@ -410,6 +429,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'knight': knight(g, T, p); break;
     case 'medic': medic(g, T, p); break;
     case 'catapult': catapult(g, T, p); break;
+    case 'artillery': artillery(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;
     case 'harvester': harvester(g, T, p); break;
     case 'worker': worker(g, T, p); break;

@@ -111,10 +111,10 @@ describe('idle Workers', () => {
   it('holding a load, take it home first and then carry on gathering', () => {
     const [w] = workers(1);
     G.credits[0] = 5000; G.wood[0] = 0;
-    w.carry = 100; w.cargo = 'ore'; // stopped halfway through digging
+    w.carry = 50; w.cargo = 'ore'; // stopped halfway through digging
     const ore = G.credits[0];
     run(IDLE_GRACE + 30);
-    expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 100);
+    expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 50);
     expect(jobOf(w)).toBe('wood');
   });
 
@@ -295,6 +295,33 @@ describe('idle Workers', () => {
       for (let i = 0; i < 20 / STEP && !went; i++) { update(STEP); guard.hp = guard.maxhp; went = onScrap(w); }
       expect(went).toBe(false);
     });
+  });
+
+  it("an Oil Derrick's Send Worker button sends the nearest free Worker, set to Oil", () => {
+    const [wx, wy] = OIL_WELLS[0];
+    const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
+    const ws = workers(3);
+    G.credits[0] = 5000; G.wood[0] = 5000; G.oil[0] = 5000;
+    // one is putting up a building right next to the derrick: it's left to it
+    const site = addBuilding('power', 0, wx + 2, wy + 2, true);
+    ws[0].x = d.x + TS; ws[0].y = d.y + TS;
+    applyCommand(0, { c: 'fix', ids: [ws[0].id], target: site.id });
+    applyCommand(0, { c: 'recruit', id: d.id });
+    const sent = ws.filter((w) => w.order?.t === 'harvest' && w.order.src === d.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).not.toBe(ws[0]);
+    expect(gatherSetting(sent[0])).toBe('oil');
+  });
+
+  it('a newly trained Worker starts on Auto and goes to what the side has least of', () => {
+    G.credits[0] = 5000; G.wood[0] = 0;
+    applyCommand(0, { c: 'build', type: 'worker' });
+    let w: Ent | undefined;
+    for (let i = 0; i < 30 / STEP && !w; i++) { update(STEP); w = G.ents.find((e) => !e.dead && e.team === 0 && e.type === 'worker'); }
+    expect(w).toBeDefined();
+    if (!w) return;
+    expect(gatherSetting(w)).toBe('auto');
+    expect(jobOf(w)).toBe('wood');
   });
 
   it('a Worker never sets out for the field with a full load: it goes home first', () => {

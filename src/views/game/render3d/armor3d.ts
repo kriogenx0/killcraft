@@ -207,6 +207,7 @@ export function armorKit(type: UnitType, team: number, level: number): ArmorKit 
       case 'worker': pieces = soldier(level, false, 0, 0.555); break;
       case 'knight': pieces = knight(level); break;
       case 'tank': case 'heavy': ({ hull: pieces, turret } = tank(level, team)); scale = look === 'heavy' ? 1.22 : 1; break;
+      case 'artillery': pieces = tank(level, team).hull; break; // the same tracks and hull; its gun house wears none
       case 'jeep': pieces = jeep(level, team); break;
       case 'harvester': pieces = harvester(level, team); break;
       case 'catapult': pieces = catapult(level); break;

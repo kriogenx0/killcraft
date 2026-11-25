@@ -1,12 +1,12 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, allied, hostile, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { extraHall } from '../../game/building.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
-import { GATHER, gatherSetting, type GatherRes } from '../../game/autogather.ts';
+import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autogather.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
@@ -173,6 +173,11 @@ export function commandList(): Command[] {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
     if (up) list.push(up);
+    if (first.type === 'derrick' && first.done) {
+      const n = crewAt(first), dry = first.carry <= 1 && oilLeft(first) <= 0;
+      list.push({ id: 'recruit', label: 'Send Worker', hotkey: '', icon: ICON.worker, disabled: dry || !G.ents.some((u) => !u.dead && u.team === V.team && u.type === 'worker'),
+        tip: dry ? 'This well has run dry' : `Send your nearest free Worker to haul oil from here (${n} on it now). A Derrick pumps slowly: one Worker keeps up with it` });
+    }
     // team games: a Town Hall can give a teammate who has lost theirs a new one
     if (first.type === 'yard' && first.done && !G.over) for (const t of fallenAllies(V.team)) {
       const who = teamColors(t).name;
@@ -210,6 +215,7 @@ export function runCommand(id: string): void {
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
+  else if (id === 'recruit' && s[0]) dispatch({ c: 'recruit', id: s[0].id });
   else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });
   else if (id.startsWith('revive:')) dispatch({ c: 'revive', team: Number(id.slice(7)) });
   else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }
@@ -305,7 +311,7 @@ function unitDetails(e: Ent): string {
   ];
   if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
   if (insight(e)) rows.push(['Doing', `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
-  if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
+  if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${loadOf(e)}`, true]);
   if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
   if (d.weapon && WEAPON[d.weapon].element) { const el = WEAPON[d.weapon].element!; rows.push(['Element', `${ELEMENT_NAME[el]}: ${ELEMENT_DESC[el]}`, true]); }
   if (d.spells?.length) {
@@ -357,7 +363,7 @@ function buildingDetails(e: Ent): string {
     (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
 }
 
-/** What a producing building's side is making on its lines (one queue per line, shared by every building of the type). */
+/** What a producing building is making (each Barracks trains its own order; the queue is shared by every building of the type). */
 export function productionDetails(e: Ent): string {
   const lines = linesOf(e.type as BldType);
   if (!lines.length) return '';
@@ -365,9 +371,13 @@ export function productionDetails(e: Ent): string {
   const n = lines.includes('structure') ? sitesOf(e.team).length : 0;
   const sites = n ? `<p class="hud-stats">${n} structure${n > 1 ? 's' : ''} under construction</p>` : '';
   if (!queue.length) return sites || '<p class="hud-stats">Not producing</p>';
-  const head = queue[0], need = !head.paid && waitingFor(e.team, head.type);
+  // this building's own order, else the next one waiting (on hold, or for funds)
+  const head = queue.find((it) => it.at === e.id) ?? queue.find((it) => it.at == null);
+  const others = queue.filter((it) => it !== head && it.at != null).length, waiting = queue.filter((it) => it !== head && it.at == null).length;
+  if (!head) return `${sites}<p class="hud-stats">Free · ${others} training in other buildings</p>`;
+  const need = !head.paid && waitingFor(e.team, head.type);
   const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
-  const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
+  const more = [others ? `${others} in other buildings` : '', waiting ? `${waiting} more queued` : ''].filter(Boolean).map((t) => ` · ${t}`).join('');
   // a big army trains slower (ARMY_SLOW_FROM)
   const size = armySize(e.team), slow = isUnitType(head.type) && isFighter(head.type) ? armySlow(e.team, size) : 1;
   const slowNote = slow > 1 ? `<p class="hud-stats hud-warn">Army of ${size}: new troops take ${Math.round((slow - 1) * 100)}% longer</p>` : '';

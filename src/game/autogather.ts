@@ -2,8 +2,8 @@
 // wood and oil the side has least of, counting what its waiting orders still owe and how many
 // Workers already bring each in, and look again each time they drop a load off, so the split
 // follows the bank. A Worker set to Ore, Wood or Oil sticks to it.
-import { G, tileOf, type Ent, type HarvestOrder } from './state.ts';
-import { MH, MW, TREE } from './const.ts';
+import { G, tileOf, valid, type Ent, type HarvestOrder } from './state.ts';
+import { MH, MW, TREE, TS } from './const.ts';
 import { CHOP_WORTH } from '../data/economy.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS } from './chop.ts';
@@ -66,7 +66,7 @@ export function options(u: Ent): Res[] {
 }
 
 /** Oil a derrick must hold before an idle Worker walks out for it: less isn't worth the trip. */
-export const OIL_TRIP = 60;
+export const OIL_TRIP = 240;
 
 /**
  * The side's nearest Oil Derrick with a load waiting and no Worker on it. A derrick pumps slowly,
@@ -110,6 +110,10 @@ export function pickResource(u: Ent, can: Res[] = options(u)): Res | null {
 
 /** Give a Worker a gathering job of its own choosing. */
 function gather(u: Ent, r: Res): void {
+  const was = jobOf(u);
+  // a load of oil is an errand: the Worker goes back to what it was doing once it's banked
+  if (r === 'oil' && was && was !== 'oil') errandFrom.set(u, was);
+  else if (was && was !== r && was !== 'oil') movedAt.set(u, G.gameT);
   const [x, y] = r === 'ore' ? oreStart(u) : [tileOf(u.x), tileOf(u.y)];
   if (r === 'oil') {
     const d = derrickFor(u);
@@ -154,11 +158,29 @@ export function rethink(u: Ent, o: HarvestOrder): void {
   const now = o.res ?? 'ore', can = options(u), r = pickResource(u, can);
   // a derrick pumps slowly: rather than shuttle back and forth with a few drops each time, do
   // something else until it has a load waiting again
-  if (now === 'oil' && !can.includes('oil')) { if (r) gather(u, r); return; }
+  if (now === 'oil' && !can.includes('oil')) {
+    const back = errandFrom.get(u);
+    errandFrom.delete(u);
+    const next = back && can.includes(back) ? back : r;
+    if (next) gather(u, next);
+    return;
+  }
   if (!r || r === now || !can.includes(now)) return;
-  const crew = crewOf(u), debt = owed(u.team);
-  if (standing(u.team, r, crew, debt) + PER_WORKER <= standing(u.team, now, crew, debt)) gather(u, r);
+  // stay put a while after a move, so a Worker is seen to stick at a job
+  if (G.gameT - (movedAt.get(u) ?? -Infinity) < SETTLE) return;
+  const crew = crewOf(u), debt = owed(u.team), lo = standing(u.team, r, crew, debt), mine = standing(u.team, now, crew, debt);
+  // only for a real gap: half as much again as the lower one has, and never less than GAP
+  if (lo + PER_WORKER <= mine && mine - lo >= Math.max(GAP, lo * 0.5)) gather(u, r);
 }
+
+/** Seconds an Auto Worker keeps at a resource after moving to it, before it will move again. */
+const SETTLE = 60;
+/** The smallest gap between two resources that moves an Auto Worker from one to the other. */
+const GAP = 500;
+/** What each Auto Worker was gathering before it went to fetch a load of oil. */
+const errandFrom = new WeakMap<Ent, Res>();
+/** When each Auto Worker last moved to another resource. */
+const movedAt = new WeakMap<Ent, number>();
 
 /** The gathering job each Worker set aside to go and fix something, to take up again after. */
 const resume = new WeakMap<Ent, HarvestOrder>();
@@ -241,3 +263,30 @@ export function sendGather(u: Ent, r: GatherRes): boolean {
   u.scan = 0;
   return true;
 }
+
+/**
+ * Recruit a Worker to an Oil Derrick (the derrick's "Send Worker" button): the nearest one that's
+ * idle or on Auto, else the nearest that isn't putting up a building, set to haul oil from it.
+ * Returns the Worker, or null if the side has none to send.
+ */
+export function recruitTo(d: Ent): Ent | null {
+  if (d.type !== 'derrick' || !d.done || d.dead) return null;
+  let best: Ent | null = null, bd = Infinity;
+  for (const u of G.ents) {
+    if (u.dead || u.team !== d.team || u.type !== 'worker') continue;
+    if (u.order?.t === 'harvest' && u.order.src === d.id) continue; // on it already
+    const building = u.order?.t === 'heal' && u.order.sent && valid(u.order.tgt)?.kind === 'bld' && !valid(u.order.tgt)?.done;
+    // tiles of walk a Worker's current work is worth: a free one goes first, a builder last
+    const busy = building ? 60 : gatherSetting(u) === 'auto' ? 0 : 25;
+    const s = Math.hypot(u.x - d.x, u.y - d.y) / TS + busy;
+    if (s < bd) { bd = s; best = u; }
+  }
+  if (!best) return null;
+  forgetAether(best);
+  resume.delete(best);
+  setOrder(best, { t: 'harvest', st: best.carry > 0 && best.cargo !== 'oil' ? 'ret' : 'go', tx: d.tx, ty: d.ty, wait: 0, res: 'oil', src: d.id });
+  return best;
+}
+
+/** How many of the side's Workers haul from a derrick. */
+export const crewAt = (d: Ent): number => G.ents.filter((u) => !u.dead && u.team === d.team && u.order?.t === 'harvest' && u.order.src === d.id).length;

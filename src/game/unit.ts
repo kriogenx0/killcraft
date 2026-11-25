@@ -1,13 +1,13 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
-import { G, allied, altOf, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
+import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
-import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
+import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH } from '../data/aether.ts';
@@ -72,14 +72,20 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
  * short. Crumbs of regrowth only once no tile worth a trip is left. Skips tiles another
  * gatherer has claimed, sharing one only if every tile is taken.
  */
-function pickOre(u: Ent, underway = false): [number, number] | null {
+/** How far (tiles) from a taken tile a gatherer looks for other ore before choosing afresh. */
+const AROUND_TAKEN = 5;
+
+function pickOre(u: Ent, underway = false, around: Tile | null = null): [number, number] | null {
   const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
+  // the tile it was walking out to got taken: other ore by that one, rather than turn back toward base
+  // for a patch that has just grown back
+  if (around) { const by = nearestOre(around[0], around[1], AROUND_TAKEN, ORE_WORTH, free); if (by) return by; }
   // part-way through a load, or the tile it was walking to got taken: ore right here rather than
   // trek back toward base and out again
   if (underway || (u.carry > 0 && (u.cargo ?? 'ore') === 'ore')) {
     const here = nearestOre(tileOf(u.x), tileOf(u.y), TOP_UP, ORE_WORTH, free);
     if (here) return here;
-    if (u.carry > haulOf(u) * 0.5) return null; // most of a load: bank it, then set out afresh
+    if (u.carry > oreLoadOf(u) * 0.5) return null; // most of a load: bank it, then set out afresh
   }
   const homes = banksOf(u.team, ORE_BANKS);
   const walk = walkOf(u.team, homes);
@@ -147,12 +153,12 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (o.res === 'wood' && (o.st === 'go' || o.st === 'gather')) { updChop(u, o, dt); return; }
   if (o.res && (o.st === 'go' || o.st === 'gather')) { updHauler(u, o, dt); return; }
   // a full load goes home, however the Worker came to be setting out with it
-  if (o.st === 'go' && !o.res && u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; u.path = null; }
+  if (o.st === 'go' && !o.res && u.carry >= oreLoadOf(u) - 0.5) { o.st = 'ret'; u.path = null; }
   if (o.st === 'go') {
     const i = o.ty * MW + o.tx;
     if (G.ore[i] <= 0 || oreTaken(i, u, false)) {
       // someone else got to the tile first, near the end of the walk: ore right here instead
-      const t = pickOre(u, G.ore[i] > 0 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < TOP_UP * TS);
+      const t = pickOre(u, G.ore[i] > 0 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < TOP_UP * TS, G.ore[i] > 0 ? [o.tx, o.ty] : null);
       if (!t) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; return; }
       [o.tx, o.ty] = t;
       u.path = null;
@@ -188,15 +194,15 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   }
   if (o.st === 'gather') {
     cantReach.delete(u);
-    u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry));
+    u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).oreScoop ?? unitDef(u).scoop ?? HARVEST_RATE) * dt, oreLoadOf(u) - u.carry));
     u.cargo = 'ore';
     u.atkT = 0.2;
     u.face = turnToward(u.face, u.face + 1, 0.4 * dt); // slow sweep while scooping
     if (Math.random() < dt * 6) part('ore', u.x + Math.cos(u.face) * 14, u.y + Math.sin(u.face) * 14, { vz: 40, vx: (Math.random() - 0.5) * 30, max: 0.5, size: 2, col: '#f0c040' });
-    if (u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; return; }
+    if (u.carry >= oreLoadOf(u) - 0.5) { o.st = 'ret'; return; }
     if (G.ore[o.ty * MW + o.tx] <= 0) {
       const t = pickOre(u);
-      if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > haulOf(u) * 0.3 ? 'ret' : 'go';
+      if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > oreLoadOf(u) * 0.3 ? 'ret' : 'go';
     }
     return;
   }
@@ -507,6 +513,8 @@ function act(u: Ent, dt: number): void {
   u.cd = Math.max(0, u.cd - dt * reloadRate(u));
   u.flash = Math.max(0, u.flash - dt);
   u.atkT = Math.max(0, u.atkT - dt);
+  // a gun that must dig in counts the time it has stood still (moving is still last tick's here)
+  if (d.deploy) u.setT = u.moving ? 0 : (u.setT ?? 0) + dt;
   u.moving = false;
   tickStatus(u, dt);
   if (u.dead) return;
@@ -548,7 +556,7 @@ function act(u: Ent, dt: number): void {
     // (a passive one only when no enemy is about), and only then goes back to gathering
     if (u.type === 'worker' && fixNext(u)) return;
     // a Worker only fights back, or an enemy that comes right up to it
-    const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, d.sight);
+    const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, lookRange(u));
     // a passive unit runs from enemies, but a gatherer sticks to its work with them about
     const threat = u.stance === 'passive' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
     if (threat) orderFlee(u, threat);
@@ -565,8 +573,8 @@ function act(u: Ent, dt: number): void {
         lastOrder.delete(u);
         const job = takeResume(u);
         // back to what it was doing before it stopped to fix something, banking any load first
-        if (job) setOrder(u, { ...job, st: u.carry > 0 && ((u.cargo ?? 'ore') !== (job.res ?? 'ore') || u.carry > haulOf(u) * 0.5) ? 'ret' : 'go', wait: 0 });
-        else if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
+        if (job) setOrder(u, { ...job, st: u.carry > 0 && ((u.cargo ?? 'ore') !== (job.res ?? 'ore') || u.carry > loadOf(u) * 0.5) ? 'ret' : 'go', wait: 0 });
+        else if (u.carry > loadOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
         else autoGather(u);
       }
     }
@@ -604,7 +612,7 @@ function act(u: Ent, dt: number): void {
         u.scan = 0.3;
         // fight back against whoever is attacking first, and armed enemies before buildings; a wall
         // only if it was sent to one, once it's close
-        const b = t ? betterTarget(u, t, d.sight) : attacker(u) ?? acquire(u, d.sight) ?? sentToWall(u, o.gx, o.gy, d.sight);
+        const b = t ? betterTarget(u, t, lookRange(u)) : attacker(u) ?? acquire(u, lookRange(u)) ?? sentToWall(u, o.gx, o.gy, d.sight);
         if (b) { t = b; o.sub = b.id; u.path = null; }
       }
       if (t) {
@@ -627,7 +635,7 @@ function act(u: Ent, dt: number): void {
       // a target the player picked is kept unless something hits back; one the unit found itself gives way to a better one
       if (t && u.scan <= 0) {
         u.scan = 0.3;
-        const b = betterTarget(u, t, d.sight, !o.auto);
+        const b = betterTarget(u, t, lookRange(u), !o.auto);
         if (b) { t = b; o.tgt = b.id; u.path = null; }
       }
       const strayed = o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE;

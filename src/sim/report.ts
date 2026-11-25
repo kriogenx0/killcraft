@@ -73,6 +73,11 @@ export function report(results: MatchResult[]): string {
     ['Largest army', ...[0.5, 0.1, 0.9].map((q) => Math.round(quantile(sides.map((s) => s.peakArmy), q)))],
   ]));
 
+  // how much ore is left on the map as the match goes on
+  const oreAt = (k: number) => results.flatMap((r) => (r.oreLeft?.[k] == null ? [] : [r.oreLeft[k]]));
+  out.push('', 'Ore left on the map (share of the start, median of matches still going): ' +
+    [0, 1, 3, 5].map((k) => `${(k + 1) * 5}:00 ${pct(Math.round(quantile(oreAt(k), 0.5) * 100), 100)}`).join(', ') + '.');
+
   // what each type built, killed and was worth
   const built: Record<string, number> = {}, lost: Record<string, number> = {}, kills: Record<string, number> = {}, value: Record<string, number> = {};
   for (const s of sides) { sumInto(built, s.built); sumInto(lost, s.lost); sumInto(kills, s.killsBy); sumInto(value, s.killValueBy); }

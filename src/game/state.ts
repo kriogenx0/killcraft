@@ -57,6 +57,8 @@ export interface ProductionItem {
   ready: boolean;
   /** paused by the player */
   hold: boolean;
+  /** the building training it right now: each producer trains one order at a time, so two Barracks train twice as fast */
+  at?: number;
 }
 export type Production = Record<ProductionLine, ProductionItem[]>;
 
@@ -102,6 +104,8 @@ export interface Ent extends Target {
   moving: boolean;
   atkT: number;
   stance: Stance;
+  /** seconds a gun that must dig in (UnitDef.deploy) has stood still */
+  setT?: number;
   /** the enemy a skirmishing unit is shooting at without stopping */
   shot: number | null;
   /** an enemy wall this unit is breaking through to reach its target (see breach.ts) */
@@ -348,6 +352,10 @@ export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 export const isHarvester = (e: Ent): boolean => e.kind === 'unit' && !!unitDef(e).haul;
 /** Ore it carries per trip. */
 export const haulOf = (e: Ent): number => unitDef(e).haul ?? 0;
+/** Most ore a unit carries per trip (Workers carry less ore than wood or oil). */
+export const oreLoadOf = (e: Ent): number => unitDef(e).oreLoad ?? haulOf(e);
+/** Most a unit carries of what it's carrying now (ore, or oil and wood). */
+export const loadOf = (e: Ent): number => ((e.cargo ?? 'ore') === 'ore' ? oreLoadOf(e) : haulOf(e));
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
 /** Aircraft fly straight over everything and only some weapons can reach them. */

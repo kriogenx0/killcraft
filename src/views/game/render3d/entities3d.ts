@@ -2,7 +2,7 @@
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
 import { updateBuildZone } from './build_zone3d.ts';
 import * as THREE from 'three';
-import { G, allied, haulOf, valid, type Cargo, type Ent } from '../../../game/state.ts';
+import { G, allied, loadOf, valid, type Cargo, type Ent } from '../../../game/state.ts';
 import { WOOD_LOAD } from '../../../data/economy.ts';
 import { MH, MW, TS } from '../../../game/const.ts';
 import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
@@ -32,8 +32,8 @@ interface Obj { model: Model; key: string }
 
 /** Units are drawn larger than life so they read clearly next to buildings. */
 const UNIT_SCALE = 1.4;
-/** creatures of myth stand half as big again as everyone else, so they read as monsters on the field */
-const CREATURE_SCALE = 1.5;
+/** creatures of myth stand twice as big as everyone else, so they read as monsters on the field */
+const CREATURE_SCALE = 2.1;
 
 const holder = new THREE.Group();
 const overlays = new THREE.Group();
@@ -181,7 +181,7 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
       break;
     case 'worker': {
       // the basket shows what's in it: gold ore, logs, or black oil, filling to a full load of that
-      const cargo = e.cargo ?? 'ore', load = Math.min(1, e.carry / (cargo === 'wood' ? WOOD_LOAD : haulOf(e)));
+      const cargo = e.cargo ?? 'ore', load = Math.min(1, e.carry / (cargo === 'wood' ? WOOD_LOAD : loadOf(e)));
       P.heap.visible = load > 0.02;
       // heaped up over the rim, so what's in it shows from any side
       P.heap.scale.set(1.35, 0.5 + load * 1.3, 1.35);
@@ -201,6 +201,17 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
       P.heap.visible = load > 0.02;
       P.heap.scale.y = 0.08 + load * 0.55;
       P.scoop.rotation.z = !e.moving && e.atkT > 0 ? Math.sin(G.gameT * 9) * 0.25 : 0;
+      break;
+    }
+    case 'artillery': {
+      // dug in: the spades fold down into the ground and the barrel rises; on the move they stow again
+      const now = performance.now() / 1000, last = (m.root.userData.depT as number | undefined) ?? now;
+      const dep = clamp(((m.root.userData.dep as number | undefined) ?? 0) + (now - last) * (e.moving ? -2 : 1.2), 0, 1);
+      m.root.userData.dep = dep;
+      m.root.userData.depT = now;
+      const k = dep * dep * (3 - 2 * dep);
+      if (P.spadeL) P.spadeL.rotation.z = P.spadeR.rotation.z = lerp(-2.6, -0.45, k);
+      if (P.elev) P.elev.rotation.z = lerp(-0.06, 0.42, k);
       break;
     }
     case 'catapult':

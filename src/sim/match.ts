@@ -69,6 +69,8 @@ export interface MatchResult {
   /** each side's computer difficulty */
   levels: Difficulty[];
   stats: TeamStats[];
+  /** every 5 minutes: ore left on the map, as a share of what it started with */
+  oreLeft: number[];
 }
 
 export interface MatchOptions {
@@ -117,6 +119,8 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
     }
   };
 
+  const mapOre = () => { let n = 0; for (const v of G.ore) n += v; return n; };
+  const startOre = Math.max(1, mapOre()), oreLeft: number[] = [];
   let samples = 0, nextSample = 0;
   const out: number[] = [];
   while (!G.over && G.gameT < maxSeconds) {
@@ -133,6 +137,7 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
       bump(stats[e.team].built, e.type);
     }
     const checkpoint = samples % 300 === 0;
+    if (checkpoint) oreLeft.push(Math.round((mapOre() / startOre) * 100) / 100);
     for (const s of stats) {
       const t = s.team, bank = G.credits[t];
       if (checkpoint) s.timeline.push({ t: samples, income: Math.round(s.income), army: armyValue[t] });
@@ -162,6 +167,6 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
   Math.random = prevRandom;
   return {
     seed: G.seed, teams: G.teams, length: Math.round(G.gameT), winner: G.over ? G.winner : -1, timedOut: !G.over,
-    firstBlood: firstBlood == null ? null : Math.round(firstBlood), errors, levels: ais.slice(0, G.teams).map((a) => a.level), stats,
+    firstBlood: firstBlood == null ? null : Math.round(firstBlood), errors, levels: ais.slice(0, G.teams).map((a) => a.level), stats, oreLeft,
   };
 }

@@ -5,7 +5,7 @@ import { clamp, lerp } from '../util/math.ts';
 import { CHAIN_FALLOFF, CHAIN_REACH, WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
 import { edgeDist } from './path.ts';
-import { angleDiff, approach, turnToward } from './move.ts';
+import { angleDiff, approach, steer, stepOf, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
 import { dropSalvage } from './economy.ts';
 import { payBounty } from './bounty.ts';
@@ -181,10 +181,10 @@ export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number, picke
  * Best enemy within a radius (tiles): armed units first, then other units, then buildings. Wild
  * creatures (data/creatures.ts) are fair game too, after real enemies.
  */
-export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false, minTiles = 0): Ent | null {
+export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false, minTiles = tooClose(s)): Ent | null {
   const r = radiusTiles * TS, rmin = minTiles * TS;
   // a gun that outranges its own sight only fires at what its side can see
-  const spotted = s.kind === 'bld' && radiusTiles > bldDef(s).sight ? G.sight[s.team] : null;
+  const spotted = radiusTiles > (s.kind === 'bld' ? bldDef(s).sight : s.kind === 'unit' ? unitDef(s).sight : Infinity) ? G.sight[s.team] : null;
   let best: Ent | null = null, bs = 1e9;
   for (const e of G.ents) {
     if (e.dead || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
@@ -217,6 +217,35 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
   return angleDiff(s.tface, want) < AIM_TOLERANCE;
 }
 
+/**
+ * Tiles inside which a dug-in gun (UnitDef.deploy, the Artillery Tank) can't drop a shell: its
+ * weapon's minRange. Other units ignore minRange.
+ */
+export const tooClose = (s: Ent): number => {
+  if (s.kind !== 'unit') return 0;
+  const d = unitDef(s);
+  return d.deploy && d.weapon ? WEAPON[d.weapon].minRange ?? 0 : 0;
+};
+
+/** How far (tiles) a unit looks for a fight: its sight, or a dug-in gun's full range (it fires at what its side spots). */
+export const lookRange = (u: Ent): number => {
+  const d = unitDef(u);
+  return d.deploy && d.weapon ? Math.max(d.sight, WEAPON[d.weapon].range) : d.sight;
+};
+
+/** Has a gun that must dig in (UnitDef.deploy) stood still long enough to fire? Everything else always may. */
+export const dugIn = (u: Ent): boolean => {
+  const need = u.kind === 'unit' ? unitDef(u).deploy : 0;
+  return !need || (!u.moving && (u.setT ?? 0) >= need);
+};
+
+/** A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire. */
+function backOff(u: Ent, t: Ent, dt: number): boolean {
+  const a = Math.atan2(u.y - t.y, u.x - t.x), gx = u.x + Math.cos(a) * TS * 2, gy = u.y + Math.sin(a) * TS * 2;
+  u.path = null;
+  return steer(u, gx, gy, stepOf(u, dt), dt, false) !== 'blocked';
+}
+
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
 export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   const d = unitDef(u);
@@ -228,7 +257,9 @@ export function combatStep(u: Ent, t: Ent, dt: number): boolean {
   // a blade reaches a building's wall from a little further off (a body pressed to a footprint's edge can't get closer)
   const w = WEAPON[d.weapon], r = approach(u, at, w.range * TS + (w.proj === 'melee' && at.w ? MELEE_SLACK / 2 : 0), dt);
   if (r === null) return false;
-  if (r && aim(u, at, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, at); }
+  const min = tooClose(u);
+  if (r && min && edgeDist(u, at) < min * TS) return backOff(u, at, dt);
+  if (r && aim(u, at, dt, d.turret) && u.cd <= 0 && dugIn(u)) { u.cd = w.cd; fire(u, d.weapon, at); }
   return true;
 }
 
@@ -241,7 +272,7 @@ export function fireOnTheMove(u: Ent, dt: number): void {
   if (!d.weapon) return;
   const w = WEAPON[d.weapon];
   let t = valid(u.shot);
-  if (t && (!isFoe(u, t) || edgeDist(u, t) > w.range * TS || cloakedFrom(t, u.team))) t = null;
+  if (t && (!isFoe(u, t) || edgeDist(u, t) > w.range * TS || edgeDist(u, t) < tooClose(u) * TS || cloakedFrom(t, u.team))) t = null;
   u.scan -= dt;
   if (!t) u.shot = null;
   if (u.scan <= 0) {
@@ -251,7 +282,7 @@ export function fireOnTheMove(u: Ent, dt: number): void {
     if (b) { t = b; u.shot = b.id; }
   }
   if (!t) return;
-  if (aim(u, t, dt, d.turret) && u.cd <= 0) { u.cd = w.cd; fire(u, d.weapon, t); }
+  if (aim(u, t, dt, d.turret) && u.cd <= 0 && dugIn(u)) { u.cd = w.cd; fire(u, d.weapon, t); }
 }
 
 /** The nearest armed enemy unit within a radius (tiles), for passive units to run from. */
