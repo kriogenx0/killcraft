@@ -2,7 +2,7 @@
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
-import { G, oreLoadOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, oreLoadOf, allied, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
 import { BUILDING, EXPAND_GAP, isExpansion, isWall, type BldType } from '../data/building.ts';
@@ -821,6 +821,23 @@ function advance(u: Ent, tx: number, ty: number): void {
   orderMove(u, tx, ty);
 }
 
+/** The first enemy unit close to a base (as close as this computer's level watches its own). */
+function raiderNear(team: number, base: Ent): Ent | undefined {
+  const r = lvl(team).defendRange * TS;
+  return G.ents.find((e) => !e.dead && hostile(e.team, base.team) && e.kind === 'unit' && Math.hypot(e.x - base.x, e.y - base.y) < r);
+}
+
+/** A teammate (computer or person) with enemy troops at its base, and the nearest of those raiders. */
+function allyInTrouble(team: number): { ally: number; foe: Ent } | undefined {
+  for (let t = 0; t < G.ally.length; t++) {
+    if (t === team || !allied(t, team) || G.absent[t]) continue;
+    const base = homeOf(t);
+    const foe = base && raiderNear(team, base);
+    if (foe) return { ally: t, foe };
+  }
+  return undefined;
+}
+
 function military(team: number): void {
   const A = ais[team], foe = foeOf(team);
   if (foe < 0) return;
@@ -831,12 +848,20 @@ function military(team: number): void {
   // fast raiders shoot on the move; everyone else stops to fight (the default stance)
   for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = homeOf(team);
-  if (home) {
-    // defend against anyone, not just the side we're fighting
-    const threat = G.ents.find((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && Math.hypot(e.x - home.x, e.y - home.y) < lvl(team).defendRange * TS);
-    if (threat)
-      for (const u of army)
-        if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));
+  // defend against anyone, not just the side we're fighting
+  const threat = home && raiderNear(team, home);
+  if (home && threat)
+    for (const u of army)
+      if ((!u.order || u.order.t === 'move') && Math.hypot(u.x - home.x, u.y - home.y) < 22 * TS) advance(u, tileOf(threat.x), tileOf(threat.y));
+  // our own base is safe: go and help a teammate whose base is under attack (this is the army's
+  // whole job until the raiders there are gone, so the waves and the muster wait)
+  if (!threat && army.length) {
+    const call = allyInTrouble(team);
+    if (call) {
+      aiNote(team, `helping side ${call.ally + 1} against an attack on its base`, `help ${call.ally}`);
+      for (const u of army) if (!u.order || u.order.t === 'move') advance(u, tileOf(call.foe.x), tileOf(call.foe.y));
+      return;
+    }
   }
   // march on the enemy's buildings, never its walls: those only get broken when they're in the way
   const targets = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'bld' && !isWall(e.type));
