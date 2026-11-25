@@ -6,8 +6,8 @@ import { WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { isWall } from '../data/building.ts';
 import {
-  ARCHFIEND, ARCHFIEND_EVERY, ARCHFIEND_FIRST, DEMON_CAP, FIEND_SHARE, FIRST_RAID, GATE_CLEAR, GATE_LEASH, GATE_OPENS, GATE_SIZE, GATE_TILE,
-  LEADER_TRAINED, LURK_RADIUS, LURK_REGEN, RAID_EVERY, RAID_MIN, SPAWN_EVERY,
+  ARCHFIEND, ARCHFIEND_EVERY, ARCHFIEND_FIRST, BURST_GAP, DEMON_CAP, FIEND_SHARE, FIRST_RAID, GATE_CLEAR, GATE_LEASH, GATE_OPENS, GATE_SIZE, GATE_TILE,
+  LEADER_TRAINED, LINGER, LURK_RADIUS, LURK_REGEN, RAID_EVERY, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY,
 } from '../data/hell.ts';
 import { eachInDisk } from './map.ts';
 import { addUnit } from './entity.ts';
@@ -32,7 +32,7 @@ export function placeGate(): void {
   const h = Math.max(G.elev[Math.round(cy) * MW + Math.round(cx)], WATER_LEVEL + 0.08);
   eachInDisk(cx, cy, GATE_CLEAR, (i) => { G.terr[i] = GRASS; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = h; });
   eachInDisk(cx, cy, 2, (i) => { G.ore[i] = 0; }); // under the gate and its rim (the ore grows back round it)
-  G.hell = { gate: true, spawnT: GATE_OPENS, raidT: Infinity, archT: Infinity, prey: -1 };
+  G.hell = { gate: true, spawnT: GATE_OPENS, raidT: Infinity, archT: Infinity, prey: -1, burst: 0, burstT: 0, stay: WANDER_STAY, stir: false };
 }
 
 export const demons = (): Ent[] => G.ents.filter((e) => !e.dead && !!e.demon);
@@ -89,10 +89,18 @@ export function demonPrey(): number {
 
 const between = ([a, b]: [number, number]): number => a + Math.random() * (b - a);
 
+/** Start letting `n` demons out, one every BURST_GAP seconds, to stay out `stay` seconds (Infinity for raiders). */
+function startBurst(n: number, stay: number): void {
+  const H = G.hell;
+  H.burst = Math.max(0, Math.round(n));
+  H.burstT = G.gameT;
+  H.stay = stay;
+}
+
 /** Run the gate: called about once a second. */
 export function updHell(): void {
   if (G.visualOnly || !G.hell?.gate) return;
-  const H = G.hell, now = G.gameT, all = demons();
+  const H = G.hell, now = G.gameT;
   // the leader
   const prey = demonPrey();
   if (prey !== H.prey) {
@@ -102,37 +110,54 @@ export function updHell(): void {
       if (was < 0) { H.raidT = now + FIRST_RAID; H.archT = now + ARCHFIEND_FIRST; }
       for (let t = 0; t < G.teams; t++)
         say(t, t === prey ? 'The Gate of Hell stirs: its demons hunt the strongest army, and that is yours' : `The Gate of Hell stirs: its demons hunt ${teamColors(prey).name}, the strongest army`);
-    } else { H.raidT = H.archT = Infinity; }
+    } else {
+      H.raidT = H.archT = Infinity;
+      H.stir = false;
+      if (H.stay === Infinity) H.burst = 0;
+      for (const d of demons()) if (d.demon && d.demon.raid < 0 && d.demon.until === Infinity) d.demon.until = now + LINGER;
+    }
   }
   // demons out on a raid against a side that's no longer the leader go home
-  for (const d of all) if (d.demon && d.demon.raid >= 0 && d.demon.raid !== prey) goHome(d);
-  // new demons
-  const small = all.filter((d) => d.type !== ARCHFIEND).length;
-  if (now >= H.spawnT) {
-    H.spawnT = now + SPAWN_EVERY;
-    if (small < DEMON_CAP) spawnDemon(Math.random() < FIEND_SHARE ? 'fiend' : 'imp');
+  for (const d of demons()) if (d.demon && d.demon.raid >= 0 && d.demon.raid !== prey) goHome(d);
+  // no leader: now and then a few come out to prowl round the gate for a while
+  if (prey < 0 && now >= H.spawnT) {
+    H.spawnT = now + between(WANDER_EVERY);
+    if (!demons().length) startBurst(between(WANDER_SIZE), WANDER_STAY);
   }
-  if (now >= H.archT) {
-    H.archT = now + ARCHFIEND_EVERY;
-    if (!all.some((d) => d.type === ARCHFIEND)) {
-      spawnDemon(ARCHFIEND);
+  // a raid coming: the gate lets the raiders out first, and any demons still about wait for it
+  if (prey >= 0 && !H.stir && now >= H.raidT - RAID_WARNING) {
+    H.stir = true;
+    const out = demons().filter((d) => d.type !== ARCHFIEND);
+    for (const d of out) if (d.demon && d.demon.raid < 0) d.demon.until = Infinity;
+    startBurst(Math.min(DEMON_CAP - out.length, between(RAID_SIZE) - out.filter((d) => d.demon?.raid === -1).length), Infinity);
+    if (now >= H.archT && !demons().some((d) => d.type === ARCHFIEND)) {
+      H.archT = now + ARCHFIEND_EVERY;
+      const a = spawnDemon(ARCHFIEND);
+      if (a.demon) a.demon.until = Infinity;
       for (let t = 0; t < G.teams; t++) say(t, 'A giant Archfiend climbs out of the Gate of Hell');
     }
   }
-  // a raid
+  if ((H.burst ?? 0) > 0 && now >= (H.burstT ?? 0)) {
+    H.burst = (H.burst ?? 1) - 1;
+    H.burstT = now + BURST_GAP;
+    const d = spawnDemon(Math.random() < FIEND_SHARE ? 'fiend' : 'imp');
+    if (d.demon) d.demon.until = now + (H.stay ?? WANDER_STAY);
+  }
+  // the raid sets out
   if (prey >= 0 && now >= H.raidT) {
+    H.raidT = now + between(RAID_EVERY);
+    H.stir = false;
+    H.burst = 0;
     const waiting = demons().filter((d) => d.demon?.raid === -1);
-    if (waiting.length >= RAID_MIN || waiting.some((d) => d.type === ARCHFIEND)) {
-      H.raidT = now + between(RAID_EVERY);
-      for (const d of waiting) { if (d.demon) d.demon.raid = prey; setOrder(d, null); }
-      for (let t = 0; t < G.teams; t++) say(t, t === prey ? 'Demons pour out of the Gate of Hell and come for you!' : `Demons pour out of the Gate of Hell and go for ${teamColors(prey).name}`);
-    } else H.raidT = now + 20; // too few: try again a little later
+    for (const d of waiting) { if (d.demon) d.demon.raid = prey; setOrder(d, null); }
+    if (waiting.length) for (let t = 0; t < G.teams; t++) say(t, t === prey ? 'Demons pour out of the Gate of Hell and come for you!' : `Demons pour out of the Gate of Hell and go for ${teamColors(prey).name}`);
   }
 }
 
 function goHome(u: Ent): void {
   if (!u.demon) return;
   u.demon.raid = -1;
+  u.demon.until = G.hell.stir ? Infinity : G.gameT + LINGER;
   setOrder(u, null);
 }
 
@@ -199,6 +224,14 @@ export function updDemon(u: Ent, dt: number): void {
     if (followPath(u, dt)) setOrder(u, null);
     return;
   }
+  // its time out is up: back into the gate it goes
+  if (G.gameT >= (dm.until ?? Infinity)) {
+    if (Math.hypot(u.x - c.x, u.y - c.y) <= (GATE_SIZE / 2 + 1.2) * TS) { sink(u); return; }
+    const a = Math.atan2(u.y - c.y, u.x - c.x), gx = tileOf(c.x + Math.cos(a) * (GATE_SIZE / 2 + 0.9) * TS), gy = tileOf(c.y + Math.sin(a) * (GATE_SIZE / 2 + 0.9) * TS);
+    if (u.order?.t !== 'move') orderMove(u, gx, gy);
+    if (followPath(u, dt)) sink(u); // as close as it gets
+    return;
+  }
   // waiting: back to its spot by the gate, and lick its wounds
   if (Math.hypot(u.x - dm.hx, u.y - dm.hy) > TS * 0.8) {
     if (u.order?.t !== 'move') orderMove(u, tileOf(dm.hx), tileOf(dm.hy));
@@ -217,6 +250,14 @@ export function updDemon(u: Ent, dt: number): void {
   if (u.order) setOrder(u, null);
   u.face = u.tface = turnToward(u.face, Math.atan2(u.y - c.y, u.x - c.x), unitDef(u).turn * dt); // keeping watch, back to the gate
   u.hp = Math.min(u.maxhp, u.hp + u.maxhp * LURK_REGEN * dt);
+}
+
+/** A demon goes back down into the gate: it leaves no body. */
+function sink(u: Ent): void {
+  part('flash', u.x, u.y, { max: 0.5, size: 40, z: 10, col: '#ff4010' });
+  burst('spark', u.x, u.y, 14, 50, 160, null, 10);
+  u.dead = true;
+  u.order = null;
 }
 
 /** Tiles in the map that the gate covers: for blocking (map.ts) and the renderer. */

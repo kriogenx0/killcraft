@@ -176,14 +176,22 @@ export interface Demon {
   snubT?: number;
   /** times in a row it couldn't walk back to its spot */
   lost?: number;
+  /** game time it goes back into the gate, if it's waiting there with nothing to do (Infinity: it's waiting for a raid) */
+  until?: number;
 }
 
 /** The Gate of Hell's clock and who its demons are after (game/hell.ts). */
 export interface Hell {
   /** this map has the gate (staged test arenas clear it away) */
   gate: boolean;
-  /** game time the next demon climbs out */
+  /** game time demons next come out to prowl while there's no leader */
   spawnT: number;
+  /** demons still to climb out in the current burst, when the next one does, and how long they stay (Infinity: they're raiders) */
+  burst?: number;
+  burstT?: number;
+  stay?: number;
+  /** the gate is letting out a raid that sets out at raidT */
+  stir?: boolean;
   /** game time the next raid sets out (Infinity while there's no leader) */
   raidT: number;
   /** game time the next Archfiend appears (Infinity while there's no leader) */
