@@ -21,15 +21,15 @@ export const CHOP_WORTH = 10;
 export const CHOPPERS_PER_MILL = 2;
 
 /**
- * Most oil an Oil Derrick holds in store. Oil only leaves the ground while a Worker works the pump
- * (OIL_PUMP_RATE), straight into its load; the store only holds what older saves had in it.
+ * An Oil Derrick fills its own store, up to this much, and stops when it's full; Workers carry it
+ * to a Town Hall or a Refinery.
  */
 export const DERRICK_STORE = 300;
 
-/** Oil per second a Worker pumps at an Oil Derrick while its well has oil: a full load in 30s. */
-export const OIL_PUMP_RATE = 10;
-/** Rough oil per second an Oil Derrick with a Worker on it brings in, walks home included. */
-export const OIL_PER_DERRICK = 5;
+/** Oil per second an Oil Derrick pumps into its tank while its well has oil. */
+export const OIL_PER_DERRICK = 3;
+/** Oil per second a Derrick on a dry well still seeps into its tank. */
+export const OIL_TRICKLE = 0.3;
 /** A derrick pumps from oil tiles under its footprint and this many tiles around it. */
 export const DERRICK_REACH = 1;
 /** Oil in a pool tile at the middle of a well; pools are this many tiles across from the middle. */
