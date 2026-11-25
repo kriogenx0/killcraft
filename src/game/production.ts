@@ -82,6 +82,11 @@ export function nextWard(team: number): TechType | null {
   return G.ward[team] ? null : TECH_TYPES.find((t) => TECH[t].ward && TECH[t].era <= eraOf(team)) ?? null;
 }
 
+/** Field Mechanics, until it's researched. */
+export function nextMech(team: number): TechType | null {
+  return G.mech[team] ? null : TECH_TYPES.find((t) => TECH[t].mech && TECH[t].era <= eraOf(team)) ?? null;
+}
+
 /** The next level on each Armory track that the team's age allows. */
 export function nextUpgrades(team: number): TechType[] {
   return UPGRADE_TRACKS.flatMap((track) => TECH_TYPES.filter((t) => {
@@ -122,7 +127,7 @@ export function available(team: number, line: ProductionLine): Buildable[] {
       (t !== 'waygate' || countOf(team, 'waygate') < MAX_WAYGATES));
   }
   if (line === 'armory') return nextUpgrades(team).filter((t) => revealed(team, t));
-  if (line === 'hospital') { const t = nextHeal(team); return t ? [t] : []; }
+  if (line === 'hospital') return [nextHeal(team), nextMech(team)].filter((t): t is TechType => !!t);
   if (line === 'tech') {
     return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
@@ -330,11 +335,16 @@ function deliver(team: number, type: UnitType, b: Ent): void {
 }
 
 function advance(team: number, type: TechType): void {
-  const { age, heal, ward, upg, name } = TECH[type];
+  const { age, heal, ward, mech, upg, name } = TECH[type];
   if (upg) {
     G.upg[team] ??= noUpgrades();
     G.upg[team][upg.track] = Math.max(G.upg[team][upg.track], upg.level);
     say(team, `${name} researched`);
+    return;
+  }
+  if (mech) {
+    G.mech[team] = true;
+    say(team, `${name} researched: Medics now repair vehicles`);
     return;
   }
   if (ward) {

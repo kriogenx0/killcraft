@@ -61,6 +61,7 @@ export function placeAether(seed: number): void {
   G.aether = teams().map(() => 0);
   G.aetherFound = teams().map(() => false);
   G.ward = teams().map(() => false);
+  G.mech = teams().map(() => false);
   G.waygates = [];
   G.warpTeam.fill(-1);
   for (const [sx, sy] of aetherSites(seed)) {

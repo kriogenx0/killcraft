@@ -19,7 +19,7 @@ export const ERA: EraDef[] = [
 export const START_ERA = 0;
 export const LAST_ERA = ERA.length - 1;
 
-export type TechType = 'age2' | 'heal1' | 'heal2' | 'heal3' | 'ward'
+export type TechType = 'age2' | 'heal1' | 'heal2' | 'heal3' | 'mech' | 'ward'
   | 'infWeapon1' | 'infWeapon2' | 'infWeapon3' | 'infArmor1' | 'infArmor2' | 'infArmor3'
   | 'vehWeapon1' | 'vehWeapon2' | 'vehWeapon3' | 'vehArmor1' | 'vehArmor2' | 'vehArmor3';
 
@@ -41,6 +41,8 @@ export interface TechDef {
   age?: number;
   /** the healing level this research reaches (see HEAL_RATE) */
   heal?: number;
+  /** Field Mechanics: Medics also repair vehicles and cyborgs */
+  mech?: boolean;
   /** the Aether Ward: buildings take less damage (see WARD_FACTOR) */
   ward?: boolean;
   /** an Armory upgrade: the track and the level it reaches */
@@ -77,6 +79,7 @@ export const TECH: Record<TechType, TechDef> = {
   heal1: { name: 'Field Dressing', era: 0, heal: 1, at: 'hospital', cost: 400, t: 25, requires: ['hospital'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
   heal2: { name: 'Surgeons', era: 1, heal: 2, at: 'hospital', cost: 800, t: 35, requires: ['hospital'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },
   heal3: { name: 'Antibiotics', era: 2, heal: 3, at: 'hospital', cost: 1200, t: 45, requires: ['hospital'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(3)}).` },
+  mech: { name: 'Field Mechanics', era: 0, mech: true, at: 'hospital', cost: 500, wood: 150, t: 30, requires: ['hospital'], key: 'M', desc: 'Medics learn to repair machines: they patch up tanks, siege engines, cyborgs and every other vehicle, on Patrol too.' },
   // Armory upgrades, priced by what they're made of: wood and iron early, oil-hungry later
   infWeapon1: { name: 'Tempered Steel', era: 0, upg: { track: 'infWeapon', level: 1 }, at: 'armory', cost: 300, wood: 100, t: 25, requires: ['armory'], desc: 'Infantry and knights deal 10% more damage.' },
   infWeapon2: { name: 'Rifled Barrels', era: 1, upg: { track: 'infWeapon', level: 2 }, at: 'armory', cost: 700, wood: 100, t: 35, requires: ['armory'], desc: 'Infantry and knights deal 10% more damage again (+20%).' },

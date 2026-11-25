@@ -147,7 +147,7 @@ const timer = setInterval(() => {
 
 function stock(team: number): SideStock {
   return {
-    credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team],
+    credits: Math.floor(G.credits[team]), wood: Math.floor(G.wood[team]), oil: Math.floor(G.oil[team]), aether: Math.floor(G.aether[team] ?? 0), aetherFound: !!G.aetherFound[team], ward: !!G.ward[team], mech: !!G.mech[team],
     tamed: G.tamed[team] ?? [], rally: G.rally[team] ?? null, era: G.era[team], heal: G.heal[team] ?? 0, upg: G.upg[team], prod: G.prod[team],
   };
 }

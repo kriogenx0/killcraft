@@ -464,6 +464,10 @@ function research(team: number): void {
   const heal = available(team, 'hospital').filter(isTechType)[0];
   const infantry = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e)).length;
   if (heal && !G.prod[team].hospital.length && infantry >= 4 && credits > costOf(heal) + 300 && canAfford(team, heal)) enqueue(team, heal);
+  // Field Mechanics once Medics are walking with a few vehicles to look after
+  const mech = available(team, 'hospital').filter(isTechType).find((t) => TECH[t].mech);
+  const vehicles = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).cls === 'vehicle' && !unitDef(e).haul).length;
+  if (mech && !G.prod[team].hospital.length && countOf(team, 'medic') >= 1 && vehicles >= 3 && credits > costOf(mech) + 400 && canAfford(team, mech)) enqueue(team, mech);
   if (G.prod[team].tech.length) return;
   const can = available(team, 'tech').filter(isTechType);
   const age = can.find((t) => TECH[t].age != null);

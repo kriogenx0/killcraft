@@ -395,8 +395,8 @@ function regen(u: Ent, dt: number): void {
   u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
 }
 
-/** What a Medic can heal: foot soldiers and creatures, and anything that flies. */
-const medicCanHeal = (e: Ent): boolean => isOrganic(e) || isAir(e);
+/** What a Medic can heal: foot soldiers and creatures, anything that flies, and vehicles once its side knows Field Mechanics. */
+const medicCanHeal = (e: Ent): boolean => isOrganic(e) || isAir(e) || (e.kind === 'unit' && unitDef(e).cls === 'vehicle' && !!G.mech[e.team]);
 
 /** The most hurt ally a Medic can heal (not the medic itself) within a radius, if any. */
 function woundedNear(u: Ent, r: number): Ent | null {
@@ -424,7 +424,8 @@ function tend(u: Ent, t: Ent, dt: number): boolean | null {
   u.atkT = 0.25; // tends from afar: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
   // a soft green ray to the patient now and then, so you can see who is being healed
-  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: '#7dff9a', size: 2 });
+  // (an amber welding ray when it's repairing a machine)
+  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: unitDef(t).cls === 'vehicle' ? '#ffc861' : '#7dff9a', size: 2 });
   return true;
 }
 
