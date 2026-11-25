@@ -1,4 +1,5 @@
-// Fog of war per team: 0 unexplored, 1 explored, 2 currently visible.
+// Fog of war per team: 0 unexplored, 1 explored, 2 currently visible. With fog set to Regrow, ground
+// a side stops seeing goes back to 0 instead of 1; with it Off (G.reveal) every tile is visible.
 import { G, allied, hooks, tileOf, unitDef, bldDef, type Ent } from './state.ts';
 import { WEAPON } from '../data/weapon.ts';
 import { UNIT_SIGHT_BOOST } from '../data/unit.ts';
@@ -11,7 +12,8 @@ export function updFog(): void {
     // or when a person plays on their side: allies share what they see
     const mates = Array.from({ length: G.teams }, (_, t) => t).filter((t) => allied(t, team));
     if (!mates.some((t) => G.human[t] || t === G.viewer) && !G.ents.some((e) => !e.dead && e.team === team && outranges(e))) return;
-    for (let i = 0; i < MW * MH; i++) if (vis[i] === 2) vis[i] = 1;
+    const left = G.fog === 'regrow' ? 0 : 1;
+    for (let i = 0; i < MW * MH; i++) if (vis[i] === 2) vis[i] = left;
     for (const e of G.ents) {
       if (e.dead || e.team < 0 || !allied(e.team, team) || e.kind === 'source') continue;
       const r = e.kind === 'unit' ? unitDef(e).sight * UNIT_SIGHT_BOOST : bldDef(e).sight, cx = e.x / TS, cy = e.y / TS;

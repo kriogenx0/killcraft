@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { deserialize, serialize } from 'node:v8';
 import type { SavedWorld } from '../../src/game/save.ts';
 import { computerName, sidesTitle, type LiveGame, type MatchShape, type ServerMsg } from '../../src/net/protocol.ts';
-import { MODES, type Difficulty, type Mode } from '../../src/data/setup.ts';
+import { MODES, type Difficulty, type FogMode, type Mode } from '../../src/data/setup.ts';
 import type { Player, RoomStart } from './lobby_service.ts';
 import type { MatchPerf, WorkerIn, WorkerOut } from '../workers/match_worker.ts';
 
@@ -28,7 +28,7 @@ const MAX_MATCHES = 40;
 export const ABANDON_AFTER = 2 * 60_000;
 
 /** How a match is set up: how many teams, each one's side, closed seats, and the computer's difficulty in each computer seat. */
-export interface MatchSetup { teams: number; ally: number[]; absent: boolean[]; levels: (Difficulty | null)[] }
+export interface MatchSetup { teams: number; ally: number[]; absent: boolean[]; levels: (Difficulty | null)[]; /** fog of war; Always show if left out */ fog?: FogMode }
 
 const ONE_V_ONE: MatchSetup = { teams: 2, ally: [0, 1], absent: [false, false], levels: [null, null] };
 
@@ -120,11 +120,12 @@ export class MatchService {
       return;
     }
     const mode: Mode = room.mode, shape = MODES[mode];
-    const setup: MatchSetup = mode === '1v1' && room.seats.every((s) => s && typeof s === 'object') ? ONE_V_ONE : {
+    const base: MatchSetup = mode === '1v1' && room.seats.every((s) => s && typeof s === 'object') ? ONE_V_ONE : {
       teams: shape.teams, ally: [...shape.ally],
       absent: Array.from({ length: shape.teams }, (_, t) => room.seats[t] == null),
       levels: Array.from({ length: shape.teams }, (_, t) => (typeof room.seats[t] === 'string' ? room.seats[t] as Difficulty : null)),
     };
+    const setup: MatchSetup = room.fog && room.fog !== 'show' ? { ...base, fog: room.fog } : base;
     const players = Array.from({ length: setup.teams }, (_, t) => { const s = room.seats[t]; return s && typeof s === 'object' ? s : null; });
     const names = players.map((p, t) => p?.name ?? (setup.levels[t] ? computerName(setup.levels[t] as Difficulty) : ''));
     const seed = Math.floor(Math.random() * 1e6);
@@ -144,7 +145,8 @@ export class MatchService {
 
   /** What a client needs to set up anything but a plain one against one. */
   private shape(m: Match): MatchShape {
-    return m.setup === ONE_V_ONE || (m.setup.teams === 2 && m.setup.levels.every((l) => !l)) ? {} : { teams: m.setup.teams, ally: m.setup.ally, absent: m.setup.absent, names: m.names };
+    const fog = m.setup.fog && m.setup.fog !== 'show' ? { fog: m.setup.fog } : {};
+    return m.setup === ONE_V_ONE || (m.setup.teams === 2 && m.setup.levels.every((l) => !l)) ? fog : { teams: m.setup.teams, ally: m.setup.ally, absent: m.setup.absent, names: m.names, ...fog };
   }
 
   /** Start a match's thread (with the saved world, for a match carried through a restart). */

@@ -81,7 +81,7 @@ export class SocketController {
           this.send(id, { k: 'error', msg: why });
           break;
         }
-        case 'room': if (!this.lobby.configure(id, { mode: msg.mode, seat: msg.seat, pick: msg.pick })) this.send(id, { k: 'error', msg: "Couldn't change that seat." }); break;
+        case 'room': if (!this.lobby.configure(id, { mode: msg.mode, seat: msg.seat, pick: msg.pick, fog: msg.fog })) this.send(id, { k: 'error', msg: "Couldn't change that seat." }); break;
         case 'begin': if (!this.lobby.begin(id)) this.send(id, { k: 'error', msg: 'Fill or close every open seat first, and put someone on each side.' }); break;
         case 'watch': {
           const me = this.lobby.players.get(id);

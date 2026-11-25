@@ -165,6 +165,22 @@ describe('lobby', () => {
     expect(lobby.games()).toEqual([]);
   });
 
+  it('lets the host pick the fog of war, which the room shows everyone and the match gets', () => {
+    const { lobby, pairs, rooms } = setup();
+    const id = lobby.create('a')!;
+    expect(lobby.view('a')?.room?.fog).toBe('show');
+    lobby.join('b', id);
+    expect(lobby.configure('b', { fog: 'off' })).toBe(false); // not the host
+    expect(lobby.configure('a', { fog: 'sometimes' })).toBe(false);
+    expect(lobby.configure('a', { fog: 'regrow' })).toBe(true);
+    expect(lobby.view('b')?.room?.fog).toBe('regrow');
+    // two people one against one, but not the usual fog: started as a room so the fog goes with it
+    expect(lobby.begin('a')).toBe(true);
+    expect(pairs).toEqual([]);
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0].fog).toBe('regrow');
+  });
+
   it('lets the host start with computers and closed seats, but needs someone on the other side', () => {
     const { lobby, rooms } = setup();
     lobby.create('a');
