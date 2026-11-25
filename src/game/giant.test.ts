@@ -52,12 +52,16 @@ describe('the Titan', () => {
     expect(atLimit(0, 'giant')).toBe(false);
   });
 
-  it('its blow hits everything around the target and smashes buildings', () => {
+  it('swings its club in a wide sweep: everything in front is hit, not what is behind it', () => {
     const y = 30 * TS, titan = addUnit('giant', 0, 20 * TS, y);
-    const a = addUnit('swordsman', 1, 20 * TS + 40, y), b = addUnit('swordsman', 1, 20 * TS + 60, y + 20);
+    const a = addUnit('swordsman', 1, 20 * TS + 40, y), side = addUnit('swordsman', 1, 20 * TS + 5, y + 60), behind = addUnit('swordsman', 1, 20 * TS - 60, y);
     fire(titan, 'quake', a);
+    expect(titan.atkT).toBeGreaterThan(0.5); // a slow swing you can see
+    updProjs(0.2);
+    expect(a.hp).toBe(a.maxhp); // still winding up
     for (let i = 0; i < 120 && G.projs.length; i++) updProjs(1 / 60);
     expect(a.hp).toBeLessThan(a.maxhp);
-    expect(b.hp).toBeLessThan(b.maxhp);
+    expect(side.hp).toBeLessThan(side.maxhp);
+    expect(behind.hp).toBe(behind.maxhp);
   });
 });
