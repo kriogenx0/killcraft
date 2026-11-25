@@ -493,7 +493,11 @@ export function syncEntities(dt: number): void {
     } else if (e.kind === 'bld') {
       r.position.set(x, footprintY(e.tx, e.ty, e.w, e.h), z);
       animateBuilding(o.model, e, dt);
-    } else r.position.set(x, heightAt(x, z), z);
+    } else {
+      r.position.set(x, heightAt(x, z), z);
+      // an Aether deposit shrinks as it's drawn down and grows back with it
+      if (e.type === 'aether') r.scale.setScalar(0.35 + 0.65 * Math.min(1, e.hp / (e.maxhp || 1)));
+    }
   }
   let killed: Map<number, string> | null = null;
   for (const [id, o] of objs) {

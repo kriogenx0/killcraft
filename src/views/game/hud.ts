@@ -412,7 +412,7 @@ function detailsMarkup(s: Ent[]): string {
   if (e.type === 'aether') {
     const h = holderOf(e), held = h < 0 ? '' : h === V.team ? ` · <b>Yours</b>: +${perMin(AETHER_RATE)}/min` : ' · <b>Held by the enemy</b>';
     return `<h3>Aether Deposit</h3>${barHtml(e.hp / e.maxhp, 'progress', 'Aether left')}<p class="hud-stats">${Math.ceil(e.hp)} Aether left${held}</p>` +
-      '<p class="hud-stats">Shards of a fallen star. Keep a unit beside it, with no enemy there, to draw Aether. It never regrows.</p>';
+      '<p class="hud-stats">Shards of a fallen star. Keep a unit beside it, with no enemy there, to draw Aether. It slowly grows back once drawn down.</p>';
   }
   if (e.type === 'shard') return `<h3>Dropped Aether</h3><p class="hud-stats">${Math.ceil(e.hp)} Aether, fallen with the unit that carried it. Any unit that walks over it picks it up. Workers that see it fetch it and take it home: idle ones nearby, and gathering ones on their way back out, unless an enemy soldier is guarding it.</p>`;
   return '<h3>Ore Crystals</h3><p class="hud-stats">Ore slowly regrows around this rock.</p>';

@@ -2,6 +2,7 @@
 // wood and oil the side has least of, counting what its waiting orders still owe and how many
 // Workers already bring each in, and look again each time they drop a load off, so the split
 // follows the bank. A Worker set to Ore, Wood or Oil sticks to it.
+import { AETHER_DRY, AETHER_WORTH } from '../data/aether.ts';
 import { G, tileOf, valid, type Ent, type HarvestOrder } from './state.ts';
 import { MH, MW, TREE, TS } from './const.ts';
 import { CHOP_WORTH } from '../data/economy.ts';
@@ -209,7 +210,7 @@ export function gatherSetting(u: Ent): GatherRes {
 const aetherJob = new WeakMap<Ent, number>();
 export const aetherJobOf = (u: Ent): Ent | null => {
   const id = aetherJob.get(u), d = id === undefined ? null : G.byId.get(id) ?? null;
-  if (d && (d.dead || d.type !== 'aether')) { aetherJob.delete(u); return null; }
+  if (d && (d.dead || d.type !== 'aether' || d.hp < AETHER_DRY)) { aetherJob.delete(u); return null; }
   return d;
 };
 export const forgetAether = (u: Ent): void => { aetherJob.delete(u); };
@@ -257,7 +258,7 @@ export function sendGather(u: Ent, r: GatherRes): boolean {
   }
   // Aether: the deposit nearest the base; the Worker draws it, banks it and goes back for more
   let best: Ent | null = null, bd = Infinity;
-  for (const d of G.ents) if (!d.dead && d.type === 'aether') { const dist = fromBase(u.team, d.x, d.y); if (dist < bd) { bd = dist; best = d; } }
+  for (const d of G.ents) if (!d.dead && d.type === 'aether' && d.hp >= AETHER_WORTH) { const dist = fromBase(u.team, d.x, d.y); if (dist < bd) { bd = dist; best = d; } }
   if (!best) return false;
   aetherJob.set(u, best.id);
   setOrder(u, null);

@@ -1,5 +1,5 @@
 // Aether: a rare, supernatural resource. Violet shards from a fallen star lie in a few spots in the
-// middle ground, away from both bases. They never regrow. A side draws Aether from a deposit by
+// middle ground, away from both bases. They slowly grow back once drawn down. A side draws Aether from a deposit by
 // holding it: any of its units standing next to the shards, with no enemy unit there too.
 // Aether reveals hidden units (one per age) and the Aether Ward research. It is meant to be a small
 // edge that rewards scouting and map control, never a game-winner.
@@ -22,8 +22,15 @@ export const AETHER_MIDDLE: Tile = [41, 41];
 /** Chance a map gets the middle deposit. */
 export const AETHER_MIDDLE_CHANCE = 0.5;
 
-/** Aether in each deposit. It never regrows. */
+/** Aether a deposit holds when full. */
 export const AETHER_PER_DEPOSIT = 200;
+/** Aether per second a deposit grows back, up to full (Alex, 2026-11-25: "Aether should slowly come back").
+ * A drained deposit is full again in about 17 minutes; holding one draws 2/s, ten times faster. */
+export const AETHER_REGROW = 0.2;
+/** A deposit with less than this left is dry: nothing to draw until it grows back. */
+export const AETHER_DRY = 1;
+/** Workers don't set out for a deposit holding less than this (wait for it to grow back). */
+export const AETHER_WORTH = 20;
 /** Aether per second a side draws from a deposit it holds. Extra units don't draw any faster. */
 export const AETHER_RATE = 2;
 /** Aether one unit can carry. It counts once the unit brings it within AETHER_BANK_REACH tiles of its own Town Hall or Refinery, and is lost if the unit dies. */

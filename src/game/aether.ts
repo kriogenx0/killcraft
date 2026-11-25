@@ -6,7 +6,7 @@ import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
-  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
+  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, AETHER_DRY, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
@@ -77,13 +77,12 @@ export function placeAether(seed: number): void {
   }
 }
 
-export const deposits = (): Ent[] => G.ents.filter((e) => !e.dead && e.type === 'aether');
+/** Deposits with Aether left to draw (a dry one stays on the map, growing back). */
+export const deposits = (): Ent[] => G.ents.filter((e) => !e.dead && e.type === 'aether' && e.hp >= AETHER_DRY);
 
-/** Remove an emptied deposit without the rubble and blasts of a destroyed building. */
-function exhaust(d: Ent): void {
-  d.dead = true;
-  setBlk(d, false);
-  hooks.killed(d);
+/** Every deposit grows back a little, up to full. */
+export function regrowAether(dt: number): void {
+  for (const d of G.ents) if (!d.dead && d.type === 'aether' && d.hp < d.maxhp) d.hp = Math.min(d.maxhp, d.hp + AETHER_REGROW * dt);
 }
 
 /** The team holding a deposit: it has a unit next to it and no other side does. -1 if nobody or contested. */
@@ -130,10 +129,7 @@ export function drawAether(dt: number): void {
     carrier.drawT = G.gameT + DRAW_SHOW;
     carrier.atkT = Math.max(carrier.atkT, 0.25);
     if (!carrier.order && !carrier.moving) carrier.face = carrier.tface = Math.atan2(d.y - carrier.y, d.x - carrier.x);
-    if (d.hp <= 0.01) {
-      exhaust(d);
-      for (const t of teams()) say(t, 'An Aether deposit has run dry');
-    }
+    if (d.hp < AETHER_DRY) for (const t of teams()) say(t, 'An Aether deposit has run dry. It will slowly grow back');
   }
 }
 

@@ -12,7 +12,7 @@ import { acquire, dealDamage, fire, MELEE_LAND, updProjs } from './combat.ts';
 import type { WeaponType } from '../data/weapon.ts';
 import { orderMove } from './order.ts';
 import { START_YARDS } from '../data/map.ts';
-import { AETHER_CARRY, AETHER_PER_DEPOSIT, AETHER_RATE, CLOAK_DETECT } from '../data/aether.ts';
+import { AETHER_CARRY, AETHER_DRY, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, CLOAK_DETECT } from '../data/aether.ts';
 import { UNIT, UNIT_TYPES } from '../data/unit.ts';
 import { TECH } from '../data/era.ts';
 
@@ -50,9 +50,12 @@ function bringHome(u: Ent): void {
 
 it('carries at most AETHER_CARRY per unit', () => {
   const d = deposits()[0], u = beside(d, 'swordsman', 0);
-  run(AETHER_CARRY / AETHER_RATE + 10);
+  const secs = AETHER_CARRY / AETHER_RATE + 10;
+  run(secs);
   expect(u.ae).toBeCloseTo(AETHER_CARRY, 5);
-  expect(d.hp).toBeCloseTo(AETHER_PER_DEPOSIT - AETHER_CARRY, 0);
+  // drawn down by one load, and growing back slowly since
+  expect(d.hp).toBeGreaterThanOrEqual(AETHER_PER_DEPOSIT - AETHER_CARRY);
+  expect(d.hp).toBeLessThanOrEqual(AETHER_PER_DEPOSIT - AETHER_CARRY + AETHER_REGROW * secs + 0.01);
 });
 
 /** A unit standing right below a deposit. */
@@ -95,7 +98,7 @@ describe('Aether', () => {
     expect(available(1, 'infantry')).not.toContain('wraith');
   });
 
-  it('draws Aether only while one side holds a deposit, and runs dry for good', () => {
+  it('draws Aether only while one side holds a deposit, and runs dry, then slowly grows back', () => {
     const d = deposits()[0];
     const u = beside(d, 'swordsman', 0), v = beside(d, 'swordsman', 0); // a crowd draws no faster
     run(10.5);
@@ -115,13 +118,19 @@ describe('Aether', () => {
     if (holderOf(d) === -1) expect(G.aether[0]).toBe(before);
     foe.dead = true;
     // the rest, a load at a time
-    for (let trip = 0; trip < 20 && !d.dead; trip++) {
+    for (let trip = 0; trip < 20 && d.hp >= AETHER_DRY; trip++) {
       run(AETHER_CARRY / AETHER_RATE + 1);
       for (const w of [u, v]) { const x = w.x, y = w.y; bringHome(w); w.x = x; w.y = y; }
     }
-    expect(d.dead).toBe(true);
+    // dry: nothing to draw, but it stays where the star fell and grows back
+    expect(d.dead).toBe(false);
     expect(deposits()).not.toContain(d);
-    expect(G.aether[0] + G.aether[1]).toBeCloseTo(AETHER_PER_DEPOSIT, 0);
+    expect(G.aether[0] + G.aether[1]).toBeGreaterThanOrEqual(AETHER_PER_DEPOSIT - 1);
+    u.dead = v.dead = true;
+    const dry = d.hp;
+    run(60);
+    expect(d.hp).toBeCloseTo(dry + AETHER_REGROW * 60, -1);
+    expect(deposits()).toContain(d);
     expect(errors).toEqual([]);
   });
 
