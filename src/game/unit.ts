@@ -566,9 +566,10 @@ export function updUnit(u: Ent, dt: number): void {
     case 'attack': {
       let t = valid(o.tgt);
       u.scan -= dt;
+      // a target the player picked is kept unless something hits back; one the unit found itself gives way to a better one
       if (t && u.scan <= 0) {
         u.scan = 0.3;
-        const b = betterTarget(u, t, d.sight);
+        const b = betterTarget(u, t, d.sight, !o.auto);
         if (b) { t = b; o.tgt = b.id; u.path = null; }
       }
       const gaveUp = !t || (o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) || !combatStep(u, t, dt);

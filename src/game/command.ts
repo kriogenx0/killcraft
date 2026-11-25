@@ -1,11 +1,11 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { G, STANCES, isHarvester, unitDef, valid, type Ent, type Stance } from './state.ts';
+import { G, STANCES, hostile, isHarvester, unitDef, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
+import { groupMove, orderAttack, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
@@ -23,6 +23,8 @@ export type Command =
   | { c: 'return'; ids: number[] }
   | { c: 'haul'; ids: number[]; target: number }
   | { c: 'fix'; ids: number[]; target: number }
+  /** fight one enemy unit or building until it falls */
+  | { c: 'attack'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
   /** the army rally point: every producer's new troops go there, and with `send` the whole army too */
   | { c: 'muster'; x: number; y: number; send: boolean }
@@ -60,6 +62,7 @@ export function parseCommand(raw: unknown): Command | null {
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
     case 'haul':
     case 'fix':
+    case 'attack':
       return isIds(o.ids) && isInt(o.target) ? { c: o.c, ids: o.ids, target: o.target } : null;
     case 'harvest':
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'harvest', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
@@ -137,6 +140,12 @@ export function applyCommand(team: number, cmd: Command): void {
       // Workers mend one of the side's own buildings or units
       const t = valid(cmd.target);
       if (t && t.team === team && t.kind !== 'source') for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker' && u !== t) orderFix(u, t);
+      break;
+    }
+    case 'attack': {
+      // armed units go for that enemy and stay on it; Workers and Medics carry on with their jobs
+      const t = valid(cmd.target);
+      if (t && t.kind !== 'source' && hostile(t.team, team)) for (const u of ownUnits(team, cmd.ids)) if (unitDef(u).weapon && !isHarvester(u)) orderAttack(u, t);
       break;
     }
     case 'rally': {

@@ -158,4 +158,17 @@ describe('stances', () => {
     expect(foe.hp).toBe(foe.maxhp);
     expect(Math.hypot(u.x - foe.x, u.y - foe.y)).toBeGreaterThan(6 * TS);
   });
+
+  it('an attack order sticks to the picked target, even with another enemy closer', () => {
+    const [x, y] = openGround(8);
+    const a = addUnit('swordsman', 0, x, y), b = addUnit('swordsman', 0, x, y + 12);
+    const picked = addUnit('worker', 1, x + 7 * TS, y), near = addUnit('worker', 1, x + 2 * TS, y);
+    picked.stance = 'passive'; near.stance = 'passive';
+    applyCommand(0, { c: 'attack', ids: [a.id, b.id, picked.id], target: picked.id });
+    expect(picked.order?.t).not.toBe('attack'); // not your unit to order
+    run(1);
+    for (const u of [a, b]) expect(u.order?.t === 'attack' && u.order.tgt).toBe(picked.id);
+    run(25);
+    expect(picked.dead).toBe(true);
+  });
 });
