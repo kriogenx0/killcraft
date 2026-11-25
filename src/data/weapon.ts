@@ -55,7 +55,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   atmissile: { dmg: 80, range: 7, cd: 2.8, proj: 'rocket', speed: 240, splash: 18, vs: { none: 0.2, light: 0.9, heavy: 1.25, building: 0.5, air: 0 } },
   // the Artillery Tank's howitzer: lobbed at a spot from far off, a wide blast that wrecks packed troops and
   // defenses but rarely catches anything that keeps moving; it can't drop a shell right beside itself
-  howitzer: { dmg: 70, range: 10, minRange: 3, cd: 4.5, proj: 'shell', speed: 230, splash: 30, ground: true, vs: { none: 0.9, light: 0.85, heavy: 0.6, building: 1.4, air: 0 } },
+  howitzer: { dmg: 70, range: 10, minRange: 3, cd: 4.5, proj: 'shell', speed: 230, splash: 30, ground: true, vs: { none: 0.9, light: 0.85, heavy: 0.6, building: 2, air: 0 } },
   bertha: { dmg: 260, range: 22, minRange: 4, cd: 7, proj: 'shell', speed: 200, splash: 48, ground: true, vs: { none: 0.8, light: 0.9, heavy: 0.9, building: 1.3, air: 0 } },
   // medieval arms
   // a Worker's pick: a last resort, not a weapon of war

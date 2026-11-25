@@ -8,7 +8,7 @@
 // pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
 // only orders what it can pay for now. Production runs at half speed on low power.
 import { autoGather } from './autogather.ts';
-import { aiPace } from './ai.ts';
+import { aiPace, leaderHandicap } from './ai.ts';
 import { ARMY_SLOW_FROM, ARMY_SLOW_STEP, LEADER_SPEED } from '../data/economy.ts';
 import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
@@ -372,7 +372,7 @@ const canTrain = (b: Ent, t: Buildable): boolean => b.type !== 'yard' || lineOf(
  * that can train it, it's refunded.
  */
 export function updProduction(team: number, dt: number): void {
-  const speed = (lowPower(team) ? 0.5 : 1) * (team === G.leader ? LEADER_SPEED : 1) * aiPace(team);
+  const speed = (lowPower(team) ? 0.5 : 1) * (leaderHandicap(team) ? LEADER_SPEED : 1) * aiPace(team);
   let slow = 0; // worked out only when a fighter is in training
   payWaiting(team);
   for (const line of LINES) {

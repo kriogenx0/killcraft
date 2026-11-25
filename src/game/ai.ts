@@ -60,6 +60,11 @@ const lvl = (team: number): AiLevel => AI_LEVEL[ais[team]?.level ?? 'normal'];
 
 /** How fast a side's production and building sites work: the computer's difficulty pace, full speed for players. */
 export const aiPace = (team: number): number => (ais[team]?.on && !G.human[team] ? AI_LEVEL[ais[team].level].pace : 1);
+/**
+ * Whether the leader's handicaps (slower building, weaker Power Plants) hold back this side now. A
+ * Brutal computer shrugs them off: it leads from the start, and with them it lost to Hard.
+ */
+export const leaderHandicap = (team: number): boolean => team === G.leader && !(ais[team]?.on && !G.human[team] && ais[team].level === 'brutal');
 
 /** Set one computer player's difficulty, or every one's (after resetAi, which puts them back to Normal). */
 export function setAiLevel(level: Difficulty, team?: number): void {
