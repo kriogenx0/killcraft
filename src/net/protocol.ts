@@ -3,7 +3,7 @@ import type { Command } from '../game/command.ts';
 import type { EntRow, FxEvent } from './snapshot.ts';
 import type { Production } from '../game/state.ts';
 import type { UpgradeTrack } from '../data/era.ts';
-import type { Difficulty, Mode, SeatPick } from '../data/setup.ts';
+import type { Difficulty, FogMode, Mode, SeatPick } from '../data/setup.ts';
 
 export const MAX_NAME = 20;
 
@@ -24,6 +24,8 @@ export interface RoomSeat {
 export interface RoomView {
   id: string;
   mode: Mode;
+  /** fog of war the host picked */
+  fog?: FogMode;
   /** you're the host: you set the seats and start the game */
   host: boolean;
   hostName: string;
@@ -96,7 +98,7 @@ export type ClientMsg =
   | { k: 'create'; game?: string }
   | { k: 'join'; game: string }
   /** the host sets up their room: how the sides line up, or who sits in a seat (a computer, open for a person, or closed) */
-  | { k: 'room'; mode?: Mode; seat?: number; pick?: SeatPick | 'open' }
+  | { k: 'room'; mode?: Mode; seat?: number; pick?: SeatPick | 'open'; fog?: FogMode }
   /** the host starts their room's game */
   | { k: 'begin' }
   | { k: 'leave' }
@@ -170,6 +172,8 @@ export interface MatchShape {
   absent?: boolean[];
   /** every team's player: a name, "Computer (Hard)", or '' for a closed seat */
   names?: string[];
+  /** fog of war, when it isn't Always show */
+  fog?: FogMode;
 }
 
 export type ServerMsg =

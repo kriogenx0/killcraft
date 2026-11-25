@@ -1,4 +1,5 @@
 // Setting up a match and advancing the simulation by one fixed step.
+import type { FogMode } from '../data/setup.ts';
 import { isWall } from '../data/building.ts';
 import { G, allied, hooks, say, unitDef } from './state.ts';
 import { MW, MH, TS } from './const.ts';
@@ -38,6 +39,8 @@ export interface StartOptions {
   ally?: readonly number[];
   /** teams whose slot is closed: their corner stays empty */
   absent?: readonly boolean[];
+  /** fog of war; Off is G.reveal, which the caller sets */
+  fog?: FogMode;
 }
 
 /** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (one base per corner: a free-for-all, or two sides of two with `ally`). */
@@ -46,7 +49,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [],
-    alertT: each(() => -99), lastAlert: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'show', leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });

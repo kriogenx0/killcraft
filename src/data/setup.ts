@@ -97,6 +97,19 @@ export function playable(mode: Mode, closed: readonly boolean[]): boolean {
 /** Seats in the order the setup screens list them: your side first, then the other side (2v2 pairs seats 0+2 and 1+3). */
 export const seatOrder = (mode: Mode): number[] => (mode === '1v1' ? [0, 1] : mode === '2v2' ? [0, 2, 1, 3] : [0, 1, 2, 3]);
 
+/**
+ * Fog of war (Alex, 2026-11-25): Regrow covers ground again once none of your side can see it (terrain
+ * and enemy buildings vanish back into the dark); Always show keeps explored ground and the buildings on
+ * it shown, with enemy troops only while seen; Off shows the whole map.
+ */
+export type FogMode = 'regrow' | 'show' | 'off';
+export const FOG_MODES: Record<FogMode, { name: string; desc: string }> = {
+  regrow: { name: 'Regrow', desc: 'Ground you stop watching fogs over again: terrain and enemy buildings hide until you look again.' },
+  show: { name: 'Always show', desc: 'Ground stays revealed once explored. Enemy troops show only while you can see them.' },
+  off: { name: 'Off', desc: 'No fog: see the whole map.' },
+};
+export const isFogMode = (v: unknown): v is FogMode => typeof v === 'string' && v in FOG_MODES;
+
 export interface GameSetup {
   mode: Mode;
   /** the computer in each seat (index = team); seat 0 is you, except in a match to watch */
@@ -107,10 +120,10 @@ export interface GameSetup {
   army: StartArmy;
   /** game speed at the start */
   speed: number;
-  fog: boolean;
+  fog: FogMode;
 }
 
-export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: true };
+export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: 'show' };
 export const SPEEDS = [0.5, 1, 2];
 
 /** The match a setup makes: how many teams, each one's side, which seats are empty, and each computer's difficulty. */
