@@ -18,6 +18,7 @@ import { creatureModel } from './creatures3d.ts';
 import { demonModel } from './demons3d.ts';
 import { arcaneModel } from './arcane3d.ts';
 import { giantModel } from './giant3d.ts';
+import { chickenModel } from './chicken3d.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, prism, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -756,6 +757,7 @@ function makeUnit(type: UnitType, team: number): Model {
   if (UNIT[type].demon) return demonModel(type) ?? rifleman(team);
   if (UNIT[type].magic || UNIT[type].cyborg) return arcaneModel(type, team) ?? rifleman(team);
   if (UNIT[type].giant) return giantModel(team);
+  if (type === 'chicken' || UNIT[type].hatches) return chickenModel(team, !!UNIT[type].hatches);
   if (UNIT[type].look) return aetherUnit(type, team);
   switch (type) {
     case 'rifleman': return rifleman(team);

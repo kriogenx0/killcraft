@@ -8,7 +8,7 @@
 // pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
 // only orders what it can pay for now. Production runs at half speed on low power.
 import { autoGather } from './autogather.ts';
-import { aiPace } from './ai.ts';
+import { aiPace, leaderHandicap } from './ai.ts';
 import { ARMY_SLOW_FROM, ARMY_SLOW_STEP, LEADER_SPEED } from '../data/economy.ts';
 import { refitBonus } from './refit.ts';
 import { G, say, type Ent, type Production, type ProductionItem, type ProductionLine } from './state.ts';
@@ -24,6 +24,7 @@ import { cancelSite, canPlaceType, exitTile, placeBuilding, wallLine } from './b
 import { orderFix, orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 import { keepResume } from './autogather.ts';
+import { hatch } from './mystery.ts';
 
 export type Buildable = UnitType | BldType | TechType;
 
@@ -132,7 +133,7 @@ export function available(team: number, line: ProductionLine): Buildable[] {
     return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
   const yardOnly = line === 'infantry' && producerOf(team, line)?.type === 'yard';
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && !UNIT[t].hatched && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
 /**
@@ -145,7 +146,7 @@ export function unitSlots(team: number): UnitType[] {
   const era = eraOf(team), LINES: ProductionLine[] = ['infantry', 'vehicle', 'air'];
   const secret = (t: UnitType) => (UNIT[t].beast || priceOf(t).aether > 0 ? 1 : 0);
   const key = (t: UnitType) => [LINES.indexOf(UNIT[t].producer), t === 'worker' ? 0 : 1, secret(t), UNIT[t].era, UNIT_TYPES.indexOf(t)];
-  return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
+  return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && !UNIT[t].hatched && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
     .sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i]; return 0; });
 }
 
@@ -322,12 +323,23 @@ export function itemsOf(team: number, type: Buildable): ProductionItem[] {
 }
 
 function deliver(team: number, type: UnitType, b: Ent): void {
+  // a Mystery Egg hatches into something special (game/mystery.ts)
+  if (UNIT[type].hatches) {
+    const out = hatch(team, eraOf(team));
+    say(team, out === 'chicken' ? 'The Mystery Egg hatched... a Titan Chicken!' : `The Mystery Egg hatched a ${UNIT[out].name}!`);
+    deliverUnit(team, out, b, false);
+    return;
+  }
+  deliverUnit(team, type, b, true);
+}
+
+function deliverUnit(team: number, type: UnitType, b: Ent, announce: boolean): void {
   // Workers and harvesters ignore rally points: they come out the usual side and go to work
   const haul = !!UNIT[type].haul, rally = haul ? null : b.rally;
   const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
   noteTrained(team, type);
-  say(team, `${UNIT[type].name} ready`);
+  if (announce) say(team, `${UNIT[type].name} ready`);
   // a new Worker starts on Auto: off to whatever the side has least of
   if (type === 'worker') { if (!autoGather(u)) orderHarvest(u, x, y); }
   else if (haul) orderHarvest(u, x, y);
@@ -382,7 +394,7 @@ const canTrain = (b: Ent, t: Buildable): boolean => b.type !== 'yard' || lineOf(
  * that can train it, it's refunded.
  */
 export function updProduction(team: number, dt: number): void {
-  const speed = (lowPower(team) ? 0.5 : 1) * (team === G.leader ? LEADER_SPEED : 1) * aiPace(team);
+  const speed = (lowPower(team) ? 0.5 : 1) * (leaderHandicap(team) ? LEADER_SPEED : 1) * aiPace(team);
   let slow = 0; // worked out only when a fighter is in training
   payWaiting(team);
   for (const line of LINES) {

@@ -5,8 +5,8 @@ import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { CHAIN_FALLOFF, CHAIN_REACH, WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
-import { edgeDist } from './path.ts';
-import { angleDiff, approach, steer, stepOf, turnToward } from './move.ts';
+import { edgeDist, pathFor } from './path.ts';
+import { angleDiff, approach, followPath, steer, stepOf, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
 import { dropSalvage } from './economy.ts';
 import { payBounty } from './bounty.ts';
@@ -171,11 +171,28 @@ export function attacker(u: Ent): Ent | null {
  * harvester) while an armed enemy is within reach.
  */
 export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number, picked = false): Ent | null {
+  // a Titan Chicken close by pulls every eye off whatever else it was fighting
+  const lure = picked || (cur?.kind === 'unit' && unitDef(cur).lure) ? null : lurer(u, radiusTiles);
+  if (lure) return lure;
   const a = attacker(u);
   if (a && a !== cur && edgeDist(u, a) <= radiusTiles * TS) return a;
   // a target the player picked isn't dropped just because something armed is about
   if (cur && !picked && !weaponOf(cur)) return acquire(u, radiusTiles, false, true);
   return null;
+}
+
+/** An enemy that lures foes (the Titan Chicken) close enough to this unit to draw it, and within the radius. */
+const lures = { t: -1, ents: G.ents, list: [] as Ent[] };
+function lurer(u: Ent, radiusTiles: number): Ent | null {
+  // the lurers on the field, gathered once a tick (there are rarely any)
+  if (lures.t !== G.gameT || lures.ents !== G.ents) { lures.t = G.gameT; lures.ents = G.ents; lures.list = G.ents.filter((e) => !e.dead && e.kind === 'unit' && unitDef(e).lure); }
+  let best: Ent | null = null, bd = Infinity;
+  for (const e of lures.list) {
+    if (e.dead || !isFoe(u, e) || cloakedFrom(e, u.team) || !canAttack(u, e)) continue;
+    const d = edgeDist(u, e);
+    if (d <= Math.min(radiusTiles, unitDef(e).lure!) * TS && d < bd) { bd = d; best = e; }
+  }
+  return best;
 }
 
 /**
@@ -195,7 +212,8 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
     if (e.demon && e.demon.raid < 0) continue; // demons lurking by their gate are left alone unless they start something
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
-    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40);
+    const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40)
+      - (e.kind === 'unit' && dist <= (unitDef(e).lure ?? 0) * TS ? 400 : 0); // the Titan Chicken: nobody can look away
     if (score < bs) { bs = score; best = e; }
   }
   return best;
@@ -241,11 +259,29 @@ export const dugIn = (u: Ent): boolean => {
   return !need || (!u.moving && (u.setT ?? 0) >= need);
 };
 
-/** A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire. */
+/**
+ * A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire:
+ * straight away, or off to one side if that's blocked, or, backed into a corner, the long way round
+ * to open ground on the far side of it.
+ */
 function backOff(u: Ent, t: Ent, dt: number): boolean {
-  const a = Math.atan2(u.y - t.y, u.x - t.x), gx = u.x + Math.cos(a) * TS * 2, gy = u.y + Math.sin(a) * TS * 2;
-  u.path = null;
-  return steer(u, gx, gy, stepOf(u, dt), dt, false) !== 'blocked';
+  const a = Math.atan2(u.y - t.y, u.x - t.x), step = stepOf(u, dt);
+  if (u.path?.length) { if (!followPath(u, dt)) return true; u.path = null; }
+  for (const da of [0, 0.8, -0.8, 1.6, -1.6]) {
+    const x0 = u.x, y0 = u.y;
+    if (steer(u, u.x + Math.cos(a + da) * TS * 2, u.y + Math.sin(a + da) * TS * 2, step, dt, false) !== 'blocked' && Math.hypot(u.x - x0, u.y - y0) > step * 0.3) return true;
+  }
+  // cornered: find open ground a few tiles off, as far from the enemy as can be reached
+  let best: [number, number] | null = null, bd = 0;
+  for (let k = 0; k < 12; k++) {
+    const b = (k / 12) * Math.PI * 2, gx = tileOf(u.x + Math.cos(b) * TS * 4), gy = tileOf(u.y + Math.sin(b) * TS * 4);
+    if (G.blk[gy * MW + gx]) continue;
+    const d = Math.hypot((gx + 0.5) * TS - t.x, (gy + 0.5) * TS - t.y);
+    if (d > bd) { bd = d; best = [gx, gy]; }
+  }
+  if (!best) return false;
+  u.path = pathFor(u, best[0], best[1]);
+  return !!u.path.length && !followPath(u, dt);
 }
 
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */

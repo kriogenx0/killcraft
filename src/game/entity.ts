@@ -9,6 +9,7 @@ import { LEADER_PLANTS } from '../data/economy.ts';
 import { setBlk } from './map.ts';
 import { burst, explosion } from './fx.ts';
 import { dropAether } from './aether.ts';
+import { leaderHandicap } from './ai.ts';
 
 /** Workers start on "Fix, then harvest" (they never attack); a player's troops on Move & attack, the computer's on engage. */
 function baseEnt(kind: EntKind, type: EntType, team: number, x: number, y: number, hp: number): Ent {
@@ -89,7 +90,7 @@ export function power(team: number): { made: number; used: number } {
     else used -= p;
   }
   // a runaway leader's plants make less (see LEADER_PLANTS)
-  if (team === G.leader) made = Math.round(made * LEADER_PLANTS);
+  if (leaderHandicap(team)) made = Math.round(made * LEADER_PLANTS);
   return { made, used };
 }
 
