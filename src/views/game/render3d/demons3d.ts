@@ -140,12 +140,41 @@ function archfiend(): Model {
   return { root, parts, height: top + 0.5 };
 }
 
+/** The Hell Drake: a charred black wyrm with fire glowing through the cracks in its hide, on bat wings. */
+function drake(): Model {
+  const root = new THREE.Group(), parts: Parts = {}, hide = mat('#241614', { rough: 0.6, metal: 0.15 }), lava = C.lava(), horn = C.horn();
+  root.add(scl(mesh(ball(0.15), hide, 0, 0.46, 0), 1.9, 0.7, 0.7));
+  for (let i = 0; i < 4; i++) root.add(rot(mesh(box(0.012, 0.1, 0.012), lava, 0.12 - i * 0.08, 0.42, (i % 2 ? 1 : -1) * 0.08), 0.5 * (i % 2 ? 1 : -1), 0, 0.3)); // cracks of fire down its flanks
+  for (let i = 0; i < 7; i++) root.add(rot(mesh(cone(0.025, 0.1 - Math.abs(i - 2) * 0.01, 4), horn, 0.18 - i * 0.06, 0.55, 0), 0, 0, 0.35)); // spines
+  const head = group(0.24, 0.5, 0);
+  head.add(rod([0, 0, 0], [0.14, 0.12, 0], 0.05, hide, 7));
+  head.add(scl(mesh(ball(0.08), hide, 0.2, 0.15, 0), 1.4, 0.8, 0.9));
+  head.add(mesh(box(0.12, 0.04, 0.08), hide, 0.3, 0.13, 0));
+  head.add(rot(mesh(box(0.1, 0.025, 0.07), C.fire(), 0.29, 0.1, 0), 0, 0, -0.25)); // fire in its open maw
+  for (const z of [-1, 1]) {
+    head.add(mesh(ball(0.014), C.eye(), 0.27, 0.18, z * 0.04));
+    head.add(rod([0.18, 0.2, z * 0.04], [0.04, 0.3, z * 0.09], 0.016, horn, 5));
+  }
+  head.scale.setScalar(1.25);
+  parts.head = head;
+  root.add(head);
+  const tail = group(-0.28, 0.46, 0);
+  tail.add(rod([0, 0, 0], [-0.2, 0, 0], 0.04, hide, 6));
+  tail.add(rod([-0.2, 0, 0], [-0.4, 0.06, 0], 0.022, hide, 6));
+  tail.add(rot(mesh(cone(0.035, 0.07, 4), lava, -0.43, 0.08, 0), 0, 0, 1.2)); // a burning barb
+  parts.tail = tail;
+  root.add(tail);
+  batWings(root, parts, 1, 0.55, 0.85);
+  return { root, parts, height: 0.75 };
+}
+
 /** A demon's model, or null if the type isn't one. */
 export function demonModel(type: UnitType): Model | null {
   switch (type) {
     case 'imp': return imp();
     case 'fiend': return fiend();
     case 'archfiend': return archfiend();
+    case 'drake': return drake();
     default: return null;
   }
 }
@@ -159,7 +188,7 @@ export function animateDemon(m: Model, e: Ent, w: number, atk: number): void {
   if (P.tail) P.tail.rotation.y = Math.sin(t * 2.2) * 0.35;
   if (P.head) P.head.rotation.y = Math.sin(t * 0.9) * 0.2;
   if (P.wingL && P.wingR) {
-    const flap = Math.sin(t * (e.type === 'imp' ? 9 : 2.5)) * (e.type === 'imp' ? 0.5 : 0.18);
+    const flap = Math.sin(t * (e.type === 'imp' ? 9 : e.type === 'drake' ? 4 : 2.5)) * (e.type === 'imp' ? 0.5 : e.type === 'drake' ? 0.5 : 0.18);
     P.wingL.rotation.x = flap;
     P.wingR.rotation.x = -flap;
   }

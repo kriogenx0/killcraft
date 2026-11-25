@@ -1,5 +1,5 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
-import { G, allied, fair, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
+import { G, allied, demonAfter, fair, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
 import { noteKill } from './stats.ts';
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
@@ -86,7 +86,7 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
   if (!w.splash) return;
   blast(x, y, w.splash);
   for (const e of G.ents) {
-    if (e === t || e.dead || e.kind !== 'unit' || (src && allied(e.team, src.team)) || !canHit(wt, e)) continue;
+    if (e === t || e.dead || e.kind !== 'unit' || (src && allied(e.team, src.team)) || (src?.demon && !demonAfter(src, e.team) && e.team >= 0) || !canHit(wt, e)) continue;
     if (Math.hypot(e.x - x, e.y - y) < w.splash + unitDef(e).radius) { dealDamage(e, w.dmg * 0.5 * w.vs[armorOf(e)] * elementMult(w.element, e) * hideFactor(wt, e), src); applyElement(e, w.element, src); }
   }
 }
@@ -226,7 +226,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
     if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
-    if (e.demon && (e.demon.raid < 0 || !allied(e.demon.raid, s.team))) continue; // demons lurking by their gate, or out after someone else, are left alone unless they start something
+    if (e.demon && !demonAfter(e, s.team)) continue; // demons lurking by their gate, or out after someone else, are left alone unless they start something
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40)
       - (e.kind === 'unit' && dist <= (unitDef(e).lure ?? 0) * TS ? 400 : 0); // the Titan Chicken: nobody can look away
@@ -383,7 +383,7 @@ function landBlow(p: Projectile, t: Ent, dt: number): void {
 }
 
 /** the sparks a spell leaves in its wake */
-export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030', tidal: '#50b0ff', plague: '#8aff40', tar: '#c08a30', chimerafire: '#ff8a20', phoenixfire: '#ffc040', dragonfire: '#ff5a10' };
+export const ORB_COL: Partial<Record<string, string>> = { fireball: '#ffa040', meteor: '#ff7030', tidal: '#50b0ff', plague: '#8aff40', tar: '#c08a30', chimerafire: '#ff8a20', phoenixfire: '#ffc040', dragonfire: '#ff5a10', drakefire: '#ff4010', impfire: '#ff7a20' };
 
 /** How high each kind of projectile arcs (fraction of the distance, and a cap in px). */
 const ARC: Record<string, [number, number]> = { shell: [0, 0], rocket: [0.12, 30], bolt: [0.08, 18], boulder: [0.4, 150], orb: [0.15, 40], ground: [0.35, 320] };

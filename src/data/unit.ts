@@ -9,7 +9,7 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
   | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon'
   | 'mystery' | 'chicken'
-  | 'imp' | 'fiend' | 'archfiend';
+  | 'imp' | 'fiend' | 'archfiend' | 'drake';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -200,6 +200,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   imp: { name: 'Imp', cls: 'infantry', armor: 'light', hp: 130, spd: 3.6, turn: 6, weapon: 'impfire', cost: 150, t: 1, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 9, demon: true, desc: 'A little red devil from the Gate of Hell. Quick, and spits fire.' },
   fiend: { name: 'Hell Fiend', cls: 'infantry', armor: 'light', hp: 480, spd: 2.6, turn: 4, weapon: 'fiendclaw', cost: 450, t: 1, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 15, demon: true, regen: 0.004, desc: 'A horned brute from the Gate of Hell. Tears through troops and walls with its claws.' },
   archfiend: { name: 'Archfiend', cls: 'infantry', armor: 'heavy', hp: 3400, spd: 1.6, turn: 2, weapon: 'hellblade', cost: 2500, t: 1, era: 0, sight: 8, producer: 'infantry', turret: false, radius: 26, demon: true, regen: 0.003, desc: 'A giant demon that climbs out of the Gate of Hell only now and then. Its burning blade cleaves everything around the blow. Can\'t hit aircraft.' },
+  drake: { name: 'Hell Drake', cls: 'air', armor: 'air', hp: 300, spd: 4.2, turn: 3, weapon: 'drakefire', cost: 500, t: 1, era: 0, sight: 8, producer: 'air', turret: false, radius: 20, alt: 1.6, demon: true, desc: 'A winged wyrm out of the Gate of Hell. Flies over walls and rains fire on troops and buildings. Flak, archers, rockets and fighters bring it down.' },
 };
 
 /** Medics heal this many hit points a second, from up to MEDIC_REACH px away, so they can stay behind the front. */

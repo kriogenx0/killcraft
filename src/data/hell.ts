@@ -37,8 +37,25 @@ export const RAID_SIZE: [number, number] = [3, 5];
 export const DEMON_CAP = 6;
 /** Raiders that make it back wait at the gate this many seconds, then go back in. */
 export const LINGER = 20;
-/** Share of new demons that are Hell Fiends; the rest are Imps. */
-export const FIEND_SHARE = 0.35;
+/** Share of new demons that are Hell Fiends and flying Hell Drakes; the rest are Imps. */
+export const FIEND_SHARE = 0.3;
+export const DRAKE_SHARE = 0.2;
+
+// A last stand (Alex): when a side is about to lose, the gate surges and sends demons, flyers among
+// them, to its base to fight off whoever is beating it.
+/** No last stands before this many game seconds. */
+export const BRINK_AFTER = 480;
+/** A side is about to lose when it has no Town Hall left, or when it's worth less than this share of the strongest side… */
+export const BRINK_SHARE = 0.3;
+/** …and at least BRINK_FOES armed enemy units are within BRINK_REACH tiles of its buildings. */
+export const BRINK_FOES = 4;
+export const BRINK_REACH = 10;
+/** How many come to the rescue (at least RESCUE_DRAKES of them Hell Drakes), and how soon the same side can be rescued again (seconds). */
+export const RESCUE_SIZE: [number, number] = [4, 6];
+export const RESCUE_DRAKES = 2;
+export const RESCUE_COOLDOWN = 300;
+/** Rescuers go home once the base has been clear of enemies this many seconds. */
+export const RESCUE_STAY = 30;
 
 /** A side can't be the leader until it has trained this many fighting units (not Workers, Harvesters or Medics) in the match (Alex). */
 export const LEADER_TRAINED = 20;
