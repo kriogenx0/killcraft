@@ -9,6 +9,7 @@ import type { UnitType } from '../../../data/unit.ts';
 import { lerp } from '../../../util/math.ts';
 import { along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { M, box, cone, cyl, dome, lathe, mat, octa, sph, teamMat, torus } from './materials.ts';
+import { gem, loft, slab, turned } from './shapes.ts';
 
 const C = {
   ember: () => mat('#ffd080', { rough: 0.2, emissive: '#ff7a10', emissiveIntensity: 2.2 }),
@@ -53,27 +54,27 @@ function caster(look: CasterLook): Model {
   const root = new THREE.Group(), parts: Parts = {}, skin = look.skin ?? M.skin();
   for (const [name, side] of [['legL', -1], ['legR', 1]] as const) {
     const leg = limb(0, 0.21, side * 0.05, 0.19, 0.07, look.robe);
-    leg.add(mesh(box(0.1, 0.04, 0.08), M.leather(), 0.02, -0.2, 0));
+    leg.add(mesh(slab([[-0.03, -0.222], [0.06, -0.222], [0.075, -0.208], [0.03, -0.185], [-0.03, -0.18]], 0.07, 0.008), M.leather()));
     parts[name] = leg;
     root.add(leg);
   }
   // the robe: a flared skirt to the ankles, a body, a sash in the trim colour
-  root.add(mesh(lathe([[0.15, 0.03], [0.13, 0.1], [0.1, 0.2], [0.085, 0.28], [0, 0.29]], 14), look.robe, 0, 0, 0));
-  root.add(mesh(cyl(0.152, 0.152, 0.025, 14), look.trim, 0, 0.04, 0)); // hem
-  root.add(mesh(box(0.13, 0.19, 0.18), look.robe, 0, 0.35, 0));
+  root.add(mesh(turned([[0, 0.03], [0.15, 0.03], [0.13, 0.1], [0.1, 0.2], [0.085, 0.28], [0, 0.29]], 10), look.robe, 0, 0, 0));
+  root.add(mesh(turned([[0.148, 0.028], [0.156, 0.028], [0.153, 0.053], [0.145, 0.053]], 10), look.trim, 0, 0, 0)); // hem
+  root.add(mesh(loft([[0.255, 0.115, 0.16], [0.33, 0.125, 0.17], [0.41, 0.13, 0.19], [0.44, 0.105, 0.17], [0.46, 0.06, 0.1]], 8, 2.6), look.robe));
   root.add(mesh(box(0.14, 0.035, 0.19), look.trim, 0, 0.27, 0)); // sash
   root.add(mesh(box(0.012, 0.16, 0.03), look.trim, 0.068, 0.36, 0)); // collar to waist
   root.add(mesh(cyl(0.028, 0.032, 0.04, 8), skin, 0, 0.455, 0)); // neck
-  root.add(mesh(sph(0.06), skin, 0, 0.5, 0));
-  root.add(mesh(box(0.012, 0.014, 0.016), skin, 0.062, 0.495, 0)); // nose
+  root.add(mesh(loft([[0.455, 0.05, 0.05, 0.012], [0.475, 0.094, 0.084, 0.008], [0.5, 0.116, 0.108], [0.528, 0.116, 0.11, -0.004], [0.55, 0.09, 0.09, -0.006], [0.561, 0.04, 0.04, -0.006]], 8), skin));
+  root.add(mesh(slab([[0, 0.012], [0.018, -0.01], [0, -0.014]], 0.018), skin, 0.055, 0.505, 0)); // nose
   for (const z of [-0.022, 0.022]) root.add(mesh(box(0.008, 0.01, 0.012), M.dark(), 0.056, 0.51, z));
   for (const [name, side] of [['armL', -1], ['armR', 1]] as const) {
     const arm = limb(0, 0.42, side * 0.115, 0.17, 0.06, look.robe);
-    arm.add(mesh(cyl(0.045, 0.035, 0.06, 8), look.trim, 0, -0.15, 0)); // wide cuff
-    arm.add(mesh(sph(0.03, 8, 6), skin, 0, -0.19, 0));
+    arm.add(mesh(loft([[-0.18, 0.09, 0.09], [-0.12, 0.07, 0.07]], 7), look.trim)); // wide cuff
+    arm.add(mesh(gem(0.03, 1, 1.15, 0.9), skin, 0, -0.19, 0));
     parts[name] = arm;
     root.add(arm);
-    root.add(scl(mesh(sph(0.045, 10, 6), look.robe, 0, 0.425, side * 0.105), 1, 0.8, 1));
+    arm.add(mesh(gem(0.045, 1, 0.8, 1), look.robe, 0, 0.004, 0)); // shoulder
   }
   return { root, parts, height: 0.66 };
 }

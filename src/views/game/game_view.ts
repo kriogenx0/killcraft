@@ -37,6 +37,7 @@ import { moodFor } from './render3d/mood.ts';
 import { initScene, setMood, renderScene, resizeScene, updateCamera, viewFootprint } from './render3d/scene.ts';
 import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { updateCows3d } from './render3d/cows3d.ts';
+import { updateSheep3d } from './render3d/sheep3d.ts';
 import { resetEntities3d, syncEntities } from './render3d/entities3d.ts';
 import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { initBurning, updateBurning } from './render3d/burn3d.ts';
@@ -588,6 +589,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       updateCamera();
       syncEntities(dt);
       updateCows3d();
+      updateSheep3d();
       updateFx3d();
       updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);

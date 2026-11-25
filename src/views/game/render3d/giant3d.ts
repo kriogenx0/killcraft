@@ -8,7 +8,8 @@ import { G, type Ent } from '../../../game/state.ts';
 import { clamp, lerp } from '../../../util/math.ts';
 import { WEAPON } from '../../../data/weapon.ts';
 import { group, limb, mesh, rot, scl, type Model, type Parts } from './model_kit.ts';
-import { box, cone, cyl, dodeca, dome, octa, sph, teamMat, mat } from './materials.ts';
+import { box, cone, cyl, dodeca, octa, teamMat, mat } from './materials.ts';
+import { ball, cap } from './shapes.ts';
 
 /** How tall the Titan stands, in tiles, before the shared unit scale. */
 const TITAN_HEIGHT = 7;
@@ -30,11 +31,11 @@ const C = {
 function leg(root: THREE.Object3D, parts: Parts, side: -1 | 1): void {
   const skin = C.skin(), leather = C.leather();
   const hip = limb(0, 0.46, side * 0.08, 0.22, 0.1, skin);
-  hip.add(scl(mesh(sph(0.065, 10, 8), skin, 0.02, -0.09, 0), 1, 1.5, 1)); // a thick thigh
+  hip.add(scl(mesh(ball(0.065), skin, 0.02, -0.09, 0), 1, 1.5, 1)); // a thick thigh
   const knee = group(0, -0.22, 0);
-  knee.add(mesh(sph(0.05, 8, 6), skin, 0, 0, 0));
+  knee.add(mesh(ball(0.05), skin, 0, 0, 0));
   knee.add(mesh(box(0.075, 0.2, 0.075), skin, 0, -0.1, 0));
-  knee.add(scl(mesh(sph(0.045, 8, 6), skin, -0.02, -0.06, 0), 1, 1.6, 1)); // calf
+  knee.add(scl(mesh(ball(0.045), skin, -0.02, -0.06, 0), 1, 1.6, 1)); // calf
   knee.add(mesh(cyl(0.05, 0.048, 0.09, 8), C.fur(), 0, -0.17, 0)); // fur wrapped round the shin
   for (const y of [-0.14, -0.2]) knee.add(mesh(cyl(0.052, 0.052, 0.008, 8), leather, 0, y, 0)); // thongs binding it
   knee.add(mesh(box(0.13, 0.035, 0.085), leather, 0.025, -0.225, 0)); // a big sandalled foot
@@ -73,26 +74,26 @@ function titan(team: number): Model {
   }
   // the bare torso twists and leans as a unit, so it's its own group
   const chest = group(0, 0.5, 0);
-  chest.add(scl(mesh(sph(0.1, 12, 8), skin, 0, 0.06, 0), 0.75, 1, 1.15)); // waist
-  chest.add(scl(mesh(sph(0.14, 14, 10), skin, -0.01, 0.2, 0), 0.75, 0.95, 1.5)); // a broad back and ribs
+  chest.add(scl(mesh(ball(0.1), skin, 0, 0.06, 0), 0.75, 1, 1.15)); // waist
+  chest.add(scl(mesh(ball(0.14), skin, -0.01, 0.2, 0), 0.75, 0.95, 1.5)); // a broad back and ribs
   for (const s of [-1, 1]) {
-    chest.add(scl(mesh(sph(0.06, 10, 8), skin, 0.07, 0.25, s * 0.06), 0.55, 0.8, 1.1)); // pecs
-    chest.add(scl(mesh(sph(0.07, 10, 8), skin, -0.02, 0.29, s * 0.1), 1, 0.7, 1)); // traps rising to the neck
+    chest.add(scl(mesh(ball(0.06), skin, 0.07, 0.25, s * 0.06), 0.55, 0.8, 1.1)); // pecs
+    chest.add(scl(mesh(ball(0.07), skin, -0.02, 0.29, s * 0.1), 1, 0.7, 1)); // traps rising to the neck
     for (let r = 0; r < 3; r++) chest.add(mesh(box(0.02, 0.032, 0.036), shade, 0.07, 0.07 + r * 0.045, s * 0.022)); // abs
-    chest.add(scl(mesh(sph(0.05, 8, 6), skin, 0.075, 0.07 + 0.045, s * 0.022), 0.3, 1.2, 0.8));
+    chest.add(scl(mesh(ball(0.05), skin, 0.075, 0.07 + 0.045, s * 0.022), 0.3, 1.2, 0.8));
   }
   // the Aether that woke it glows through the skin: a heart, and veins out from it
   chest.add(mesh(octa(0.022), vein, 0.1, 0.23, 0));
   for (const s of [-1, 1]) chest.add(rot(mesh(box(0.006, 0.14, 0.008), vein, 0.095, 0.17, s * 0.045), s * 0.5, 0, 0));
   // arms: huge bare shoulders, biceps and forearms, a bronze cuff at each wrist, a fist at the end
   for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
-    chest.add(scl(mesh(sph(0.07, 10, 8), skin, 0, 0.3, s * 0.19), 1, 0.9, 1)); // deltoid
+    chest.add(scl(mesh(ball(0.07), skin, 0, 0.3, s * 0.19), 1, 0.9, 1)); // deltoid
     const arm = limb(0, 0.3, s * 0.21, 0.3, 0.075, skin);
-    arm.add(scl(mesh(sph(0.055, 10, 8), skin, 0.02, -0.08, 0), 1, 1.5, 1)); // bicep
-    arm.add(scl(mesh(sph(0.05, 8, 6), skin, 0.01, -0.2, 0), 1, 1.4, 1)); // forearm
+    arm.add(scl(mesh(ball(0.055), skin, 0.02, -0.08, 0), 1, 1.5, 1)); // bicep
+    arm.add(scl(mesh(ball(0.05), skin, 0.01, -0.2, 0), 1, 1.4, 1)); // forearm
     arm.add(mesh(cyl(0.048, 0.048, 0.05, 10), C.bronze(), 0, -0.25, 0)); // cuff
     arm.add(mesh(box(0.008, 0.12, 0.008), vein, 0.04, -0.14, 0));
-    arm.add(mesh(sph(0.052, 8, 6), skin, 0, -0.31, 0)); // fist
+    arm.add(mesh(ball(0.052), skin, 0, -0.31, 0)); // fist
     if (name === 'armR') arm.rotation.order = 'YXZ'; // lift it out to the side, then sweep it round
     parts[name] = arm;
     chest.add(arm);
@@ -103,13 +104,13 @@ function titan(team: number): Model {
   // head: a shaggy mane, a beard, a headband in the side's colour and burning eyes
   const head = group(0.01, 0.38, 0);
   head.add(mesh(cyl(0.05, 0.065, 0.06, 10), skin, 0, -0.02, 0)); // a bull neck
-  head.add(scl(mesh(sph(0.062, 12, 10), skin, 0, 0.04, 0), 1, 1.1, 0.95));
-  head.add(scl(mesh(dome(0.07), C.hair(), -0.01, 0.045, 0), 1.05, 1.1, 1.05)); // hair
-  head.add(scl(mesh(sph(0.06, 8, 6), C.hair(), -0.045, 0.0, 0), 0.8, 1.3, 1.1)); // mane down the back
+  head.add(scl(mesh(ball(0.062), skin, 0, 0.04, 0), 1, 1.1, 0.95));
+  head.add(scl(mesh(cap(0.07), C.hair(), -0.01, 0.045, 0), 1.05, 1.1, 1.05)); // hair
+  head.add(scl(mesh(ball(0.06), C.hair(), -0.045, 0.0, 0), 0.8, 1.3, 1.1)); // mane down the back
   head.add(rot(mesh(cone(0.045, 0.09, 8), C.hair(), 0.045, -0.025, 0), 0, 0, Math.PI * 0.92)); // beard
   head.add(mesh(cyl(0.068, 0.068, 0.018, 14), team1, 0, 0.06, 0)); // headband
   head.add(mesh(box(0.014, 0.024, 0.06), C.shade(), 0.058, 0.055, 0)); // heavy brow
-  for (const s of [-1, 1]) head.add(mesh(sph(0.011, 6, 4), C.eye(), 0.058, 0.04, s * 0.022));
+  for (const s of [-1, 1]) head.add(mesh(ball(0.011), C.eye(), 0.058, 0.04, s * 0.022));
   parts.head = head;
   chest.add(head);
   // a faint crown of Aether motes circling the head

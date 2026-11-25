@@ -10,7 +10,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
 import { aetherBuilding } from './aether3d.ts';
-import { across, along, group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
+import { across, along, group, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { medievalBuilding, smithy } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, fighter, flak, helicopter, striker } from './aircraft.ts';
@@ -19,6 +19,7 @@ import { demonModel } from './demons3d.ts';
 import { arcaneModel } from './arcane3d.ts';
 import { giantModel } from './giant3d.ts';
 import { chickenModel } from './chicken3d.ts';
+import { gem, loft, loftX, slab, taper, turned } from './shapes.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, prism, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -109,48 +110,81 @@ function bake(m: Model): void {
 
 interface SoldierLook { torso: Mat; legs: Mat; arms: Mat; boots: Mat; hands?: Mat }
 
+/** The soldier's torso, hips to neck: [height, depth (x), width (z)]. Chest out, waist in. */
+const TORSO: [number, number, number][] = [
+  [0.19, 0.11, 0.155], [0.235, 0.1, 0.148], [0.3, 0.124, 0.18], [0.37, 0.13, 0.2], [0.405, 0.112, 0.19], [0.428, 0.06, 0.1],
+];
+function torsoAt(y: number): [number, number] {
+  for (let i = 1; i < TORSO.length; i++) {
+    const [y1, x1, z1] = TORSO[i], [y0, x0, z0] = TORSO[i - 1];
+    if (y <= y1 || i === TORSO.length - 1) {
+      const t = Math.max(0, Math.min(1, (y - y0) / (y1 - y0)));
+      return [x0 + (x1 - x0) * t, z0 + (z1 - z0) * t];
+    }
+  }
+  return [TORSO[0][1], TORSO[0][2]];
+}
+/** A layer worn over the torso from y0 to y1, `out` thick: vests, tabards, belts, sashes. */
+function shell(y0: number, y1: number, out: number): THREE.BufferGeometry {
+  const ys = [y0, ...TORSO.map(([y]) => y).filter((y) => y > y0 && y < y1), y1];
+  return loft(ys.map((y) => { const [x, z] = torsoAt(y); return [+y.toFixed(4), +(x + out * 2).toFixed(4), +(z + out * 2).toFixed(4)]; }), 8, 2.6);
+}
+/** How far the front of the torso (or a layer `out` thick on it) stands at height y. */
+const chest = (y: number, out = 0) => +(torsoAt(y)[0] / 2 + out).toFixed(4);
+/** A skirt flaring from the waist down to y0. */
+const skirt = (y0: number, y1: number, flare: number, out = 0.006) => {
+  const [x, z] = torsoAt(y1);
+  return loft([[y0, x + flare * 0.8, z + flare], [y1, x + out * 2, z + out * 2]], 8, 2.6);
+};
+
 /** A soldier about 0.62 tall: legs and arms swing from hip and shoulder pivots. */
 function soldier(look: SoldierLook): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const hands = look.hands ?? M.skin();
   for (const [name, side] of [['legL', -1], ['legR', 1]] as const) {
-    const leg = limb(0, 0.21, side * 0.05, 0.19, 0.07, look.legs);
-    leg.add(mesh(box(0.1, 0.045, 0.08), look.boots, 0.015, -0.2, 0));
-    leg.add(mesh(box(0.075, 0.04, 0.075), look.boots, 0, -0.165, 0)); // boot cuff
-    leg.add(mesh(box(0.074, 0.03, 0.074), look.legs, 0.003, -0.09, 0)); // knee
+    const leg = group(0, 0.21, side * 0.05, mesh(taper(0.18, 0.078, 0.056, 6, 1.05), look.legs));
+    // a boot with a toe, a heel and a turned-down cuff
+    leg.add(mesh(slab([[-0.036, -0.222], [0.06, -0.222], [0.078, -0.21], [0.07, -0.196], [0.03, -0.184], [0.032, -0.15], [-0.034, -0.15]], 0.072, 0.008), look.boots));
     parts[name] = leg;
     root.add(leg);
   }
-  root.add(mesh(box(0.12, 0.06, 0.17), look.legs, 0, 0.225, 0)); // hips
-  root.add(mesh(box(0.13, 0.2, 0.19), look.torso, 0, 0.31, 0));
-  root.add(mesh(box(0.14, 0.03, 0.2), M.leather(), 0, 0.235, 0)); // belt
-  root.add(mesh(box(0.012, 0.024, 0.03), M.brass(), 0.071, 0.235, 0)); // buckle
-  root.add(mesh(cyl(0.028, 0.032, 0.04, 8), M.skin(), 0, 0.425, 0)); // neck
-  root.add(mesh(sph(0.062), M.skin(), 0, 0.47, 0));
-  root.add(mesh(box(0.012, 0.014, 0.016), M.skin(), 0.064, 0.465, 0)); // nose
-  for (const z of [-0.022, 0.022]) root.add(mesh(box(0.008, 0.01, 0.012), M.dark(), 0.058, 0.48, z)); // eyes
+  root.add(mesh(loft(TORSO, 8, 2.6), look.torso));
+  root.add(mesh(shell(0.222, 0.25, 0.006), M.leather())); // belt
+  root.add(mesh(box(0.01, 0.024, 0.03), M.brass(), chest(0.236, 0.009), 0.236, 0)); // buckle
+  root.add(mesh(loft([[0.41, 0.05, 0.05], [0.44, 0.045, 0.045]], 6), M.skin(), 0.004, 0, 0)); // neck
+  root.add(mesh(loft([[0.425, 0.05, 0.05, 0.012], [0.445, 0.096, 0.086, 0.008], [0.47, 0.118, 0.11], [0.5, 0.118, 0.112, -0.004], [0.522, 0.092, 0.092, -0.006], [0.533, 0.04, 0.04, -0.006]], 8), M.skin()));
+  root.add(mesh(slab([[0, 0.012], [0.018, -0.01], [0, -0.014]], 0.018), M.skin(), 0.056, 0.478, 0)); // nose
+  for (const z of [-0.022, 0.022]) root.add(mesh(box(0.008, 0.01, 0.012), M.dark(), 0.057, 0.486, z)); // eyes
   for (const [name, side] of [['armL', -1], ['armR', 1]] as const) {
-    const arm = limb(0, 0.39, side * 0.12, 0.16, 0.055, look.arms);
-    arm.add(mesh(sph(0.032, 8, 6), hands, 0, -0.175, 0));
+    const arm = group(0, 0.39, side * 0.12, mesh(taper(0.16, 0.06, 0.044, 6), look.arms));
+    arm.add(mesh(gem(0.04, 1, 0.8, 1), look.arms, 0, 0.004, 0)); // shoulder
+    arm.add(mesh(gem(0.03, 1, 1.15, 0.9), hands, 0, -0.175, 0));
     parts[name] = arm;
     root.add(arm);
-    root.add(scl(mesh(sph(0.042, 10, 6), look.arms, 0, 0.395, side * 0.11), 1, 0.8, 1)); // shoulder
   }
   return { root, parts, height: 0.62 };
 }
 
-/** An army helmet with a brim. */
-function helmet(root: THREE.Object3D, m: Mat, y = 0.49): void {
-  root.add(mesh(dome(0.075), m, 0, y, 0));
-  root.add(mesh(cyl(0.083, 0.086, 0.012, 14), m, 0, y + 0.002, 0));
-  root.add(mesh(box(0.01, 0.06, 0.13), M.leather(), 0.01, y - 0.035, 0)); // chin strap
+/** A kite shield's outline, [z, y], point down. */
+const KITE: [number, number][] = [[0, -0.2], [0.095, -0.03], [0.095, 0.1], [0.07, 0.125], [-0.07, 0.125], [-0.095, 0.1], [-0.095, -0.03]];
+
+/** A heater shield's outline, [z, y]. */
+const HEATER: [number, number][] = [[0, -0.12], [0.06, -0.06], [0.08, 0.02], [0.08, 0.1], [-0.08, 0.1], [-0.08, 0.02], [-0.06, -0.06]];
+
+/** A rounded shoulder plate. */
+const pauldron = () => turned([[0, 0], [0.062, 0], [0.058, 0.022], [0.04, 0.038], [0, 0.044]], 7);
+
+/** An army helmet with a brim, crown at y + 0.08. */
+function helmet(root: THREE.Object3D, m: Mat, y = 0.485): void {
+  root.add(mesh(turned([[0, 0], [0.09, 0], [0.09, 0.008], [0.076, 0.014], [0.074, 0.04], [0.06, 0.064], [0.034, 0.077], [0, 0.081]], 10), m, -0.004, y, 0));
+  root.add(mesh(box(0.01, 0.06, 0.13), M.leather(), 0.01, y - 0.03, 0)); // chin strap
 }
 
 function rifleman(team: number): Model {
   const m = soldier({ torso: M.olive(), legs: M.olive(), arms: M.olive(), boots: M.rubber() });
-  m.root.add(mesh(box(0.135, 0.09, 0.2), teamMat(team), 0, 0.34, 0)); // vest
-  for (const z of [-0.055, 0.055]) m.root.add(mesh(box(0.03, 0.05, 0.05), M.khaki(), 0.07, 0.33, z)); // chest pouches
-  for (const z of [-0.07, 0, 0.07]) m.root.add(mesh(box(0.025, 0.035, 0.04), M.leather(), 0.075, 0.255, z)); // belt pouches
+  m.root.add(mesh(shell(0.295, 0.39, 0.008), teamMat(team))); // vest
+  for (const z of [-0.05, 0.05]) m.root.add(mesh(box(0.024, 0.05, 0.045), M.khaki(), chest(0.33, 0.016), 0.33, z)); // chest pouches
+  for (const z of [-0.055, 0, 0.055]) m.root.add(mesh(box(0.022, 0.035, 0.04), M.leather(), chest(0.245, 0.014), 0.25, z)); // belt pouches
   helmet(m.root, teamMat(team, 'd'));
   // pack with a bedroll
   m.root.add(mesh(box(0.07, 0.13, 0.15), mat('#565a3a'), -0.1, 0.33, 0));
@@ -173,10 +207,10 @@ function rifleman(team: number): Model {
 /** World War: a machine gunner in a peaked cap with an ammo belt, a belt-fed gun and its bipod. */
 function gunner(team: number): Model {
   const m = soldier({ torso: M.khaki(), legs: M.olive(), arms: M.khaki(), boots: M.leather() });
-  m.root.add(mesh(box(0.135, 0.09, 0.2), teamMat(team), 0, 0.34, 0)); // tunic front
+  m.root.add(mesh(shell(0.295, 0.39, 0.008), teamMat(team))); // tunic front
   helmet(m.root, teamMat(team, 'd'));
   // bandolier across the chest and an ammo box on the back
-  m.root.add(rot(mesh(box(0.015, 0.2, 0.035), M.brass(), 0.072, 0.35, 0), 0.7, 0, 0));
+  m.root.add(rot(mesh(box(0.012, 0.2, 0.035), M.brass(), chest(0.34, 0.012), 0.34, 0), 0.7, 0, 0));
   m.root.add(mesh(box(0.08, 0.1, 0.12), M.olive(), -0.1, 0.33, 0));
   m.parts.armL.rotation.z = m.parts.armR.rotation.z = 1.3;
   const gun = group(0.15, 0.33, 0.05,
@@ -197,10 +231,11 @@ function medic(team: number): Model {
   const white = M.white(), red = mat('#c42a22', { rough: 0.7 });
   const m = soldier({ torso: white, legs: teamMat(team, 'd'), arms: white, boots: M.leather() });
   for (const x of [0.067, -0.067]) {
-    m.root.add(mesh(box(0.006, 0.09, 0.026), red, x, 0.33, 0));
-    m.root.add(mesh(box(0.006, 0.026, 0.09), red, x, 0.33, 0));
+    m.root.add(mesh(box(0.006, 0.09, 0.026), red, x * 1.01, 0.33, 0));
+    m.root.add(mesh(box(0.006, 0.026, 0.09), red, x * 1.01, 0.33, 0));
   }
-  m.root.add(scl(mesh(sph(0.066, 12, 8), teamMat(team), 0, 0.49, 0), 1, 0.6, 1)); // cap
+  m.root.add(mesh(turned([[0, 0], [0.07, 0], [0.072, 0.018], [0.062, 0.04], [0.034, 0.052], [0, 0.055]], 9), teamMat(team), -0.006, 0.478, 0)); // cap
+  m.root.add(mesh(slab([[0, 0], [0.05, -0.004], [0.04, 0.008], [0, 0.012]], 0.09, 0.004), teamMat(team, 'd'), 0.05, 0.482, 0)); // peak
   m.root.add(mesh(box(0.06, 0.08, 0.1), M.leather(), -0.04, 0.25, -0.1)); // satchel
   m.root.add(rod([0.06, 0.4, 0.09], [-0.04, 0.27, -0.09], 0.008, M.leather(), 4)); // strap
   return m;
@@ -208,7 +243,7 @@ function medic(team: number): Model {
 
 function rocketeer(team: number): Model {
   const m = soldier({ torso: M.olive(), legs: M.olive(), arms: M.olive(), boots: M.rubber() });
-  m.root.add(mesh(box(0.135, 0.09, 0.2), teamMat(team), 0, 0.34, 0));
+  m.root.add(mesh(shell(0.295, 0.39, 0.008), teamMat(team)));
   helmet(m.root, teamMat(team, 'd'));
   // rocket pack with two spare rounds
   m.root.add(mesh(box(0.08, 0.16, 0.15), M.leather(), -0.1, 0.33, 0));
@@ -235,50 +270,45 @@ function rocketeer(team: number): Model {
 
 /** A closed great helm with a visor slit, breathing holes and a crest. */
 function greatHelm(root: THREE.Object3D, team: number, x: number, y: number, plume = true): void {
-  root.add(mesh(cyl(0.066, 0.07, 0.12, 12), M.steel(), x, y, 0));
-  root.add(scl(mesh(dome(0.066), M.steel(), x, y + 0.06, 0), 1, 0.6, 1));
+  root.add(mesh(turned([[0, -0.062], [0.071, -0.062], [0.069, 0.02], [0.064, 0.05], [0.048, 0.08], [0.024, 0.096], [0, 0.1]], 10), M.steel(), x, y, 0));
   root.add(mesh(box(0.012, 0.014, 0.1), M.dark(), x + 0.066, y + 0.015, 0)); // eye slit
   root.add(mesh(box(0.01, 0.1, 0.012), M.darkSteel(), x + 0.07, y - 0.005, 0)); // nose ridge
   for (const dy of [-0.025, -0.045]) for (const z of [-0.03, 0.03]) root.add(mesh(box(0.006, 0.006, 0.012), M.dark(), x + 0.068, y + dy, z));
-  root.add(mesh(cyl(0.072, 0.072, 0.012, 12), M.gold(), x, y - 0.054, 0)); // rim
+  root.add(mesh(turned([[0.07, -0.006], [0.075, -0.006], [0.075, 0.006], [0.07, 0.006]], 10), M.gold(), x, y - 0.054, 0)); // rim
   if (!plume) return;
   root.add(mesh(cyl(0.01, 0.01, 0.04, 6), M.gold(), x, y + 0.115, 0));
-  for (let i = 0; i < 4; i++) root.add(rot(scl(mesh(sph(0.03, 8, 6), teamMat(team), x - 0.03 * i, y + 0.15 - i * 0.012, 0), 1.4, 0.6, 0.5), 0, 0, 0.3 + i * 0.25));
+  for (let i = 0; i < 4; i++) root.add(rot(mesh(gem(0.03, 1.4, 0.6, 0.5), teamMat(team), x - 0.03 * i, y + 0.15 - i * 0.012, 0), 0, 0, 0.3 + i * 0.25));
 }
 
 function swordsman(team: number): Model {
   const m = soldier({ torso: M.steel(), legs: M.mail(), arms: M.mail(), boots: M.darkSteel(), hands: M.steel() });
   const r = m.root;
   // the tabard wraps the whole steel chest (narrower, the chest and belt stuck out through it as boxes)
-  r.add(mesh(box(0.15, 0.19, 0.21), teamMat(team), 0.002, 0.3, 0)); // tabard
-  r.add(mesh(box(0.154, 0.022, 0.214), M.gold(), 0.002, 0.215, 0)); // tabard hem
-  r.add(mesh(box(0.004, 0.09, 0.03), M.white(), 0.079, 0.32, 0)); // device on the tabard
-  r.add(mesh(box(0.004, 0.03, 0.08), M.white(), 0.079, 0.34, 0));
-  r.add(mesh(box(0.158, 0.028, 0.218), M.leather(), 0.002, 0.235, 0)); // sword belt cinching the tabard
-  r.add(mesh(box(0.012, 0.024, 0.03), M.gold(), 0.083, 0.235, 0)); // its buckle
-  r.add(mesh(box(0.12, 0.05, 0.18), M.mail(), 0, 0.2, 0)); // mail skirt
-  r.add(mesh(box(0.08, 0.04, 0.17), M.steel(), 0, 0.41, 0)); // gorget
-  for (const side of [-1, 1]) r.add(scl(mesh(dome(0.06), M.steel(), 0, 0.39, side * 0.115), 1, 0.7, 1.1)); // pauldrons
+  r.add(mesh(shell(0.205, 0.395, 0.008), teamMat(team))); // tabard
+  r.add(mesh(shell(0.204, 0.224, 0.011), M.gold())); // tabard hem
+  r.add(mesh(box(0.004, 0.09, 0.03), M.white(), chest(0.32, 0.011), 0.32, 0)); // device on the tabard
+  r.add(mesh(box(0.004, 0.03, 0.08), M.white(), chest(0.34, 0.011), 0.34, 0));
+  r.add(mesh(shell(0.222, 0.248, 0.013), M.leather())); // sword belt cinching the tabard
+  r.add(mesh(box(0.012, 0.024, 0.03), M.gold(), chest(0.235, 0.016), 0.235, 0)); // its buckle
+  r.add(mesh(skirt(0.15, 0.205, 0.04), M.mail())); // mail skirt
+  r.add(mesh(loft([[0.39, 0.115, 0.17], [0.43, 0.08, 0.12]], 8), M.steel())); // gorget
+  for (const side of [-1, 1]) r.add(rot(mesh(pauldron(), M.steel(), 0, 0.385, side * 0.115), side * 0.35, 0, 0)); // pauldrons
   greatHelm(r, team, 0, 0.48);
   // kite shield with a boss and rim on the left arm
   const shield = group(0.07, -0.1, -0.02,
-    mesh(box(0.03, 0.25, 0.19), M.gold(), -0.005, 0, 0),
-    mesh(box(0.032, 0.23, 0.17), teamMat(team), 0, 0, 0),
-    rot(mesh(box(0.03, 0.1, 0.1), M.gold(), -0.005, -0.13, 0), 0.785, 0, 0),
-    rot(mesh(box(0.032, 0.085, 0.085), teamMat(team), 0, -0.125, 0), 0.785, 0, 0),
-    mesh(box(0.035, 0.18, 0.025), M.white(), 0.001, 0, 0),
-    mesh(box(0.035, 0.025, 0.11), M.white(), 0.001, 0.03, 0),
-    mesh(sph(0.022, 8, 6), M.gold(), 0.018, 0.03, 0));
+    rot(mesh(slab(KITE, 0.026, 0.008), M.gold(), -0.006, 0, 0), 0, Math.PI / 2, 0),
+    rot(scl(mesh(slab(KITE, 0.026, 0.006), teamMat(team), 0.002, 0.006, 0), 0.88, 0.9, 1), 0, Math.PI / 2, 0),
+    mesh(box(0.03, 0.18, 0.024), M.white(), 0.004, -0.01, 0),
+    mesh(box(0.03, 0.024, 0.11), M.white(), 0.004, 0.03, 0),
+    mesh(gem(0.022), M.gold(), 0.02, 0.03, 0));
   m.parts.armL.add(shield);
   m.parts.armL.rotation.z = 0.9;
   // arming sword: pommel, grip, crossguard, blade with a fuller, point
   const sword = group(0, -0.16, 0,
-    mesh(sph(0.018, 8, 6), M.gold(), 0, 0.045, 0),
-    mesh(box(0.024, 0.06, 0.024), M.leather(), 0, 0, 0),
+    mesh(gem(0.018), M.gold(), 0, 0.045, 0),
+    mesh(loft([[-0.03, 0.022, 0.022], [0.03, 0.026, 0.026]], 6), M.leather()),
     mesh(box(0.025, 0.02, 0.12), M.gold(), 0, -0.035, 0),
-    mesh(box(0.02, 0.32, 0.012), M.steel(), 0, -0.2, 0),
-    mesh(box(0.022, 0.28, 0.004), M.darkSteel(), 0, -0.19, 0),
-    rot(mesh(box(0.014, 0.014, 0.012), M.steel(), 0, -0.362, 0), 0, 0, 0.785));
+    mesh(slab([[-0.012, -0.045], [-0.011, -0.33], [0, -0.38], [0.011, -0.33], [0.012, -0.045]], 0.01, 0.0035), M.steel()));
   m.parts.armR.add(sword);
   // scabbard on the hip
   r.add(rot(mesh(box(0.02, 0.24, 0.03), M.leather(), -0.04, 0.16, -0.11), 0, 0, 0.5));
@@ -289,13 +319,12 @@ function crossbowman(team: number): Model {
   const m = soldier({ torso: M.khaki(), legs: M.leather(), arms: M.khaki(), boots: M.rubber() });
   const r = m.root;
   // quilted gambeson: stitch lines
-  for (const y of [0.27, 0.31, 0.35]) r.add(mesh(box(0.134, 0.006, 0.194), mat('#8a7c56'), 0, y, 0));
-  r.add(mesh(box(0.14, 0.05, 0.2), teamMat(team), 0, 0.385, 0)); // team collar
-  r.add(mesh(box(0.162, 0.12, 0.222), teamMat(team, 'd'), 0, 0.2, 0)); // tunic skirt (covers the belt and buckle)
+  for (const y of [0.27, 0.31, 0.35]) r.add(mesh(shell(y - 0.003, y + 0.003, 0.003), mat('#8a7c56')));
+  r.add(mesh(shell(0.37, 0.415, 0.008), teamMat(team))); // team collar
+  r.add(mesh(skirt(0.135, 0.26, 0.05, 0.008), teamMat(team, 'd'))); // tunic skirt
   // kettle hat over a mail coif
-  r.add(scl(mesh(sph(0.066, 10, 8), M.mail(), -0.018, 0.47, 0), 1, 1.05, 1.02));
-  r.add(mesh(cyl(0.115, 0.115, 0.01, 16), M.darkSteel(), 0, 0.505, 0));
-  r.add(mesh(dome(0.07), M.steel(), 0, 0.505, 0));
+  r.add(mesh(gem(0.066, 1, 1.05, 1.02, 1), M.mail(), -0.018, 0.47, 0));
+  r.add(mesh(turned([[0, 0], [0.115, -0.006], [0.116, 0.004], [0.07, 0.012], [0.068, 0.035], [0.05, 0.058], [0, 0.068]], 10), M.steel(), 0, 0.5, 0));
   r.add(mesh(cyl(0.004, 0.004, 0.14, 4), M.darkSteel(), 0, 0.545, 0));
   // quiver of bolts on the back
   r.add(rot(mesh(box(0.06, 0.2, 0.06), M.leather(), -0.09, 0.36, -0.05), 0.2, 0, 0));
@@ -322,13 +351,10 @@ function knight(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const horse = M.horse(), hair = M.hair(), tm = teamMat(team);
   // the horse: barrel, chest and rump
-  root.add(scl(mesh(sph(0.2, 14, 10), horse, 0, 0.48, 0), 1.6, 0.68, 0.62));
-  root.add(scl(mesh(sph(0.14, 12, 8), horse, 0.2, 0.5, 0), 1, 1.05, 0.88));
-  root.add(scl(mesh(sph(0.14, 12, 8), horse, -0.22, 0.5, 0), 1.05, 1, 0.92));
+  root.add(mesh(loftX([[-0.35, 0.1, 0.08, 0.04], [-0.31, 0.24, 0.2, 0.01], [-0.2, 0.29, 0.26], [0, 0.26, 0.24, -0.015], [0.17, 0.29, 0.24, 0.01], [0.28, 0.25, 0.2, 0.03], [0.34, 0.12, 0.1, 0.06]], 8), horse, 0, 0.49, 0));
   // caparison: team drape with a gold hem down both flanks and over the rump
-  root.add(mesh(box(0.5, 0.2, 0.27), tm, -0.04, 0.44, 0));
-  root.add(mesh(box(0.5, 0.025, 0.275), M.gold(), -0.04, 0.34, 0));
-  root.add(mesh(box(0.1, 0.18, 0.25), tm, -0.3, 0.44, 0));
+  root.add(mesh(loftX([[-0.33, 0.16, 0.2, 0.02], [-0.2, 0.23, 0.28], [0.05, 0.22, 0.265], [0.2, 0.23, 0.27]], 8, 2.4), tm, -0.04, 0.43, 0));
+  root.add(mesh(loftX([[-0.33, 0.03, 0.21, -0.065], [-0.2, 0.03, 0.29, -0.09], [0.05, 0.03, 0.275, -0.09], [0.2, 0.03, 0.28, -0.09]], 8, 2.4), M.gold(), -0.04, 0.43, 0));
   for (const z of [-0.139, 0.139]) {
     root.add(mesh(box(0.08, 0.08, 0.004), M.gold(), -0.05, 0.46, z)); // heraldic lozenge
     root.add(rot(mesh(box(0.05, 0.05, 0.005), M.white(), -0.05, 0.46, z), 0, 0, 0.785));
@@ -342,11 +368,10 @@ function knight(team: number): Model {
     root.add(mesh(box(0.05, 0.012, 0.035), M.iron(), -0.03, 0.35, z));
   }
   // neck, mane, head, muzzle, ears, chanfron and reins
-  const neck = rot(mesh(box(0.13, 0.3, 0.12), horse, 0.3, 0.64, 0), 0, 0, -0.55);
-  const mane = rot(mesh(box(0.05, 0.3, 0.04), hair, 0.25, 0.7, 0), 0, 0, -0.55);
+  const neck = rot(mesh(loft([[-0.17, 0.17, 0.13], [0, 0.13, 0.11], [0.16, 0.1, 0.085]], 7), horse, 0.3, 0.64, 0), 0, 0, -0.55);
+  const mane = rot(mesh(slab([[-0.03, -0.14], [0.02, -0.15], [0.03, 0.16], [-0.01, 0.17], [-0.035, 0.05]], 0.035, 0.008), hair, 0.25, 0.7, 0), 0, 0, -0.55);
   root.add(neck, mane);
-  root.add(rot(mesh(box(0.22, 0.1, 0.1), horse, 0.45, 0.76, 0), 0, 0, -0.3));
-  root.add(mesh(box(0.08, 0.075, 0.085), horse, 0.55, 0.715, 0));
+  root.add(rot(mesh(loftX([[-0.11, 0.1, 0.1], [-0.02, 0.105, 0.095, -0.005], [0.07, 0.08, 0.075, -0.012], [0.14, 0.075, 0.07, -0.015], [0.155, 0.05, 0.05, -0.02]], 7), horse, 0.45, 0.76, 0), 0, 0, -0.3));
   root.add(mesh(box(0.02, 0.02, 0.07), M.dark(), 0.59, 0.72, 0)); // nostrils
   for (const z of [-0.035, 0.035]) {
     root.add(rot(mesh(cone(0.018, 0.06, 4), horse, 0.38, 0.86, z), 0, 0, -0.2));
@@ -356,32 +381,30 @@ function knight(team: number): Model {
   root.add(rot(mesh(cone(0.012, 0.07, 6), M.steel(), 0.44, 0.86, 0), 0, 0, -0.5)); // spike
   for (const z of [-0.05, 0.05]) root.add(rod([0.53, 0.72, z], [0.12, 0.7, z * 1.2], 0.004, M.leather(), 3));
   // tail
-  for (let i = 0; i < 3; i++) root.add(rot(mesh(box(0.05 - i * 0.008, 0.1, 0.05 - i * 0.008), hair, -0.36 - i * 0.04, 0.5 - i * 0.08, 0), 0, 0, 0.5 + i * 0.25));
+  root.add(rot(mesh(loft([[-0.24, 0.02, 0.03], [-0.15, 0.06, 0.06], [0, 0.05, 0.05]], 6), hair, -0.35, 0.56, 0), 0, 0, -0.6));
   // legs with hooves and feathering
   for (const [name, x, z] of [['legFL', 0.22, 0.08], ['legFR', 0.22, -0.08], ['legBL', -0.22, 0.08], ['legBR', -0.22, -0.08]] as const) {
-    const leg = limb(x, 0.38, z, 0.36, 0.06, horse);
-    leg.add(mesh(box(0.065, 0.04, 0.065), M.cloth(), 0, -0.31, 0));
-    leg.add(mesh(box(0.07, 0.035, 0.07), M.dark(), 0.005, -0.355, 0));
-    leg.add(mesh(box(0.072, 0.05, 0.072), horse, 0, -0.03, 0));
+    const leg = group(x, 0.38, z, mesh(loft([[-0.34, 0.05, 0.045], [-0.2, 0.05, 0.045], [-0.12, 0.08, 0.06], [0, 0.1, 0.075]], 6), horse));
+    leg.add(mesh(loft([[-0.335, 0.072, 0.07], [-0.29, 0.056, 0.052]], 6), M.cloth()));
+    leg.add(mesh(loft([[-0.375, 0.078, 0.072, 0.006], [-0.335, 0.06, 0.058]], 6), M.dark()));
     parts[name] = leg;
     root.add(leg);
   }
   // the rider: legs astride, plate body, surcoat, pauldrons, great helm
   for (const z of [-0.12, 0.12]) {
-    root.add(rot(mesh(box(0.07, 0.14, 0.06), M.steel(), 0.01, 0.6, z), 0, 0, -0.4));
-    root.add(mesh(box(0.06, 0.13, 0.06), M.steel(), 0.03, 0.49, z * 1.05));
-    root.add(mesh(box(0.09, 0.035, 0.065), M.darkSteel(), 0.045, 0.42, z * 1.05));
+    root.add(rot(mesh(loft([[-0.075, 0.06, 0.055], [0.075, 0.075, 0.065]], 6), M.steel(), 0.01, 0.6, z), 0, 0, -0.4));
+    root.add(mesh(loft([[-0.065, 0.05, 0.05], [0.065, 0.06, 0.058]], 6), M.steel(), 0.03, 0.49, z * 1.05));
+    root.add(mesh(slab([[-0.03, -0.018], [0.05, -0.018], [0.058, -0.004], [0.03, 0.016], [-0.03, 0.016]], 0.06, 0.006), M.darkSteel(), 0.03, 0.42, z * 1.05));
   }
-  root.add(mesh(box(0.13, 0.22, 0.18), M.steel(), -0.03, 0.74, 0));
-  root.add(mesh(box(0.14, 0.17, 0.13), tm, -0.025, 0.71, 0));
-  root.add(mesh(box(0.142, 0.02, 0.132), M.gold(), -0.025, 0.63, 0));
-  root.add(mesh(box(0.08, 0.04, 0.17), M.steel(), -0.03, 0.86, 0)); // gorget
-  for (const z of [-0.1, 0.1]) root.add(scl(mesh(dome(0.06), M.steel(), -0.03, 0.83, z), 1, 0.7, 1.1));
+  root.add(mesh(loft([[0.63, 0.11, 0.15], [0.7, 0.115, 0.155], [0.79, 0.13, 0.19], [0.845, 0.11, 0.17]], 8, 2.6), M.steel(), -0.03, 0, 0));
+  root.add(mesh(loft([[0.62, 0.15, 0.2], [0.7, 0.13, 0.17], [0.79, 0.146, 0.2]], 8, 2.6), tm, -0.03, 0, 0));
+  root.add(mesh(loft([[0.615, 0.156, 0.206], [0.635, 0.15, 0.2]], 8, 2.6), M.gold(), -0.03, 0, 0));
+  root.add(mesh(loft([[0.83, 0.115, 0.17], [0.875, 0.08, 0.12]], 8), M.steel(), -0.03, 0, 0)); // gorget
+  for (const z of [-0.1, 0.1]) root.add(rot(mesh(pauldron(), M.steel(), -0.03, 0.82, z), Math.sign(z) * 0.35, 0, 0));
   greatHelm(root, team, -0.03, 0.92);
   // heater shield on the left
-  root.add(mesh(box(0.025, 0.2, 0.16), M.gold(), -0.02, 0.72, -0.155));
-  root.add(mesh(box(0.027, 0.18, 0.14), tm, -0.02, 0.72, -0.155));
-  root.add(rot(mesh(box(0.027, 0.08, 0.08), tm, -0.02, 0.62, -0.155), 0.785, 0, 0));
+  root.add(rot(mesh(slab(HEATER, 0.024, 0.007), M.gold(), -0.024, 0.7, -0.155), 0, Math.PI / 2, 0));
+  root.add(rot(scl(mesh(slab(HEATER, 0.024, 0.005), tm, -0.018, 0.705, -0.155), 0.86, 0.88, 1), 0, Math.PI / 2, 0));
   for (const s of [-1, 1]) root.add(rot(mesh(box(0.008, 0.11, 0.025), M.gold(), -0.006, 0.73, -0.155 + s * 0.03), s * 0.7, 0, 0)); // chevron
   // lance with a vamplate and a pennon
   const lance = group(0.05, 0.78, 0.12,
@@ -411,9 +434,9 @@ function jeep(team: number): Model {
   const tm = teamMat(team), td = teamMat(team, 'd');
   for (const [x, z] of [[0.2, 0.17], [0.2, -0.17], [-0.2, 0.17], [-0.2, -0.17]]) wheel(root, x, z, 0.1, 0.07);
   root.add(mesh(box(0.64, 0.05, 0.22), M.darkSteel(), 0, 0.12, 0)); // chassis
-  root.add(mesh(box(0.62, 0.12, 0.3), tm, 0, 0.2, 0)); // tub
+  root.add(mesh(slab([[-0.31, 0.15], [0.29, 0.15], [0.315, 0.2], [0.31, 0.25], [-0.3, 0.26], [-0.315, 0.2]], 0.3, 0.012), tm)); // tub
   for (const [x, z] of [[0.2, 0.175], [0.2, -0.175], [-0.2, 0.175], [-0.2, -0.175]]) root.add(mesh(box(0.25, 0.025, 0.09), td, x, 0.255, z)); // fenders
-  root.add(mesh(box(0.2, 0.06, 0.28), td, 0.21, 0.28, 0)); // hood
+  root.add(mesh(slab([[0.11, 0.25], [0.31, 0.25], [0.31, 0.29], [0.11, 0.31]], 0.28, 0.01), td)); // hood
   for (let z = -0.09; z <= 0.091; z += 0.03) root.add(mesh(box(0.01, 0.08, 0.012), M.gun(), 0.315, 0.21, z)); // grille
   for (const z of [-0.11, 0.11]) root.add(along(mesh(cyl(0.025, 0.025, 0.02, 8), M.lamp(), 0.31, 0.23, z)));
   root.add(mesh(box(0.06, 0.04, 0.32), M.gun(), 0.33, 0.14, 0)); // bumper
@@ -452,11 +475,18 @@ function jeep(team: number): Model {
   return { root, parts, height: 0.6 };
 }
 
+/** A track belt's side outline: a long run with rounded ends, from y = 0 to h. */
+function beltProfile(len: number, h: number): [number, number][] {
+  const r = h / 2, cx = len / 2 - r, pts: [number, number][] = [];
+  for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + (i / 5) * Math.PI; pts.push([+(cx + Math.cos(a) * r).toFixed(4), +(r + Math.sin(a) * r).toFixed(4)]); }
+  for (let i = 0; i <= 5; i++) { const a = Math.PI / 2 + (i / 5) * Math.PI; pts.push([+(-cx + Math.cos(a) * r).toFixed(4), +(r + Math.sin(a) * r).toFixed(4)]); }
+  return pts;
+}
+
 /** A track run along x at z: belt, road wheels, sprocket, idler and a fender above. */
 function track(root: THREE.Object3D, len: number, h: number, w: number, z: number, wheels: number, fender: Mat | null): void {
   const rr = h * 0.34;
-  root.add(mesh(box(len - h * 0.6, h, w), M.rubber(), 0, h / 2, z));
-  for (const x of [-1, 1]) root.add(across(mesh(cyl(h / 2, h / 2, w, 12), M.rubber(), x * (len / 2 - h * 0.3), h / 2, z)));
+  root.add(mesh(slab(beltProfile(len, h), w, 0.012), M.rubber(), 0, 0, z));
   for (let i = 0; i < wheels; i++) {
     const x = (i - (wheels - 1) / 2) * ((len - h * 1.4) / (wheels - 1));
     root.add(across(mesh(cyl(rr, rr, w + 0.012, 10), M.darkSteel(), x, rr + 0.012, z)));
@@ -485,8 +515,8 @@ function tank(team: number, heavy: boolean): Model {
       for (let i = -3; i <= 3; i++) hull.add(mesh(box(0.012, 0.012, 0.02), M.gun(), i * 0.11, 0.17, side * 0.278));
     }
   }
-  hull.add(mesh(box(0.74, 0.15, 0.34), tm, 0, 0.23, 0));
-  hull.add(rot(mesh(box(0.16, 0.1, 0.33), td, 0.36, 0.21, 0), 0, 0, -0.5)); // glacis
+  hull.add(mesh(slab([[-0.34, 0.15], [0.3, 0.15], [0.42, 0.232], [0.43, 0.255], [0.31, 0.316], [-0.34, 0.316], [-0.41, 0.282], [-0.41, 0.2]], 0.34, 0.012), tm));
+  hull.add(mesh(slab([[0.3, 0.15], [0.42, 0.232], [0.43, 0.255], [0.41, 0.258], [0.29, 0.17]], 0.345, 0.006), td)); // lower glacis plate
   hull.add(mesh(box(0.07, 0.03, 0.08), M.darkSteel(), 0.29, 0.31, -0.08)); // driver's hatch
   hull.add(mesh(box(0.012, 0.018, 0.05), M.glass(), 0.33, 0.3, -0.08)); // vision block
   for (const z of [-0.14, 0.14]) {
@@ -494,39 +524,38 @@ function tank(team: number, heavy: boolean): Model {
     hull.add(along(mesh(cyl(0.018, 0.018, 0.006, 8), M.lamp(), 0.41, 0.28, z)));
   }
   // spare track links on the front plate
-  for (const z of [-0.05, 0, 0.05]) hull.add(rot(mesh(box(0.03, 0.012, 0.045), M.gun(), 0.37, 0.22, z), 0, 0, -0.5));
+  for (const z of [-0.05, 0, 0.05]) hull.add(rot(mesh(box(0.03, 0.012, 0.045), M.gun(), 0.37, 0.29, z), 0, 0, -0.46));
   // engine deck: grilles, exhausts, jerrycans
-  for (let i = 0; i < 5; i++) hull.add(mesh(box(0.016, 0.01, 0.22), M.gun(), -0.18 - i * 0.035, 0.308, 0));
+  for (let i = 0; i < 5; i++) hull.add(mesh(box(0.016, 0.01, 0.22), M.gun(), -0.16 - i * 0.035, 0.318, 0));
   for (const z of [-0.1, 0.1]) {
     hull.add(along(mesh(cyl(0.025, 0.025, 0.05, 8), M.iron(), -0.39, 0.25, z)));
     hull.add(along(mesh(cyl(0.017, 0.017, 0.052, 8), M.dark(), -0.39, 0.25, z)));
   }
-  hull.add(mesh(box(0.04, 0.07, 0.1), mat('#4a5a2a'), -0.36, 0.25, 0));
+  hull.add(mesh(box(0.04, 0.07, 0.1), mat('#4a5a2a'), -0.42, 0.25, 0));
   hull.scale.setScalar(k);
   root.add(hull);
   // turret: cast body, mantlet, commander's cupola, periscope, smoke launchers, stowage, antenna
-  const turret = group(-0.04 * k, 0.33 * k, 0, mesh(cyl(0.17 * k, 0.19 * k, 0.12 * k, 16), tl, 0, 0, 0));
+  const turret = group(-0.04 * k, 0.33 * k, 0);
   const tt = new THREE.Group();
-  tt.add(mesh(cyl(0.16, 0.17, 0.012, 16), tm, 0, 0.065, 0));
-  tt.add(mesh(box(0.06, 0.1, 0.16), tm, 0.17, 0, 0)); // mantlet
-  tt.add(mesh(cyl(0.05, 0.055, 0.05, 10), td, -0.06, 0.085, 0.07));
-  tt.add(mesh(cyl(0.052, 0.052, 0.012, 10), M.darkSteel(), -0.06, 0.115, 0.07));
+  tt.add(mesh(loft([[-0.055, 0.36, 0.34, -0.02], [-0.01, 0.4, 0.37, -0.025], [0.045, 0.36, 0.32, -0.035], [0.07, 0.28, 0.25, -0.045]], 8, 2.3), tl)); // cast turret
+  tt.add(mesh(slab([[0.13, -0.055], [0.2, -0.042], [0.215, 0], [0.2, 0.042], [0.13, 0.055]], 0.17, 0.01), tm)); // mantlet
+  tt.add(mesh(turned([[0, 0], [0.056, 0], [0.05, 0.05], [0.054, 0.05], [0.054, 0.062], [0, 0.062]], 8), td, -0.06, 0.055, 0.07)); // cupola
   for (let a = 0; a < 5; a++) tt.add(mesh(box(0.012, 0.016, 0.018), M.glass(), -0.06 + Math.cos(a * 1.26) * 0.05, 0.09, 0.07 + Math.sin(a * 1.26) * 0.05));
   tt.add(mesh(box(0.03, 0.025, 0.03), M.darkSteel(), 0.04, 0.075, -0.07)); // periscope
-  tt.add(mesh(box(0.06, 0.05, 0.2), M.darkSteel(), -0.2, 0.0, 0)); // bustle
-  tt.add(mesh(box(0.08, 0.04, 0.24), M.tarp(), -0.2, 0.045, 0)); // stowage
+  tt.add(mesh(box(0.05, 0.05, 0.2), M.darkSteel(), -0.25, 0.0, 0)); // bustle rack
+  tt.add(mesh(loftX([[-0.04, 0.03, 0.2], [0, 0.045, 0.24], [0.04, 0.035, 0.2]], 6), M.tarp(), -0.24, 0.045, 0)); // stowage
   for (const side of [-1, 1]) for (let i = 0; i < 3; i++) tt.add(rot(mesh(cyl(0.012, 0.012, 0.05, 6), M.gun(), 0.06 + i * 0.02, 0.03, side * 0.17), side * 0.6, 0, -0.5));
   tt.add(mesh(cyl(0.004, 0.004, 0.45, 4), M.gun(), -0.14, 0.27, -0.1));
   tt.add(mesh(cyl(0.012, 0.016, 0.03, 6), M.gun(), -0.14, 0.055, -0.1));
-  if (heavy) for (const side of [-1, 1]) tt.add(rot(mesh(box(0.18, 0.08, 0.02), td, 0.02, 0.0, side * 0.18), 0, 0, 0)); // appliqué armor
+  if (heavy) for (const side of [-1, 1]) tt.add(mesh(slab([[-0.08, -0.04], [0.1, -0.04], [0.12, 0.0], [0.08, 0.04], [-0.08, 0.04]], 0.02, 0.005), td, 0.0, 0.0, side * 0.19)); // appliqué armor
   tt.scale.setScalar(k);
   turret.add(tt);
   const barrel = group(0.12 * k, 0.01 * k, 0);
   const bb = new THREE.Group();
   for (const z of heavy ? [-0.07, 0.07] : [0]) {
-    bb.add(along(mesh(cyl(0.028, 0.032, 0.5, 10), M.gun(), 0.25, 0, z)));
-    bb.add(along(mesh(cyl(0.04, 0.04, 0.09, 10), M.gun(), 0.28, 0, z))); // fume extractor
-    bb.add(mesh(box(0.07, 0.05, 0.075), M.gun(), 0.5, 0, z)); // muzzle brake
+    bb.add(mesh(loftX([[0, 0.064, 0.064], [0.5, 0.054, 0.054]], 8), M.gun(), 0, 0, z));
+    bb.add(mesh(loftX([[0.22, 0.06, 0.06], [0.245, 0.082, 0.082], [0.315, 0.082, 0.082], [0.34, 0.06, 0.06]], 8), M.gun(), 0, 0, z)); // fume extractor
+    bb.add(mesh(loftX([[0.465, 0.05, 0.07], [0.48, 0.056, 0.082], [0.535, 0.05, 0.08]], 6, 3), M.gun(), 0, 0, z)); // muzzle brake
     for (const s of [-1, 1]) bb.add(mesh(box(0.05, 0.03, 0.006), M.dark(), 0.5, 0, z + s * 0.038));
   }
   bb.scale.setScalar(k);
@@ -551,8 +580,8 @@ function artillery(team: number): Model {
     root.add(mesh(box(0.14, 0.05, 0.07), M.darkSteel(), 0.22, 0.215, side * 0.2)); // tool box on the fender
   }
   // a low hull with a sloped nose: the driver sits up front beside the engine
-  root.add(mesh(box(0.78, 0.13, 0.34), tm, -0.02, 0.22, 0));
-  root.add(rot(mesh(box(0.14, 0.09, 0.33), td, 0.38, 0.2, 0), 0, 0, -0.55));
+  root.add(mesh(slab([[-0.41, 0.15], [0.33, 0.15], [0.44, 0.22], [0.42, 0.25], [0.32, 0.29], [-0.41, 0.29]], 0.34, 0.012), tm));
+  root.add(mesh(slab([[0.33, 0.15], [0.44, 0.22], [0.42, 0.25], [0.41, 0.24], [0.31, 0.17]], 0.345, 0.006), td));
   root.add(mesh(box(0.08, 0.03, 0.08), M.darkSteel(), 0.28, 0.3, 0.09)); // driver's hatch
   root.add(mesh(box(0.012, 0.018, 0.05), M.glass(), 0.32, 0.3, 0.09));
   for (let i = 0; i < 4; i++) root.add(mesh(box(0.014, 0.01, 0.12), M.gun(), 0.12 + i * 0.035, 0.29, -0.09)); // engine grille
@@ -573,8 +602,8 @@ function artillery(team: number): Model {
   }
   // the gun house: tall, boxy and set well back, team coloured, with a stripe, hatches and ammo racks
   const turret = group(-0.1, 0.29, 0);
-  turret.add(mesh(box(0.44, 0.19, 0.32), tl, 0, 0.095, 0));
-  turret.add(mesh(box(0.45, 0.025, 0.325), td, 0, 0.19, 0)); // roof edge
+  turret.add(mesh(loft([[0, 0.44, 0.32], [0.12, 0.44, 0.32], [0.19, 0.38, 0.28, -0.01]], 8, 4), tl));
+  turret.add(mesh(loft([[0.18, 0.395, 0.29, -0.01], [0.205, 0.37, 0.27, -0.01]], 8, 4), td)); // roof edge
   for (const z of [-0.163, 0.163]) {
     turret.add(mesh(box(0.3, 0.035, 0.004), M.hazard(), -0.02, 0.12, z)); // stripe down each side
     turret.add(mesh(box(0.1, 0.08, 0.004), M.darkSteel(), -0.13, 0.08, z * 1.01)); // side door
@@ -585,7 +614,7 @@ function artillery(team: number): Model {
   turret.add(mesh(box(0.05, 0.12, 0.27), M.darkSteel(), -0.245, 0.09, 0)); // bustle with ammo racks
   for (const z of [-0.09, -0.03, 0.03, 0.09]) turret.add(along(mesh(cyl(0.018, 0.018, 0.02, 8), M.brass(), -0.275, 0.09, z)));
   turret.add(mesh(cyl(0.004, 0.004, 0.42, 4), M.gun(), -0.18, 0.4, -0.12)); // antenna
-  turret.add(mesh(box(0.07, 0.14, 0.18), td, 0.23, 0.09, 0)); // mantlet
+  turret.add(mesh(slab([[0.19, 0.02], [0.25, 0.04], [0.265, 0.1], [0.25, 0.16], [0.19, 0.17]], 0.18, 0.01), td)); // mantlet
   // the howitzer: elevated to fire, lowered onto the travel lock to move
   const elev = group(0.24, 0.1, 0);
   const barrel = group(0, 0, 0,
@@ -606,11 +635,11 @@ function artillery(team: number): Model {
 /** Medieval and World War: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
 function worker(team: number): Model {
   const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
-  m.root.add(mesh(box(0.135, 0.06, 0.2), teamMat(team), 0, 0.27, 0)); // sash
-  m.root.add(mesh(dome(0.07), mat('#6a5a40'), 0, 0.49, 0)); // hood
+  m.root.add(mesh(shell(0.24, 0.3, 0.008), teamMat(team))); // sash
+  m.root.add(mesh(turned([[0, 0], [0.074, 0], [0.074, 0.028], [0.06, 0.055], [0.032, 0.07], [0, 0.073]], 9), mat('#6a5a40'), -0.01, 0.475, 0)); // hood
   // wicker basket on the back, heaped with ore as it fills
-  m.root.add(mesh(cyl(0.07, 0.055, 0.14, 10), M.wattle(), -0.1, 0.36, 0));
-  const heap = mesh(dome(0.065), M.ore(), -0.1, 0.43, 0);
+  m.root.add(mesh(turned([[0, 0], [0.055, 0], [0.07, 0.14], [0.064, 0.14], [0, 0.1]], 8), M.wattle(), -0.1, 0.29, 0));
+  const heap = mesh(gem(0.05, 1, 1, 1, 1), M.ore(), -0.1, 0.43, 0);
   m.parts.heap = heap;
   m.root.add(heap);
   // a pick held in the right fist: the haft runs through the hand (gripped near its butt) and
@@ -632,13 +661,13 @@ function harvester(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team), td = teamMat(team, 'd');
   for (const side of [-1, 1]) track(root, 0.94, 0.17, 0.14, side * 0.22, 5, null);
-  root.add(mesh(box(0.86, 0.12, 0.42), M.darkSteel(), 0, 0.21, 0));
+  root.add(mesh(slab([[-0.43, 0.15], [0.4, 0.15], [0.43, 0.2], [0.43, 0.27], [-0.43, 0.27]], 0.42, 0.01), M.darkSteel()));
   root.add(mesh(box(0.86, 0.04, 0.43), td, 0, 0.28, 0));
   for (let i = -3; i <= 3; i++) root.add(mesh(box(0.04, 0.04, 0.44), M.hazard(), i * 0.12, 0.26, 0)); // hazard stripes on the deck edge
   // cab: windows all round, roof beacon, light bar, mirror
-  root.add(mesh(box(0.25, 0.24, 0.38), tm, 0.28, 0.39, 0));
-  root.add(mesh(box(0.27, 0.03, 0.4), td, 0.28, 0.52, 0));
-  root.add(mesh(box(0.02, 0.1, 0.32), M.glass(), 0.41, 0.44, 0));
+  root.add(mesh(slab([[0.155, 0.27], [0.405, 0.27], [0.405, 0.38], [0.375, 0.51], [0.155, 0.51]], 0.38, 0.012), tm));
+  root.add(mesh(slab([[0.145, 0.505], [0.4, 0.505], [0.41, 0.52], [0.4, 0.535], [0.145, 0.535]], 0.4, 0.008), td));
+  root.add(rot(mesh(box(0.012, 0.1, 0.32), M.glass(), 0.397, 0.445, 0), 0, 0, -0.23));
   for (const z of [-0.191, 0.191]) root.add(mesh(box(0.16, 0.09, 0.004), M.glass(), 0.3, 0.44, z));
   root.add(mesh(cyl(0.025, 0.025, 0.04, 8), M.beacon(), 0.22, 0.555, 0.12));
   root.add(mesh(box(0.03, 0.025, 0.28), M.gun(), 0.39, 0.545, 0));
@@ -650,12 +679,12 @@ function harvester(team: number): Model {
   // ladder up the cab
   for (const y of [0.24, 0.3, 0.36]) root.add(mesh(box(0.06, 0.008, 0.008), M.steel(), 0.3, y, 0.215));
   // ore bin with ribs
-  root.add(mesh(box(0.5, 0.2, 0.4), M.metalRoof(), -0.15, 0.37, 0));
+  root.add(mesh(slab([[-0.39, 0.27], [0.09, 0.27], [0.1, 0.47], [-0.4, 0.47]], 0.4, 0.008), M.metalRoof()));
   for (const x of [-0.36, -0.24, -0.12, 0, 0.08]) root.add(mesh(box(0.025, 0.21, 0.41), M.darkSteel(), x, 0.37, 0));
   root.add(mesh(box(0.51, 0.025, 0.41), td, -0.15, 0.48, 0));
   root.add(mesh(box(0.12, 0.06, 0.003), tm, -0.15, 0.37, 0.206));
   root.add(mesh(box(0.12, 0.06, 0.003), tm, -0.15, 0.37, -0.206));
-  const heap = mesh(sph(0.21, 12, 6), M.ore(), -0.15, 0.47, 0);
+  const heap = mesh(gem(0.21, 1, 1, 1, 1), M.ore(), -0.15, 0.47, 0);
   heap.scale.set(1.05, 0.5, 0.85);
   parts.heap = heap;
   root.add(heap);

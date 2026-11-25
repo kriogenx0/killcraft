@@ -4,7 +4,8 @@
 // flying height); structures face +z, like the rest. Named parts are animated by entities3d.ts.
 import * as THREE from 'three';
 import { across, along, group, mesh, rod, rot, scl, type Model, type Parts } from './model_kit.ts';
-import { M, box, cone, cyl, mat, prism, sph, teamMat, torus } from './materials.ts';
+import { M, box, cone, cyl, mat, prism, teamMat, torus } from './materials.ts';
+import { ball } from './shapes.ts';
 
 // ---------------------------------------------------------------- aircraft
 
@@ -12,9 +13,9 @@ import { M, box, cone, cyl, mat, prism, sph, teamMat, torus } from './materials.
 export function drone(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team, 'm', 0.3), td = teamMat(team, 'd', 0.3);
-  root.add(scl(mesh(sph(0.08, 12, 8), tm, 0, 0.1, 0), 1.4, 0.55, 1));
+  root.add(scl(mesh(ball(0.08), tm, 0, 0.1, 0), 1.4, 0.55, 1));
   root.add(mesh(box(0.12, 0.02, 0.08), td, 0, 0.13, 0));
-  root.add(mesh(sph(0.03, 10, 8), M.glass(), 0.1, 0.08, 0)); // sensor ball
+  root.add(mesh(ball(0.03), M.glass(), 0.1, 0.08, 0)); // sensor ball
   for (const z of [-0.035, 0.035]) root.add(rod([-0.02, 0.06, z], [-0.02, 0.0, z * 1.6], 0.005, M.darkSteel(), 4)); // landing legs
   for (const [i, [x, z]] of ([[0.13, 0.13], [0.13, -0.13], [-0.13, 0.13], [-0.13, -0.13]] as const).entries()) {
     root.add(rod([0, 0.11, 0], [x, 0.12, z], 0.009, M.dark(), 4)); // arm
@@ -56,14 +57,14 @@ export function balloon(team: number): Model {
   // wicker basket with a rim, sandbags and a crewman
   root.add(mesh(box(0.18, 0.13, 0.18), M.wattle(), 0, 0.065, 0));
   root.add(mesh(box(0.2, 0.02, 0.2), M.leather(), 0, 0.14, 0));
-  for (const [x, z] of [[0.1, 0.05], [0.1, -0.05], [-0.1, 0.05], [-0.05, 0.1]]) root.add(scl(mesh(sph(0.025, 6, 4), M.sandbag(), x, 0.09, z), 1, 1.4, 1));
+  for (const [x, z] of [[0.1, 0.05], [0.1, -0.05], [-0.1, 0.05], [-0.05, 0.1]]) root.add(scl(mesh(ball(0.025), M.sandbag(), x, 0.09, z), 1, 1.4, 1));
   root.add(mesh(cyl(0.025, 0.03, 0.08, 8), M.khaki(), 0.03, 0.18, 0.03));
-  root.add(mesh(sph(0.022, 8, 6), M.skin(), 0.03, 0.235, 0.03));
+  root.add(mesh(ball(0.022), M.skin(), 0.03, 0.235, 0.03));
   root.add(mesh(cyl(0.026, 0.026, 0.015, 8), M.leather(), 0.03, 0.255, 0.03));
   // burner glowing under the mouth, and a bomb hanging off the side
   root.add(mesh(cyl(0.03, 0.02, 0.05, 8), M.iron(), 0, 0.3, 0));
-  root.add(mesh(sph(0.02, 8, 6), M.ember(), 0, 0.33, 0));
-  root.add(mesh(sph(0.03, 8, 6), M.iron(), -0.06, -0.02, 0.06));
+  root.add(mesh(ball(0.02), M.ember(), 0, 0.33, 0));
+  root.add(mesh(ball(0.03), M.iron(), -0.06, -0.02, 0.06));
   root.add(mesh(cyl(0.006, 0.006, 0.04, 4), M.rope(), -0.06, 0.02, 0.06));
   return { root, parts, height: 1.2 };
 }
@@ -76,7 +77,7 @@ export function biplane(team: number): Model {
   root.add(along(mesh(cyl(0.07, 0.03, 0.52, 10), tm, -0.06, 0.14, 0)));
   root.add(along(mesh(cyl(0.075, 0.07, 0.12, 10), td, 0.24, 0.14, 0)));
   root.add(mesh(box(0.1, 0.03, 0.1), M.dark(), 0.06, 0.2, 0));
-  root.add(mesh(sph(0.03, 8, 6), M.leather(), 0.05, 0.235, 0));
+  root.add(mesh(ball(0.03), M.leather(), 0.05, 0.235, 0));
   root.add(mesh(box(0.01, 0.012, 0.05), M.glass(), 0.075, 0.24, 0));
   // radial engine cowling and spinning propeller
   root.add(along(mesh(cyl(0.08, 0.08, 0.05, 12), M.darkSteel(), 0.32, 0.14, 0)));
@@ -121,12 +122,12 @@ export function helicopter(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team, 'm', 0.4), td = teamMat(team, 'd', 0.4);
   // fuselage, nose and stepped tandem canopy
-  root.add(scl(mesh(sph(0.15, 14, 10), tm, 0.02, 0.2, 0), 1.6, 0.85, 0.75));
-  root.add(scl(mesh(sph(0.1, 12, 8), M.glass(), 0.15, 0.25, 0), 1.3, 0.8, 0.8));
+  root.add(scl(mesh(ball(0.15), tm, 0.02, 0.2, 0), 1.6, 0.85, 0.75));
+  root.add(scl(mesh(ball(0.1), M.glass(), 0.15, 0.25, 0), 1.3, 0.8, 0.8));
   root.add(mesh(box(0.02, 0.06, 0.15), td, 0.1, 0.27, 0));
   root.add(along(mesh(cone(0.05, 0.1, 10), td, 0.3, 0.17, 0)));
   // chin gun under the nose
-  const chin = group(0.25, 0.1, 0, mesh(sph(0.03, 8, 6), M.darkSteel(), 0, 0, 0), along(mesh(cyl(0.008, 0.008, 0.12, 6), M.gun(), 0.07, -0.01, 0)));
+  const chin = group(0.25, 0.1, 0, mesh(ball(0.03), M.darkSteel(), 0, 0, 0), along(mesh(cyl(0.008, 0.008, 0.12, 6), M.gun(), 0.07, -0.01, 0)));
   parts.barrel = chin;
   root.add(chin);
   // engines either side of the rotor mast with exhausts
@@ -197,9 +198,9 @@ export function fighter(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team, 'm', 0.45), td = teamMat(team, 'd', 0.45), grey = mat('#8a929c', { rough: 0.4, metal: 0.6 });
   // fuselage: a slim body with a pointed radome and intakes either side of the cockpit
-  root.add(scl(mesh(sph(0.1, 16, 10), grey, 0, 0.14, 0), 4.2, 0.75, 0.85));
+  root.add(scl(mesh(ball(0.1), grey, 0, 0.14, 0), 4.2, 0.75, 0.85));
   root.add(along(mesh(cone(0.06, 0.24, 12), M.darkSteel(), 0.52, 0.14, 0)));
-  root.add(scl(mesh(sph(0.06, 12, 8), M.glass(), 0.2, 0.2, 0), 2.2, 0.9, 0.85));
+  root.add(scl(mesh(ball(0.06), M.glass(), 0.2, 0.2, 0), 2.2, 0.9, 0.85));
   for (const z of [-0.075, 0.075]) root.add(mesh(box(0.22, 0.07, 0.05), td, 0.05, 0.13, z));
   // swept wings in team colour, with a darker leading edge
   root.add(pair([[0.12, 0.04], [-0.18, 0.46], [-0.27, 0.46], [-0.26, 0.04]], 0.018, tm, 0.12));
@@ -229,9 +230,9 @@ export function striker(team: number): Model {
   const tm = teamMat(team, 'm', 0.2), td = teamMat(team, 'd', 0.2);
   const drab = mat('#8a9a62', { rough: 0.75, metal: 0.1 }), drabDark = mat('#5e6b45', { rough: 0.8, metal: 0.1 });
   // a long boxy body with a blunt nose, the cockpit bubble well forward
-  root.add(scl(mesh(sph(0.1, 14, 10), drab, 0.02, 0.14, 0), 5.2, 0.85, 0.85));
+  root.add(scl(mesh(ball(0.1), drab, 0.02, 0.14, 0), 5.2, 0.85, 0.85));
   root.add(along(mesh(cyl(0.05, 0.075, 0.12, 12), drabDark, 0.52, 0.13, 0)));
-  root.add(scl(mesh(sph(0.055, 12, 8), M.glass(), 0.36, 0.21, 0), 1.6, 1, 0.9));
+  root.add(scl(mesh(ball(0.055), M.glass(), 0.36, 0.21, 0), 1.6, 1, 0.9));
   root.add(mesh(box(0.2, 0.012, 0.13), tm, 0.0, 0.215, 0)); // team stripe along the spine
   // the nose cannon: a long seven-barrel gun
   const gun = group(0.6, 0.11, 0, along(mesh(cyl(0.014, 0.014, 0.14, 8), M.gun(), 0.06, 0, 0)));
@@ -255,7 +256,7 @@ export function striker(team: number): Model {
   const bombs = new THREE.Group();
   for (const z of [-0.2, 0.2, -0.33, 0.33, -0.46, 0.46]) {
     bombs.add(mesh(box(0.06, 0.04, 0.01), M.darkSteel(), 0.02, 0.08, z));
-    bombs.add(scl(mesh(sph(0.032, 10, 8), M.darkSteel(), 0.02, 0.045, z), 2.4, 1, 1));
+    bombs.add(scl(mesh(ball(0.032), M.darkSteel(), 0.02, 0.045, z), 2.4, 1, 1));
     bombs.add(mesh(box(0.025, 0.04, 0.004), M.darkSteel(), -0.06, 0.045, z));
   }
   parts.bombs = bombs;
@@ -283,11 +284,11 @@ export function airfield(team: number, stage: 'field' | 'hangar'): Model {
     for (const [x, z] of [[0.75, -0.9], [0.95, -0.9], [0.85, -0.7], [1.05, -0.7]]) root.add(mesh(cyl(0.08, 0.08, 0.2, 10), M.wood(), x, 0.14, z));
     root.add(mesh(cyl(0.16, 0.18, 0.4, 12), M.iron(), 0.9, 0.24, -0.25));
     root.add(mesh(cyl(0.04, 0.04, 0.3, 8), M.iron(), 0.9, 0.55, -0.25));
-    root.add(mesh(sph(0.04, 8, 6), M.ember(), 0.9, 0.06, -0.06));
+    root.add(mesh(ball(0.04), M.ember(), 0.9, 0.06, -0.06));
     // a small tethered balloon in team colors, and a flag
     const tether = group(0.85, 0, 0.75);
     tether.add(rod([0, 0.02, 0], [0.05, 1.2, -0.05], 0.004, M.rope(), 3));
-    tether.add(scl(mesh(sph(0.2, 12, 10), teamMat(team, 'm', 0), 0.05, 1.42, -0.05), 1, 1.15, 1));
+    tether.add(scl(mesh(ball(0.2), teamMat(team, 'm', 0), 0.05, 1.42, -0.05), 1, 1.15, 1));
     tether.add(mesh(box(0.08, 0.06, 0.08), M.wattle(), 0.05, 1.13, -0.05));
     tether.add(mesh(cyl(0.05, 0.06, 0.06, 8), M.timber(), 0, 0.03, 0));
     parts.balloon = tether;
@@ -316,7 +317,7 @@ export function airfield(team: number, stage: 'field' | 'hangar'): Model {
   root.add(mesh(box(0.4, 0.8, 0.4), M.lightConcrete(), 0.95, 0.46, -0.85));
   root.add(mesh(box(0.5, 0.18, 0.5), M.glass(), 0.95, 0.95, -0.85));
   root.add(mesh(box(0.54, 0.04, 0.54), tm, 0.95, 1.06, -0.85));
-  root.add(mesh(sph(0.03), M.redLamp(), 0.95, 1.12, -0.85));
+  root.add(mesh(ball(0.03), M.redLamp(), 0.95, 1.12, -0.85));
   const radar = group(0.95, 1.12, -0.85, mesh(box(0.04, 0.12, 0.3), M.white(), 0.04, 0.08, 0), mesh(cyl(0.02, 0.02, 0.1, 6), M.darkSteel(), 0, 0.02, 0));
   parts.radar = radar;
   root.add(radar);
@@ -339,7 +340,7 @@ export function flak(team: number): Model {
   root.add(mesh(cyl(0.42, 0.46, 0.14, 12), M.concrete(), 0, 0.07, 0));
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * Math.PI * 2;
-    root.add(rot(scl(mesh(sph(0.07, 6, 4), M.sandbag(), Math.cos(a) * 0.4, 0.18, Math.sin(a) * 0.4), 1.5, 0.7, 1), 0, -a, 0));
+    root.add(rot(scl(mesh(ball(0.07), M.sandbag(), Math.cos(a) * 0.4, 0.18, Math.sin(a) * 0.4), 1.5, 0.7, 1), 0, -a, 0));
   }
   for (const [x, z] of [[-0.25, 0.25], [-0.3, 0.15]]) root.add(mesh(box(0.1, 0.06, 0.06), mat('#4a5a2a'), x, 0.2, z));
   const head = group(0, 0.2, 0,
