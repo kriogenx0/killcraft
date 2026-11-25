@@ -138,7 +138,7 @@ function spellTarget(u: Ent, s: SpellType): Ent | null {
     } else {
       if (allied(e.team, u.team) || !fair(e) || kneeling(e) || cloakedFrom(e, u.team) || frozen(e)) continue;
       if (!unitDef(e).weapon && !e.wild && !e.demon) continue;
-      if (e.demon && e.demon.raid < 0 && e.foe !== u.id && u.foe !== e.id) continue; // let demons lurking by the gate be // don't waste spells on workers and harvesters
+      if (e.demon && (e.demon.raid < 0 || !allied(e.demon.raid, u.team)) && e.foe !== u.id && u.foe !== e.id) continue; // let demons that aren't after us be // don't waste spells on workers and harvesters
       if (s === 'freeze' && priceOf(e) < FREEZE_WORTH && e.maxhp < FREEZE_HP) continue;
       if (s === 'slow' && on(e.slowT)) continue;
       const score = priceOf(e) + e.maxhp;

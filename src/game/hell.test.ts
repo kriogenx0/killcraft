@@ -128,11 +128,13 @@ describe('the Gate of Hell', () => {
     expect(errors).toEqual([]);
   });
 
-  it('can be fought while raiding, and sends the giant Archfiend out now and then', () => {
+  it('can be fought by the side it raids, and sends the giant Archfiend out now and then', () => {
     const d = spawnDemon('imp');
     d.demon!.raid = 0;
-    const sword = addUnit('swordsman', 1, d.x + 3 * TS, d.y);
-    expect(acquire(sword, 6)).toBe(d);
+    const sword = addUnit('swordsman', 0, d.x + 3 * TS, d.y), other = addUnit('swordsman', 1, d.x - 3 * TS, d.y);
+    expect(acquire(sword, 4)).toBe(d); // the side it's raiding takes it on
+    expect(acquire(other, 4)).toBeNull(); // the others may let it pass
+    other.dead = true;
     army(0, LEADER_TRAINED, 3);
     updHell();
     G.hell.archT = G.gameT;

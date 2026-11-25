@@ -161,25 +161,33 @@ function raidTarget(u: Ent, team: number): Ent | null {
   return best;
 }
 
+/** Seconds a demon leaves alone an enemy it couldn't get at. */
+const SNUB = 6;
+
 /** A demon's turn. */
 export function updDemon(u: Ent, dt: number): void {
   const dm = u.demon;
   if (!dm) return;
-  const c = gateCentre();
-  // whoever is hurting it gets it back, raiding or not (but not too far from the gate while it waits)
+  const c = gateCentre(), sight = unitDef(u).sight * TS;
+  const snubbed = (e: Ent) => dm.snub === e.id && G.gameT < (dm.snubT ?? 0);
+  // whoever is hurting it gets it back if it's close, raiding or not; waiting by the gate, it won't chase anyone far off
+  const fightable = (e: Ent) => !snubbed(e) && (dm.raid >= 0 || Math.hypot(e.x - c.x, e.y - c.y) < GATE_LEASH * TS || Math.hypot(e.x - u.x, e.y - u.y) <= sight);
   let t = u.order?.t === 'attack' ? valid(u.order.tgt) : null;
-  if (t && !isFoe(u, t)) t = null;
+  if (t && (!isFoe(u, t) || !fightable(t))) t = null;
   u.scan -= dt;
   if (u.scan <= 0) {
     u.scan = 0.4;
     const a = attacker(u);
-    if (a && (dm.raid >= 0 || Math.hypot(a.x - c.x, a.y - c.y) < GATE_LEASH * TS)) t = a;
+    if (a && fightable(a)) t = a;
     else if (dm.raid >= 0 && (!t || t.team !== dm.raid)) t = raidTarget(u, dm.raid) ?? t;
   }
-  if (t && dm.raid < 0 && Math.hypot(u.x - c.x, u.y - c.y) > GATE_LEASH * TS) { t = null; u.foe = null; }
   if (t) {
     if (u.order?.t !== 'attack' || u.order.tgt !== t.id) setOrder(u, { t: 'attack', tgt: t.id, auto: true, ox: u.x, oy: u.y });
     if (combatStep(u, t, dt)) return;
+    // can't get at it: leave it be for a while rather than trying again and again
+    dm.snub = t.id;
+    dm.snubT = G.gameT + SNUB;
+    if (u.foe === t.id) u.foe = null;
     setOrder(u, null);
   } else if (u.order?.t === 'attack') setOrder(u, null);
   if (dm.raid >= 0) {
@@ -194,9 +202,18 @@ export function updDemon(u: Ent, dt: number): void {
   // waiting: back to its spot by the gate, and lick its wounds
   if (Math.hypot(u.x - dm.hx, u.y - dm.hy) > TS * 0.8) {
     if (u.order?.t !== 'move') orderMove(u, tileOf(dm.hx), tileOf(dm.hy));
-    if (followPath(u, dt)) { setOrder(u, null); dm.hx = u.x; dm.hy = u.y; }
+    if (followPath(u, dt)) {
+      setOrder(u, null);
+      // got as close as it can: if that's not there, try another spot by the gate (or settle here, after a few tries)
+      if (Math.hypot(u.x - dm.hx, u.y - dm.hy) > TS * 1.5) {
+        dm.lost = (dm.lost ?? 0) + 1;
+        const s = dm.lost > 3 ? { x: u.x, y: u.y } : lurkSpot();
+        dm.hx = s.x; dm.hy = s.y;
+      }
+    }
     return;
   }
+  dm.lost = 0;
   if (u.order) setOrder(u, null);
   u.face = u.tface = turnToward(u.face, Math.atan2(u.y - c.y, u.x - c.x), unitDef(u).turn * dt); // keeping watch, back to the gate
   u.hp = Math.min(u.maxhp, u.hp + u.maxhp * LURK_REGEN * dt);

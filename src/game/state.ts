@@ -171,6 +171,11 @@ export interface Demon {
   /** its spot by the gate (px) */
   hx: number;
   hy: number;
+  /** an enemy it gave up on (out of reach), left alone until game time `snubT` */
+  snub?: number;
+  snubT?: number;
+  /** times in a row it couldn't walk back to its spot */
+  lost?: number;
 }
 
 /** The Gate of Hell's clock and who its demons are after (game/hell.ts). */

@@ -5,8 +5,8 @@ import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
 import { CHAIN_FALLOFF, CHAIN_REACH, WEAPON, type ArmorClass, type WeaponType } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
-import { edgeDist, pathFor } from './path.ts';
-import { angleDiff, approach, followPath, steer, stepOf, turnToward } from './move.ts';
+import { edgeDist } from './path.ts';
+import { angleDiff, approach, steer, stepOf, turnToward } from './move.ts';
 import { kill, lowPower } from './entity.ts';
 import { dropSalvage } from './economy.ts';
 import { payBounty } from './bounty.ts';
@@ -161,7 +161,8 @@ const FOE_MEMORY = 4;
 /** The enemy that is attacking this unit, if it hit lately and can be fought back. */
 export function attacker(u: Ent): Ent | null {
   const f = valid(u.foe);
-  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team)) return null;
+  // a dug-in gun can't answer an attacker inside its minimum range (it backs off from one it's already fighting)
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team) || edgeDist(u, f) < tooClose(u) * TS) return null;
   return f;
 }
 
@@ -210,7 +211,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
     if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
-    if (e.demon && e.demon.raid < 0) continue; // demons lurking by their gate are left alone unless they start something
+    if (e.demon && (e.demon.raid < 0 || !allied(e.demon.raid, s.team))) continue; // demons lurking by their gate, or out after someone else, are left alone unless they start something
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40)
       - (e.kind === 'unit' && dist <= (unitDef(e).lure ?? 0) * TS ? 400 : 0); // the Titan Chicken: nobody can look away
@@ -260,28 +261,17 @@ export const dugIn = (u: Ent): boolean => {
 };
 
 /**
- * A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire:
- * straight away, or off to one side if that's blocked, or, backed into a corner, the long way round
- * to open ground on the far side of it.
+ * A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire,
+ * slanting off if straight back is blocked. Cornered, it lets that enemy go and gets on with its order.
  */
 function backOff(u: Ent, t: Ent, dt: number): boolean {
-  const a = Math.atan2(u.y - t.y, u.x - t.x), step = stepOf(u, dt);
-  if (u.path?.length) { if (!followPath(u, dt)) return true; u.path = null; }
-  for (const da of [0, 0.8, -0.8, 1.6, -1.6]) {
-    const x0 = u.x, y0 = u.y;
-    if (steer(u, u.x + Math.cos(a + da) * TS * 2, u.y + Math.sin(a + da) * TS * 2, step, dt, false) !== 'blocked' && Math.hypot(u.x - x0, u.y - y0) > step * 0.3) return true;
+  const a = Math.atan2(u.y - t.y, u.x - t.x);
+  u.path = null;
+  for (const turn of [0, 0.9, -0.9, 1.6, -1.6]) {
+    const gx = u.x + Math.cos(a + turn) * TS * 2, gy = u.y + Math.sin(a + turn) * TS * 2;
+    if (steer(u, gx, gy, stepOf(u, dt), dt, false) !== 'blocked') return true;
   }
-  // cornered: find open ground a few tiles off, as far from the enemy as can be reached
-  let best: [number, number] | null = null, bd = 0;
-  for (let k = 0; k < 12; k++) {
-    const b = (k / 12) * Math.PI * 2, gx = tileOf(u.x + Math.cos(b) * TS * 4), gy = tileOf(u.y + Math.sin(b) * TS * 4);
-    if (G.blk[gy * MW + gx]) continue;
-    const d = Math.hypot((gx + 0.5) * TS - t.x, (gy + 0.5) * TS - t.y);
-    if (d > bd) { bd = d; best = [gx, gy]; }
-  }
-  if (!best) return false;
-  u.path = pathFor(u, best[0], best[1]);
-  return !!u.path.length && !followPath(u, dt);
+  return false;
 }
 
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
