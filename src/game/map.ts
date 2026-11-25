@@ -94,6 +94,7 @@ function genMap(seed: number): boolean {
   const coast = rnd() < COAST_CHANCE && G.teams <= 2 ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = (13 + rnd() * 6) * K;
   terr.fill(GRASS);
   ore.fill(0);
+  G.scrap.fill(0);
   oilField.fill(0);
   // how wet each tile is: >= 1 deep water, >= 0.5 shallow
   const wet = new Float32Array(MW * MH);

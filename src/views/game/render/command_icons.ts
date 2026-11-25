@@ -17,6 +17,13 @@ export const COMMAND_GLYPH: Record<string, string> = {
   passive: svg('<path d="M6 21V3"/><path d="M6 4h12l-3 4.5 3 4.5H6"/>'),
   // Fix, then harvest: a hammer over a nugget of ore
   tend: svg('<path d="M3.5 20.5l9-9"/><path d="M11.8 6.6l5.6 5.6-2.2 2.2-5.6-5.6z"/><path d="M19 15.5l2.5 2.5-2.5 2.5-2.5-2.5z"/>'),
+  // keep formation: a tidy block of troops
+  formation: svg('<rect x="2.5" y="5" width="19" height="14" rx="2" stroke-dasharray="3 2.5"/>' + [7, 12, 17].flatMap((x) => [9.5, 14.5].map((y) => `<circle cx="${x}" cy="${y}" r="1.8" fill="currentColor" stroke="none"/>`)).join('')),
+  // Gather: a crystal of ore, a log, a drop of oil, a four-point Aether star
+  'gather:ore': svg('<path d="M12 3l6 6-6 12-6-12z"/><path d="M6 9h12M12 3v18"/>'),
+  'gather:wood': svg('<ellipse cx="17" cy="12" rx="3" ry="5"/><path d="M17 7H7c-1.7 0-3 2.2-3 5s1.3 5 3 5h10"/><circle cx="17" cy="12" r="1"/>'),
+  'gather:oil': svg('<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>'),
+  'gather:aether': svg('<path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/>'),
   rally: svg('<path d="M6 21V3"/><path d="M6 4l13 4.5L6 13"/><path d="M3 21h7"/>'),
   follow: svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   cancel: svg('<path d="M6 6l12 12M18 6L6 18"/>'),

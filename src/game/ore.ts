@@ -25,6 +25,7 @@ export function regrowOre(): void {
 export function takeOre(tx: number, ty: number, amount: number): number {
   const i = ty * MW + tx, a = Math.min(amount, G.ore[i]);
   G.ore[i] -= a;
+  if (G.ore[i] <= 0) G.scrap[i] = 0;
   return a;
 }
 

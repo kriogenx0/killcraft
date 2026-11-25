@@ -167,10 +167,11 @@ export function attacker(u: Ent): Ent | null {
  * first; and nobody keeps hacking at something that can't fight back (a plain building, a
  * harvester) while an armed enemy is within reach.
  */
-export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number): Ent | null {
+export function betterTarget(u: Ent, cur: Ent | null, radiusTiles: number, picked = false): Ent | null {
   const a = attacker(u);
   if (a && a !== cur && edgeDist(u, a) <= radiusTiles * TS) return a;
-  if (cur && !weaponOf(cur)) return acquire(u, radiusTiles, false, true);
+  // a target the player picked isn't dropped just because something armed is about
+  if (cur && !picked && !weaponOf(cur)) return acquire(u, radiusTiles, false, true);
   return null;
 }
 

@@ -6,6 +6,7 @@ import { extraHall } from '../../game/building.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
+import { GATHER, aetherJobOf, type GatherRes } from '../../game/autogather.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
@@ -26,9 +27,9 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandsHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
-import { V, ownSelected, spectating } from './view_state.ts';
+import { V, ownSelected, spectating, toggleFormation } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
@@ -108,10 +109,38 @@ function followCommand(): Command | null {
   return { id: 'follow', label: on ? 'Following' : 'Follow', hotkey: FOLLOW_KEY, icon: ICON.follow, active: on, tip: on ? 'Stop following this unit (panning the map stops it too)' : 'Keep the camera on this unit as it moves. Pan the map to let go' };
 }
 
+/** Keep formation: a group of units moves together, at its slowest unit's pace, and keeps its shape. */
+function formationCommand(): Command {
+  const on = V.formation;
+  return { id: 'formation', label: 'Formation', hotkey: FORMATION_KEY, icon: ICON.formation, active: on, tip: on ? 'On: groups move together at the slowest unit\'s pace and keep their shape. Turn off to let everyone go at full speed' : 'Move groups in formation: together at the slowest unit\'s pace, keeping their shape, so they arrive at once' };
+}
+
 /** Rally the army: every fighter heads to one spot, and new troops from every producer follow. */
 function rallyCommand(): Command | null {
   if (spectating() || G.over) return null;
   return { id: 'rally', label: 'Rally army', hotkey: RALLY_KEY, icon: ICON.rally, tip: 'Pick a spot: your whole army heads there now, and new troops from every Barracks, Factory and Airfield follow. Workers keep working' };
+}
+
+const GATHER_INFO: Record<GatherRes, { label: string; tip: string }> = {
+  ore: { label: 'Ore', tip: 'Dig ore: the ore nearest your base first' },
+  wood: { label: 'Wood', tip: 'Chop wood: the trees nearest a drop-off first' },
+  oil: { label: 'Oil', tip: 'Haul oil from your Oil Derrick nearest the base' },
+  aether: { label: 'Aether', tip: 'Draw Aether at the deposit nearest your base, bank it, and go back for more' },
+};
+
+/** Send the selected Workers to gather one resource; they stay on it. */
+function gatherCommands(s: Ent[]): Command[] {
+  const ws = s.filter((u) => u.type === 'worker'), job = (u: Ent) => (u.order?.t === 'harvest' ? u.order.res ?? 'ore' : aetherJobOf(u) ? 'aether' : null);
+  const can: Record<GatherRes, boolean> = {
+    ore: true,
+    wood: true,
+    oil: G.ents.some((d) => !d.dead && d.team === V.team && d.type === 'derrick' && d.done && (d.carry > 1 || oilLeft(d) > 0)),
+    aether: G.ents.some((d) => !d.dead && d.type === 'aether'),
+  };
+  return GATHER.map((r) => {
+    const id = `gather:${r}` as const;
+    return { id, label: GATHER_INFO[r].label, hotkey: COMMAND_KEYS[id], icon: ICON[id], tip: can[r] ? GATHER_INFO[r].tip : r === 'oil' ? 'Build an Oil Derrick on an oil well first' : 'No Aether left on the map', group: 'Gather', disabled: !can[r], active: ws.every((u) => job(u) === r) };
+  });
 }
 
 export function commandList(): Command[] {
@@ -119,8 +148,9 @@ export function commandList(): Command[] {
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
-  // nothing of yours selected: rally the army; enemy units you can see, and anything while spectating, can be followed
-  if (!first) return [...(follow ? [follow] : []), ...(rally && !V.sel.length ? [rally] : [])];
+  // nothing of yours selected: enemy units you can see, and anything while spectating, can be followed
+  // (Rally army stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
+  if (!first) return follow ? [follow] : [];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
     return [
@@ -130,6 +160,8 @@ export function commandList(): Command[] {
       // Fix, then harvest is for Workers only (and is theirs by default)
       ...STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
         .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
+      ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
+      ...(s.some((u) => u.type === 'worker') ? gatherCommands(s) : []),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
@@ -170,7 +202,9 @@ export function runCommand(id: string): void {
   else if (id === 'back') V.keyGroup = null;
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'follow') toggleFollow();
+  else if (id === 'formation') toggleFormation();
   else if (id === 'move' || id === 'patrol' || id === 'rally') V.mode = { t: id };
+  else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });

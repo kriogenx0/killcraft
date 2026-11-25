@@ -60,6 +60,10 @@ export function steer(u: Ent, tx: number, ty: number, max: number, dt: number, a
   }
   const [mx, my, pace] = air ? [dx / dist, dy / dist, 1] : avoid(u, dx / dist, dy / dist, Math.min(dist, lookahead(u)), dt);
   let nx = u.x + mx * step * pace, ny = u.y + my * step * pace;
+  // stepping round someone would take it into a wall (a one-tile gap): keep straight on instead
+  if (!air && !canStep(u.x, u.y, nx, ny) && canStep(u.x, u.y, u.x + (dx / dist) * step * pace, u.y + (dy / dist) * step * pace)) {
+    nx = u.x + (dx / dist) * step * pace; ny = u.y + (dy / dist) * step * pace;
+  }
   if (!air && !canStep(u.x, u.y, nx, ny) && !blkAt(u.x, u.y)) {
     // clipping a corner: slide along it; only a wall straight ahead blocks the way
     // (sliding has to get somewhere: a wall square ahead leaves nothing to slide along)
@@ -101,6 +105,13 @@ const lookahead = (u: Ent): number => Math.max(40, unitDef(u).radius * 4);
 const idle = (e: Ent): boolean => !e.order && !e.moving;
 
 /**
+ * A side's Workers out on a gathering trip walk through each other (and through those gathering),
+ * so a stream of them going out and coming home never jams in a narrow gap.
+ */
+const hauling = (e: Ent): boolean => e.type === 'worker' && e.order?.t === 'harvest';
+const passThrough = (a: Ent, b: Ent): boolean => a.team === b.team && hauling(a) && hauling(b);
+
+/**
  * Local avoidance: bend a walking unit's heading (ux, uy) around others before it walks into them,
  * looking `look` px ahead. Units coming the other way both keep to their right; anyone else in the
  * way is passed on the side it isn't; a friend walking the same way just ahead is followed at a
@@ -111,7 +122,7 @@ function avoid(u: Ent, ux: number, uy: number, look: number, dt: number): [numbe
   const ru = unitDef(u).radius, px = -uy, py = ux, heading = Math.atan2(uy, ux); // (px, py): the unit's right
   let side = 0, pace = 1;
   for (const e of nearby(u.x, u.y)) {
-    if (e === u) continue;
+    if (e === u || passThrough(u, e)) continue;
     const rx = e.x - u.x, ry = e.y - u.y, along = rx * ux + ry * uy, lat = rx * px + ry * py;
     const re = unitDef(e).radius, clear = ru + re + 4;
     if (Math.abs(lat) >= clear + 4 || along <= -clear || along > look) continue;
@@ -154,7 +165,7 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
 }
 
 /** How far a unit may move this step, in px. */
-const stepOf = (u: Ent, dt: number): number => unitDef(u).spd * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
+const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, (u.order?.t === 'move' && !u.order.sub && u.order.pace) || Infinity) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
 
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {
@@ -264,7 +275,7 @@ export function separate(): void {
       let dx = a.x - b.x;
       if (dx < -34) break;
       let dy = a.y - b.y;
-      if (Math.abs(dx) >= min || Math.abs(dy) >= min) continue;
+      if (Math.abs(dx) >= min || Math.abs(dy) >= min || ((a.moving || b.moving) && passThrough(a, b))) continue;
       let d = Math.hypot(dx, dy);
       if (d >= min) continue;
       if (d < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.hypot(dx, dy); }

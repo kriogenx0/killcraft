@@ -140,7 +140,8 @@ export function pickSwing(t: number): number {
 }
 
 /** What a Worker's basket looks like holding each resource (shared, cached materials). */
-const CARGO_MAT: Record<Cargo, () => THREE.Material> = { ore: M.ore, wood: M.log, oil: () => mat('#141210', { rough: 0.15, metal: 0.3 }) };
+// wood a deep reddish brown so it stands out against the wicker; oil glossy black
+const CARGO_MAT: Record<Cargo, () => THREE.Material> = { ore: M.ore, wood: () => mat('#6b3414', { rough: 0.9, tex: 'wood', flat: true }), oil: () => mat('#0c0b0a', { rough: 0.12, metal: 0.4 }) };
 
 function animateUnit(m: Model, e: Ent): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
@@ -182,7 +183,8 @@ function animateUnit(m: Model, e: Ent): void {
       // the basket shows what's in it: gold ore, logs, or black oil, filling to a full load of that
       const cargo = e.cargo ?? 'ore', load = Math.min(1, e.carry / (cargo === 'wood' ? WOOD_LOAD : haulOf(e)));
       P.heap.visible = load > 0.02;
-      P.heap.scale.y = 0.2 + load * 0.8;
+      // heaped up over the rim, so what's in it shows from any side
+      P.heap.scale.set(1.35, 0.5 + load * 1.3, 1.35);
       if (P.heap instanceof THREE.Mesh && !m.root.userData.hit) {
         const want = CARGO_MAT[cargo]();
         if (P.heap.material !== want) P.heap.material = want;

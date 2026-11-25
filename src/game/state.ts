@@ -30,7 +30,8 @@ export const defaultStance = (type: string, team: number): Stance => (type === '
 
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
 /** `pat`: on patrol, the other end of the beat; on arriving the unit turns back toward it. */
-export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile }
+/** `pace`: marching in formation, the group's slowest speed (tiles/s), which no one in it goes faster than. */
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number }
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
 /** What a unit is carrying home. */
 export type Cargo = 'ore' | 'wood' | 'oil';
@@ -203,6 +204,8 @@ export const G = {
   elev: new Float32Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
+  /** 1 on tiles where ore lies salvaged from something destroyed, until it's all dug up */
+  scrap: new Uint8Array(MW * MH),
   /** oil left in the ground on each tile (never refills) */
   oilField: new Float32Array(MW * MH),
   /** wood left on each tree tile (grows back) */

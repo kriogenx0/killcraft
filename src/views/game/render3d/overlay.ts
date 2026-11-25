@@ -25,8 +25,10 @@ function workBar(g: CanvasRenderingContext2D, cx: number, y: number, bw: number,
 function drawTargets(g: CanvasRenderingContext2D, ox: number, oy: number): void {
   for (const m of V.targets) {
     const e = G.ents.find((x) => x.id === m.id);
-    if (!e || e.dead || !e.w) continue;
-    const x0 = e.tx * TS, y0 = e.ty * TS, x1 = (e.tx + e.w) * TS, y1 = (e.ty + e.h) * TS, top = modelHeight(e);
+    if (!e || e.dead) continue;
+    // a building's footprint, or a square around a unit
+    const r = e.w ? 0 : unitDef(e).radius + 4;
+    const x0 = e.w ? e.tx * TS : e.x - r, y0 = e.w ? e.ty * TS : e.y - r, x1 = e.w ? (e.tx + e.w) * TS : e.x + r, y1 = e.w ? (e.ty + e.h) * TS : e.y + r, top = modelHeight(e);
     let l = Infinity, t = Infinity, rr = -Infinity, b = -Infinity, front = false;
     for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) for (const z of [0, top]) {
       const p = worldToScreen(x, y, z);

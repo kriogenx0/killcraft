@@ -1,28 +1,32 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { G, STANCES, isHarvester, unitDef, valid, type Ent, type Stance } from './state.ts';
+import { G, STANCES, hostile, isHarvester, say, unitDef, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
+import { groupMove, orderAttack, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
-import { forgetResume } from './autogather.ts';
+import { GATHER, forgetAether, forgetResume, sendGather, type GatherRes } from './autogather.ts';
 import { revive } from './revive.ts';
 
 export type Command =
-  | { c: 'move'; ids: number[]; tx: number; ty: number }
-  | { c: 'patrol'; ids: number[]; tx: number; ty: number }
+  | { c: 'move'; ids: number[]; tx: number; ty: number; form?: boolean }
+  | { c: 'patrol'; ids: number[]; tx: number; ty: number; form?: boolean }
   | { c: 'stance'; ids: number[]; stance: Stance }
   | { c: 'stop'; ids: number[] }
   | { c: 'tend'; ids: number[] }
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
   | { c: 'haul'; ids: number[]; target: number }
+  /** send Workers to gather one resource, from what's nearest the base */
+  | { c: 'gather'; ids: number[]; res: GatherRes }
   | { c: 'fix'; ids: number[]; target: number }
+  /** fight one enemy unit or building until it falls */
+  | { c: 'attack'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
   /** the army rally point: every producer's new troops go there, and with `send` the whole army too */
   | { c: 'muster'; x: number; y: number; send: boolean }
@@ -51,15 +55,18 @@ export function parseCommand(raw: unknown): Command | null {
   switch (o.c) {
     case 'move':
     case 'patrol':
-      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
+      return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number, ...(o.form === true ? { form: true } : {}) } : null;
     case 'stance':
       return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
     case 'stop':
     case 'tend':
     case 'return':
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
+    case 'gather':
+      return isIds(o.ids) && (GATHER as readonly unknown[]).includes(o.res) ? { c: 'gather', ids: o.ids, res: o.res as GatherRes } : null;
     case 'haul':
     case 'fix':
+    case 'attack':
       return isIds(o.ids) && isInt(o.target) ? { c: o.c, ids: o.ids, target: o.target } : null;
     case 'harvest':
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'harvest', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
@@ -101,7 +108,7 @@ function ownBuilding(team: number, id: number): Ent | null {
 export function applyCommand(team: number, cmd: Command): void {
   // any other order for a Worker ends "fix, then harvest"
   // a new order replaces the job a Worker meant to go back to (a change of stance doesn't)
-  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance') for (const u of ownUnits(team, cmd.ids)) forgetResume(u);
+  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance') for (const u of ownUnits(team, cmd.ids)) { forgetResume(u); forgetAether(u); }
   switch (cmd.c) {
     case 'tend':
       // Workers fix everything damaged nearby (buildings, sites, wounded units), then go back to harvesting
@@ -109,11 +116,11 @@ export function applyCommand(team: number, cmd: Command): void {
       for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker') { setStance(u, 'tend'); u.scan = 0; }
       break;
     case 'move':
-      groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty);
+      groupMove(ownUnits(team, cmd.ids), cmd.tx, cmd.ty, false, cmd.form);
       break;
     case 'patrol':
       // only units that can fight patrol
-      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon), cmd.tx, cmd.ty, true);
+      groupMove(ownUnits(team, cmd.ids).filter((u) => unitDef(u).weapon), cmd.tx, cmd.ty, true, cmd.form);
       break;
     case 'stance':
       for (const u of ownUnits(team, cmd.ids)) setStance(u, cmd.stance);
@@ -128,6 +135,12 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'return':
       for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderReturn(u);
       break;
+    case 'gather': {
+      let sent = 0;
+      for (const u of ownUnits(team, cmd.ids)) if (sendGather(u, cmd.res)) sent++;
+      if (!sent && ownUnits(team, cmd.ids).some((u) => u.type === 'worker')) say(team, cmd.res === 'oil' ? 'No Oil Derrick with oil to haul' : cmd.res === 'aether' ? 'No Aether left on the map' : cmd.res === 'wood' ? 'Nowhere to take wood' : 'Nowhere to take ore');
+      break;
+    }
     case 'haul': {
       const b = ownBuilding(team, cmd.target);
       if (b && b.done && (b.type === 'mill' || b.type === 'derrick')) for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHaul(u, b);
@@ -137,6 +150,12 @@ export function applyCommand(team: number, cmd: Command): void {
       // Workers mend one of the side's own buildings or units
       const t = valid(cmd.target);
       if (t && t.team === team && t.kind !== 'source') for (const u of ownUnits(team, cmd.ids)) if (u.type === 'worker' && u !== t) orderFix(u, t);
+      break;
+    }
+    case 'attack': {
+      // armed units go for that enemy and stay on it; Workers and Medics carry on with their jobs
+      const t = valid(cmd.target);
+      if (t && t.kind !== 'source' && hostile(t.team, team)) for (const u of ownUnits(team, cmd.ids)) if (unitDef(u).weapon && !isHarvester(u)) orderAttack(u, t);
       break;
     }
     case 'rally': {

@@ -94,6 +94,7 @@ export function dropSalvage(e: Ent, amount = salvageOf(e)): void {
     const put = Math.min(left, share, ORE_TILE_MAX - G.ore[i]);
     if (put <= 0) continue;
     G.ore[i] += put;
+    G.scrap[i] = 1;
     if ((left -= put) <= 0) break;
   }
   hooks.oreChanged();

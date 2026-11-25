@@ -13,7 +13,7 @@ export const SCROLL_KEYS: Record<string, [number, number]> = {
 export const ROTATE_KEYS: Record<string, number> = { q: 1, e: -1 };
 
 /** Hotkeys for the commands of a selected unit. None of these may also move the camera. */
-export const COMMAND_KEYS = { move: 'M', patrol: 'O', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V', tend: 'T' } as const;
+export const COMMAND_KEYS = { move: 'M', patrol: 'O', stop: 'X', engage: 'G', skirmish: 'F', passive: 'V', tend: 'T', 'gather:ore': 'N', 'gather:wood': 'C', 'gather:oil': 'L', 'gather:aether': 'Y' } as const;
 
 /** Hotkeys for a selected building. Production keys (see hotkeys.ts) fit around these. */
 export const BUILDING_KEYS = { repair: 'R', upgrade: 'U', scrap: 'Delete' } as const;
@@ -59,6 +59,9 @@ export const FOLLOW_KEY = 'Shift+F';
 
 /** Rally the army: pick a spot every fighting unit heads to, and new troops from every producer follow. */
 export const RALLY_KEY = 'Shift+R';
+
+/** Keep formation: a group moves together at its slowest unit's pace and keeps its shape. */
+export const FORMATION_KEY = 'Shift+M';
 
 /** Letters no command or production hotkey may take: the camera keys and the global keys. */
 export const RESERVED_KEYS: ReadonlySet<string> = new Set([
