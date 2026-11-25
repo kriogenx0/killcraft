@@ -324,7 +324,7 @@ function juggernaut(team: number): Model {
 
 /** Cyborg Colossus: the biggest walker, a rail cannon on each arm and a missile pod over one shoulder. */
 function titan(team: number): Model {
-  const root = new THREE.Group(), parts: Parts = {}, k = 1.35, plate = C.plate();
+  const root = new THREE.Group(), parts: Parts = {}, k = 2.3, plate = C.plate();
   const top = walkerLegs(root, parts, k, plate, teamMat(team));
   const torso = cyborgTorso(team, k, top);
   // the rail cannons: long twin rails with copper coils, glowing at the breech; they recoil together
