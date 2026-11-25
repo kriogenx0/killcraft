@@ -624,8 +624,13 @@ export function updUnit(u: Ent, dt: number): void {
         const b = betterTarget(u, t, d.sight, !o.auto);
         if (b) { t = b; o.tgt = b.id; u.path = null; }
       }
-      const gaveUp = !t || (o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) || !combatStep(u, t, dt);
-      if (gaveUp) { u.order = null; u.path = null; u.scan = 0; }
+      const strayed = o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE;
+      const gaveUp = !t || strayed || !combatStep(u, t, dt);
+      if (gaveUp) {
+        // chased it too far: let it go for good, rather than taking it up again from here and chasing on
+        if (strayed && t && u.foe === t.id) u.foe = null;
+        u.order = null; u.path = null; u.scan = 0;
+      }
       break;
     }
     case 'harvest':
