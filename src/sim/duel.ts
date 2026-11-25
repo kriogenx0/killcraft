@@ -234,7 +234,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const beats = others.filter((b) => (scores.get(`${a}|${b}`) ?? 0) >= NICHE);
       const sa = avg(others.map((b) => scores.get(`${a}|${b}`) ?? 0));
       // only something no harder to get counts: creatures need a capture, Aether units need Aether
-      const rarity = (t: UnitType) => (UNIT[t].beast ? 2 : UNIT[t].aether ? 1 : 0);
+      // and one-of-a-kind units (the Titan) or ones only an egg hatches are harder still
+      const rarity = (t: UnitType) => (UNIT[t].hatched || UNIT[t].limit ? 3 : UNIT[t].beast ? 2 : UNIT[t].aether ? 1 : 0);
       const over = us.filter((c) => c !== a && UNIT[c].producer === UNIT[a].producer && rarity(c) <= rarity(a) &&
         (wrecks.get(c) ?? 0) >= (wrecks.get(a) ?? 0) * 0.9 &&
         others.filter((b) => b !== c).every((b) => (scores.get(`${c}|${b}`) ?? 0) >= (scores.get(`${a}|${b}`) ?? 0) - 0.05) &&

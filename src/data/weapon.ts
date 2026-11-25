@@ -75,7 +75,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   jetbomb: { dmg: 150, range: 1, cd: 3.5, proj: 'shell', speed: 300, splash: 30, vs: { none: 0.7, light: 0.9, heavy: 1, building: 1.4, air: 0 } },
   // Aether arms (hidden units)
   wraithlance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.95, heavy: 0.85, building: 0.4, air: 0 } },
-  hexrifle: { dmg: 12, range: 4, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, slow: 1.5, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
+  hexrifle: { dmg: 15, range: 4.5, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, slow: 1.5, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },
   starbeam: { dmg: 50, range: 5, cd: 2.2, proj: 'bullet', speed: 0, splash: 0, vs: { none: 0.35, light: 0.8, heavy: 0.95, building: 2.2, air: 0 } },
   // spells: fireballs and meteors fly as glowing orbs; lightning strikes at once and leaps on
   fireball: { element: 'fire', dmg: 28, range: 4.5, cd: 1.8, proj: 'orb', speed: 300, splash: 24, vs: { none: 1.1, light: 1, heavy: 0.35, building: 0.6, air: 0.7 } },
