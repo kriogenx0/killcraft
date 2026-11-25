@@ -153,7 +153,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // cyborgs: Modern-age giants, half soldier, half war machine, built at the War Factory. Huge,
   // slow and costly, they wade through small-arms fire; rockets and anti-tank missiles bring them down.
   juggernaut: { name: 'Cyborg Juggernaut', key: 'J', cls: 'vehicle', armor: 'heavy', hp: 900, spd: 2.2, turn: 3, weapon: 'minigun', cost: 1200, oil: 150, t: 20, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, cyborg: true, regen: 0.005, desc: 'A towering cyborg with a rotary cannon for an arm. Mows down infantry, shrugs off bullets and slowly repairs itself.' },
-  titan: { name: 'Cyborg Colossus', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2000, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 19, cyborg: true, regen: 0.005, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft. Slowly repairs itself.' },
+  titan: { name: 'Cyborg Colossus', key: 'I', cls: 'vehicle', armor: 'heavy', hp: 1500, spd: 1.6, turn: 1.8, weapon: 'railgun', cost: 2000, oil: 350, t: 32, era: 2, sight: 7, producer: 'vehicle', turret: true, radius: 26, cyborg: true, regen: 0.005, desc: 'The biggest thing on the field. Twin rail cannons punch through tanks and buildings. Can\'t hit aircraft. Slowly repairs itself.' },
   // the Titan: one per side, the largest thing in the game. An elder giant of bronze and stone, woken
   // with Aether. It smashes everything around it with a broken temple column; only aircraft are
   // safe from it, and massed rockets and anti-tank fire are the way to bring it down.

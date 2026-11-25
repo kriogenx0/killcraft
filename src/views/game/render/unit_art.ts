@@ -391,6 +391,22 @@ function jet(g: G2, T: TeamColors, p: UnitPose, heavy: boolean): void {
   g.restore();
 }
 
+/** A ground-attack jet from above: long straight olive wings, two engine pods and twin fins in team colour. */
+function striker(g: G2, T: TeamColors, p: UnitPose): void {
+  g.save();
+  g.translate(0, -6);
+  g.rotate(p.f);
+  panel(g, -2, -16, 6, 32, 1, '#5c6a46', '#414c33'); // wings
+  g.fillStyle = T.m;
+  for (const y of [-16, 13]) g.fillRect(-2, y, 6, 3);
+  panel(g, -15, -6, 3, 12, 1, '#5c6a46', '#414c33'); // tailplane
+  for (const y of [-7, 5]) { g.fillStyle = T.m; g.fillRect(-16, y, 4, 2); }
+  blob(g, -1, 0, 13, 3, shade(g, -1, 0, 13, '#6e7c56', '#414c33'));
+  for (const y of [-4, 4]) blob(g, -9, y, 3.5, 2, '#414c33');
+  blob(g, 7, 0, 2.2, 1.4, '#9ec4d8');
+  g.restore();
+}
+
 /** An attack helicopter from above: body, tail boom and a rotor disc. */
 function helicopter(g: G2, T: TeamColors, p: UnitPose): void {
   g.save();
@@ -437,7 +453,8 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'biplane': biplane(g, T, p); break;
     case 'helicopter': helicopter(g, T, p); break;
     case 'drone': drone(g, T, p); break;
-    case 'fighter': case 'striker': jet(g, T, p, type === 'striker'); break;
+    case 'fighter': jet(g, T, p, false); break;
+    case 'striker': striker(g, T, p); break;
     default: tank(g, T, p, type === 'heavy');
   }
   if (look) {
