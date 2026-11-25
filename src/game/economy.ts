@@ -7,7 +7,7 @@ import { ORE_TILE_MAX } from '../data/ore.ts';
 import { UNIT, isUnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import {
-  DERRICK_REACH, DERRICK_STORE, MILL_RADIUS, OIL_PER_DERRICK, SALVAGE_SHARE, TREE_REGROW, TREE_WOOD,
+  DERRICK_REACH, DERRICK_STORE, MILL_RADIUS, OIL_PER_DERRICK, OIL_TRICKLE, SALVAGE_SHARE, TREE_REGROW, TREE_WOOD,
 } from '../data/economy.ts';
 
 /** Visit tiles in a rectangle around a footprint (tx, ty, size s), clipped to the map. */
@@ -48,8 +48,8 @@ export const oilNear = (tx: number, ty: number, s: number): number => wellTiles(
 /** Oil left in reach of a derrick. */
 export const oilLeft = (d: Ent): number => oilNear(d.tx, d.ty, d.w);
 
-/** Oil per second a team's derricks pump (dry ones pump nothing). */
-export const oilRate = (team: number): number => working(team, 'derrick').filter((d) => oilLeft(d) > 0).length * OIL_PER_DERRICK;
+/** Oil per second a team's derricks pump into their tanks (dry ones only trickle). */
+export const oilRate = (team: number): number => working(team, 'derrick').reduce((n, d) => n + (oilLeft(d) > 0 ? OIL_PER_DERRICK : OIL_TRICKLE), 0);
 
 /**
  * Derricks pump `dt` seconds of oil into their own stores (not the bank: Workers carry it home),
@@ -59,14 +59,19 @@ export function collect(dt: number): void {
   if (G.visualOnly) return; // online, the server's stores and trees are the truth
   for (let team = 0; team < G.teams; team++) {
     for (const d of working(team, 'derrick')) {
-      let want = Math.min(OIL_PER_DERRICK * refitBonus(d) * dt, DERRICK_STORE - d.carry);
+      const room = DERRICK_STORE - d.carry;
+      if (room <= 0) continue; // a full tank stops the pump: the well keeps the rest
+      let want = Math.min(OIL_PER_DERRICK * refitBonus(d) * dt, room), got = 0;
       for (const i of wellTiles(d.tx, d.ty, d.w)) {
         if (want <= 0) break;
         const take = Math.min(want, G.oilField[i]);
         G.oilField[i] -= take;
-        d.carry += take;
+        got += take;
         want -= take;
       }
+      // a dry well still seeps a little into the tank
+      if (!got) got = Math.min(OIL_TRICKLE * refitBonus(d) * dt, room);
+      d.carry += got;
     }
   }
   for (let i = 0; i < MW * MH; i++) if (G.terr[i] === TREE && G.treeWood[i] < TREE_WOOD) G.treeWood[i] = Math.min(TREE_WOOD, G.treeWood[i] + TREE_REGROW * dt);

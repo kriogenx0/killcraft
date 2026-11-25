@@ -17,7 +17,7 @@ import { dpsOf } from '../../game/dps.ts';
 import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
 import { oilLeft, oilRate, treesNear, storeMax } from '../../game/economy.ts';
-import { OIL_PER_DERRICK } from '../../data/economy.ts';
+import { OIL_PER_DERRICK, OIL_TRICKLE } from '../../data/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -136,7 +136,7 @@ function gatherCommands(s: Ent[]): Command[] {
     auto: true,
     ore: true,
     wood: true,
-    oil: G.ents.some((d) => !d.dead && d.team === V.team && d.type === 'derrick' && d.done && (d.carry > 1 || oilLeft(d) > 0)),
+    oil: G.ents.some((d) => !d.dead && d.team === V.team && d.type === 'derrick' && d.done),
     aether: G.ents.some((d) => !d.dead && d.type === 'aether'),
   };
   return GATHER.map((r) => {
@@ -144,6 +144,9 @@ function gatherCommands(s: Ent[]): Command[] {
     return { id, label: GATHER_INFO[r].label, hotkey: COMMAND_KEYS[id], icon: ICON[id], tip: can[r] ? GATHER_INFO[r].tip : r === 'oil' ? 'Build an Oil Derrick on an oil well first' : 'No Aether left on the map', group: r === 'aether' ? undefined : 'Gather', disabled: !can[r], active: ws.every((u) => gatherSetting(u) === r) };
   });
 }
+
+/** A phone or tablet: touch is the main way in, so there's no keyboard for hotkey groups. */
+const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function commandList(): Command[] {
   if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : 'Cancel the current command' }];
@@ -174,9 +177,9 @@ export function commandList(): Command[] {
     const up = upgradeCommand(first);
     if (up) list.push(up);
     if (first.type === 'derrick' && first.done) {
-      const n = crewAt(first), dry = first.carry <= 1 && oilLeft(first) <= 0;
-      list.push({ id: 'recruit', label: 'Send Worker', hotkey: '', icon: ICON.worker, disabled: dry || !G.ents.some((u) => !u.dead && u.team === V.team && u.type === 'worker'),
-        tip: dry ? 'This well has run dry' : `Send your nearest free Worker to haul oil from here (${n} on it now). A Derrick pumps slowly: one Worker keeps up with it` });
+      const n = crewAt(first);
+      list.push({ id: 'recruit', label: 'Send Worker', hotkey: '', icon: ICON.worker, disabled: !G.ents.some((u) => !u.dead && u.team === V.team && u.type === 'worker'),
+        tip: `Send your nearest free Worker to carry oil from this Derrick's tank (${n} on it now)` });
     }
     // team games: a Town Hall can give a teammate who has lost theirs a new one
     if (first.type === 'yard' && first.done && !G.over) for (const t of fallenAllies(V.team)) {
@@ -190,8 +193,8 @@ export function commandList(): Command[] {
     const rally = rallyCommand();
     if (rally && first.done && isUnitProducer(bldDef(first).produces)) list.push(rally);
     // Delete, away from the letters, so scrapping is hard to hit by accident
-    // sub-menus of production hotkeys, such as the yard's walls and defenses
-    for (const [g, key] of first.done ? groupsOf(first.type as BldType) : []) {
+    // sub-menus of production hotkeys, such as the yard's walls and defenses: keyboard helpers, so not on phones and tablets
+    for (const [g, key] of first.done && !coarsePointer() ? groupsOf(first.type as BldType) : []) {
       const icon = Object.keys(ICON).find((t) => groupOfType(t) === g && producerOfType(t as Buildable) === first.type);
       // hide a group with nothing in it yet, such as Aether before any is found
       if (!icon || !available(V.team, lineOf(icon as Buildable)).some((t) => groupOfType(t) === g)) continue;
@@ -347,7 +350,7 @@ function buildingDetails(e: Ent): string {
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
-  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
+  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? `${Math.floor(e.carry)}/${storeMax(e)} in the tank for Workers · ${oilLeft(e) > 0 ? `pumps +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left in the well` : `well dry: trickles +${perMin(OIL_TRICKLE)}/min`}` : '');
   // defenses reload 2.5× slower while their side is short of power
   const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
   const rows: Row[] = [

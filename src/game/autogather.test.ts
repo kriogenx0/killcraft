@@ -324,6 +324,16 @@ describe('idle Workers', () => {
     expect(jobOf(w)).toBe('wood');
   });
 
+  it('Oil sends every selected Worker to a Derrick, even one on a dry well (its tank still trickles)', () => {
+    const [wx, wy] = OIL_WELLS[0];
+    const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
+    G.oilField.fill(0);
+    const ws = workers(3);
+    applyCommand(0, { c: 'gather', ids: ws.map((w) => w.id), res: 'oil' });
+    expect(ws.every((w) => w.order?.t === 'harvest' && w.order.src === d.id)).toBe(true);
+    expect(ws.every((w) => gatherSetting(w) === 'oil')).toBe(true);
+  });
+
   it('a Worker never sets out for the field with a full load: it goes home first', () => {
     const [w] = workers(1);
     w.carry = 300; w.cargo = 'ore';

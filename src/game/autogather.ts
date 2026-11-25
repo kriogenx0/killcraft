@@ -10,7 +10,6 @@ import { WOOD_BANKS } from './chop.ts';
 import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
 import { ais } from './ai.ts';
-import { oilLeft as oilLeftOf } from './economy.ts';
 
 export type Res = 'ore' | 'wood' | 'oil';
 
@@ -245,7 +244,7 @@ export function sendGather(u: Ent, r: GatherRes): boolean {
   if (r === 'oil') {
     let best: Ent | null = null, bd = Infinity;
     for (const d of G.ents) {
-      if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || (d.carry <= 1 && oilLeftOf(d) <= 0)) continue;
+      if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done) continue; // a dry well still trickles into its tank
       const crew = G.ents.filter((w) => w !== u && !w.dead && w.order?.t === 'harvest' && w.order.src === d.id).length;
       const s = crew * 8 + fromBase(u.team, d.x, d.y) / 32; // spread over the derricks, nearest the base first
       if (s < bd) { bd = s; best = d; }
