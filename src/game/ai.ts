@@ -757,6 +757,39 @@ function upkeep(team: number): void {
   }
 }
 
+/** Workers a computer lends, at most, to a teammate that's short of hands. */
+const LEND = 2;
+/** A teammate with this many Workers or fewer gets help building (it's starting over). */
+const SHORT_HANDED = 3;
+/** A computer keeps at least this many Workers of its own before lending any. */
+const LEND_KEEP = 5;
+
+/**
+ * Lend Workers to a teammate that's rebuilding (a revived or hard-hit side with few Workers): they
+ * walk over and help its sites go up, then go back to gathering. The teammate pays for its own sites.
+ */
+function lendHands(team: number): void {
+  const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
+  if (workers.length < LEND_KEEP) return;
+  let lent = workers.filter((w) => w.order?.t === 'heal' && (valid(w.order.tgt)?.team ?? team) !== team).length;
+  for (let t = 0; t < G.teams && lent < LEND; t++) {
+    if (t === team || !allied(t, team) || G.absent[t]) continue;
+    if (G.ents.filter((e) => !e.dead && e.team === t && e.type === 'worker').length > SHORT_HANDED) continue;
+    for (const b of sitesOf(t)) {
+      if (lent >= LEND) return;
+      if (b.unpaid) continue;
+      const crew = G.ents.filter((w) => !w.dead && w.type === 'worker' && w.order?.t === 'heal' && w.order.tgt === b.id).length;
+      if (crew >= 2) continue;
+      const free = workers.filter((w) => !w.order || (w.order.t === 'harvest' && !w.order.res && w.carry < oreLoadOf(w) * 0.5));
+      const w = free.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
+      if (!w) return;
+      orderFix(w, b);
+      lent++;
+      aiNote(team, `lending Workers to side ${t + 1} to rebuild`, `lend ${t}`);
+    }
+  }
+}
+
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */
 function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
   const A = ais[team];
@@ -919,5 +952,6 @@ export function aiThink(team: number): void {
   armory(team);
   training(team);
   upkeep(team);
+  lendHands(team);
   military(team);
 }

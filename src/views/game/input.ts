@@ -1,5 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, bldDef, hostile, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { G, allied, bldDef, hostile, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TREE, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
@@ -67,9 +67,9 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     mark(hit.x, hit.y, '#f44');
     return;
   }
-  // Workers mend your own damaged buildings, building sites and wounded units
+  // Workers mend your own (or a teammate's) damaged buildings, building sites and wounded units
   const workers = harvesters.filter((u) => u.type === 'worker');
-  if (workers.length && hit && hit.team === V.team && hit.kind !== 'source' && !workers.includes(hit) && (hit.kind === 'bld' ? !hit.done || hit.hp < hit.maxhp : hit.hp < hit.maxhp)) {
+  if (workers.length && hit && allied(hit.team, V.team) && hit.kind !== 'source' && !workers.includes(hit) && (hit.kind === 'bld' ? !hit.done || hit.hp < hit.maxhp : hit.hp < hit.maxhp)) {
     dispatch({ c: 'fix', ids: ids(workers), target: hit.id });
     const others = units.filter((u) => !workers.includes(u));
     if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty, ...inFormation(others) });

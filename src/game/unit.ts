@@ -455,9 +455,12 @@ function medicOnPatrol(u: Ent, o: MoveOrder, dt: number): boolean {
   return true;
 }
 
-/** Something a Worker can mend: its side's site or damaged building (if the bank can pay), or a hurt unit on the ground. */
-function mendable(u: Ent, t: Ent | null, slack = 0): t is Ent {
-  if (!t || t === u || t.dead || t.team !== u.team) return false;
+/**
+ * Something a Worker can mend: its side's site or damaged building (if the bank can pay), or a hurt
+ * unit on the ground. Sent there (`ally`), it also works on a teammate's: lending a hand to rebuild.
+ */
+function mendable(u: Ent, t: Ent | null, slack = 0, ally = false): t is Ent {
+  if (!t || t === u || t.dead || (ally ? !allied(t.team, u.team) : t.team !== u.team)) return false;
   if (t.kind === 'bld') return !t.done || (t.hp < t.maxhp - slack && G.credits[t.team] >= 1);
   return t.kind === 'unit' && !isAir(t) && !t.wild && t.hp < t.maxhp - slack;
 }
@@ -472,7 +475,7 @@ const UNDER_FIRE = 6;
 /** How many of the side's other Workers are building, repairing or patching up `t`. */
 function menders(t: Ent, u: Ent): number {
   let n = 0;
-  for (const w of G.ents) if (w !== u && !w.dead && w.team === t.team && w.type === 'worker' && w.order?.t === 'heal' && w.order.tgt === t.id) n++;
+  for (const w of G.ents) if (w !== u && !w.dead && allied(w.team, t.team) && w.type === 'worker' && w.order?.t === 'heal' && w.order.tgt === t.id) n++;
   return n;
 }
 
@@ -513,7 +516,7 @@ export function fixNext(u: Ent): boolean {
 /** A Worker mending: helps a site go up, repairs a building (for ore), or patches up a unit. */
 function updMend(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
-  if (!mendable(u, t) || (!o.sent && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE)) { setOrder(u, null); return; }
+  if (!mendable(u, t, 0, o.sent) || (!o.sent && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE)) { setOrder(u, null); return; }
   // a Worker that went off by itself to patch up a soldier lets it go once it walks off: back to work
   if (!o.sent && u.type === 'worker' && t.kind === 'unit' && t.moving && Math.hypot(t.x - u.x, t.y - u.y) > MEDIC_RANGE + TS) { setOrder(u, null); return; }
   // a wall segment hemmed in by others can only be reached from a tile off its corner, so a Worker
