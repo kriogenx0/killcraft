@@ -148,8 +148,9 @@ export function commandList(): Command[] {
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
-  // nothing of yours selected: rally the army; enemy units you can see, and anything while spectating, can be followed
-  if (!first) return [...(follow ? [follow] : []), ...(rally && !V.sel.length ? [rally] : [])];
+  // nothing of yours selected: enemy units you can see, and anything while spectating, can be followed
+  // (Rally army stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
+  if (!first) return follow ? [follow] : [];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
     return [
