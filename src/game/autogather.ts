@@ -1,7 +1,7 @@
-// Idle Workers put themselves to work: they gather whichever of ore, wood and oil the side needs
-// most (what its waiting orders still lack first, then whatever it has least of against how many
-// Workers already bring it in), and Workers that picked their own job look again each time they
-// drop a load off, so the split follows the bank. Orders a player gives a Worker are left alone.
+// Workers on Auto (the default, and what an idle Worker falls back to) gather whichever of ore,
+// wood and oil the side has least of, counting what its waiting orders still owe and how many
+// Workers already bring each in, and look again each time they drop a load off, so the split
+// follows the bank. A Worker set to Ore, Wood or Oil sticks to it.
 import { G, tileOf, type Ent, type HarvestOrder } from './state.ts';
 import { MH, MW, TREE } from './const.ts';
 import { CHOP_WORTH } from '../data/economy.ts';
@@ -17,12 +17,12 @@ export type Res = 'ore' | 'wood' | 'oil';
 /** Seconds a Worker stands idle before it goes to gather on its own (a player who just moved it may have plans). */
 export const IDLE_GRACE = 3;
 
-/** Below this much in the bank a side counts as short of a resource even with nothing waiting on it. */
-const FLOOR: Record<Res, number> = { ore: 300, wood: 150, oil: 100 };
-/** Rough worth of one of each against ore, so shortfalls compare fairly (prices run lower in wood and oil). */
-const WORTH: Record<Res, number> = { ore: 1, wood: 2, oil: 2.5 };
-/** The split of gatherers a side aims for when it isn't short of anything. */
-const SHARE: Record<Res, number> = { ore: 0.5, wood: 0.3, oil: 0.2 };
+/**
+ * What each Worker already gathering a resource counts for when deciding which the side has least
+ * of: about what it brings in over a minute, so Workers spread out rather than all rush the
+ * lowest, and nobody switches back and forth over a few points.
+ */
+const PER_WORKER = 150;
 /** How far (tiles) from a drop-off gathering is worth the walk. */
 const REACH = 18;
 
@@ -36,11 +36,6 @@ export function owed(team: number): Record<Res, number> {
   if (prod) for (const line of Object.values(prod)) for (const it of line) if (!it.paid) add(it.type);
   for (const e of G.ents) if (!e.dead && e.team === team && e.kind === 'bld' && e.unpaid) add(e.type as Parameters<typeof priceOf>[0]);
   return o;
-}
-
-/** How far the side is from paying for what's waiting on a resource, plus a small floor (0 if it has enough). */
-export function shortfall(team: number, r: Res): number {
-  return Math.max(0, owed(team)[r] + FLOOR[r] - have(team, r));
 }
 
 /** What a gatherer's order brings in (none if it isn't gathering). */
@@ -88,34 +83,28 @@ function derrickFor(u: Ent): Ent | null {
   return best;
 }
 
+/** The side's Workers (other than `u`) gathering each resource. */
+function crewOf(u: Ent): Record<Res, number> {
+  const crew = { ore: 0, wood: 0, oil: 0 };
+  for (const e of G.ents) if (e !== u && !e.dead && e.team === u.team && e.type === 'worker') { const j = jobOf(e); if (j) crew[j]++; }
+  return crew;
+}
+
 /**
- * The resource this Worker should gather: the biggest shortfall (owed plus a small floor, less the
- * bank) per Worker already on it; with no shortfall, whatever is furthest below its share of the
- * side's gatherers. `u` itself isn't counted, so asking again gives the same answer once settled.
+ * How well off the side is for a resource, as Auto sees it: what's in the bank, less what waiting
+ * orders still owe, plus what the Workers already on it will bring. Lowest is what to gather.
  */
+function standing(team: number, r: Res, crew: Record<Res, number>, debt = owed(team)): number {
+  return have(team, r) - debt[r] + crew[r] * PER_WORKER;
+}
+
+/** The resource an Auto Worker should gather: whichever the side has least of (`u` itself not counted). */
 export function pickResource(u: Ent, can: Res[] = options(u)): Res | null {
   if (!can.length) return null;
   if (can.length === 1) return can[0];
-  const team = u.team, debt = owed(team);
-  const crew = { ore: 0, wood: 0, oil: 0 };
-  for (const e of G.ents) {
-    if (e === u || e.dead || e.team !== team) continue;
-    const j = jobOf(e);
-    if (j) crew[j]++;
-  }
-  let best: Res | null = null, bs = 0;
-  for (const r of can) {
-    const short = Math.max(0, debt[r] + FLOOR[r] - have(team, r)) * WORTH[r] / (crew[r] + 1);
-    if (short > bs) { bs = short; best = r; }
-  }
-  if (best) return best;
-  const total = can.reduce((s, r) => s + crew[r], 0) + 1;
-  const share = can.reduce((s, r) => s + SHARE[r], 0);
-  let low = Infinity;
-  for (const r of can) {
-    const behind = (crew[r] + 1) / total - SHARE[r] / share; // its share if this Worker joins, against the aim
-    if (behind < low) { low = behind; best = r; }
-  }
+  const crew = crewOf(u), debt = owed(u.team);
+  let best: Res | null = null, bs = Infinity;
+  for (const r of can) { const v = standing(u.team, r, crew, debt); if (v < bs) { bs = v; best = r; } }
   return best;
 }
 
@@ -156,33 +145,19 @@ export function autoGather(u: Ent): boolean {
   return !!u.order;
 }
 
-/** A Worker that chose its own job has just dropped a load off: switch if the side now needs something else more. */
+/**
+ * An Auto Worker has just dropped a load off: move to whatever the side now has least of, but only
+ * if it would still be the lowest with this Worker on it, so nobody flits back and forth.
+ */
 export function rethink(u: Ent, o: HarvestOrder): void {
   if (!o.auto || u.type !== 'worker' || computer(u.team)) return;
   const now = o.res ?? 'ore', can = options(u), r = pickResource(u, can);
   // a derrick pumps slowly: rather than shuttle back and forth with a few drops each time, do
   // something else until it has a load waiting again
   if (now === 'oil' && !can.includes('oil')) { if (r) gather(u, r); return; }
-  // short of something and not of this: go and get it
-  if (r && r !== now && shortfall(u.team, now) <= 0 && shortfall(u.team, r) > 0) { gather(u, r); return; }
-  if (shortfall(u.team, now) > 0) return; // still needed here
-  // nothing short: even out the split, but only when it's off by a whole Worker either way, so
-  // nobody flits back and forth over a fraction
-  const b = imbalance(u, can, now);
-  if (b) gather(u, b);
-}
-
-/** The resource a self-directed Worker should move to from `now` to even out the side's split, if any. */
-function imbalance(u: Ent, can: Res[], now: Res): Res | null {
-  if (can.length < 2 || !can.includes(now)) return null;
-  const crew = { ore: 0, wood: 0, oil: 0 };
-  for (const e of G.ents) if (e !== u && !e.dead && e.team === u.team && e.type === 'worker') { const j = jobOf(e); if (j) crew[j]++; }
-  const total = can.reduce((n, r) => n + crew[r], 0) + 1, share = can.reduce((n, r) => n + SHARE[r], 0);
-  const want = (r: Res) => (SHARE[r] / share) * total;
-  if (crew[now] + 1 - want(now) < 1) return null;
-  let best: Res | null = null, most = 0;
-  for (const r of can) if (r !== now && want(r) - crew[r] >= 1 && want(r) - crew[r] > most) { most = want(r) - crew[r]; best = r; }
-  return best;
+  if (!r || r === now || !can.includes(now)) return;
+  const crew = crewOf(u), debt = owed(u.team);
+  if (standing(u.team, r, crew, debt) + PER_WORKER <= standing(u.team, now, crew, debt)) gather(u, r);
 }
 
 /** The gathering job each Worker set aside to go and fix something, to take up again after. */
@@ -196,9 +171,16 @@ export function takeResume(u: Ent): HarvestOrder | null {
 /** A player's order replaces whatever the Worker meant to go back to. */
 export const forgetResume = (u: Ent): void => { resume.delete(u); };
 
-/** What a player can send Workers to gather. */
-export const GATHER = ['ore', 'wood', 'oil', 'aether'] as const;
+/** What a player can set Workers to gather: Auto (whatever the side has least of) or one resource. */
+export const GATHER = ['auto', 'ore', 'wood', 'oil', 'aether'] as const;
 export type GatherRes = (typeof GATHER)[number];
+
+/** A Worker's gather setting: Auto unless it was set to one resource and is working it. */
+export function gatherSetting(u: Ent): GatherRes {
+  if (aetherJobOf(u)) return 'aether';
+  const o = u.order?.t === 'harvest' ? u.order : u.order?.t === 'heal' ? resume.get(u) : null;
+  return !o || o.auto ? 'auto' : o.res ?? 'ore';
+}
 
 /** The Aether deposit each Worker was sent to draw from, to go back to after banking what it carries. */
 const aetherJob = new WeakMap<Ent, number>();
@@ -217,13 +199,19 @@ function fromBase(team: number, x: number, y: number): number {
 }
 
 /**
- * The player sends a Worker to gather one resource: the ore, trees, Oil Derrick or Aether deposit
- * nearest the base. It's the player's choice, so it sticks to it (no switching to even things out).
+ * The player sets a Worker to Auto, or to gather one resource: the ore, trees, Oil Derrick or Aether
+ * deposit nearest the base. One resource is the player's choice, so it sticks to it.
  * Returns false if there's none of that to gather.
  */
 export function sendGather(u: Ent, r: GatherRes): boolean {
   if (u.type !== 'worker') return false;
   forgetAether(u);
+  if (r === 'auto') {
+    const job = pickResource(u);
+    if (job) gather(u, job);
+    else if (bankAt(u, ORE_BANKS)) { const [tx, ty] = oreStart(u); setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0, auto: true }); }
+    return u.order?.t === 'harvest';
+  }
   if (r === 'ore' || r === 'wood') {
     // start from the drop-off itself: the Worker then picks the ore (unit.ts pickOre) or tree
     // (chop.ts nextTree) nearest the base, not the one nearest where it stands

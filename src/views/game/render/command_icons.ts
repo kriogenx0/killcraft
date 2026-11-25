@@ -20,6 +20,8 @@ export const COMMAND_GLYPH: Record<string, string> = {
   // keep formation: a tidy block of troops
   formation: svg('<rect x="2.5" y="5" width="19" height="14" rx="2" stroke-dasharray="3 2.5"/>' + [7, 12, 17].flatMap((x) => [9.5, 14.5].map((y) => `<circle cx="${x}" cy="${y}" r="1.8" fill="currentColor" stroke="none"/>`)).join('')),
   // Gather: a crystal of ore, a log, a drop of oil, a four-point Aether star
+  // Auto: a balance scale, evening out what the side has
+  'gather:auto': svg('<path d="M12 4v16M7 20h10M4 7h16"/><path d="M6 7l-3 6a3 3 0 0 0 6 0zM18 7l-3 6a3 3 0 0 0 6 0z"/>'),
   'gather:ore': svg('<path d="M12 3l6 6-6 12-6-12z"/><path d="M6 9h12M12 3v18"/>'),
   'gather:wood': svg('<ellipse cx="17" cy="12" rx="3" ry="5"/><path d="M17 7H7c-1.7 0-3 2.2-3 5s1.3 5 3 5h10"/><circle cx="17" cy="12" r="1"/>'),
   'gather:oil': svg('<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>'),
