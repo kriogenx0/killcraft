@@ -24,6 +24,7 @@ import { cancelSite, canPlaceType, exitTile, placeBuilding, wallLine } from './b
 import { orderFix, orderHarvest, orderMove } from './order.ts';
 import { tileOf } from './state.ts';
 import { keepResume } from './autogather.ts';
+import { hatch } from './mystery.ts';
 
 export type Buildable = UnitType | BldType | TechType;
 
@@ -82,6 +83,11 @@ export function nextWard(team: number): TechType | null {
   return G.ward[team] ? null : TECH_TYPES.find((t) => TECH[t].ward && TECH[t].era <= eraOf(team)) ?? null;
 }
 
+/** Field Mechanics, until it's researched. */
+export function nextMech(team: number): TechType | null {
+  return G.mech[team] ? null : TECH_TYPES.find((t) => TECH[t].mech && TECH[t].era <= eraOf(team)) ?? null;
+}
+
 /** The next level on each Armory track that the team's age allows. */
 export function nextUpgrades(team: number): TechType[] {
   return UPGRADE_TRACKS.flatMap((track) => TECH_TYPES.filter((t) => {
@@ -122,12 +128,12 @@ export function available(team: number, line: ProductionLine): Buildable[] {
       (t !== 'waygate' || countOf(team, 'waygate') < MAX_WAYGATES));
   }
   if (line === 'armory') return nextUpgrades(team).filter((t) => revealed(team, t));
-  if (line === 'hospital') { const t = nextHeal(team); return t ? [t] : []; }
+  if (line === 'hospital') return [nextHeal(team), nextMech(team)].filter((t): t is TechType => !!t);
   if (line === 'tech') {
     return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
   }
   const yardOnly = line === 'infantry' && producerOf(team, line)?.type === 'yard';
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && !UNIT[t].hatched && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
 }
 
 /**
@@ -140,7 +146,7 @@ export function unitSlots(team: number): UnitType[] {
   const era = eraOf(team), LINES: ProductionLine[] = ['infantry', 'vehicle', 'air'];
   const secret = (t: UnitType) => (UNIT[t].beast || priceOf(t).aether > 0 ? 1 : 0);
   const key = (t: UnitType) => [LINES.indexOf(UNIT[t].producer), t === 'worker' ? 0 : 1, secret(t), UNIT[t].era, UNIT_TYPES.indexOf(t)];
-  return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
+  return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && !UNIT[t].hatched && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
     .sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i]; return 0; });
 }
 
@@ -317,12 +323,23 @@ export function itemsOf(team: number, type: Buildable): ProductionItem[] {
 }
 
 function deliver(team: number, type: UnitType, b: Ent): void {
+  // a Mystery Egg hatches into something special (game/mystery.ts)
+  if (UNIT[type].hatches) {
+    const out = hatch(team, eraOf(team));
+    say(team, out === 'chicken' ? 'The Mystery Egg hatched... a Titan Chicken!' : `The Mystery Egg hatched a ${UNIT[out].name}!`);
+    deliverUnit(team, out, b, false);
+    return;
+  }
+  deliverUnit(team, type, b, true);
+}
+
+function deliverUnit(team: number, type: UnitType, b: Ent, announce: boolean): void {
   // Workers and harvesters ignore rally points: they come out the usual side and go to work
   const haul = !!UNIT[type].haul, rally = haul ? null : b.rally;
   const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
   noteTrained(team);
-  say(team, `${UNIT[type].name} ready`);
+  if (announce) say(team, `${UNIT[type].name} ready`);
   // a new Worker starts on Auto: off to whatever the side has least of
   if (type === 'worker') { if (!autoGather(u)) orderHarvest(u, x, y); }
   else if (haul) orderHarvest(u, x, y);
@@ -330,11 +347,16 @@ function deliver(team: number, type: UnitType, b: Ent): void {
 }
 
 function advance(team: number, type: TechType): void {
-  const { age, heal, ward, upg, name } = TECH[type];
+  const { age, heal, ward, mech, upg, name } = TECH[type];
   if (upg) {
     G.upg[team] ??= noUpgrades();
     G.upg[team][upg.track] = Math.max(G.upg[team][upg.track], upg.level);
     say(team, `${name} researched`);
+    return;
+  }
+  if (mech) {
+    G.mech[team] = true;
+    say(team, `${name} researched: Medics now repair vehicles`);
     return;
   }
   if (ward) {

@@ -128,6 +128,8 @@ export interface SnapMsg {
   aetherFound: boolean;
   /** the team has researched the Aether Ward */
   ward: boolean;
+  /** the team has researched Field Mechanics */
+  mech?: boolean;
   /** creature kinds the team has captured, and so can train */
   tamed: string[];
   /** the army rally point (world px), if set */
@@ -155,6 +157,8 @@ export interface SideStock {
   aether: number;
   aetherFound: boolean;
   ward: boolean;
+  /** the team has researched Field Mechanics */
+  mech?: boolean;
   tamed: string[];
   /** the army rally point (world px), if set */
   rally?: { x: number; y: number } | null;

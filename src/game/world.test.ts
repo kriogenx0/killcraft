@@ -16,7 +16,7 @@ import { TREE_WOOD, WOOD_LOAD } from '../data/economy.ts';
 import { START_CREDITS, START_UNITS, START_WOOD } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { BUILDING, SCRAP_SHARE } from '../data/building.ts';
-import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
+import { HEAL_RATE, HOSPITAL_HEAL, TECH } from '../data/era.ts';
 import { mulberry32 } from '../util/math.ts';
 
 // these tests time production exactly: switch off the leader's handicaps (one side always ends up far ahead here)
@@ -171,9 +171,9 @@ describe('production', () => {
     expect(enqueue(0, 'heal1')).toBe(false); // one research at a time
     run(30);
     expect(G.heal[0]).toBe(1);
-    expect(available(0, 'hospital')).toEqual([]);
+    expect(available(0, 'hospital')).toEqual(['mech']);
     G.era[0] = 1;
-    expect(available(0, 'hospital')).toEqual(['heal2']);
+    expect(available(0, 'hospital')).toEqual(['heal2', 'mech']);
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);
     s.hp = foe.hp = 10;
     run(10);
@@ -236,6 +236,30 @@ describe('production', () => {
     run(8);
     expect(f.hp).toBeGreaterThan(40 + 20);
     expect(m.dead).toBe(false);
+  });
+
+  it('a medic repairs vehicles only once Field Mechanics is researched, on patrol too', () => {
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // they'd patch the tank up
+    const tank = addUnit('tank', 0, 26 * TS, 53 * TS), m = addUnit('medic', 0, 20 * TS, 50 * TS);
+    tank.hp = 100;
+    applyCommand(0, { c: 'patrol', ids: [m.id], tx: 32, ty: 50 });
+    run(12);
+    expect(tank.hp).toBe(100); // a Medic can't fix a machine yet
+    addBuilding('power', 0, 10, 50, false);
+    addBuilding('barracks', 0, 13, 50, false);
+    addBuilding('hospital', 0, 16, 50, false);
+    Object.assign(G, { credits: [5000, 5000], wood: [5000, 5000] });
+    expect(available(0, 'hospital')).toContain('mech');
+    expect(enqueue(0, 'mech')).toBe(true);
+    run(TECH.mech.t + 2);
+    expect(G.mech[0]).toBe(true);
+    expect(G.mech[1]).toBe(false);
+    expect(available(0, 'hospital')).not.toContain('mech');
+    run(15);
+    expect(tank.hp).toBeGreaterThan(100 + 40);
+    expect(m.order?.t === 'move' && !!m.order.pat).toBe(true);
+    run(70);
+    expect(tank.hp).toBeGreaterThan(tank.maxhp - 1);
   });
 
   it('stalls without credits instead of going into debt', () => {

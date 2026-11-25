@@ -4,6 +4,7 @@ import { G, blkAt, isAir, tileOf, type Ent, type Target, type Tile } from './sta
 import { MW, MH, TS, SHALLOW } from './const.ts';
 import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
+import { UNIT, type UnitType } from '../data/unit.ts';
 
 export const DIRS: [number, number, number][] = [
   [1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1],
@@ -298,5 +299,7 @@ export function edgeDist(a: { x: number; y: number }, t: Target): number {
     const l = t.tx * TS, r = l + t.w * TS, tp = t.ty * TS, b = tp + t.h * TS;
     return Math.hypot(a.x - clamp(a.x, l, r), a.y - clamp(a.y, tp, b));
   }
-  return Math.hypot(a.x - t.x, a.y - t.y) - 10;
+  // a big unit is in reach at its edge, or nothing short could ever hit a Titan through the crowd
+  const r = (t as Ent).kind === 'unit' ? UNIT[(t as Ent).type as UnitType]?.radius ?? 0 : 0;
+  return Math.hypot(a.x - t.x, a.y - t.y) - Math.max(10, r);
 }

@@ -269,6 +269,8 @@ export const G = {
   leader: -1,
   /** each team has researched the Aether Ward */
   ward: [] as boolean[],
+  /** each team has researched Field Mechanics (Medics repair vehicles) */
+  mech: [] as boolean[],
   /** each team's army rally point (world px; game/rally.ts), or null */
   rally: [] as (Point | null)[],
   /** each team's age of technology (index into ERA) */

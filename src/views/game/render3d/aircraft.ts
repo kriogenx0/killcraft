@@ -219,31 +219,47 @@ export function fighter(team: number): Model {
   return { root, parts, height: 0.4 };
 }
 
-/** Modern age: a two-seat strike jet, broad and heavy, with twin engines and bombs slung under the wings. */
+/**
+ * Modern age: a ground-attack jet, built nothing like the fighter: a blunt olive-drab body on long
+ * straight wings, two big engines in pods high on the tail, twin square fins in team colour, a
+ * cannon jutting from the nose and a row of bombs slung under the wings.
+ */
 export function striker(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
-  const tm = teamMat(team, 'm', 0.4), td = teamMat(team, 'd', 0.4), grey = mat('#6e7670', { rough: 0.5, metal: 0.5 });
-  // a wide body with two engines side by side, a long nose and a stepped two-seat canopy
-  root.add(scl(mesh(sph(0.12, 16, 10), grey, 0, 0.15, 0), 4.4, 0.75, 1.3));
-  root.add(along(mesh(cone(0.07, 0.26, 12), M.darkSteel(), 0.62, 0.15, 0)));
-  root.add(scl(mesh(sph(0.065, 12, 8), M.glass(), 0.28, 0.22, 0), 2.6, 0.9, 0.8));
-  root.add(mesh(box(0.012, 0.05, 0.1), td, 0.26, 0.24, 0));
-  for (const z of [-0.09, 0.09]) root.add(along(mesh(cyl(0.065, 0.065, 0.5, 12), grey, -0.18, 0.13, z)));
-  // broad swept wings and tailplanes
-  root.add(pair([[0.18, 0.1], [-0.18, 0.6], [-0.3, 0.6], [-0.3, 0.1]], 0.022, tm, 0.13));
-  root.add(pair([[0.18, 0.1], [0.12, 0.16], [-0.17, 0.58], [-0.18, 0.6]], 0.026, td, 0.13));
-  root.add(pair([[-0.34, 0.1], [-0.48, 0.3], [-0.55, 0.3], [-0.54, 0.1]], 0.016, td, 0.12));
-  for (const z of [-0.1, 0.1]) root.add(rot(group(0, 0.19, z, plate([[-0.3, 0], [-0.5, 0.24], [-0.57, 0.24], [-0.54, 0]], 0.014, tm).rotateX(-Math.PI / 2)), Math.sign(z) * -0.15, 0, 0));
-  // pylons with fat bombs, two under each wing
+  const tm = teamMat(team, 'm', 0.2), td = teamMat(team, 'd', 0.2);
+  const drab = mat('#8a9a62', { rough: 0.75, metal: 0.1 }), drabDark = mat('#5e6b45', { rough: 0.8, metal: 0.1 });
+  // a long boxy body with a blunt nose, the cockpit bubble well forward
+  root.add(scl(mesh(sph(0.1, 14, 10), drab, 0.02, 0.14, 0), 5.2, 0.85, 0.85));
+  root.add(along(mesh(cyl(0.05, 0.075, 0.12, 12), drabDark, 0.52, 0.13, 0)));
+  root.add(scl(mesh(sph(0.055, 12, 8), M.glass(), 0.36, 0.21, 0), 1.6, 1, 0.9));
+  root.add(mesh(box(0.2, 0.012, 0.13), tm, 0.0, 0.215, 0)); // team stripe along the spine
+  // the nose cannon: a long seven-barrel gun
+  const gun = group(0.6, 0.11, 0, along(mesh(cyl(0.014, 0.014, 0.14, 8), M.gun(), 0.06, 0, 0)));
+  parts.barrel = gun;
+  root.add(gun);
+  // long straight wings with a slight taper, drab on top, team-coloured tips
+  root.add(pair([[0.12, 0.06], [0.08, 0.62], [-0.06, 0.62], [-0.1, 0.06]], 0.024, drab, 0.1));
+  for (const z of [-0.6, 0.6]) root.add(mesh(box(0.15, 0.03, 0.05), tm, 0.01, 0.112, z));
+  // two fat engine pods high on the rear body, side by side
+  for (const z of [-0.12, 0.12]) {
+    root.add(rod([-0.22, 0.17, z * 0.4], [-0.26, 0.24, z], 0.02, drabDark, 4));
+    root.add(along(mesh(cyl(0.065, 0.065, 0.24, 14), drabDark, -0.3, 0.27, z)));
+    root.add(along(mesh(cyl(0.05, 0.05, 0.01, 14), M.dark(), -0.18, 0.27, z)));
+    root.add(nozzle(-0.44, 0.27, z, 0.05, parts, z < 0 ? 'burner' : 'burner2'));
+  }
+  // a straight tailplane with a square team-coloured fin at each end
+  root.add(mesh(box(0.14, 0.018, 0.46), drab, -0.52, 0.16, 0));
+  for (const z of [-0.23, 0.23]) root.add(mesh(box(0.13, 0.17, 0.016), tm, -0.53, 0.24, z));
+  for (const z of [-0.23, 0.23]) root.add(mesh(box(0.13, 0.03, 0.02), td, -0.53, 0.32, z));
+  // bombs on pylons under each wing
   const bombs = new THREE.Group();
-  for (const z of [-0.26, 0.26, -0.42, 0.42]) {
-    bombs.add(mesh(box(0.08, 0.04, 0.012), M.darkSteel(), -0.1, 0.1, z));
-    bombs.add(scl(mesh(sph(0.04, 10, 8), M.olive(), -0.1, 0.06, z), 2.4, 1, 1));
-    bombs.add(mesh(box(0.03, 0.05, 0.005), M.olive(), -0.2, 0.06, z));
+  for (const z of [-0.2, 0.2, -0.33, 0.33, -0.46, 0.46]) {
+    bombs.add(mesh(box(0.06, 0.04, 0.01), M.darkSteel(), 0.02, 0.08, z));
+    bombs.add(scl(mesh(sph(0.032, 10, 8), M.darkSteel(), 0.02, 0.045, z), 2.4, 1, 1));
+    bombs.add(mesh(box(0.025, 0.04, 0.004), M.darkSteel(), -0.06, 0.045, z));
   }
   parts.bombs = bombs;
   root.add(bombs);
-  for (const z of [-0.09, 0.09]) root.add(nozzle(-0.46, 0.13, z, 0.06, parts, z < 0 ? 'burner' : 'burner2'));
   return { root, parts, height: 0.45 };
 }
 

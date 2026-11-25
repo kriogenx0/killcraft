@@ -30,6 +30,7 @@ describe('the Titan', () => {
       if (t === 'giant') continue;
       expect(UNIT.giant.hp).toBeGreaterThan(d.hp);
       expect(UNIT.giant.cost).toBeGreaterThanOrEqual(d.cost);
+      expect(UNIT.giant.radius).toBeGreaterThan(d.radius * 1.5); // dwarfs even the Cyborg Colossus
     }
   });
 
