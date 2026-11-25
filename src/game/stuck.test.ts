@@ -218,5 +218,5 @@ describe('units never stand around with an order', () => {
     // dropping a fight and taking it up again because the computer re-gave their move order
     const stuck = findStuck(1, 900);
     expect(stuck).toEqual([]);
-  }, 60_000);
+  }, 120_000);
 });

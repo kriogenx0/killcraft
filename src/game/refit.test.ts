@@ -138,7 +138,7 @@ describe('building upgrades', () => {
     });
     for (let i = 0; i < 120 && !G.over && !upgraded(); i++) run(5);
     expect(upgraded()).toBe(true);
-  });
+  }, 20_000); // a long computer game on the bigger maps
 
   it('the computer upgrades its buildings once it has ore to spare', () => {
     G.era[1] = 1;

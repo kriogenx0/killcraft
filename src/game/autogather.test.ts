@@ -12,7 +12,7 @@ import { addBuilding, addUnit, kill } from './entity.ts';
 import { startSite } from './production.ts';
 import { canPlace } from './building.ts';
 import { BUILDING } from '../data/building.ts';
-import { IDLE_GRACE, jobOf, pickResource } from './autogather.ts';
+import { IDLE_GRACE, gatherSetting, jobOf, pickResource } from './autogather.ts';
 import { OIL_WELLS } from '../data/map.ts';
 import { dropSalvage } from './economy.ts';
 import { mulberry32 } from '../util/math.ts';
@@ -77,14 +77,13 @@ describe('idle Workers', () => {
     expect(ws.filter((w) => jobOf(w) === 'ore').length).toBeGreaterThanOrEqual(3);
   });
 
-  it('go for what queued orders are waiting on', () => {
+  it('on Auto, go for what the side has least of, counting what queued orders still owe', () => {
     const [w] = workers(1);
-    G.credits[0] = 5000; G.wood[0] = 500;
-    expect(pickResource(w, ['ore', 'wood'])).not.toBe('wood');
-    // a structure queued that the side can't pay the wood for yet
-    G.prod[0].structure.push({ type: 'barracks', prog: 0, spent: 0, paid: false, ready: false, hold: false });
-    G.wood[0] = 0;
+    G.credits[0] = 1100; G.wood[0] = 1000;
     expect(pickResource(w, ['ore', 'wood'])).toBe('wood');
+    // a Barracks queued that the side can't pay for yet (300 ore, 100 wood): ore is now the lower
+    G.prod[0].structure.push({ type: 'barracks', prog: 0, spent: 0, paid: false, ready: false, hold: false });
+    expect(pickResource(w, ['ore', 'wood'])).toBe('ore');
   });
 
   it('with nothing short, split between ore and wood rather than all on one', () => {
@@ -199,20 +198,29 @@ describe('idle Workers', () => {
     });
   });
 
-  it('on their own, even out across resources without flitting back and forth', () => {
+  it('on Auto, move over to what the side has least of, without flitting back and forth', () => {
     const ws = workers(4);
-    G.credits[0] = 5000; G.wood[0] = 5000;
-    // three on wood, one on ore: off the usual split, though nothing's short
+    G.credits[0] = 2000; G.wood[0] = 8000;
+    // three on wood, one on ore, though ore is far lower
     ws.forEach((w, k) => { w.order = { t: 'harvest', st: 'go', tx: w.x / TS | 0, ty: w.y / TS | 0, wait: 0, res: k ? 'wood' : undefined, auto: true }; });
     const switches = new Map<Ent, number>(), last = new Map(ws.map((w) => [w, jobOf(w)]));
-    for (let k = 0; k < 90 / STEP; k++) {
+    for (let k = 0; k < 45 / STEP; k++) {
       update(STEP);
       for (const w of ws) if (jobOf(w) && jobOf(w) !== last.get(w)) { switches.set(w, (switches.get(w) ?? 0) + 1); last.set(w, jobOf(w)); }
     }
-    const on = (r: string) => ws.filter((w) => jobOf(w) === r).length;
-    expect(on('ore')).toBe(2);
-    expect(on('wood')).toBe(2);
+    expect(ws.filter((w) => jobOf(w) === 'ore').length).toBeGreaterThanOrEqual(3);
     expect(Math.max(...ws.map((w) => switches.get(w) ?? 0))).toBeLessThanOrEqual(1); // one move, not a dance
+  });
+
+  it('the Auto setting puts Workers back to choosing for themselves', () => {
+    const ws = workers(2);
+    G.credits[0] = 5000; G.wood[0] = 500;
+    applyCommand(0, { c: 'gather', ids: ws.map((w) => w.id), res: 'ore' });
+    expect(ws.every((w) => gatherSetting(w) === 'ore')).toBe(true);
+    applyCommand(0, { c: 'gather', ids: ws.map((w) => w.id), res: 'auto' });
+    expect(ws.every((w) => gatherSetting(w) === 'auto')).toBe(true);
+    run(1);
+    expect(ws.some((w) => jobOf(w) === 'wood')).toBe(true); // wood is what's low
   });
 
   it('sent by the player to one resource, stick to it', () => {

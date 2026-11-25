@@ -6,7 +6,7 @@ import { extraHall } from '../../game/building.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
-import { GATHER, aetherJobOf, type GatherRes } from '../../game/autogather.ts';
+import { GATHER, gatherSetting, type GatherRes } from '../../game/autogather.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
@@ -122,16 +122,18 @@ function rallyCommand(): Command | null {
 }
 
 const GATHER_INFO: Record<GatherRes, { label: string; tip: string }> = {
+  auto: { label: 'Auto', tip: 'Gather whatever you have least of, switching as that changes' },
   ore: { label: 'Ore', tip: 'Dig ore: the ore nearest your base first' },
   wood: { label: 'Wood', tip: 'Chop wood: the trees nearest a drop-off first' },
   oil: { label: 'Oil', tip: 'Haul oil from your Oil Derrick nearest the base' },
   aether: { label: 'Aether', tip: 'Draw Aether at the deposit nearest your base, bank it, and go back for more' },
 };
 
-/** Send the selected Workers to gather one resource; they stay on it. */
+/** The Workers' gather setting: Auto, or one resource they stay on (Aether on its own button). */
 function gatherCommands(s: Ent[]): Command[] {
-  const ws = s.filter((u) => u.type === 'worker'), job = (u: Ent) => (u.order?.t === 'harvest' ? u.order.res ?? 'ore' : aetherJobOf(u) ? 'aether' : null);
+  const ws = s.filter((u) => u.type === 'worker');
   const can: Record<GatherRes, boolean> = {
+    auto: true,
     ore: true,
     wood: true,
     oil: G.ents.some((d) => !d.dead && d.team === V.team && d.type === 'derrick' && d.done && (d.carry > 1 || oilLeft(d) > 0)),
@@ -139,7 +141,7 @@ function gatherCommands(s: Ent[]): Command[] {
   };
   return GATHER.map((r) => {
     const id = `gather:${r}` as const;
-    return { id, label: GATHER_INFO[r].label, hotkey: COMMAND_KEYS[id], icon: ICON[id], tip: can[r] ? GATHER_INFO[r].tip : r === 'oil' ? 'Build an Oil Derrick on an oil well first' : 'No Aether left on the map', group: 'Gather', disabled: !can[r], active: ws.every((u) => job(u) === r) };
+    return { id, label: GATHER_INFO[r].label, hotkey: COMMAND_KEYS[id], icon: ICON[id], tip: can[r] ? GATHER_INFO[r].tip : r === 'oil' ? 'Build an Oil Derrick on an oil well first' : 'No Aether left on the map', group: r === 'aether' ? undefined : 'Gather', disabled: !can[r], active: ws.every((u) => gatherSetting(u) === r) };
   });
 }
 
