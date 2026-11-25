@@ -852,7 +852,7 @@ $sidebar-width: 248px;
       display: grid;
       // a fixed height, so selecting something doesn't resize (and blank) the map canvas
       // the panel scrolls up and down as one (selection, then build items); the radar stays put
-      // radar and what's selected side by side; the commands and the build tabs below use the full width
+      // what's selected across the top, then the radar beside the commands, then the build tabs
       grid-template-rows: max-content;
       grid-template-columns: 96px minmax(0, 1fr);
       gap: $space-2;
@@ -868,7 +868,8 @@ $sidebar-width: 248px;
     }
 
     .sidebar-minimap {
-      grid-row: 1;
+      grid-row: 2;
+      grid-column: 1;
       align-self: start;
       width: 96px;
     }
@@ -880,18 +881,23 @@ $sidebar-width: 248px;
 
     .selection-details {
       grid-row: 1;
-      grid-column: 2;
+      grid-column: 1 / -1;
       min-width: 0;
-      min-height: 96px;
       padding: $space-1 $space-2;
       background: var(--color-inset);
       border-radius: $radius;
     }
 
-    .selection-commands,
-    .sidebar-build {
-      grid-column: 1 / -1;
+    .selection-commands {
+      grid-row: 2;
+      grid-column: 2;
+      align-self: start;
       margin-top: 0;
+    }
+
+    .sidebar-build {
+      grid-row: 3;
+      grid-column: 1 / -1;
     }
 
     // long descriptions and how-to notes fold to two lines (the selection panel stays short)
