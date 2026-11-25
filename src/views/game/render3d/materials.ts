@@ -124,5 +124,19 @@ export const M = {
 
 /** A team's colors: main, dark and light. */
 export function teamMat(team: number, shade: 'm' | 'd' | 'l' = 'm', metal = 0.2): THREE.MeshStandardMaterial {
-  return mat(teamColors(team)[shade], { rough: 0.55, metal });
+  const m = mat(teamColors(team)[shade], { rough: 0.55, metal });
+  if (!tintOf.has(m)) {
+    const key = `tint|${metal}`;
+    let base = mats.get(key) as THREE.MeshStandardMaterial | undefined;
+    if (!base) { base = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55, metalness: metal }); mats.set(key, base); }
+    tintOf.set(m, { base, color: m.color });
+  }
+  return m;
 }
+
+/**
+ * Team colours are the same white material tinted: the batches (instancer.ts) draw every team's
+ * copies of a part together, each with its own colour.
+ */
+const tintOf = new WeakMap<THREE.Material, { base: THREE.Material; color: THREE.Color }>();
+export const teamTint = (m: THREE.Material): { base: THREE.Material; color: THREE.Color } | undefined => tintOf.get(m);
