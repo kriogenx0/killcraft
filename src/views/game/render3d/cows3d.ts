@@ -82,7 +82,9 @@ export function updateCows3d(): void {
   const blend = updateCows(G.gameT), t = G.gameT;
   let n = 0;
   for (let k = 0; k < cows.list.length && n < MAX; k++) {
-    const c = cows.list[k], x = c.px + (c.x - c.px) * blend, z = c.py + (c.y - c.py) * blend;
+    const c = cows.list[k];
+    if (c.kind !== 'cow') continue;
+    const x = c.px + (c.x - c.px) * blend, z = c.py + (c.y - c.py) * blend;
     if (!G.vis[Math.floor(z) * MW + Math.floor(x)]) continue;
     const s = S * c.size, phase = k * 1.7;
     const gait = c.walking ? Math.sin(t * 9 * c.size + phase) : 0;

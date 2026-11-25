@@ -1,5 +1,6 @@
-// Herds of cows: harmless scenery that grazes in the meadows between the bases. Every cow wears a
-// random colour (each herd has at least one purple one). They take no part in the game, so the
+// Herds of cows and flocks of sheep: harmless scenery that grazes in the meadows between the bases.
+// Every cow wears a random colour (each herd has at least one purple one); the sheep are white, all
+// but one black sheep somewhere on the map. They take no part in the game, so the
 // server never sends them: every screen works out the same herds from the map's seed and walks them
 // in fixed steps of game time, which keeps them in step across an online match for free.
 import { G } from './state.ts';
@@ -16,6 +17,12 @@ export const HERDS = 8;
 export const HERD_SIZE: [number, number] = [4, 7];
 /** How far (tiles) a cow strays from its herd. */
 export const HERD_RADIUS = 2.6;
+/** Sheep flocks: how many, how big, and how close they huddle. Exactly one sheep on the map is black. */
+export const FLOCKS = 3;
+export const FLOCK_SIZE: [number, number] = [7, 11];
+export const FLOCK_RADIUS = 1.9;
+export const SHEEP_WHITE = '#efebe2';
+export const SHEEP_BLACK = '#26221f';
 /** Walking speed in tiles per second. */
 export const COW_SPEED = 0.32;
 /** The cows think in steps of this much game time. */
@@ -24,7 +31,10 @@ export const COW_TICK = 0.2;
 const CLEAR_OF_BASES = 13;
 const CLEAR_OF_LAIRS = 6;
 
+export type Grazer = 'cow' | 'sheep';
+
 export interface Cow {
+  kind: Grazer;
   /** position in tiles, now and one step ago (the renderer blends them) */
   x: number; y: number; px: number; py: number;
   face: number;
@@ -44,7 +54,7 @@ export interface Cow {
 }
 
 /** A herd: where it grazes now, its home meadow, and when it next drifts. */
-export interface Herd { x: number; y: number; hx: number; hy: number; move: number; move0: number; seed: number; rnd: () => number }
+export interface Herd { kind: Grazer; x: number; y: number; hx: number; hy: number; move: number; move0: number; seed: number; rnd: () => number }
 
 export const cows: { list: Cow[]; herds: Herd[]; t: number; seed: number; teams: number } = { list: [], herds: [], t: 0, seed: -1, teams: 0 };
 
@@ -61,6 +71,8 @@ export function meadow(x: number, y: number, r: number): boolean {
   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r && !pasture(x + dx + 0.5, y + dy + 0.5)) return false;
   return !nearPortal(x, y, 3);
 }
+
+const radius = (k: Grazer): number => (k === 'sheep' ? FLOCK_RADIUS : HERD_RADIUS);
 
 /** Send every cow back to where it started (a rewound clock). */
 function restartCows(): void {
@@ -85,16 +97,43 @@ export function initCows(): void {
     const [x, y] = spots[Math.floor(rnd() * spots.length)];
     if (cows.herds.some((h) => Math.hypot(h.x - x - 0.5, h.y - y - 0.5) < 12)) continue;
     const move = 40 + rnd() * 60, hs = (G.seed * 31 + cows.herds.length * 7919) | 0;
-    const herd: Herd = { x: x + 0.5, y: y + 0.5, hx: x + 0.5, hy: y + 0.5, move, move0: move, seed: hs, rnd: mulberry32(hs) };
+    const herd: Herd = { kind: 'cow', x: x + 0.5, y: y + 0.5, hx: x + 0.5, hy: y + 0.5, move, move0: move, seed: hs, rnd: mulberry32(hs) };
     const n = HERD_SIZE[0] + Math.floor(rnd() * (HERD_SIZE[1] - HERD_SIZE[0] + 1)), purple = Math.floor(rnd() * n);
     for (let k = 0; k < n; k++) {
       const a = rnd() * Math.PI * 2, d = rnd() * HERD_RADIUS * 0.8, cx = herd.x + Math.cos(a) * d, cy = herd.y + Math.sin(a) * d;
       const ok = pasture(cx, cy);
       const sx = ok ? cx : herd.x, sy = ok ? cy : herd.y, face = rnd() * Math.PI * 2, color = k === purple ? COW_COLORS[0] : COW_COLORS[Math.floor(rnd() * COW_COLORS.length)];
       const size = 0.85 + rnd() * 0.3, until = rnd() * 8, cs = (G.seed * 131 + cows.list.length * 104729) | 0;
-      cows.list.push({ x: sx, y: sy, px: sx, py: sy, face, color, size, herd: cows.herds.length, walking: false, tx: 0, ty: 0, until, seed: cs, rnd: mulberry32(cs), start: [sx, sy, face, until] });
+      cows.list.push({ kind: 'cow', x: sx, y: sy, px: sx, py: sy, face, color, size, herd: cows.herds.length, walking: false, tx: 0, ty: 0, until, seed: cs, rnd: mulberry32(cs), start: [sx, sy, face, until] });
     }
     cows.herds.push(herd);
+  }
+  placeFlocks(spots);
+}
+
+/** Flocks of white sheep in other meadows, with one black sheep hidden in one of them. Uses its own
+ * dice so the cows land where they always did. */
+function placeFlocks(spots: [number, number][]): void {
+  const rnd = mulberry32(G.seed ^ 0x5eeb), first = cows.herds.length;
+  for (let tries = 0; tries < 60 && cows.herds.length - first < FLOCKS && spots.length; tries++) {
+    const [x, y] = spots[Math.floor(rnd() * spots.length)];
+    if (cows.herds.some((h) => Math.hypot(h.x - x - 0.5, h.y - y - 0.5) < 10)) continue;
+    const move = 30 + rnd() * 50, hs = (G.seed * 37 + cows.herds.length * 6151) | 0;
+    cows.herds.push({ kind: 'sheep', x: x + 0.5, y: y + 0.5, hx: x + 0.5, hy: y + 0.5, move, move0: move, seed: hs, rnd: mulberry32(hs) });
+  }
+  const flocks = cows.herds.length - first;
+  if (!flocks) return;
+  const blackFlock = first + Math.floor(rnd() * flocks);
+  for (let f = first; f < cows.herds.length; f++) {
+    const herd = cows.herds[f];
+    const n = FLOCK_SIZE[0] + Math.floor(rnd() * (FLOCK_SIZE[1] - FLOCK_SIZE[0] + 1)), black = f === blackFlock ? Math.floor(rnd() * n) : -1;
+    for (let k = 0; k < n; k++) {
+      const a = rnd() * Math.PI * 2, d = rnd() * FLOCK_RADIUS * 0.8, cx = herd.x + Math.cos(a) * d, cy = herd.y + Math.sin(a) * d;
+      const ok = pasture(cx, cy);
+      const sx = ok ? cx : herd.x, sy = ok ? cy : herd.y, face = rnd() * Math.PI * 2;
+      const size = 0.85 + rnd() * 0.25, until = rnd() * 6, cs = (G.seed * 137 + cows.list.length * 7727) | 0;
+      cows.list.push({ kind: 'sheep', x: sx, y: sy, px: sx, py: sy, face, color: k === black ? SHEEP_BLACK : SHEEP_WHITE, size, herd: f, walking: false, tx: 0, ty: 0, until, seed: cs, rnd: mulberry32(cs), start: [sx, sy, face, until] });
+    }
   }
 }
 
@@ -104,7 +143,7 @@ function step(c: Cow, t: number): void {
   if (!c.walking) {
     if (t < c.until) return;
     // wander to another patch of grass near the herd
-    const a = c.rnd() * Math.PI * 2, d = c.rnd() * HERD_RADIUS, tx = h.x + Math.cos(a) * d, ty = h.y + Math.sin(a) * d;
+    const a = c.rnd() * Math.PI * 2, d = c.rnd() * radius(c.kind), tx = h.x + Math.cos(a) * d, ty = h.y + Math.sin(a) * d;
     if (!pasture(tx, ty)) { c.until = t + 1 + c.rnd() * 2; return; }
     Object.assign(c, { walking: true, tx, ty });
     return;

@@ -8,7 +8,7 @@ import { surface, type Surface } from './surfaces.ts';
 const geos = new Map<string, THREE.BufferGeometry>();
 const mats = new Map<string, THREE.Material>();
 
-function geo<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
+export function geo<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
   let g = geos.get(key) as T | undefined;
   if (!g) { g = make(); geos.set(key, g); }
   return g;

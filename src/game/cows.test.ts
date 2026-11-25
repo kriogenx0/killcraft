@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { G } from './state.ts';
 import { MW } from './const.ts';
 import { initWorld } from './world.ts';
-import { COW_COLORS, cows, pasture, updateCows } from './cows.ts';
+import { COW_COLORS, SHEEP_BLACK, SHEEP_WHITE, cows, pasture, updateCows } from './cows.ts';
 
 const snapshot = () => cows.list.map((c) => [c.x.toFixed(3), c.y.toFixed(3), c.color]);
 
@@ -13,11 +13,25 @@ describe('cows', () => {
       updateCows(0);
       expect(cows.herds.length).toBeGreaterThanOrEqual(2);
       for (let h = 0; h < cows.herds.length; h++) {
+        if (cows.herds[h].kind !== 'cow') continue;
         const herd = cows.list.filter((c) => c.herd === h);
         expect(herd.length).toBeGreaterThanOrEqual(4);
         expect(herd.some((c) => c.color === COW_COLORS[0])).toBe(true);
       }
       for (const c of cows.list) expect(pasture(c.x, c.y)).toBe(true);
+    }
+  });
+
+  it('adds flocks of white sheep with exactly one black sheep', () => {
+    for (const seed of [1, 42, 777, 12345]) {
+      initWorld(seed);
+      updateCows(0);
+      const sheep = cows.list.filter((c) => c.kind === 'sheep');
+      expect(cows.herds.filter((h) => h.kind === 'sheep').length).toBeGreaterThanOrEqual(2);
+      expect(sheep.length).toBeGreaterThanOrEqual(14);
+      expect(sheep.filter((c) => c.color === SHEEP_BLACK).length).toBe(1);
+      expect(sheep.every((c) => c.color === SHEEP_WHITE || c.color === SHEEP_BLACK)).toBe(true);
+      for (const c of sheep) expect(cows.herds[c.herd].kind).toBe('sheep');
     }
   });
 
