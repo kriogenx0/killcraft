@@ -1,7 +1,7 @@
 // Spikes and armour layers on units. Armoured units (swordsmen, knights, tanks, jeeps, catapults,
 // harvesters) always bristle with spikes; every other foot soldier grows them from the first armour
-// upgrade, except Workers and Medics, who get the plates but never spikes. Each upgrade makes
-// every spike longer and adds more, in the style of the unit's age:
+// upgrade (Workers and Medics wear neither spikes nor armour). Each upgrade makes every spike
+// longer and adds more, in the style of the unit's age:
 // round iron spikes (Medieval), riveted steel ones and a spiked helmet (World War), and squat
 // faceted black blades (Modern). Each Armory armour upgrade also bolts on another visible
 // layer: infantry get pauldrons, then breast and back plates, then tassets and a collar; knights'
@@ -69,12 +69,11 @@ const both = (f: (side: number) => Piece[]): Piece[] => [...f(-1), ...f(1)];
 /**
  * A foot soldier (about 0.62 tall, facing +x). `spiky` soldiers wear spikes from the start; the
  * rest grow them with the first upgrade. `helmTop` is the crown of an army helmet, which gets a
- * spike of its own on the first upgrade. `spiky` null means never: plates only (Workers, Medics).
+ * spike of its own on the first upgrade.
  */
-function soldier(level: number, spiky: boolean | null, helmTop = 0, crest = helmTop || 0.575): Piece[] {
+function soldier(level: number, spiky: boolean, helmTop = 0, crest = helmTop || 0.575): Piece[] {
   const p: Piece[] = [], steel = M.steel(), dark = M.darkSteel();
-  const never = spiky === null;
-  spiky = !never && (spiky || level >= 1);
+  spiky ||= level >= 1;
   if (spiky) p.push(...both((s) => [spike([0, 0.43, s * 0.14], [0, 0.7, s], 0.07), spike([-0.035, 0.41, s * 0.15], [-0.4, 0.4, s], 0.05)]));
   if (level >= 1) p.push(...both((s) => [
     { g: dome(0.07), m: steel, at: [0, 0.405, s * 0.12], scale: [1.05, 0.75, 1.2] }, // pauldron
@@ -205,8 +204,6 @@ export function armorKit(type: UnitType, team: number, level: number): ArmorKit 
       case 'swordsman': pieces = soldier(level, true); break;
       case 'rifleman': case 'gunner': case 'rocket': pieces = soldier(level, false, 0.565); break;
       case 'crossbowman': pieces = soldier(level, false); break;
-      case 'medic': pieces = soldier(level, null, 0, 0.53); break;
-      case 'worker': pieces = soldier(level, null, 0, 0.555); break;
       case 'knight': pieces = knight(level); break;
       case 'tank': case 'heavy': ({ hull: pieces, turret } = tank(level, team)); scale = look === 'heavy' ? 1.22 : 1; break;
       case 'artillery': pieces = tank(level, team).hull; break; // the same tracks and hull; its gun house wears none
