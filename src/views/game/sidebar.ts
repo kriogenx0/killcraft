@@ -141,7 +141,8 @@ export function refreshSidebar(): void {
     // a structure's "items" are its sites going up on the map; the ring follows the one nearest done
     const sites = structure ? sitesOf(V.team, type as BldType) : [];
     const items = structure ? sites : itemsOf(V.team, type), first = structure ? null : itemsOf(V.team, type)[0], head = G.prod[V.team][line][0];
-    const prog = structure ? Math.max(0, ...sites.map((e) => e.prog)) : head && head.type === type && !head.ready ? head.prog : 0;
+    // several Barracks can each be training one of a kind: the ring follows the one nearest done
+    const prog = structure ? Math.max(0, ...sites.map((e) => e.prog)) : Math.max(0, ...itemsOf(V.team, type).filter((x) => x.at != null && !x.ready).map((x) => x.prog));
     const deg = Math.round(prog * 360);
     c.progress.style.background = items.length ? `conic-gradient(rgba(0,0,0,0) ${deg}deg, rgba(0,0,0,.6) 0)` : '';
     const placing = V.mode?.t === 'place' && V.mode.type === type;

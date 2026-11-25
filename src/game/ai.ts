@@ -142,6 +142,9 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
   if (G.credits[team] > 3000 && countOf(team, 'refinery') < 3) return 'refinery';
+  // a bank piling up: another Barracks (and War Factory) to train troops side by side
+  if (G.credits[team] > 2000 && countOf(team, 'barracks') < 2 && can.includes('barracks')) return 'barracks';
+  if (G.credits[team] > 2500 && G.era[team] >= 1 && countOf(team, 'factory') < 2 && can.includes('factory')) return 'factory';
   return defense(team, can);
 }
 
@@ -623,7 +626,10 @@ function training(team: number): void {
   const saving = credits < 150;
   // an army at the difficulty's limit trains no more fighters
   const L = lvl(team), full = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length >= L.armyCap;
-  if (hasBuilding(team, 'factory') && prod.vehicle.length < 2) {
+  // every Barracks (War Factory, Airfield) trains one order at a time: keep each of them busy
+  const n = (t: BldType) => G.ents.filter((e) => !e.dead && e.team === team && e.type === t && e.done).length;
+  const factories = n('factory'), barracks = n('barracks');
+  if (factories && prod.vehicle.length < 1 + factories) {
     const refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
     if (available(team, 'vehicle').includes('harvester') && countOf(team, 'harvester') < Math.min(6, refineries * lvl(team).harvesters) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
@@ -641,7 +647,7 @@ function training(team: number): void {
     if (t) enqueue(team, t);
   }
   // a few aircraft once there's money to spare
-  if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < 1 && credits > 900) {
+  if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') && credits > 900) {
     const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0]]);
     if (t) enqueue(team, t);
   }
@@ -650,7 +656,7 @@ function training(team: number): void {
   if (available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
-  const infantryQueue = credits > 2500 ? L.queue + 2 : L.queue;
+  const infantryQueue = (credits > 2500 ? L.queue + 2 : L.queue) + Math.max(0, barracks - 1);
   // an idle War Factory in the World War age or later: save up for a vehicle instead of spending every
   // last coin on cheap infantry
   const big = ais[team].big, forVehicle = hasBuilding(team, 'factory') && !prod.vehicle.length && G.era[team] >= 1 && credits < (big ? costOf(big) : 900);

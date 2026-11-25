@@ -57,6 +57,8 @@ export interface ProductionItem {
   ready: boolean;
   /** paused by the player */
   hold: boolean;
+  /** the building training it right now: each producer trains one order at a time, so two Barracks train twice as fast */
+  at?: number;
 }
 export type Production = Record<ProductionLine, ProductionItem[]>;
 

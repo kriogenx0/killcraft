@@ -357,7 +357,7 @@ function buildingDetails(e: Ent): string {
     (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
 }
 
-/** What a producing building's side is making on its lines (one queue per line, shared by every building of the type). */
+/** What a producing building is making (each Barracks trains its own order; the queue is shared by every building of the type). */
 export function productionDetails(e: Ent): string {
   const lines = linesOf(e.type as BldType);
   if (!lines.length) return '';
@@ -365,9 +365,13 @@ export function productionDetails(e: Ent): string {
   const n = lines.includes('structure') ? sitesOf(e.team).length : 0;
   const sites = n ? `<p class="hud-stats">${n} structure${n > 1 ? 's' : ''} under construction</p>` : '';
   if (!queue.length) return sites || '<p class="hud-stats">Not producing</p>';
-  const head = queue[0], need = !head.paid && waitingFor(e.team, head.type);
+  // this building's own order, else the next one waiting (on hold, or for funds)
+  const head = queue.find((it) => it.at === e.id) ?? queue.find((it) => it.at == null);
+  const others = queue.filter((it) => it !== head && it.at != null).length, waiting = queue.filter((it) => it !== head && it.at == null).length;
+  if (!head) return `${sites}<p class="hud-stats">Free · ${others} training in other buildings</p>`;
+  const need = !head.paid && waitingFor(e.team, head.type);
   const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
-  const more = queue.length > 1 ? ` · ${queue.length - 1} more queued` : '';
+  const more = [others ? `${others} in other buildings` : '', waiting ? `${waiting} more queued` : ''].filter(Boolean).map((t) => ` · ${t}`).join('');
   // a big army trains slower (ARMY_SLOW_FROM)
   const size = armySize(e.team), slow = isUnitType(head.type) && isFighter(head.type) ? armySlow(e.team, size) : 1;
   const slowNote = slow > 1 ? `<p class="hud-stats hud-warn">Army of ${size}: new troops take ${Math.round((slow - 1) * 100)}% longer</p>` : '';

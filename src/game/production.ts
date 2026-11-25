@@ -1,7 +1,8 @@
 // Sidebar production: structures are placed first and then build on site (any number at once, see
 // startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Town Hall,
 // one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
-// and queues of infantry and vehicles. What can be built depends on the team's age (data/era.ts).
+// and queues of infantry and vehicles. Every Barracks (War Factory, Airfield) trains the next order on its
+// line at the same time as the others, so a second one doubles the pace (updProduction). What can be built depends on the team's age (data/era.ts).
 // The whole price (ore, wood, oil, Aether) is paid when an order starts. A player's order the side
 // can't afford yet waits (in the queue, or as a placed site) and starts on its own once the side can
 // pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
@@ -91,9 +92,17 @@ export function nextUpgrades(team: number): TechType[] {
 const YARD_INFANTRY: readonly UnitType[] = ['worker'];
 
 export function producerOf(team: number, line: ProductionLine): Ent | null {
-  const own = (type: BldType) => G.ents.find((e) => !e.dead && e.team === team && e.type === type && e.done) ?? null;
-  return own(PRODUCER[line]) ?? (line === 'infantry' ? own('yard') : null);
+  return producersOf(team, line)[0] ?? null;
 }
+
+/** Every finished building that trains on a line (Town Halls stand in for Barracks only while there are none). */
+export function producersOf(team: number, line: ProductionLine): Ent[] {
+  const own = (type: BldType) => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
+  const at = own(PRODUCER[line]);
+  return at.length || line !== 'infantry' ? at : own('yard');
+}
+
+const isResearch = (line: ProductionLine): boolean => line === 'tech' || line === 'hospital' || line === 'armory';
 
 /** A unit with a `limit` (the Titan) can't be trained while that many are alive or in training. */
 const underLimit = (team: number, t: UnitType): boolean => {
@@ -177,7 +186,7 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
   if (atLimit(team, type)) { say(team, `Only ${UNIT[type as UnitType].limit} ${nameOf(type)} at a time`); return false; }
   const short = shortOf(team, type);
   if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
-  const research = line === 'tech' || line === 'hospital' || line === 'armory';
+  const research = isResearch(line);
   if (research && q.length) { say(team, 'Already researching'); return false; }
   if (!research && q.filter((x) => x.type === type).length >= QUEUE_MAX) { say(team, `Only ${QUEUE_MAX} ${nameOf(type)} can be queued`); return false; }
   if (short && !wait) { fundsNotice(team, short); return false; }
@@ -197,11 +206,14 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
  */
 export function payWaiting(team: number): void {
   for (const line of LINES) {
-    const it = G.prod[team][line][0];
-    if (!it || it.paid || it.hold || shortOf(team, it.type)) continue;
-    pay(team, it.type);
-    it.paid = true;
-    it.spent = priceOf(it.type).ore;
+    // in queue order: the first unpaid order that can't be paid for yet holds back the ones behind it
+    for (const it of G.prod[team][line]) {
+      if (it.paid || it.hold) continue;
+      if (shortOf(team, it.type)) break;
+      pay(team, it.type);
+      it.paid = true;
+      it.spent = priceOf(it.type).ore;
+    }
   }
   for (const b of G.ents) {
     if (b.unpaid && !b.dead && b.team === team && !shortOf(team, b.type as BldType)) {
@@ -271,8 +283,8 @@ export function sitesOf(team: number, type?: BldType): Ent[] {
   return G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld' && !e.done && (!type || e.type === type));
 }
 
-/** Cancel the newest queued item of a type (or the newest site of a structure) and refund what was paid for it. */
-export function cancel(team: number, type: Buildable): boolean {
+/** Cancel the newest queued item of a type (or the newest site of a structure, or the given item) and refund what was paid for it. */
+export function cancel(team: number, type: Buildable, item?: ProductionItem): boolean {
   if (lineOf(type) === 'structure') {
     const site = sitesOf(team, type as BldType).pop();
     if (site) cancelSite(site);
@@ -280,7 +292,7 @@ export function cancel(team: number, type: Buildable): boolean {
   }
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
-    if (q[i].type === type) {
+    if (item ? q[i] === item : q[i].type === type) {
       if (!q[i].paid) { q.splice(i, 1); return true; } // still waiting for funds: nothing to give back
       const p = priceOf(q[i].type);
       G.credits[team] += p.ore;
@@ -302,9 +314,7 @@ export function itemsOf(team: number, type: Buildable): ProductionItem[] {
   return G.prod[team][lineOf(type)].filter((x) => x.type === type);
 }
 
-function deliver(team: number, type: UnitType): void {
-  const b = producerOf(team, UNIT[type].producer);
-  if (!b) return;
+function deliver(team: number, type: UnitType, b: Ent): void {
   // Workers and harvesters ignore rally points: they come out the usual side and go to work
   const haul = !!UNIT[type].haul, rally = haul ? null : b.rally;
   const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
@@ -347,21 +357,51 @@ export function armySlow(team: number, size = armySize(team)): number {
   return 1 + Math.max(0, size - ARMY_SLOW_FROM) * ARMY_SLOW_STEP;
 }
 
+/** Can this building train this order? (a Town Hall standing in for the Barracks trains only Workers) */
+const canTrain = (b: Ent, t: Buildable): boolean => b.type !== 'yard' || lineOf(t) !== 'infantry' || YARD_INFANTRY.includes(t as UnitType);
+
+/**
+ * Each producing building takes the next order on its line that nobody is training yet, so the line's
+ * queue runs through every Barracks (War Factory, Airfield) at once. Research stays one at a time.
+ * An order whose building falls keeps its progress and moves to the next free one; with none left
+ * that can train it, it's refunded.
+ */
 export function updProduction(team: number, dt: number): void {
   const speed = (lowPower(team) ? 0.5 : 1) * (team === G.leader ? LEADER_SPEED : 1) * aiPace(team);
   let slow = 0; // worked out only when a fighter is in training
   payWaiting(team);
   for (const line of LINES) {
-    const q = G.prod[team][line], it = q[0];
-    if (!it || it.ready || it.hold) continue;
-    const at = producerOf(team, line);
+    const q = G.prod[team][line];
+    if (!q.length) continue;
+    const research = isResearch(line);
+    const all = producersOf(team, line), at = research ? all.slice(0, 1) : all;
     // gone, or only a yard left, which trains nothing but Workers: refunded
-    if (!at || (at.type === 'yard' && line === 'infantry' && !YARD_INFANTRY.includes(it.type as UnitType))) { cancel(team, it.type); continue; }
-    if (!it.paid) continue; // waiting until the side can pay for it
-    const big = isUnitType(it.type) && isFighter(it.type) ? (slow ||= armySlow(team)) : 1;
-    it.prog += Math.min((speed * refitBonus(at) * dt) / (timeOf(it.type) * big), 1 - it.prog);
-    if (it.prog < 1 - 1e-9) continue;
-    if (line === 'tech' || line === 'hospital' || line === 'armory') { q.shift(); advance(team, it.type as TechType); }
-    else { q.shift(); deliver(team, it.type as UnitType); }
+    for (const it of [...q]) if (!it.ready && !at.some((b) => canTrain(b, it.type))) cancel(team, it.type, it);
+    // keep each order on the building already training it; free the ones held or left without one
+    const busy = new Set<number>();
+    for (const it of q) {
+      if (it.at == null) continue;
+      if (it.hold || !it.paid || it.ready || !at.some((b) => b.id === it.at)) it.at = undefined;
+      else busy.add(it.at);
+    }
+    // free buildings pick up the next orders in the queue
+    for (const it of q) {
+      if (busy.size >= at.length) break;
+      if (it.at != null || it.hold || !it.paid || it.ready) continue;
+      const b = at.find((e) => !busy.has(e.id) && canTrain(e, it.type));
+      if (!b) continue;
+      it.at = b.id;
+      busy.add(b.id);
+    }
+    for (const it of [...q]) {
+      const b = it.at != null ? at.find((e) => e.id === it.at) : undefined;
+      if (!b) continue;
+      const big = isUnitType(it.type) && isFighter(it.type) ? (slow ||= armySlow(team)) : 1;
+      it.prog += Math.min((speed * refitBonus(b) * dt) / (timeOf(it.type) * big), 1 - it.prog);
+      if (it.prog < 1 - 1e-9) continue;
+      q.splice(q.indexOf(it), 1);
+      if (research) advance(team, it.type as TechType);
+      else deliver(team, it.type as UnitType, b);
+    }
   }
 }
