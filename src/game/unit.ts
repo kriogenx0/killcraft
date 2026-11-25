@@ -1,6 +1,6 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace, leaderHandicap } from './ai.ts';
-import { LEADER_SPEED, OIL_PUMP_RATE } from '../data/economy.ts';
+import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
@@ -26,7 +26,6 @@ const lastOrder = new WeakMap<Ent, string>();
 /** Units that had an order last tick. */
 const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
-import { pumpOil } from './economy.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
@@ -270,21 +269,17 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
     if (r) o.st = 'gather';
     return;
   }
-  // work the pump: oil only comes out of the ground while a Worker is at it (anything left in the
-  // store from before goes first)
-  const room = haulOf(u) - u.carry;
-  const stored = Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, room, src.carry);
-  src.carry -= stored;
-  const take = stored + pumpOil(src, Math.min(OIL_PUMP_RATE * dt, room - stored));
+  const take = Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry, src.carry);
   if (take > 0) {
+    src.carry -= take;
     u.carry += take;
     u.cargo = o.res;
     u.atkT = 0.2;
   }
-  // full, or the well has run dry: take what we have home
-  if (u.carry >= haulOf(u) - 0.5 || (take <= 0 && u.carry > 0)) o.st = 'ret';
-  else if (take <= 0) {
-    // a dry well: a Worker that picked this job itself finds another; one sent here waits
+  // full, or the store is empty: take what we have home rather than stand by a slow pump holding it
+  if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0)) o.st = 'ret';
+  else if (src.carry <= 0.01) {
+    // nothing to carry: a Worker that picked this job itself finds another; one sent here waits for more
     if (o.auto) u.order = null;
     else o.wait = 1;
   }

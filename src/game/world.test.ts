@@ -7,6 +7,7 @@ import { addBuilding, addUnit, kill, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
 import { available, cancel, enqueue, sitesOf, startSite } from './production.ts';
 import { advanceSite, canPlace, scrap } from './building.ts';
+import { OIL_TRICKLE } from '../data/economy.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodNear } from './economy.ts';
 import { nearestTree } from './chop.ts';
 import { applyCommand } from './command.ts';
@@ -318,33 +319,34 @@ describe('production', () => {
     expect(G.wood[0]).toBeGreaterThan(0);
   });
 
-  it('gives up oil only while a Worker works the pump, until the well runs dry', () => {
+  it('pumps oil from a well into its tank until it runs dry, then only trickles; Workers carry the tank home', () => {
     const [wx, wy] = OIL_WELLS[0];
     G.oil[0] = 0;
-    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // nobody on the pump
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // nobody hauls it off: idle Workers would
     const far = addBuilding('derrick', 0, 30, 4, false);
     expect(oilLeft(far)).toBe(0);
     const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
     const start = oilLeft(d);
     expect(start).toBeGreaterThan(1000);
-    // left alone, a derrick doesn't touch its well
-    run(30);
-    expect(oilLeft(d)).toBe(start);
-    expect(d.carry).toBe(0);
-    expect(oilRate(0)).toBe(0);
-    // a Worker pumps it and carries it to the Town Hall: what left the ground is what was banked
+    run(10);
+    // pumped into the derrick's own store, not the bank
+    expect(G.oil[0]).toBe(0);
+    expect(d.carry).toBeGreaterThan(20);
+    expect(d.carry).toBeLessThan(40);
+    expect(far.carry).toBeCloseTo(OIL_TRICKLE * 10, 0); // away from a well: only the trickle
+    expect(oilLeft(d)).toBeCloseTo(start - d.carry, 0);
+    // drain it: the well never refills, but still seeps a little into the tank
+    G.oilField.fill(0);
+    const before = d.carry;
+    run(5);
+    expect(d.carry).toBeCloseTo(before + OIL_TRICKLE * 5, 1);
+    expect(oilRate(0)).toBeCloseTo(OIL_TRICKLE * 2); // both derricks now just trickle
+    // a Worker carries the store to the Town Hall
     const w = addUnit('worker', 0, d.x, d.y + 2 * TS);
     orderHaul(w, d);
-    expect(oilRate(0)).toBeGreaterThan(0);
-    run(120);
-    expect(G.oil[0]).toBeGreaterThan(250);
-    expect(start - oilLeft(d)).toBeCloseTo(G.oil[0] + w.carry, 0);
-    // drained: the well never refills, and the Worker stops
-    G.oilField.fill(0);
-    run(60);
-    const banked = G.oil[0];
-    run(30);
-    expect(G.oil[0]).toBe(banked);
+    run(150);
+    expect(d.carry).toBeLessThan(OIL_TRICKLE * 20);
+    expect(G.oil[0]).toBeGreaterThan(before);
   });
 
   it('cuts trees down, and they slowly grow back', () => {

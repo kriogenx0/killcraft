@@ -16,7 +16,8 @@ import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
 import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
-import { oilLeft, oilRate, treesNear } from '../../game/economy.ts';
+import { oilLeft, oilRate, treesNear, storeMax } from '../../game/economy.ts';
+import { OIL_PER_DERRICK, OIL_TRICKLE } from '../../data/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -135,7 +136,7 @@ function gatherCommands(s: Ent[]): Command[] {
     auto: true,
     ore: true,
     wood: true,
-    oil: G.ents.some((d) => !d.dead && d.team === V.team && d.type === 'derrick' && d.done && (d.carry > 1 || oilLeft(d) > 0)),
+    oil: G.ents.some((d) => !d.dead && d.team === V.team && d.type === 'derrick' && d.done),
     aether: G.ents.some((d) => !d.dead && d.type === 'aether'),
   };
   return GATHER.map((r) => {
@@ -176,9 +177,9 @@ export function commandList(): Command[] {
     const up = upgradeCommand(first);
     if (up) list.push(up);
     if (first.type === 'derrick' && first.done) {
-      const n = crewAt(first), dry = first.carry <= 1 && oilLeft(first) <= 0;
-      list.push({ id: 'recruit', label: 'Send Worker', hotkey: '', icon: ICON.worker, disabled: dry || !G.ents.some((u) => !u.dead && u.team === V.team && u.type === 'worker'),
-        tip: dry ? 'This well has run dry' : `Send your nearest free Worker to haul oil from here (${n} on it now). A Derrick pumps slowly: one Worker keeps up with it` });
+      const n = crewAt(first);
+      list.push({ id: 'recruit', label: 'Send Worker', hotkey: '', icon: ICON.worker, disabled: !G.ents.some((u) => !u.dead && u.team === V.team && u.type === 'worker'),
+        tip: `Send your nearest free Worker to carry oil from this Derrick's tank (${n} on it now)` });
     }
     // team games: a Town Hall can give a teammate who has lost theirs a new one
     if (first.type === 'yard' && first.done && !G.over) for (const t of fallenAllies(V.team)) {
@@ -349,7 +350,7 @@ function buildingDetails(e: Ent): string {
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
-  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `${Math.floor(oilLeft(e))} oil left · ${crewAt(e) ? 'a Worker is pumping it' : 'no Worker on it: oil stays in the ground'}${e.carry > 1 ? ` · ${Math.floor(e.carry)} in store` : ''}` : 'Dry: no oil in reach') : '');
+  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? `${Math.floor(e.carry)}/${storeMax(e)} in the tank for Workers · ${oilLeft(e) > 0 ? `pumps +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left in the well` : `well dry: trickles +${perMin(OIL_TRICKLE)}/min`}` : '');
   // defenses reload 2.5× slower while their side is short of power
   const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
   const rows: Row[] = [
@@ -474,7 +475,7 @@ export function refreshHud(): void {
     if (box && box.hidden === found) box.hidden = !found;
     if (found) setText(els.aether, shortCount(G.aether[team] ?? 0));
     setTitle(els.wood, `Wood. ${choppers(team)} Workers chopping. Right-click a tree with Workers: they chop it and carry the wood to a Lumber Mill, Refinery or the Town Hall.`);
-    setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Workers pump it at an Oil Derrick and carry it home.`);
+    setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
     setText(els.power, `${p.used}/${p.made}`);
     els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
     const era = ERA[eraOf(team)]?.name ?? '';

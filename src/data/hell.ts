@@ -18,12 +18,25 @@ export const GATE_TILE: Tile = [47, 46];
 /** Ground cleared and levelled round the gate (tiles from its middle). */
 export const GATE_CLEAR = 2.5;
 
-/** Game seconds before the first demon climbs out. */
-export const GATE_OPENS = 120;
-/** Seconds between demons while there's room for more. */
-export const SPAWN_EVERY = 45;
-/** Most demons (not counting the Archfiend) out at once, at the gate and raiding together. */
+// The gate stands empty most of the time (Alex: it shouldn't always have demons; sometimes they come
+// out). Demons climb out only now and then: a few prowl round it for a while and go back in, and
+// once there's a leader a bigger pack climbs out just before each raid.
+
+/** Seconds between the demons coming out to prowl while there's no leader, at random within this range; the first time is after GATE_OPENS. */
+export const GATE_OPENS = 180;
+export const WANDER_EVERY: [number, number] = [180, 300];
+/** How many come out to prowl, and for how many seconds before they go back in. */
+export const WANDER_SIZE: [number, number] = [1, 3];
+export const WANDER_STAY = 40;
+/** Seconds before a raid that the gate starts letting the raiders out, one every BURST_GAP seconds. */
+export const RAID_WARNING = 20;
+export const BURST_GAP = 4;
+/** How many demons (besides any Archfiend) a raid brings, at random within this range. */
+export const RAID_SIZE: [number, number] = [3, 5];
+/** Most demons (not counting the Archfiend) out at once. */
 export const DEMON_CAP = 6;
+/** Raiders that make it back wait at the gate this many seconds, then go back in. */
+export const LINGER = 20;
 /** Share of new demons that are Hell Fiends; the rest are Imps. */
 export const FIEND_SHARE = 0.35;
 
@@ -33,10 +46,8 @@ export const LEADER_TRAINED = 20;
 export const RAID_EVERY: [number, number] = [150, 240];
 /** Seconds after a side first becomes the leader before the first raid sets out. */
 export const FIRST_RAID = 60;
-/** Fewest demons worth sending: with fewer at the gate the raid waits for more. */
-export const RAID_MIN = 3;
 
-/** The giant demon: seconds of there being a leader before the first one appears, then between one and the next. Only one at a time. */
+/** The giant demon: it climbs out with the first raid at least this many seconds after a leader appears, then with the first raid after each ARCHFIEND_EVERY. Only one at a time. */
 export const ARCHFIEND_FIRST = 240;
 export const ARCHFIEND_EVERY = 480;
 export const ARCHFIEND: UnitType = 'archfiend';

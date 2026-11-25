@@ -7,13 +7,14 @@
 // a material of its own (a unit flashing red, a fallen grey body) or anything see-through is
 // drawn on its own as before.
 import * as THREE from 'three';
+import { teamTint } from './materials.ts';
 
 /** Layer of meshes drawn by an instanced copy instead (the camera and shadows only see layer 0). */
 const HIDDEN = 1 << 1, SHOWN = 1;
 /** Layer only the sun's shadow camera sees: copies of models off screen that cast a shadow onto it. */
 export const SHADOW_ONLY_LAYER = 2;
 
-interface Batch { mesh: THREE.InstancedMesh | null; list: THREE.Mesh[]; shadowOnly: boolean }
+interface Batch { mesh: THREE.InstancedMesh | null; list: THREE.Mesh[]; shadowOnly: boolean; tinted: boolean }
 
 const batches = new Map<string, Batch>();
 const geoId = new WeakMap<THREE.BufferGeometry, number>(), matId = new WeakMap<THREE.Material, number>();
@@ -31,7 +32,9 @@ function keyOf(o: THREE.Mesh): string | null {
   const u = o.userData;
   // remember the key while the geometry, material and shadow flags stay the same
   if (u.ikGeo === o.geometry && u.ikMat === mt && u.ikCast === o.castShadow && u.ikRecv === o.receiveShadow) return u.ik as string;
-  const k = `${idOf(geoId, o.geometry)}|${idOf(matId, mt)}|${o.castShadow ? 1 : 0}${o.receiveShadow ? 1 : 0}`;
+  // a team colour batches with the other teams' (one white material, tinted per copy)
+  const tint = teamTint(mt);
+  const k = `${idOf(geoId, o.geometry)}|${tint ? `t${idOf(matId, tint.base)}` : idOf(matId, mt)}|${o.castShadow ? 1 : 0}${o.receiveShadow ? 1 : 0}`;
   u.ikGeo = o.geometry; u.ikMat = mt; u.ikCast = o.castShadow; u.ikRecv = o.receiveShadow; u.ik = k;
   return k;
 }
@@ -70,7 +73,7 @@ export function instanceModels(holder: THREE.Object3D, into: THREE.Object3D, cam
       // off screen it only casts a shadow: kept apart so the camera doesn't draw it for nothing
       if (!onScreen) k += 's';
       let b = batches.get(k);
-      if (!b) { b = { mesh: null, list: [], shadowOnly: !onScreen }; batches.set(k, b); }
+      if (!b) { b = { mesh: null, list: [], shadowOnly: !onScreen, tinted: !!teamTint(me.material as THREE.Material) }; batches.set(k, b); }
       b.list.push(me);
     });
   }
@@ -94,6 +97,12 @@ export function instanceModels(holder: THREE.Object3D, into: THREE.Object3D, cam
       const me = b.list[i];
       me.layers.mask = HIDDEN;
       arr.set(me.matrixWorld.elements, i * 16);
+      if (b.tinted) mesh.setColorAt(i, (teamTint(me.material as THREE.Material) as { color: THREE.Color }).color);
+    }
+    if (mesh.instanceColor) {
+      mesh.instanceColor.clearUpdateRanges();
+      mesh.instanceColor.addUpdateRange(0, n * 3);
+      mesh.instanceColor.needsUpdate = true;
     }
     mesh.count = n;
     mesh.visible = true;
@@ -104,7 +113,7 @@ export function instanceModels(holder: THREE.Object3D, into: THREE.Object3D, cam
 }
 
 function newBatch(like: THREE.Mesh, cap: number): THREE.InstancedMesh {
-  const m = new THREE.InstancedMesh(like.geometry, like.material, cap);
+  const own = like.material as THREE.Material, m = new THREE.InstancedMesh(like.geometry, teamTint(own)?.base ?? own, cap);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   m.castShadow = like.castShadow;
   m.receiveShadow = like.receiveShadow;

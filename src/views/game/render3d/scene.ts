@@ -87,12 +87,46 @@ export function updateCamera(): void {
   const span = c.dist * 1.1 + 8, sun = S.sun, sc = sun.shadow.camera;
   sun.position.set(tx + sunDir.x * 40, ty + sunDir.y * 40, tz + sunDir.z * 40);
   sun.target.position.set(tx, ty, tz);
-  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 100;
+  // the shadow box hugs the ground on screen (seen from the sun) rather than a square round the
+  // target: fewer things drawn into the shadow map, and its pixels spread over less ground
+  const [l, r, b, t] = shadowFit(tx, ty, tz, span);
+  sc.left = l; sc.right = r; sc.top = t; sc.bottom = b; sc.near = 1; sc.far = 100;
   sc.updateProjectionMatrix();
   const fog = S.scene.fog as THREE.Fog;
   // a light haze toward the horizon, the same at every zoom so the map doesn't change colour as you zoom
   fog.near = 70;
   fog.far = 190;
+}
+
+/** Tiles added round the ground on screen, for tall things and shadows reaching in from just outside. */
+const SHADOW_MARGIN = 4;
+/** How far from the camera (tiles) the box reaches when looking toward the horizon. */
+const SHADOW_REACH = 60;
+const lightView = new THREE.Matrix4(), corner = new THREE.Vector3(), dir = new THREE.Vector3(), sunAt = new THREE.Vector3(), aim = new THREE.Vector3();
+const CORNERS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+
+/**
+ * The sun's shadow box (left, right, bottom, top in the sun's view) around where the screen's
+ * corners meet the ground, never bigger than a square of half-size `span` round the target.
+ */
+function shadowFit(tx: number, ty: number, tz: number, span: number): [number, number, number, number] {
+  const cam = S.camera;
+  cam.updateMatrixWorld();
+  cam.updateProjectionMatrix();
+  // the sun's view, as its shadow camera will be placed (looking from the sun at the target, y up)
+  sunAt.set(tx + sunDir.x * 40, ty + sunDir.y * 40, tz + sunDir.z * 40);
+  lightView.lookAt(sunAt, aim.set(tx, ty, tz), cam.up).setPosition(sunAt).invert();
+  let l = Infinity, r = -Infinity, b = Infinity, t = -Infinity;
+  for (const [nx, ny] of CORNERS) {
+    corner.set(nx, ny, 0.5).unproject(cam);
+    dir.copy(corner).sub(cam.position).normalize();
+    // where the corner's ray meets the ground at the target's height, or a point far along it
+    const k = dir.y < -1e-3 ? Math.min(SHADOW_REACH, (ty - cam.position.y) / dir.y) : SHADOW_REACH;
+    corner.copy(cam.position).addScaledVector(dir, k).applyMatrix4(lightView);
+    l = Math.min(l, corner.x); r = Math.max(r, corner.x); b = Math.min(b, corner.y); t = Math.max(t, corner.y);
+  }
+  // the target itself is at (0, 0) in this view
+  return [Math.max(-span, Math.min(l, 0) - SHADOW_MARGIN), Math.min(span, Math.max(r, 0) + SHADOW_MARGIN), Math.max(-span, Math.min(b, 0) - SHADOW_MARGIN), Math.min(span, Math.max(t, 0) + SHADOW_MARGIN)];
 }
 
 const ndc = new THREE.Vector2(), hit = new THREE.Vector3();
