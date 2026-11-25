@@ -66,6 +66,22 @@ describe('the air war', () => {
     expect(b.dead).toBe(true);
   });
 
+  it('planes shoot down War Balloons, ordered or on their own', () => {
+    for (const t of ['biplane', 'fighter'] as UnitType[]) {
+      const [x, y] = openGround(6);
+      const ordered = addUnit('balloon', 1, x + 5 * TS, y), plane = addUnit(t, 0, x, y);
+      orderAttack(plane, ordered);
+      run(40);
+      expect(ordered.dead).toBe(true);
+      // an idle plane goes for a balloon that drifts into sight
+      const [x2, y2] = openGround(6);
+      const near = addUnit('balloon', 1, x2 + 4 * TS, y2), idle = addUnit(t, 0, x2, y2);
+      run(40);
+      expect(near.dead).toBe(true);
+      plane.dead = idle.dead = true;
+    }
+  });
+
   it('a helicopter beats a battle tank that can’t shoot back', () => {
     const [heli, tank] = duel('helicopter', 'tank', 40);
     expect(tank.dead).toBe(true);
