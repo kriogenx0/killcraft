@@ -271,11 +271,21 @@ export const dugIn = (u: Ent): boolean => {
   return !need || (!u.moving && (u.setT ?? 0) >= need);
 };
 
+/** Seconds a dug-in gun keeps backing away from one enemy before letting it go. */
+const BACK_OFF_MAX = 4;
+/** The enemy each gun is backing away from, since when, and when it last did. */
+const backing = new WeakMap<Ent, { t: number; since: number; last: number }>();
+
 /**
  * A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire,
  * slanting off if straight back is blocked. Cornered, it lets that enemy go and gets on with its order.
  */
 function backOff(u: Ent, t: Ent, dt: number): boolean {
+  // backing away for a while and still too close (hemmed in, or it keeps following): give it up
+  const b = backing.get(u);
+  const since = b && b.t === t.id && G.gameT - b.last < 0.5 ? b.since : G.gameT;
+  backing.set(u, { t: t.id, since, last: G.gameT });
+  if (G.gameT - since > BACK_OFF_MAX) { backing.delete(u); return false; }
   const a = Math.atan2(u.y - t.y, u.x - t.x);
   u.path = null;
   for (const turn of [0, 0.9, -0.9, 1.6, -1.6]) {

@@ -318,34 +318,33 @@ describe('production', () => {
     expect(G.wood[0]).toBeGreaterThan(0);
   });
 
-  it('pumps oil from a well until it runs dry, and nothing away from a well', () => {
+  it('gives up oil only while a Worker works the pump, until the well runs dry', () => {
     const [wx, wy] = OIL_WELLS[0];
     G.oil[0] = 0;
-    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // nobody hauls it off: idle Workers would
+    for (const e of G.ents) if (e.type === 'worker') e.dead = true; // nobody on the pump
     const far = addBuilding('derrick', 0, 30, 4, false);
     expect(oilLeft(far)).toBe(0);
     const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
     const start = oilLeft(d);
     expect(start).toBeGreaterThan(1000);
-    run(10);
-    // pumped into the derrick's own store, not the bank
-    expect(G.oil[0]).toBe(0);
-    expect(d.carry).toBeGreaterThan(20);
-    expect(d.carry).toBeLessThan(40);
-    expect(far.carry).toBe(0); // only the derrick on the well pumps
-    expect(oilLeft(d)).toBeCloseTo(start - d.carry, 0);
-    // drain it: the well never refills
-    G.oilField.fill(0);
-    const before = d.carry;
-    run(5);
-    expect(d.carry).toBe(before);
+    // left alone, a derrick doesn't touch its well
+    run(30);
+    expect(oilLeft(d)).toBe(start);
+    expect(d.carry).toBe(0);
     expect(oilRate(0)).toBe(0);
-    // a Worker carries the store to the Town Hall
+    // a Worker pumps it and carries it to the Town Hall: what left the ground is what was banked
     const w = addUnit('worker', 0, d.x, d.y + 2 * TS);
     orderHaul(w, d);
-    run(150);
-    expect(d.carry).toBeLessThan(1);
-    expect(G.oil[0]).toBeCloseTo(before, 0);
+    expect(oilRate(0)).toBeGreaterThan(0);
+    run(120);
+    expect(G.oil[0]).toBeGreaterThan(250);
+    expect(start - oilLeft(d)).toBeCloseTo(G.oil[0] + w.carry, 0);
+    // drained: the well never refills, and the Worker stops
+    G.oilField.fill(0);
+    run(60);
+    const banked = G.oil[0];
+    run(30);
+    expect(G.oil[0]).toBe(banked);
   });
 
   it('cuts trees down, and they slowly grow back', () => {

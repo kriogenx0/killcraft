@@ -16,8 +16,7 @@ import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
 import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
-import { oilLeft, oilRate, treesNear, storeMax } from '../../game/economy.ts';
-import { OIL_PER_DERRICK } from '../../data/economy.ts';
+import { oilLeft, oilRate, treesNear } from '../../game/economy.ts';
 import { holderOf, waygateLinked } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
@@ -350,7 +349,7 @@ function buildingDetails(e: Ent): string {
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
-  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `Oil +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(e.carry)}/${storeMax(e)} waiting for Workers · ${Math.floor(oilLeft(e))} left` : 'Dry: no oil in reach') : '');
+  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? (oilLeft(e) > 0 ? `${Math.floor(oilLeft(e))} oil left · ${crewAt(e) ? 'a Worker is pumping it' : 'no Worker on it: oil stays in the ground'}${e.carry > 1 ? ` · ${Math.floor(e.carry)} in store` : ''}` : 'Dry: no oil in reach') : '');
   // defenses reload 2.5× slower while their side is short of power
   const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
   const rows: Row[] = [
@@ -475,7 +474,7 @@ export function refreshHud(): void {
     if (box && box.hidden === found) box.hidden = !found;
     if (found) setText(els.aether, shortCount(G.aether[team] ?? 0));
     setTitle(els.wood, `Wood. ${choppers(team)} Workers chopping. Right-click a tree with Workers: they chop it and carry the wood to a Lumber Mill, Refinery or the Town Hall.`);
-    setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
+    setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Workers pump it at an Oil Derrick and carry it home.`);
     setText(els.power, `${p.used}/${p.made}`);
     els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
     const era = ERA[eraOf(team)]?.name ?? '';

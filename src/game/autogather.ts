@@ -65,17 +65,15 @@ export function options(u: Ent): Res[] {
   return out;
 }
 
-/** Oil a derrick must hold before an idle Worker walks out for it: less isn't worth the trip. */
-export const OIL_TRIP = 240;
 
 /**
- * The side's nearest Oil Derrick with a load waiting and no Worker on it. A derrick pumps slowly,
- * so one Worker keeps up with it; a second would only stand there holding a few drops.
+ * The side's nearest Oil Derrick with oil left and no Worker on it. A derrick has one pump: a
+ * second Worker would only stand about waiting for it.
  */
 function derrickFor(u: Ent): Ent | null {
   let best: Ent | null = null, bd = Infinity;
   for (const d of G.ents) {
-    if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || d.carry < OIL_TRIP) continue;
+    if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || (d.carry <= 1 && oilLeftOf(d) <= 0)) continue;
     if (G.ents.some((w) => w !== u && !w.dead && w.team === u.team && w.order?.t === 'harvest' && w.order.src === d.id)) continue;
     const dist = Math.hypot(d.x - u.x, d.y - u.y);
     if (dist < bd) { bd = dist; best = d; }
@@ -156,8 +154,8 @@ export function autoGather(u: Ent): boolean {
 export function rethink(u: Ent, o: HarvestOrder): void {
   if (!o.auto || u.type !== 'worker' || computer(u.team)) return;
   const now = o.res ?? 'ore', can = options(u), r = pickResource(u, can);
-  // a derrick pumps slowly: rather than shuttle back and forth with a few drops each time, do
-  // something else until it has a load waiting again
+  // the well's run dry (or someone else is on the pump): do
+  // something else
   if (now === 'oil' && !can.includes('oil')) {
     const back = errandFrom.get(u);
     errandFrom.delete(u);
