@@ -7,7 +7,7 @@ import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
   AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
-  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
+  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
 import { edgeDist } from './path.ts';
@@ -276,14 +276,26 @@ export function pickUpShards(): void {
   }
 }
 
-/** The nearest dropped Aether an idle Worker should fetch, if it has room. */
-export function shardFor(u: Ent): Ent | null {
+/** Can this side see the spot right now? (Computers play without fog, so a Worker's own eyes do for them.) */
+function sideSees(u: Ent, x: number, y: number): boolean {
+  if (G.reveal || G.sight[u.team]?.[Math.floor(y / TS) * MW + Math.floor(x / TS)] === 2) return true;
+  return Math.hypot(x - u.x, y - u.y) <= unitDef(u).sight * TS;
+}
+
+/**
+ * The nearest dropped Aether a Worker should fetch, if it has room: within `reach` tiles, somewhere
+ * its side can see, and not where an armed enemy is about.
+ */
+export function shardFor(u: Ent, reach = SHARD_SEEK): Ent | null {
   if ((u.ae ?? 0) >= AETHER_CARRY - 0.5) return null;
-  let best: Ent | null = null, bd = SHARD_SEEK * TS;
+  let best: Ent | null = null, bd = reach * TS, foes: Ent[] | null = null;
   for (const s of G.ents) {
     if (s.dead || s.type !== 'shard') continue;
     const d = Math.hypot(s.x - u.x, s.y - u.y);
-    if (d < bd) { bd = d; best = s; }
+    if (d >= bd || !sideSees(u, s.x, s.y)) continue;
+    foes ??= G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team >= 0 && !allied(e.team, u.team) && !!unitDef(e).weapon && e.type !== 'worker');
+    if (foes.some((e) => Math.hypot(e.x - s.x, e.y - s.y) < SHARD_DANGER * TS)) continue;
+    bd = d; best = s;
   }
   return best;
 }

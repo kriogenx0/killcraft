@@ -58,7 +58,9 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
 
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
 export function visibleTo(e: Ent, team: number): boolean {
-  // demons go unseen in the fog like enemy troops; ore, Aether and wild creatures at their lairs always show
+  // demons go unseen in the fog like enemy troops; ore, Aether and wild creatures at their lairs always show,
+  // but Aether dropped by the fallen only where the side sees it now (else it would give away every kill)
+  if (e.type === 'shard') return G.reveal || G.sight[team]?.[Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)] === 2;
   if ((e.team < 0 && !e.demon) || allied(e.team, team)) return true;
   if (cloakedFrom(e, team)) return false;
   const v = G.sight[team][Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)];

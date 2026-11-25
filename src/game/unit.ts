@@ -11,13 +11,13 @@ import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
-import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH } from '../data/aether.ts';
+import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, aetherJobOf, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
+import { IDLE_GRACE, aetherJobOf, fetching, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
@@ -235,10 +235,13 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     o.st = 'go';
     // back out to the ore nearest the base, which may not be where the last load came from
     if (!o.res) { const t = pickOre(u); if (t) [o.tx, o.ty] = t; }
-    // one that picked its own job looks round for anything to fix before setting out again
+    // one that picked its own job looks round for anything to fix before setting out again,
+    // and for Aether dropped by the fallen to fetch home
     if (o.auto && u.type === 'worker') {
       const job = { ...o };
       if (fixNext(u)) { keepResume(u, job); return; }
+      const s = shardFor(u, SHARD_PULL);
+      if (s) { keepResume(u, job); fetching.add(u); orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
     }
     rethink(u, o);
   }
@@ -576,15 +579,18 @@ function act(u: Ent, dt: number): void {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: false }); return; }
     }
-    // a Worker sent to draw Aether stands at its deposit until it carries a full load, banks it, and goes back
+    // a Worker sent to draw Aether stands at its deposit until it carries a full load, banks it, and goes back;
+    // Aether dropped by the fallen nearby is quicker to take than drawing, so it fetches that first
     const ae = u.type === 'worker' ? aetherJobOf(u) : null;
     if (ae && (u.ae ?? 0) < AETHER_CARRY - 0.5) {
+      const s = shardFor(u, SHARD_PULL);
+      if (s) { fetching.add(u); orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
       if (Math.hypot(u.x - ae.x, u.y - ae.y) > AETHER_REACH * TS * 0.8) { const t = adjTile(ae, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
       else return; // drawing
     }
     // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
-      const s = shardFor(u);
+      const s = shardFor(u, fetching.has(u) ? SHARD_PULL : undefined);
       if (s) { orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
       const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
       if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
@@ -602,7 +608,8 @@ function act(u: Ent, dt: number): void {
     } else if (isHarvester(u)) {
       // nothing left to fix: after a moment's pause, go and gather what the side needs most
       // only a Worker the player just walked somewhere pauses first (they may have plans for it)
-      const since = idleSince.get(u), grace = lastOrder.get(u) === 'move' ? IDLE_GRACE : 0;
+      const since = idleSince.get(u), grace = lastOrder.get(u) === 'move' && !fetching.has(u) ? IDLE_GRACE : 0;
+      fetching.delete(u);
       if (since === undefined && grace > 0) idleSince.set(u, G.gameT);
       else if (G.gameT - (since ?? G.gameT) >= grace) {
         u.scan = 1.5;

@@ -53,3 +53,7 @@ export const MAX_WAYGATES = 2;
 export const SHARD_PICKUP = 0.8;
 /** An idle Worker goes for dropped Aether within this many tiles. */
 export const SHARD_SEEK = 8;
+/** A Worker gathering on its own (Auto, or Aether) goes this far (tiles) out of its way for dropped Aether. */
+export const SHARD_PULL = 14;
+/** Dropped Aether this close (tiles) to an armed enemy is left until the fighting's over. */
+export const SHARD_DANGER = 7;

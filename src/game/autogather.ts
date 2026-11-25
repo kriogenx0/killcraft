@@ -189,7 +189,9 @@ export function takeResume(u: Ent): HarvestOrder | null {
   return o ?? null;
 }
 /** A player's order replaces whatever the Worker meant to go back to. */
-export const forgetResume = (u: Ent): void => { resume.delete(u); };
+export const forgetResume = (u: Ent): void => { resume.delete(u); fetching.delete(u); };
+/** Workers that set off on their own to fetch dropped Aether (no pause for the player's plans when they get there). */
+export const fetching = new WeakSet<Ent>();
 
 /** What a player can set Workers to gather: Auto (whatever the side has least of) or one resource. */
 export const GATHER = ['auto', 'ore', 'wood', 'oil', 'aether'] as const;
