@@ -1,4 +1,4 @@
-// Spellcasters (hidden until a side finds Aether, one per age) and the Modern-age cyborgs.
+// Spellcasters (regular Barracks troops, one per age) and the Modern-age cyborgs.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G } from './state.ts';
 import { TS } from './const.ts';
@@ -26,11 +26,10 @@ afterEach(() => {
 });
 
 describe('spellcasters', () => {
-  it('stay hidden until the side finds Aether, then come one per age', () => {
+  it('need no Aether, and come one per age', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 12, 46, false);
-    expect(available(0, 'infantry')).not.toContain('mage');
-    G.aetherFound[0] = true;
+    for (const t of ['mage', 'stormcaller', 'archmage', 'tidecaller', 'plaguewitch', 'sludgewarlock'] as const) expect(UNIT[t].aether ?? 0).toBe(0);
     expect(available(0, 'infantry')).toContain('mage');
     expect(available(0, 'infantry')).not.toContain('stormcaller');
     G.era[0] = 1;

@@ -161,7 +161,8 @@ const FOE_MEMORY = 4;
 /** The enemy that is attacking this unit, if it hit lately and can be fought back. */
 export function attacker(u: Ent): Ent | null {
   const f = valid(u.foe);
-  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team)) return null;
+  // a dug-in gun can't answer an attacker inside its minimum range (it backs off from one it's already fighting)
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team) || edgeDist(u, f) < tooClose(u) * TS) return null;
   return f;
 }
 
@@ -258,11 +259,18 @@ export const dugIn = (u: Ent): boolean => {
   return !need || (!u.moving && (u.setT ?? 0) >= need);
 };
 
-/** A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire. */
+/**
+ * A dug-in gun with an enemy inside its minimum range drives away from it to make room to fire,
+ * slanting off if straight back is blocked. Cornered, it lets that enemy go and gets on with its order.
+ */
 function backOff(u: Ent, t: Ent, dt: number): boolean {
-  const a = Math.atan2(u.y - t.y, u.x - t.x), gx = u.x + Math.cos(a) * TS * 2, gy = u.y + Math.sin(a) * TS * 2;
+  const a = Math.atan2(u.y - t.y, u.x - t.x);
   u.path = null;
-  return steer(u, gx, gy, stepOf(u, dt), dt, false) !== 'blocked';
+  for (const turn of [0, 0.9, -0.9, 1.6, -1.6]) {
+    const gx = u.x + Math.cos(a + turn) * TS * 2, gy = u.y + Math.sin(a + turn) * TS * 2;
+    if (steer(u, gx, gy, stepOf(u, dt), dt, false) !== 'blocked') return true;
+  }
+  return false;
 }
 
 /** Approach and attack. Returns false if the target can't be reached or the unit is unarmed. */
