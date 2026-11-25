@@ -8,7 +8,7 @@ import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
-import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, lookRange, nearestThreat } from './combat.ts';
+import { acquire, attacker, betterTarget, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH } from '../data/aether.ts';
@@ -674,6 +674,8 @@ function act(u: Ent, dt: number): void {
       if (gaveUp) {
         // chased it too far: let it go for good, rather than taking it up again from here and chasing on
         if (strayed && t && u.foe === t.id) u.foe = null;
+        // couldn't get at it at all: leave it be for a while rather than taking it straight up again
+        else if (t && !strayed && !t.dead && isFoe(u, t)) cantReachFoe(u, t);
         u.order = null; u.path = null; u.scan = 0;
       }
       break;

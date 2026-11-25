@@ -163,6 +163,7 @@ export function attacker(u: Ent): Ent | null {
   const f = valid(u.foe);
   // a dug-in gun can't answer an attacker inside its minimum range (it backs off from one it's already fighting)
   if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team) || edgeDist(u, f) < tooClose(u) * TS) return null;
+  if (outOfReachNow(u, f)) return null; // can't get at it: no use answering it
   return f;
 }
 
@@ -200,12 +201,22 @@ function lurer(u: Ent, radiusTiles: number): Ent | null {
  * Best enemy within a radius (tiles): armed units first, then other units, then buildings. Wild
  * creatures (data/creatures.ts) are fair game too, after real enemies.
  */
+/** Targets a unit just found it can't get at (walled in by trees or buildings), and until when it leaves them be. */
+const outOfReach = new WeakMap<Ent, { id: number; until: number }>();
+/** Note that `u` can't reach `t`, so it doesn't pick it straight back up. */
+export function cantReachFoe(u: Ent, t: Ent): void { outOfReach.set(u, { id: t.id, until: G.gameT + UNREACHABLE_FOR }); }
+const outOfReachNow = (u: Ent, t: Ent): boolean => { const m = outOfReach.get(u); return !!m && m.id === t.id && m.until > G.gameT; };
+/** Seconds a unit leaves a target it couldn't reach. */
+const UNREACHABLE_FOR = 15;
+
 export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnly = false, minTiles = tooClose(s)): Ent | null {
   const r = radiusTiles * TS, rmin = minTiles * TS;
   // a gun that outranges its own sight only fires at what its side can see
   const spotted = radiusTiles > (s.kind === 'bld' ? bldDef(s).sight : s.kind === 'unit' ? unitDef(s).sight : Infinity) ? G.sight[s.team] : null;
   let best: Ent | null = null, bs = 1e9;
+  const miss = outOfReach.get(s), skip = miss && miss.until > G.gameT ? miss.id : -1;
   for (const e of G.ents) {
+    if (e.id === skip) continue;
     if (e.dead || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
