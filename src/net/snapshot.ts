@@ -58,7 +58,9 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
 
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
 export function visibleTo(e: Ent, team: number): boolean {
-  // demons go unseen in the fog like enemy troops; ore, Aether and wild creatures at their lairs always show
+  // demons go unseen in the fog like enemy troops; ore, Aether and wild creatures at their lairs always show,
+  // but Aether dropped by the fallen only where the side sees it now (else it would give away every kill)
+  if (e.type === 'shard') return G.reveal || G.sight[team]?.[Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)] === 2;
   if ((e.team < 0 && !e.demon) || allied(e.team, team)) return true;
   if (cloakedFrom(e, team)) return false;
   const v = G.sight[team][Math.floor(e.y / TS) * MW + Math.floor(e.x / TS)];
@@ -144,7 +146,11 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     e.done = (flags & DONE) !== 0;
     e.repairing = (flags & REPAIRING) !== 0;
     e.stance = STANCES[(flags >> STANCE_SHIFT) & 3] ?? 'engage';
-    if (flags & FIRING) e.atkT = Math.max(e.atkT, 0.05);
+    if (flags & FIRING) {
+      // a slow swing (the Titan's club) plays through once from its start; anything else just flashes
+      const wt = e.kind === 'unit' && isUnitType(e.type) ? UNIT[e.type as UnitType].weapon : null, sw = wt ? WEAPON[wt].swing : undefined;
+      e.atkT = sw ? (e.atkT > 0 ? e.atkT : sw) : Math.max(e.atkT, 0.05);
+    }
     e.drawT = flags & DRAWING ? G.gameT + 0.4 : 0;
     if (e.kind === 'unit') {
       e.ae = (flags >> AE_SHIFT) & 255;

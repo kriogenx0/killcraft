@@ -8,7 +8,7 @@ import { acquire, dealDamage } from './combat.ts';
 import { demonPrey, demons, gateCentre, onGate, spawnDemon, updHell } from './hell.ts';
 import { wildBeasts } from './creatures.ts';
 import { visibleTo } from '../net/snapshot.ts';
-import { ARCHFIEND_FIRST, DEMON_CAP, GATE_OPENS, GATE_SIZE, GATE_TILE, LEADER_TRAINED } from '../data/hell.ts';
+import { ARCHFIEND_FIRST, BURST_GAP, DEMON_CAP, GATE_OPENS, GATE_SIZE, GATE_TILE, LEADER_TRAINED, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY } from '../data/hell.ts';
 import { layoutFor, START_YARDS } from '../data/map.ts';
 import { UNIT } from '../data/unit.ts';
 import { noteTrained } from './stats.ts';
@@ -62,20 +62,49 @@ describe('the Gate of Hell', () => {
     }
   });
 
-  it('lets demons out once it opens, a few at a time, up to a cap', () => {
+  it('stands empty most of the time: now and then a few demons come out, prowl a while and go back in', () => {
     initWorld(1234);
-    expect(demons()).toHaveLength(0);
     run(GATE_OPENS - 2);
     expect(demons()).toHaveLength(0);
-    run(4);
-    expect(demons()).toHaveLength(1);
-    for (let i = 0; i < 30; i++) { G.hell.spawnT = 0; updHell(); }
-    expect(demons()).toHaveLength(DEMON_CAP);
-    for (const d of demons()) {
+    run(4 + BURST_GAP * 3);
+    const out = demons();
+    expect(out.length).toBeGreaterThanOrEqual(WANDER_SIZE[0]);
+    expect(out.length).toBeLessThanOrEqual(WANDER_SIZE[1]);
+    for (const d of out) {
       expect(d.team).toBe(-1);
       expect(UNIT[d.type as keyof typeof UNIT].demon).toBe(true);
-      expect(Math.hypot(d.x - gateCentre().x, d.y - gateCentre().y)).toBeLessThan(4 * TS);
+      expect(Math.hypot(d.x - gateCentre().x, d.y - gateCentre().y)).toBeLessThan(5 * TS);
     }
+    run(WANDER_STAY + 15);
+    expect(demons()).toHaveLength(0); // back in the gate, leaving no bodies
+    expect(G.decals.filter((d) => d.kind === 'corpse')).toHaveLength(0);
+    // and it stays empty until the next time
+    run(WANDER_EVERY[0] - WANDER_STAY - 30);
+    expect(demons()).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  it('lets a pack out just before each raid, and the survivors go back in after', () => {
+    army(0, LEADER_TRAINED, 6, 'knight');
+    for (const u of G.ents) if (u.team === 0) u.stance = 'passive';
+    updHell();
+    expect(G.hell.prey).toBe(0);
+    G.hell.raidT = G.gameT + RAID_WARNING + 2;
+    run(1.5);
+    expect(demons()).toHaveLength(0);
+    run(RAID_WARNING);
+    const pack = demons();
+    expect(pack.length).toBeGreaterThanOrEqual(RAID_SIZE[0]);
+    expect(pack.length).toBeLessThanOrEqual(DEMON_CAP);
+    run(2);
+    for (const d of pack) if (!d.dead) expect(d.demon?.raid).toBe(0);
+    // the leader stops being the leader: the pack goes home, waits a little, and goes back in
+    if (G.stats[0]) G.stats[0].fighters = 0;
+    run(2);
+    for (const d of pack) if (!d.dead) expect(d.demon?.raid).toBe(-1);
+    run(90);
+    expect(demons()).toHaveLength(0);
+    expect(errors).toEqual([]);
   });
 
   it('has no leader until a side has trained 20 fighting units; then it is the strongest army', () => {
@@ -137,10 +166,10 @@ describe('the Gate of Hell', () => {
     other.dead = true;
     army(0, LEADER_TRAINED, 3);
     updHell();
-    G.hell.archT = G.gameT;
+    G.hell.archT = G.hell.raidT = G.gameT; // it climbs out with a raid
     updHell();
     expect(demons().filter((x) => x.type === 'archfiend')).toHaveLength(1);
-    G.hell.archT = G.gameT;
+    G.hell.archT = G.hell.raidT = G.gameT;
     updHell();
     expect(demons().filter((x) => x.type === 'archfiend')).toHaveLength(1); // one at a time
   });

@@ -23,7 +23,7 @@ const ZOOM_STEP = 1.12;
 
 function shownAt(e: Ent): boolean {
   if (e.team === V.team) return true;
-  return e.kind === 'unit' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
+  return e.kind === 'unit' || e.type === 'shard' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
 }
 
 /** The entity at a world point (px), for clicks on the minimap. */

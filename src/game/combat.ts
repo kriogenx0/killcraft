@@ -97,13 +97,15 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   // aircraft shoot from where they fly
   const air = isAir(s), z = s.kind === 'bld' ? Math.max(16, bldDef(s).top) : air ? altOf(s) : 8;
   const w = WEAPON[wt], mx = s.x + Math.cos(s.tface) * (s.kind === 'bld' ? 16 : 12), my = s.y - (s.kind === 'bld' ? z - 2 : air ? 0 : 6) + Math.sin(s.tface) * 10;
-  s.atkT = 0.25;
+  s.atkT = w.swing ?? 0.25;
   unveil(s);
   hooks.fired(s, wt, t);
   if (w.proj === 'melee') {
     // the swing starts now; the blow and its damage land as the blade comes down (see updProjs)
     // many heads bite many foes at once
-    for (const e of [t, ...(w.heads ? otherFoesInReach(s, t, wt, w.heads - 1) : [])])
+    // a sweeping swing catches everything in its arc
+    const more = w.heads ? otherFoesInReach(s, t, wt, w.heads - 1) : w.sweep ? otherFoesInReach(s, t, wt, 99, w.sweep) : [];
+    for (const e of [t, ...more])
       G.projs.push({ kind: 'melee', x: s.x, y: s.y, z: 0, z0: 0, tid: e.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: 0, d0: 0, tr: 0, a: 0, dead: false });
     return;
   }
@@ -145,12 +147,14 @@ function chainOn(s: Ent, wt: WeaponType, first: Ent, leaps: number): void {
 }
 
 /** Up to `n` foes besides `t` within a melee weapon's reach of `s`. */
-function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number): Ent[] {
-  const r = WEAPON[wt].range * TS, out: Ent[] = [];
+function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number, arc = Math.PI): Ent[] {
+  const r = WEAPON[wt].range * TS, out: Ent[] = [], aim = Math.atan2(t.y - s.y, t.x - s.x);
   for (const e of G.ents) {
     if (out.length >= n) break;
     if (e === t || e.dead || allied(e.team, s.team) || !fair(e) || kneeling(e) || !canHit(wt, e)) continue;
-    if (edgeDist(s, e) <= r) out.push(e);
+    if (edgeDist(s, e) > r) continue;
+    const off = Math.abs(Math.atan2(Math.sin(Math.atan2(e.y - s.y, e.x - s.x) - aim), Math.cos(Math.atan2(e.y - s.y, e.x - s.x) - aim)));
+    if (off <= arc) out.push(e);
   }
   return out;
 }
@@ -368,11 +372,13 @@ export function updTurret(b: Ent, dt: number): void {
 /** A sword or lance blow: once the swing comes down, a bright arc sweeps across the target and it takes the hit. */
 function landBlow(p: Projectile, t: Ent, dt: number): void {
   p.tr += dt;
-  if (p.tr < MELEE_LAND) return;
+  const sw = WEAPON[p.weapon as WeaponType].swing;
+  if (p.tr < (sw ? sw * 0.5 : MELEE_LAND)) return;
   p.dead = true;
   const s = valid(p.src), wt = p.weapon as WeaponType;
   if (!s || edgeDist(s, t) > WEAPON[wt].range * TS + MELEE_SLACK) return; // the attacker fell, or the target got clear
-  part('slash', t.x, t.y, { rot: Math.atan2(t.y - s.y, t.x - s.x), max: 0.22, size: wt === 'sword' ? 1 : 1.3, z: altOf(t), col: wt === 'wraithlance' ? '#c9a8ff' : null });
+  if (wt === 'quake') { impact(t.x, t.y, 30); burst('debris', t.x, t.y, 6, 60, 160); } // the club knocks it flying
+  part('slash', t.x, t.y, { rot: Math.atan2(t.y - s.y, t.x - s.x), max: 0.22, size: wt === 'sword' ? 1 : wt === 'quake' ? 3 : 1.3, z: altOf(t), col: wt === 'wraithlance' ? '#c9a8ff' : null });
   hit(wt, t, s, t.x, t.y);
 }
 

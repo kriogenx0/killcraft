@@ -43,7 +43,7 @@ export function initFog(onChange?: () => void): void {
 export function shownToPlayer(e: Ent): boolean {
   if (e.team === V.team) return true;
   if (!spectating() && cloakedFrom(e, V.team)) return false; // spectators see through cloaks
-  return e.kind === 'unit' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
+  return e.kind === 'unit' || e.type === 'shard' ? seenAt(e.x, e.y) : exploredAt(e.x, e.y);
 }
 
 /** Radar: terrain, ore, units and buildings, fog, alerts, and the ground the camera sees. */

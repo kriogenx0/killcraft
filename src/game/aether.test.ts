@@ -5,8 +5,8 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { available, enqueue } from './production.ts';
-import { cloakedFrom, deposits, drawingFrom, shards, holderOf, isDrawing, syncWaygates, waygateLinked } from './aether.ts';
-import { applySnapshot, encodeEnt } from '../net/snapshot.ts';
+import { cloakedFrom, deposits, drawingFrom, shardFor, shards, holderOf, isDrawing, syncWaygates, waygateLinked } from './aether.ts';
+import { applySnapshot, encodeEnt, visibleTo } from '../net/snapshot.ts';
 import { findPath, isJump } from './path.ts';
 import { acquire, dealDamage, fire, MELEE_LAND, updProjs } from './combat.ts';
 import type { WeaponType } from '../data/weapon.ts';
@@ -163,6 +163,49 @@ describe('Aether', () => {
     expect(shards()).toHaveLength(0);
     expect(G.aether[0]).toBeCloseTo(before + 30, 0);
     expect(errors).toEqual([]);
+  });
+
+  it('sends an Auto Worker that just banked a load out of its way for dropped Aether, then back to work', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
+    const carrier = addUnit('swordsman', 0, yard.x + 11 * TS, yard.y);
+    carrier.ae = 20;
+    dealDamage(carrier, 9999, null);
+    expect(shards()).toHaveLength(1);
+    // a Worker on its way home with ore: past the idle-fetch range, but within the detour range
+    const w = addUnit('worker', 0, yard.x + 2.5 * TS, yard.y);
+    w.carry = 30; w.cargo = 'ore';
+    w.order = { t: 'harvest', st: 'ret', tx: w.x / TS | 0, ty: w.y / TS | 0, wait: 0, auto: true };
+    const before = G.aether[0] ?? 0;
+    let picked = false;
+    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= (w.ae ?? 0) > 0; }
+    expect(picked).toBe(true);
+    expect(G.aether[0]).toBeCloseTo(before + 20, 0);
+    run(6);
+    expect(w.order?.t).toBe('harvest'); // and back to gathering
+    expect(errors).toEqual([]);
+  });
+
+  it('leaves dropped Aether a side can\'t see, or that an armed enemy guards', () => {
+    G.reveal = false;
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
+    const carrier = addUnit('swordsman', 1, yard.x + 7 * TS, yard.y);
+    carrier.ae = 20;
+    dealDamage(carrier, 9999, null);
+    const [s] = shards();
+    // nobody on side 0 sees it: it isn't sent to side 0, and a Worker with short sight doesn't go for it
+    G.sight[0].fill(1);
+    expect(visibleTo(s, 0)).toBe(false);
+    G.sight[0][s.ty * MW + s.tx] = 2;
+    expect(visibleTo(s, 0)).toBe(true);
+    // seen, but with an enemy soldier standing over it a Worker keeps away
+    const guard = addUnit('swordsman', 1, s.x + TS, s.y);
+    guard.order = null;
+    const w = addUnit('worker', 0, s.x - 4 * TS, s.y);
+    expect(shardFor(w)).toBeNull();
+    guard.dead = true;
+    expect(shardFor(w)).toBe(s);
   });
 
   it('lets any unit that walks over dropped Aether pick it up, up to what it can carry', () => {

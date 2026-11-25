@@ -1,6 +1,6 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace, leaderHandicap } from './ai.ts';
-import { LEADER_SPEED, OIL_PUMP_RATE } from '../data/economy.ts';
+import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
@@ -11,13 +11,13 @@ import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
-import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH } from '../data/aether.ts';
+import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, aetherJobOf, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
+import { IDLE_GRACE, aetherJobOf, fetching, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
@@ -26,7 +26,6 @@ const lastOrder = new WeakMap<Ent, string>();
 /** Units that had an order last tick. */
 const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
-import { pumpOil } from './economy.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
@@ -235,10 +234,13 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     o.st = 'go';
     // back out to the ore nearest the base, which may not be where the last load came from
     if (!o.res) { const t = pickOre(u); if (t) [o.tx, o.ty] = t; }
-    // one that picked its own job looks round for anything to fix before setting out again
+    // one that picked its own job looks round for anything to fix before setting out again,
+    // and for Aether dropped by the fallen to fetch home
     if (o.auto && u.type === 'worker') {
       const job = { ...o };
       if (fixNext(u)) { keepResume(u, job); return; }
+      const s = shardFor(u, SHARD_PULL);
+      if (s) { keepResume(u, job); fetching.add(u); orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
     }
     rethink(u, o);
   }
@@ -267,21 +269,17 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
     if (r) o.st = 'gather';
     return;
   }
-  // work the pump: oil only comes out of the ground while a Worker is at it (anything left in the
-  // store from before goes first)
-  const room = haulOf(u) - u.carry;
-  const stored = Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, room, src.carry);
-  src.carry -= stored;
-  const take = stored + pumpOil(src, Math.min(OIL_PUMP_RATE * dt, room - stored));
+  const take = Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry, src.carry);
   if (take > 0) {
+    src.carry -= take;
     u.carry += take;
     u.cargo = o.res;
     u.atkT = 0.2;
   }
-  // full, or the well has run dry: take what we have home
-  if (u.carry >= haulOf(u) - 0.5 || (take <= 0 && u.carry > 0)) o.st = 'ret';
-  else if (take <= 0) {
-    // a dry well: a Worker that picked this job itself finds another; one sent here waits
+  // full, or the store is empty: take what we have home rather than stand by a slow pump holding it
+  if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0)) o.st = 'ret';
+  else if (src.carry <= 0.01) {
+    // nothing to carry: a Worker that picked this job itself finds another; one sent here waits for more
     if (o.auto) u.order = null;
     else o.wait = 1;
   }
@@ -576,15 +574,18 @@ function act(u: Ent, dt: number): void {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: false }); return; }
     }
-    // a Worker sent to draw Aether stands at its deposit until it carries a full load, banks it, and goes back
+    // a Worker sent to draw Aether stands at its deposit until it carries a full load, banks it, and goes back;
+    // Aether dropped by the fallen nearby is quicker to take than drawing, so it fetches that first
     const ae = u.type === 'worker' ? aetherJobOf(u) : null;
     if (ae && (u.ae ?? 0) < AETHER_CARRY - 0.5) {
+      const s = shardFor(u, SHARD_PULL);
+      if (s) { fetching.add(u); orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
       if (Math.hypot(u.x - ae.x, u.y - ae.y) > AETHER_REACH * TS * 0.8) { const t = adjTile(ae, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
       else return; // drawing
     }
     // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
-      const s = shardFor(u);
+      const s = shardFor(u, fetching.has(u) ? SHARD_PULL : undefined);
       if (s) { orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
       const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
       if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
@@ -602,7 +603,8 @@ function act(u: Ent, dt: number): void {
     } else if (isHarvester(u)) {
       // nothing left to fix: after a moment's pause, go and gather what the side needs most
       // only a Worker the player just walked somewhere pauses first (they may have plans for it)
-      const since = idleSince.get(u), grace = lastOrder.get(u) === 'move' ? IDLE_GRACE : 0;
+      const since = idleSince.get(u), grace = lastOrder.get(u) === 'move' && !fetching.has(u) ? IDLE_GRACE : 0;
+      fetching.delete(u);
       if (since === undefined && grace > 0) idleSince.set(u, G.gameT);
       else if (G.gameT - (since ?? G.gameT) >= grace) {
         u.scan = 1.5;
