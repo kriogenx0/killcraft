@@ -31,8 +31,12 @@ export function updFog(): void {
 export const seenAt = (x: number, y: number): boolean => G.vis[tileOf(y) * MW + tileOf(x)] === 2;
 export const exploredAt = (x: number, y: number): boolean => G.vis[tileOf(y) * MW + tileOf(x)] > 0;
 
-/** A finished building with a gun that reaches further than it can see: it fires only at what its side sees. */
+/**
+ * A finished building or a unit with a gun that reaches further than it can see (Big Bertha, the
+ * Artillery Tank): it fires only at what its side sees, so even a computer side needs a sight map.
+ */
 function outranges(e: Ent): boolean {
+  if (e.kind === 'unit') { const d = unitDef(e), w = d.weapon ? WEAPON[d.weapon] : null; return !!w && w.range > d.sight; }
   if (e.kind !== 'bld' || !e.done) return false;
   const d = bldDef(e), w = d.weapon ? WEAPON[d.weapon] : null;
   return !!w && w.range > d.sight;

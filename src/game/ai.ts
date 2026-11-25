@@ -1,10 +1,12 @@
 // Computer player: grows a base along a build plan, keeps harvesters working, trains a mixed army
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
+import { WEAPON, type WeaponType } from '../data/weapon.ts';
 import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
 import { G, oreLoadOf, allied, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
+import { clamp } from '../util/math.ts';
 import { BUILDING, EXPAND_GAP, isExpansion, isWall, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
@@ -848,7 +850,18 @@ function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
  * heading close enough to it. Re-giving the same order every think would make it drop the fight
  * (or its path) and pick it up again: attack, stop, attack, stop.
  */
+/** Weapons that reach this far (tiles) are siege guns: they shell from behind the army instead of marching in with it. */
+const SIEGE_RANGE = 7;
+
 function advance(u: Ent, tx: number, ty: number): void {
+  // a siege gun (the Artillery Tank, the Catapult) stops short, a little inside its reach of the
+  // target, and shells it from behind the troops rather than walking into the fight
+  const w = unitDef(u).weapon ? WEAPON[unitDef(u).weapon as WeaponType] : null;
+  if (w && w.range >= SIEGE_RANGE && !isAir(u)) {
+    const cx = (tx + 0.5) * TS, cy = (ty + 0.5) * TS, d = Math.hypot(u.x - cx, u.y - cy), keep = (w.range - 1.5) * TS;
+    if (d > keep) { tx = clamp(tileOf(cx + ((u.x - cx) / d) * keep), 0, MW - 1); ty = clamp(tileOf(cy + ((u.y - cy) / d) * keep), 0, MH - 1); }
+    else if (!u.order) return; // already in place: it shells whatever is in reach
+  }
   const o = u.order;
   if (o?.t === 'move' && (valid(o.sub) || Math.max(Math.abs(o.gx - tx), Math.abs(o.gy - ty)) <= 3)) return;
   orderMove(u, tx, ty);
