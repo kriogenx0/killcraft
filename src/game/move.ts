@@ -165,7 +165,7 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
 }
 
 /** How far a unit may move this step, in px. */
-const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, (u.order?.t === 'move' && !u.order.sub && u.order.pace) || Infinity) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
+export const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, (u.order?.t === 'move' && !u.order.sub && u.order.pace) || Infinity) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
 
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {

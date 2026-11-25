@@ -10,7 +10,7 @@ import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
 import { inReach, nearBase, reachOf, tileFree, wallLine } from '../../../game/building.ts';
 import { nearPortal } from '../../../game/map.ts';
-import { lerp } from '../../../util/math.ts';
+import { clamp, lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V, spectating } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
@@ -201,6 +201,17 @@ function animateUnit(m: Model, e: Ent): void {
       P.heap.visible = load > 0.02;
       P.heap.scale.y = 0.08 + load * 0.55;
       P.scoop.rotation.z = !e.moving && e.atkT > 0 ? Math.sin(G.gameT * 9) * 0.25 : 0;
+      break;
+    }
+    case 'artillery': {
+      // dug in: the spades fold down into the ground and the barrel rises; on the move they stow again
+      const now = performance.now() / 1000, last = (m.root.userData.depT as number | undefined) ?? now;
+      const dep = clamp(((m.root.userData.dep as number | undefined) ?? 0) + (now - last) * (e.moving ? -2 : 1.2), 0, 1);
+      m.root.userData.dep = dep;
+      m.root.userData.depT = now;
+      const k = dep * dep * (3 - 2 * dep);
+      if (P.spadeL) P.spadeL.rotation.z = P.spadeR.rotation.z = lerp(-2.6, -0.45, k);
+      if (P.elev) P.elev.rotation.z = lerp(-0.06, 0.42, k);
       break;
     }
     case 'catapult':

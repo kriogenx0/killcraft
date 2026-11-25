@@ -634,7 +634,9 @@ function training(team: number): void {
       if (A.big) {
         if (G.credits[team] - keep - (A.refitSave ?? 0) >= costOf(A.big) && canAfford(team, A.big)) { t = A.big; A.big = null; A.bigDone = true; }
       } else if (!saving && credits > 500) {
-        t = pick(team, 'vehicle', [['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5]]);
+        // a few Artillery Tanks to shell defenses and packed troops from behind the tanks, about one in five of the army
+        const guns = countOf(team, 'artillery'), army = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length;
+        t = pick(team, 'vehicle', [['catapult', credits > 1200 ? 2 : 0.5], ['jeep', 2], ['tank', 5], ['phantom', 1.5], ['starfall', 2.5], ['artillery', guns * 5 < army ? 2.5 : 0]]);
         if (t) A.bigDone = false;
       }
     }

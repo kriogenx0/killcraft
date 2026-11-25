@@ -2,7 +2,7 @@ import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
 import type { SpellType } from './spells.ts';
 
-export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
+export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'artillery' | 'harvester' | 'worker'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
@@ -67,6 +67,11 @@ export interface UnitDef {
    * field. Rendered and animated on its own.
    */
   giant?: boolean;
+  /**
+   * a gun that must stand still this many seconds to dig in before it fires (the Artillery Tank): it
+   * never fires on the move, and it backs off from anything inside its weapon's minRange
+   */
+  deploy?: number;
   /** a side may have at most this many alive or in training at once */
   limit?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
@@ -110,6 +115,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   tank: { name: 'Battle Tank', key: 'T', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, turn: 2.5, weapon: 'cannon', cost: 700, oil: 150, t: 14, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1200, oil: 200, t: 22, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, regen: 0.005, desc: 'Slow, heavily armored twin-cannon tank. Its crew patch it up in the field: it slowly repairs itself.' },
   catapult: { name: 'Catapult', cls: 'vehicle', armor: 'light', hp: 220, spd: 1.6, turn: 1.5, weapon: 'catapult', cost: 400, wood: 300, t: 16, era: 0, sight: 6, producer: 'vehicle', turret: false, radius: 14, desc: 'Lobs boulders from long range. Crushes buildings and packed infantry.' },
+  artillery: { name: 'Artillery Tank', cls: 'vehicle', armor: 'light', hp: 260, spd: 2.4, turn: 2, weapon: 'howitzer', cost: 600, oil: 150, t: 15, era: 1, sight: 6, producer: 'vehicle', turret: true, radius: 13, deploy: 1.5, desc: 'Self-propelled howitzer. Shells from 10 tiles away, beyond the reach of towers and turrets, and wrecks packed troops and defenses. Must stop and dig in before it fires, can\'t hit anything within 3 tiles and is thinly armored: keep it behind the front.' },
   harvester: { name: 'Harvester', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.4, turn: 2, weapon: null, cost: 1400, wood: 100, t: 18, era: 2, sight: 4, producer: 'vehicle', turret: false, radius: 15, haul: 600, scoop: 160, desc: 'Collects ore and brings it to a Refinery or the Town Hall. Unarmed.' },
   worker: { name: 'Worker', cls: 'infantry', armor: 'none', hp: 100, spd: 2.0, turn: 6.5, weapon: 'pick', cost: 250, t: 7, era: 0, sight: 4, producer: 'infantry', turret: false, radius: 6, haul: 300, scoop: 80, desc: 'Builds every structure, digs ore, chops wood and hauls oil home. When idle it repairs buildings and patches up wounded troops. Harvesters take over the ore in the Modern age.' },
   // aircraft, built at the Airfield. They fly straight over buildings, cliffs and water, and only
