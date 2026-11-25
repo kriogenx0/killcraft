@@ -56,6 +56,35 @@ export const ais: AiState[] = [
   { on: true, level: 'normal', thinkT: 0, attackAt: 8, attacking: false, foe: 0, guards: new Set(), reserve: 0, hunters: new Set(), prey: null },
 ];
 
+/** Entries kept in G.aiLog. */
+const AI_LOG_MAX = 400;
+/**
+ * Note a computer decision and the reason for it in G.aiLog (Alex: logs to see why things happen).
+ * A note with the same key as the side's last one (still saving for the same thing) adds nothing, so the log stays small.
+ */
+export function aiNote(team: number, why: string, key = why): void {
+  if (noteKey[team] === key) return;
+  noteKey[team] = key;
+  G.aiLog ??= []; // a game saved before the log existed
+  G.aiLog.push({ team, t: Math.round(G.gameT), why });
+  if (G.aiLog.length > AI_LOG_MAX) G.aiLog.splice(0, G.aiLog.length - AI_LOG_MAX);
+}
+/** The computer log as text, oldest first: one line per note, "m:ss Side: what it did and why". */
+export function aiLogText(sideName: (team: number) => string): string {
+  const clock = (t: number) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  return (G.aiLog ?? []).map((l) => `${clock(l.t)} ${sideName(l.team)}: ${l.why}`).join('\n');
+}
+/** Each side's last note, so one that is still saving for the same thing isn't noted again. */
+const noteKey: string[] = [];
+const label = (t: string): string => { const n = named(t); return `${/^[AEIOU]/.test(n) ? 'an' : 'a'} ${n}`; };
+const named = (t: string): string => (BUILDING[t as BldType]?.name ?? UNIT[t as UnitType]?.name ?? TECH[t as keyof typeof TECH]?.name ?? t);
+const shortOf = (team: number, t: Parameters<typeof priceOf>[0]): string => {
+  const p = priceOf(t), have = [`${Math.floor(G.credits[team])}/${p.ore} ore`];
+  if (p.wood) have.push(`${Math.floor(G.wood[team])}/${p.wood} wood`);
+  if (p.oil) have.push(`${Math.floor(G.oil[team])}/${p.oil} oil`);
+  return have.join(', ');
+};
+
 const lvl = (team: number): AiLevel => AI_LEVEL[ais[team]?.level ?? 'normal'];
 
 /** How fast a side's production and building sites work: the computer's difficulty pace, full speed for players. */
@@ -87,6 +116,7 @@ const SKIRMISHERS = new Set<string>(['jeep']);
 export function resetAi(teams = 2): void {
   while (ais.length < teams) ais.push({ on: true, level: 'normal', thinkT: 0, attackAt: 8, attacking: false, foe: -1, guards: new Set(), reserve: 0, hunters: new Set(), prey: null });
   wallPause.length = 0;
+  noteKey.length = 0;
   scouted.length = 0;
   ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.big = null; a.bigDone = false; a.foe = teams === 2 ? 1 - team : -1; });
 }
@@ -139,7 +169,13 @@ function nextStructure(team: number, walling: boolean): BldType | null {
     const to = BUILDING[t].advances;
     if (to != null && G.era[team] >= to) continue;
     need[t] = (need[t] ?? 0) + 1;
-    if (countOf(team, t) < (need[t] ?? 0)) return can.includes(t) ? t : null;
+    if (countOf(team, t) < (need[t] ?? 0)) {
+      if (!can.includes(t)) return null;
+      // short of the wood it costs with nothing bringing wood in: a Lumber Mill first, or the plan stalls
+      // for good (Low starting resources leave too little wood for the Refinery after the Power Plant)
+      if (G.wood[team] < priceOf(t).wood && !woodComing(team) && can.includes('mill')) { aiNote(team, `needs wood for ${label(t)} and has no Lumber Mill: building one first`); return 'mill'; }
+      return t;
+    }
   }
   // answer enemy aircraft with flak
   const foeAir = G.ents.filter((e) => !e.dead && hostile(e.team, team) && isAir(e)).length;
@@ -444,18 +480,20 @@ function construction(team: number): void {
   const t = nextStructure(team, walling);
   if (!t) { ais[team].reserve = 0; return; }
   // structures are paid for up front: save up for one rather than spend everything on troops
-  if (!affordKeeping(team, t)) { ais[team].reserve = costOf(t); ais[team].reserveWood = priceOf(t).wood; return; }
+  if (!affordKeeping(team, t)) { ais[team].reserve = costOf(t); ais[team].reserveWood = priceOf(t).wood; aiNote(team, `saving for ${label(t)} (${shortOf(team, t)})`, `save ${t}`); return; }
   if (isWall(t)) {
     const own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
     const yard = own.find((e) => e.type === 'yard') ?? own[0], foe = G.ents.find((e) => !e.dead && e.kind === 'bld' && (ais[team].foe >= 0 ? e.team === ais[team].foe : hostile(e.team, team)));
     const line = yard ? wallSite(team, yard, foe) : null;
     // nowhere to put a stretch: give up on walls for a while rather than hold up the base
-    if (!line || !startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1])) wallPause[team] = G.gameT + WALL_RETRY;
+    if (!line || !startSite(team, t, line[0][0], line[0][1], line[1][0], line[1][1])) { wallPause[team] = G.gameT + WALL_RETRY; aiNote(team, `no room for ${label(t)} line: walls wait`); }
+    else aiNote(team, `walling with ${label(t)}`);
     ais[team].reserve = 0;
     return;
   }
-  const site = findSite(team, t);
-  ais[team].reserve = site && startSite(team, t, site[0], site[1]) ? 0 : costOf(t);
+  const site = findSite(team, t), started = !!site && startSite(team, t, site[0], site[1]);
+  ais[team].reserve = started ? 0 : costOf(t);
+  aiNote(team, started ? `placed ${label(t)}` : site ? `could not start ${label(t)} at ${site[0]},${site[1]}` : `no room to place ${label(t)}`);
 }
 
 /**
@@ -476,7 +514,7 @@ function research(team: number): void {
   if (G.prod[team].tech.length) return;
   const can = available(team, 'tech').filter(isTechType);
   const age = can.find((t) => TECH[t].age != null);
-  if (age && credits > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); return; }
+  if (age && credits > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); aiNote(team, `researching ${named(age)}`); return; }
   const ward = can.find((t) => TECH[t].ward);
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
@@ -511,6 +549,8 @@ function refits(team: number): void {
   ais[team].refitSave = next && army >= REFIT_ARMY ? refitPrice(next).ore + REFIT_RESERVE : 0;
 }
 
+/** A Lumber Mill going up, or one standing by trees: wood is (or soon will be) coming in. */
+const woodComing = (team: number): boolean => G.ents.some((e) => !e.dead && e.team === team && e.type === 'mill' && (!e.done || woodNear(e) > 0));
 const ownDone = (team: number, type: BldType): Ent[] => G.ents.filter((e) => !e.dead && e.team === team && e.type === type && e.done);
 
 /** How the side stands on a resource against what it wants to buy next. */
@@ -809,6 +849,7 @@ function military(team: number): void {
   // attack in waves, or press on whenever the enemy army is clearly smaller
   const L = lvl(team), ready = G.gameT >= L.firstAttack;
   if (ready && (army.length >= A.attackAt || (army.length >= 6 && army.length >= enemyArmy * 2))) {
+    if (!A.attacking) aiNote(team, `attacking side ${foe + 1} with ${army.length} troops (enemy has ${enemyArmy})`);
     A.attacking = true;
     A.attackAt = Math.min(MAX_WAVE, A.attackAt + L.waveStep);
     for (const u of army) if (!u.order || u.order.t === 'move') advance(u, tileOf(tgt.x), tileOf(tgt.y));

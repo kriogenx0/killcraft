@@ -319,6 +319,8 @@ export const G = {
   winner: -1,
   /** each side knocked out so far, in order: when and why (shown on the end screen) */
   outLog: [] as { team: number; t: number; why: string }[],
+  /** what each computer player decided and why (newest last, capped; saved with the game; see aiNote in ai.ts) */
+  aiLog: [] as { team: number; t: number; why: string }[],
   /** each side's record of the match, for the end screen (see stats.ts) */
   stats: [] as SideStats[],
   /** both sides are computer-controlled */

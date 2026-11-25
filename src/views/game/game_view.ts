@@ -8,7 +8,7 @@ import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, matchOf, 
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, outReasons, update } from '../../game/world.ts';
-import { ais, setAiLevel } from '../../game/ai.ts';
+import { aiLogText, ais, setAiLevel } from '../../game/ai.ts';
 import { noUpgrades } from '../../game/upgrade.ts';
 import { rebuildBlk } from '../../game/map.ts';
 import { updFog } from '../../game/fog.ts';
@@ -20,7 +20,7 @@ import { sidesTitle, type ServerMsg, type SideStock, type SnapMsg } from '../../
 import { applySnapshot, decodeOre, interpolate, resetSnapshots } from '../../net/snapshot.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { ctx2d } from '../../util/canvas.ts';
-import { setupCopyButton } from '../../components/copy_button/copy_button.ts';
+import { copyText, setupCopyButton } from '../../components/copy_button/copy_button.ts';
 import { hostedGame, storedName, type Lobby } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
@@ -476,6 +476,11 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     startSolo(watch, s);
   };
   must(root, '.game-paused-resume').addEventListener('click', () => { V.paused = false; });
+  // what each computer player decided and why (Alex: logs to see why things happen); online, the computers run on the server
+  const computerLog = () => [`Killcraft ${__APP_COMMIT__} · Game ID ${root.dataset.gameId ?? '?'} · ${Math.round(G.gameT)}s in`, V.online ? '(online game: the computer players run on the server, so their log is not here)' : '', aiLogText((t) => teamColors(t).name)].filter(Boolean).join('\n');
+  (window as unknown as { killcraftLog: () => string }).killcraftLog = computerLog;
+  const logBtn = must<HTMLButtonElement>(root, '.game-paused-log');
+  logBtn.addEventListener('click', async () => { show(await copyText(computerLog()) ? 'Computer log copied' : "Couldn't copy the log"); });
   must(root, '.game-paused-new').addEventListener('click', () => { V.paused = true; setup.open(false); });
   // End Game: a second tap confirms, then the game is dropped (save and address) for the main menu
   const quitBtn = must<HTMLButtonElement>(root, '.game-paused-quit');
