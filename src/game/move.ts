@@ -314,14 +314,14 @@ export const shoved = { px: 0 };
 /** Soft collision: overlapping units push apart; idle units yield to moving ones. */
 export function separate(): void {
   const us = G.ents.filter((e) => !e.dead && e.kind === 'unit').sort((a, b) => a.x - b.x);
-  const rad = us.map((u) => unitDef(u).radius + 2), air = us.map(isAir);
+  const rad = us.map((u) => unitDef(u).radius + 2), air = us.map(isAir), maxRad = Math.max(17, ...rad);
   for (let i = 0; i < us.length; i++) {
     const a = us[i];
     for (let j = i + 1; j < us.length; j++) {
       const b = us[j], min = rad[i] + rad[j];
       if (air[i] !== air[j]) continue;
       let dx = a.x - b.x;
-      if (dx < -34) break;
+      if (dx < -(rad[i] + maxRad)) break;
       let dy = a.y - b.y;
       if (Math.abs(dx) >= min || Math.abs(dy) >= min || ((a.moving || b.moving) && passThrough(a, b))) continue;
       let d = Math.hypot(dx, dy);

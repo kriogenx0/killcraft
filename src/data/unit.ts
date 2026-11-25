@@ -7,7 +7,8 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
-  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'unicorn';
+  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'unicorn'
+  | 'mystery' | 'chicken';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -72,6 +73,15 @@ export interface UnitDef {
    * never fires on the move, and it backs off from anything inside its weapon's minRange
    */
   deploy?: number;
+  /**
+   * the Mystery Egg (game/mystery.ts): trained slowly like a unit, but what walks out of it is a random
+   * special unit of the side's age, and now and then a Titan Chicken
+   */
+  hatches?: boolean;
+  /** only ever comes out of a Mystery Egg: it can't be trained on its own (the Titan Chicken) */
+  hatched?: boolean;
+  /** enemies within this many tiles can't help going for it first, whatever else is about (the Titan Chicken) */
+  lure?: number;
   /** a side may have at most this many alive or in training at once */
   limit?: number;
   /** the regular unit whose model and animations this one borrows, with an Aether glow */
@@ -119,7 +129,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   swordsman: { name: 'Footman', cls: 'infantry', armor: 'light', hp: 90, spd: 2.2, turn: 6.5, weapon: 'sword', cost: 175, t: 6, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 6, desc: 'Plate armor, sword and shield. Beats riflemen up close and shrugs off bullets.' },
   crossbowman: { name: 'Crossbowman', cls: 'infantry', armor: 'none', hp: 50, spd: 2.0, turn: 6.5, weapon: 'crossbow', cost: 170, wood: 30, t: 7, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Armor-piercing bolts. Good against footmen and knights.' },
   medic: { name: 'Medic', cls: 'infantry', armor: 'none', hp: 60, spd: 2.2, turn: 6.5, weapon: null, cost: 200, t: 7, era: 0, requires: ['hospital'], sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Unarmed. Heals wounded infantry, knights, creatures and anything that flies from up to 4 tiles away, so it can stay behind the front line. Research Field Mechanics at the Hospital and it repairs vehicles and cyborgs too.' },
-  knight: { name: 'Knight', cls: 'infantry', armor: 'light', hp: 220, spd: 4.6, turn: 5, weapon: 'lance', cost: 450, wood: 50, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, desc: 'Armored horseman. Fast charges against infantry and harvesters.' },
+  knight: { name: 'Knight', cls: 'infantry', armor: 'light', hp: 220, spd: 4.6, turn: 5, weapon: 'lance', cost: 400, wood: 50, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, desc: 'Armored horseman. Fast charges against infantry and harvesters.' },
   jeep: { name: 'Scout Jeep', cls: 'vehicle', armor: 'light', hp: 210, spd: 5.0, turn: 4, weapon: 'mg', cost: 325, oil: 50, t: 9, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, desc: 'Fast scout with a machine gun.' },
   tank: { name: 'Battle Tank', key: 'T', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, turn: 2.5, weapon: 'cannon', cost: 700, oil: 150, t: 14, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1200, oil: 200, t: 22, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, regen: 0.005, desc: 'Slow, heavily armored twin-cannon tank. Its crew patch it up in the field: it slowly repairs itself.' },
@@ -157,7 +167,13 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // the Titan: one per side, the largest thing in the game. An elder giant of bronze and stone, woken
   // with Aether. It smashes everything around it with a broken temple column; only aircraft are
   // safe from it, and massed rockets and anti-tank fire are the way to bring it down.
-  giant: { name: 'Titan', cls: 'infantry', armor: 'heavy', hp: 3200, spd: 1.5, turn: 2.2, weapon: 'quake', cost: 2800, wood: 400, aether: 150, t: 50, era: 1, sight: 8, producer: 'infantry', turret: false, radius: 24, giant: true, limit: 1, group: 'Magic', desc: 'An elder giant of bronze and stone, woken with Aether. Its column smashes everything around the blow and crushes buildings. Only one at a time. Can\'t hit aircraft.' },
+  giant: { name: 'Titan', cls: 'infantry', armor: 'heavy', hp: 5000, spd: 1.6, turn: 2.2, weapon: 'quake', cost: 2800, wood: 400, aether: 150, t: 50, era: 1, sight: 8, producer: 'infantry', turret: false, radius: 44, giant: true, limit: 1, group: 'Magic', desc: 'An elder giant of bronze and stone, woken with Aether. Its column smashes everything around the blow and crushes buildings. Only one at a time. Can\'t hit aircraft.' },
+  // the Mystery Egg: a slow gamble on Aether. It hatches into a random special unit (game/mystery.ts):
+  // a Titan, a Dragon, a Cyborg Colossus... or a Titan Chicken. One at a time.
+  mystery: { name: 'Mystery Egg', cls: 'infantry', armor: 'none', hp: 1, spd: 0, turn: 0, weapon: null, cost: 600, aether: 80, t: 90, era: 0, sight: 1, producer: 'infantry', turret: false, radius: 8, hatches: true, limit: 1, group: 'Magic', desc: 'A glowing egg warmed slowly on Aether. Hatches into a random special unit of your age: maybe a Titan, a Dragon or a Cyborg Colossus, maybe something cheaper. Now and then it\'s a Titan Chicken. One at a time, and it takes a long while.' },
+  // the Titan Chicken: what sometimes comes out of a Mystery Egg instead. A barn-sized chicken that
+  // every enemy nearby can't help going for, so the army behind it walks in untouched.
+  chicken: { name: 'Titan Chicken', cls: 'infantry', armor: 'light', hp: 1600, spd: 3.4, turn: 4, weapon: 'peck', cost: 600, aether: 80, t: 90, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 22, hatched: true, lure: 5, regen: 0.004, desc: 'A chicken the size of a barn. Only ever hatches from a Mystery Egg. Every enemy within 5 tiles can\'t help going for it, so it soaks up the fire while your army does the work, and its stomping peck scatters infantry. Feathers stop nothing, but there are a lot of them. It can\'t reach anything that flies.' },
   // creatures of Greek myth, found wild in lairs on the map (data/creatures.ts). Capture one and the
   // side can train more of its kind for ore and Aether, in any age. Flyers come from the Airfield.
   centaur: { name: 'Centaur', cls: 'infantry', armor: 'light', hp: 260, spd: 4.2, turn: 5, weapon: 'centaurbow', cost: 300, wood: 40, aether: 35, t: 10, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 17, beast: true, desc: 'Half man, half horse. A fast archer that shoots on the gallop. Strong against infantry and fliers.' },
@@ -174,7 +190,7 @@ export const UNIT: Record<UnitType, UnitDef> = {
   satyr: { name: 'Satyr', cls: 'infantry', armor: 'none', hp: 150, spd: 3.4, turn: 6, weapon: 'thyrsus', cost: 150, aether: 15, t: 7, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, beast: true, song: 0.015, desc: 'Goat-legged piper, cheap and quick. His tune heals every friendly foot soldier and creature around him, so a band of Satyrs keeps itself on its feet and overruns archers and gunners. Little use against armor.' },
   chimera: { name: 'Chimera', cls: 'infantry', armor: 'light', hp: 360, spd: 3.0, turn: 4.5, weapon: 'chimerafire', cost: 500, aether: 50, t: 13, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 20, beast: true, desc: 'Lion, goat and serpent in one. Its fire breath reaches up into the sky: the creature that burns flyers down.' },
   phoenix: { name: 'Phoenix', cls: 'air', armor: 'air', hp: 200, spd: 5.0, turn: 4, weapon: 'phoenixfire', cost: 450, aether: 60, t: 12, era: 0, sight: 8, producer: 'air', turret: false, radius: 17, alt: 1.5, beast: true, rebirth: true, desc: 'Firebird. Showers flame on the ground below, and when it falls it bursts alight and rises again from its ashes, once.' },
-  dragon: { name: 'Dragon', cls: 'air', armor: 'air', hp: 480, spd: 3.6, turn: 2.8, weapon: 'dragonfire', cost: 800, aether: 90, t: 22, era: 0, sight: 8, producer: 'air', turret: false, radius: 28, alt: 1.9, beast: true, hide: 0.6, desc: 'Great serpent of the sky that guards treasure (Ladon, who coiled round the golden apples). Its breath melts armor and sets whole bases ablaze, and arrows and bullets glance off its scales. Can\'t fight other flyers: send Flak, rockets, a Chimera or a Griffin against it.' },
+  dragon: { name: 'Dragon', cls: 'air', armor: 'air', hp: 440, spd: 3.6, turn: 2.8, weapon: 'dragonfire', cost: 800, aether: 90, t: 22, era: 0, sight: 8, producer: 'air', turret: false, radius: 28, alt: 1.9, beast: true, hide: 0.6, desc: 'Great serpent of the sky that guards treasure (Ladon, who coiled round the golden apples). Its breath melts armor and sets whole bases ablaze, and arrows and bullets glance off its scales. Can\'t fight other flyers: send Flak, rockets, a Chimera or a Griffin against it.' },
   unicorn: { name: 'Unicorn', cls: 'infantry', armor: 'light', hp: 280, spd: 4.6, turn: 5, weapon: 'rainbow', cost: 400, aether: 40, t: 12, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 19, beast: true, cleanse: 4, desc: 'A joyful white unicorn with a rainbow mane. Its horn shoots rainbows, and its presence cures every friend nearby of burns, poison, ice, curses, hexes and stone. The answer to spellcasters and the Medusa.' },
 };
 

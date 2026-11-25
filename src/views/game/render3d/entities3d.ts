@@ -22,6 +22,7 @@ import { M, mat, teamMat } from './materials.ts';
 import { animateCreature } from './creatures3d.ts';
 import { animateArcane } from './arcane3d.ts';
 import { animateGiant } from './giant3d.ts';
+import { animateChicken } from './chicken3d.ts';
 import { statusFx, statusTint } from './status3d.ts';
 import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
@@ -253,6 +254,7 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
   if (UNIT[e.type as UnitType]?.beast) animateCreature(m, e, w, atk);
   if (UNIT[e.type as UnitType]?.magic || UNIT[e.type as UnitType]?.cyborg) animateArcane(m, e, w, atk);
   if (UNIT[e.type as UnitType]?.giant) animateGiant(m, e, w, atk);
+  if (e.type === 'chicken') animateChicken(m, e, w, atk);
 }
 
 function animateBuilding(m: Model, e: Ent, dt: number): void {

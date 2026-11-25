@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { aiPace } from './ai.ts';
+import { aiPace, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
@@ -520,7 +520,7 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   if (t.kind === 'bld' && t.unpaid) return; // waits at the site until the side can pay for it
   u.atkT = 0.25; // hammers away: drawn like an attack
-  if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * (t.team === G.leader ? LEADER_SPEED : 1) * aiPace(t.team) * WORKER_BUILD * dt) / bldDef(t).t);
+  if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * (leaderHandicap(t.team) ? LEADER_SPEED : 1) * aiPace(t.team) * WORKER_BUILD * dt) / bldDef(t).t);
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
   else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
 }

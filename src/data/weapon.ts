@@ -6,7 +6,7 @@ export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha' | 'howitzer'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
-  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'rainbow';
+  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'rainbow' | 'peck';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
 
@@ -55,7 +55,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   atmissile: { dmg: 80, range: 7, cd: 2.8, proj: 'rocket', speed: 240, splash: 18, vs: { none: 0.2, light: 0.9, heavy: 1.25, building: 0.5, air: 0 } },
   // the Artillery Tank's howitzer: lobbed at a spot from far off, a wide blast that wrecks packed troops and
   // defenses but rarely catches anything that keeps moving; it can't drop a shell right beside itself
-  howitzer: { dmg: 70, range: 10, minRange: 3, cd: 4.5, proj: 'shell', speed: 230, splash: 30, ground: true, vs: { none: 0.9, light: 0.85, heavy: 0.6, building: 1.4, air: 0 } },
+  howitzer: { dmg: 70, range: 10, minRange: 3, cd: 4.5, proj: 'shell', speed: 230, splash: 30, ground: true, vs: { none: 0.9, light: 0.85, heavy: 0.6, building: 2, air: 0 } },
   bertha: { dmg: 260, range: 22, minRange: 4, cd: 7, proj: 'shell', speed: 200, splash: 48, ground: true, vs: { none: 0.8, light: 0.9, heavy: 0.9, building: 1.3, air: 0 } },
   // medieval arms
   // a Worker's pick: a last resort, not a weapon of war
@@ -89,7 +89,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   minigun: { dmg: 8, range: 4.5, cd: 0.2, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.75, heavy: 0.3, building: 0.35, air: 0.5 } },
   railgun: { dmg: 95, range: 6, cd: 3.2, proj: 'shell', speed: 900, splash: 14, vs: { none: 0.4, light: 1, heavy: 1.1, building: 1.1, air: 0 } },
   // the Titan's column: a slow, earth-shaking blow that hits everything around the target
-  quake: { dmg: 120, range: 1.3, cd: 2.6, proj: 'melee', speed: 0, splash: 36, vs: { none: 0.9, light: 1, heavy: 1, building: 1.5, air: 0 } },
+  quake: { dmg: 140, range: 2.4, cd: 2.6, proj: 'melee', speed: 0, splash: 56, vs: { none: 0.9, light: 1, heavy: 1, building: 1.5, air: 0 } },
   // creatures of Greek myth
   centaurbow: { dmg: 17, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 1.3 } },
   axe: { dmg: 34, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
@@ -97,6 +97,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   hydrabite: { element: 'poison', dmg: 13, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
   hellfire: { element: 'fire', dmg: 26, range: 1.8, cd: 1.4, proj: 'shell', speed: 300, splash: 22, vs: { none: 1.2, light: 0.8, heavy: 0.4, building: 0.6, air: 0 } },
   talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },
+  // the Titan Chicken's beak: a stomping peck that knocks over the infantry around it
+  peck: { dmg: 34, range: 1.1, cd: 1.4, proj: 'melee', speed: 0, splash: 24, vs: { none: 1, light: 0.7, heavy: 0.3, building: 0.5, air: 0 } },
   hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },
   griffclaw: { dmg: 32, range: 0.8, cd: 1.2, proj: 'melee', speed: 0, splash: 0, vs: { none: 0.8, light: 1, heavy: 1, building: 0.5, air: 1.2 } },
   gaze: { dmg: 45, range: 5, cd: 3, proj: 'bullet', speed: 0, splash: 0, petrify: 2.5, vs: { none: 0.6, light: 0.9, heavy: 1.5, building: 0.3, air: 0.8 } },

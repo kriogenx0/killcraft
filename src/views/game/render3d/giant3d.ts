@@ -1,5 +1,5 @@
 // The Titan (data/unit.ts `giant`): an elder giant of bronze and stone, woken with Aether, several
-// times the height of anything else on the field. It faces +x like every unit. The model is drawn
+// times the height of anything else on the field, towering over buildings and the Cyborg Colossus. It faces +x like every unit. The model is drawn
 // one unit tall inside a `body` group scaled up to TITAN_HEIGHT tiles (the root's own scale is set by
 // entities3d). Named parts are animated by animateGiant below.
 import * as THREE from 'three';
@@ -9,7 +9,7 @@ import { group, limb, mesh, rod, rot, scl, type Model, type Parts } from './mode
 import { M, box, cyl, dodeca, dome, octa, sph, teamMat, mat } from './materials.ts';
 
 /** How tall the Titan stands, in tiles, before the shared unit scale. */
-const TITAN_HEIGHT = 2.7;
+const TITAN_HEIGHT = 7;
 
 const C = {
   bronze: () => mat('#a8743a', { rough: 0.38, metal: 0.8, tex: 'metal' }),

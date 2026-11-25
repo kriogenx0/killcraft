@@ -60,6 +60,11 @@ const lvl = (team: number): AiLevel => AI_LEVEL[ais[team]?.level ?? 'normal'];
 
 /** How fast a side's production and building sites work: the computer's difficulty pace, full speed for players. */
 export const aiPace = (team: number): number => (ais[team]?.on && !G.human[team] ? AI_LEVEL[ais[team].level].pace : 1);
+/**
+ * Whether the leader's handicaps (slower building, weaker Power Plants) hold back this side now. A
+ * Brutal computer shrugs them off: it leads from the start, and with them it lost to Hard.
+ */
+export const leaderHandicap = (team: number): boolean => team === G.leader && !(ais[team]?.on && !G.human[team] && ais[team].level === 'brutal');
 
 /** Set one computer player's difficulty, or every one's (after resetAi, which puts them back to Normal). */
 export function setAiLevel(level: Difficulty, team?: number): void {
@@ -672,7 +677,7 @@ function training(team: number): void {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
     const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0], ['tidecaller', 1.2], ['plaguewitch', 1.2], ['sludgewarlock', credits > 900 ? 1 : 0],
-      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5], ['giant', credits > 3200 ? 1 : 0],
+      ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5], ['giant', credits > 3200 ? 1 : 0], ['mystery', credits > 1200 ? 0.6 : 0],
       ['medusa', 1.5], ['nemean', 1.5], ['sphinx', 1], ['chimera', 1.5], ['satyr', countOf(team, 'satyr') * 8 < foot ? 1.5 : 0], ['unicorn', countOf(team, 'unicorn') * 8 < foot ? 1.5 : 0]]);
     if (t) enqueue(team, t);
   }
