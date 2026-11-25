@@ -74,7 +74,7 @@ const HUNTERS = 5;
 const MIN_HUNTERS = 3;
 const HUNT_ARMY = 9;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'derrick', 'power', 'airfield', 'pillbox', 'turret', 'flak', 'power', 'atturret', 'pillbox', 'atturret', 'bertha'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'barracks', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'factory', 'derrick', 'power', 'airfield', 'pillbox', 'turret', 'flak', 'power', 'atturret', 'pillbox', 'atturret', 'bertha'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
