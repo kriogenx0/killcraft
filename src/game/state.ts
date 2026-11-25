@@ -1,5 +1,6 @@
 // Shared mutable simulation state. Nothing under src/game touches the DOM;
 // views subscribe to engine events through `hooks`.
+import type { FogMode } from '../data/setup.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import type { SpellType } from '../data/spells.ts';
@@ -288,8 +289,10 @@ export const G = {
   stats: [] as SideStats[],
   /** both sides are computer-controlled */
   demo: false,
-  /** reveal the whole map (testing) */
+  /** reveal the whole map (fog of war Off, watching, or testing) */
   reveal: false,
+  /** fog of war: 'regrow' covers ground nobody on the side can see again; 'show' keeps explored ground revealed */
+  fog: 'show' as FogMode,
   alertT: [-99, -99],
   /** last place the viewer's team was attacked */
   lastAlert: null as Point | null,

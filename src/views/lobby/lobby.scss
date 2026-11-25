@@ -43,6 +43,20 @@
     .lobby-room-mode[hidden] {
       display: none;
     }
+
+    // one row at every width, like the new game settings
+    .lobby-room-fog {
+      display: flex;
+      gap: $space-2;
+      align-items: center;
+      justify-content: center;
+      max-width: 100%;
+    }
+
+    .lobby-room-fog-label {
+      flex: none;
+      color: #e8d8a8;
+    }
   }
 
   .lobby-invite-box {

@@ -220,9 +220,9 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     setOffline(false);
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog });
     // spectators see the whole map, so they can follow and inspect every side
-    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || !s.fog });
+    Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
     ais.forEach((a, t) => {
       const level = levels[t];
       a.on = t < teams && !G.human[t] && !!level;
@@ -397,8 +397,9 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     setWatchedGame(null);
     V.online = true;
     V.team = m.team;
-    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent });
+    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent, fog: m.fog });
     for (const a of ais) a.on = false;
+    G.reveal = q.has('reveal') || m.fog === 'off'; // not left over from a match watched before
     onlineNames = m.names ?? null;
     setGameId(m.game ?? newGameId());
     if (m.game) {
@@ -640,7 +641,7 @@ function showcase(what: string): void {
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
  * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
  * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3 (free-for-all), ?mode=1v1|2v2|ffa, ?res=low|high, ?army=squad|army,
- * ?fog=off, ?speed=2.
+ * ?fog=off|regrow|show, ?speed=2.
  */
 function testSetup(q: URLSearchParams): GameSetup {
   const s: GameSetup = { ...DEFAULT_SETUP, seed: null };
@@ -651,7 +652,8 @@ function testSetup(q: URLSearchParams): GameSetup {
   if (q.get('foes') === '3') s.mode = 'ffa';
   const mode = q.get('mode');
   if (isMode(mode)) s.mode = mode;
-  if (q.get('fog') === 'off') s.fog = false;
+  const fog = q.get('fog');
+  if (fog === 'off' || fog === 'regrow' || fog === 'show') s.fog = fog;
   if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
   if (q.has('seed')) s.seed = Number(q.get('seed')) || null;
   return s;

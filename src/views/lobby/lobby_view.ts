@@ -2,7 +2,7 @@
 // or challenge a specific player.
 import { net } from '../../net/client.ts';
 import { MAX_NAME, cleanName, type LiveGame, type LobbyMsg, type OnlinePlayer, type RoomView, type ServerMsg } from '../../net/protocol.ts';
-import { MODES, isMode } from '../../data/setup.ts';
+import { FOG_MODES, MODES, isFogMode, isMode } from '../../data/setup.ts';
 import { seatRows } from '../../components/seats/seats.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { copyButton } from '../../components/copy_button/copy_button.ts';
@@ -46,6 +46,12 @@ const MARKUP = `
       ${Object.entries(MODES).map(([value, m]) => `<label class="ui-segmented-option" title="${m.desc}"><input type="radio" autocomplete="off" name="lobby-mode" value="${value}"><span>${m.short}</span></label>`).join('')}
     </div>
     <div class="seats lobby-seats" role="group" aria-label="Seats"></div>
+    <div class="lobby-room-fog">
+      <span class="lobby-room-fog-label">Fog</span>
+      <div class="ui-segmented" role="radiogroup" aria-label="Fog of war">
+        ${Object.entries(FOG_MODES).map(([value, f]) => `<label class="ui-segmented-option" title="${f.desc}"><input type="radio" autocomplete="off" name="lobby-fog" value="${value}"><span>${f.name}</span></label>`).join('')}
+      </div>
+    </div>
   </div>
   <div class="lobby-invite-box" hidden>
     <div class="lobby-link">
@@ -145,7 +151,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   const quick = $<HTMLButtonElement>('.lobby-quick'), create = $<HTMLButtonElement>('.lobby-create'), cancel = $<HTMLButtonElement>('.lobby-cancel');
   let waiting: 'quick' | 'host' | 'room' | 'invite' | null = null, connectedAs = '';
   const roomBox = $('.lobby-room'), roomTitle = $('.lobby-room-title'), roomSeats = $('.lobby-seats'), begin = $<HTMLButtonElement>('.lobby-begin');
-  const roomMode = $('.lobby-room-mode');
+  const roomMode = $('.lobby-room-mode'), roomFog = $('.lobby-room-fog');
   let last: LobbyMsg | null = null, lastAt = 0;
   const link = $('.lobby-invite-box'), linkUrl = $<HTMLInputElement>('.lobby-link-url'), copy = $<HTMLButtonElement>('.lobby-copy');
   const share = $<HTMLButtonElement>('.lobby-share');
@@ -191,6 +197,8 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
     roomTitle.textContent = r.host ? `Your game: ${MODES[r.mode].name}` : `${r.hostName}'s game: ${MODES[r.mode].name}`;
     roomMode.hidden = !r.host;
     roomMode.querySelectorAll<HTMLInputElement>('input').forEach((i) => { i.checked = i.value === r.mode; });
+    // everyone sees the fog the host picked; only the host can change it
+    roomFog.querySelectorAll<HTMLInputElement>('input').forEach((i) => { i.checked = i.value === (r.fog ?? 'show'); i.disabled = !r.host; });
     roomSeats.innerHTML = seatRows(r.mode, r.seats.map((s) => ({ ...s, editable: r.host && s.kind !== 'person', openable: true })), me);
     roomSeats.querySelectorAll<HTMLSelectElement>('.seat-select').forEach((sel) => {
       if (r.mode === '1v1') sel.querySelector('option[value="closed"]')?.remove();
@@ -358,6 +366,7 @@ export function mountLobby(root: HTMLElement, opts: LobbyOptions) {
   };
 
   roomMode.addEventListener('change', (e) => { const v = (e.target as HTMLInputElement).value; if (isMode(v)) net.send({ k: 'room', mode: v }); });
+  roomFog.addEventListener('change', (e) => { const v = (e.target as HTMLInputElement).value; if (isFogMode(v)) net.send({ k: 'room', fog: v }); });
   begin.addEventListener('click', () => { begin.disabled = true; net.send({ k: 'begin' }); });
   quick.addEventListener('click', () => ensure(() => net.send({ k: 'quick' })));
   create.addEventListener('click', () => ensure(() => net.send({ k: 'create' })));

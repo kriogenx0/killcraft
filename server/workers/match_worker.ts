@@ -52,7 +52,9 @@ const port = parentPort;
 if (!port) throw new Error('match_worker must run as a worker thread');
 
 G.headless = true;
-initWorld(Number(workerData?.seed ?? 1), setup.teams, { ally: setup.ally, absent: setup.absent });
+initWorld(Number(workerData?.seed ?? 1), setup.teams, { ally: setup.ally, absent: setup.absent, fog: setup.fog });
+// fog Off: every side sees the whole map, so every snapshot carries everything
+G.reveal = setup.fog === 'off';
 for (const a of ais) a.on = false;
 G.human = ALL.map((t) => TEAMS.includes(t));
 // computer seats play at the difficulty the host picked (Brutal's head start included)

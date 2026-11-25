@@ -1,7 +1,7 @@
 // The new game screen: how the sides line up (one vs one, two vs two or a free-for-all), the computer
 // in each seat (its difficulty, or closed), map, starting resources and units, game speed and fog of war,
 // before a game against the computer (or a match to watch). The last choices are remembered.
-import { AI_LEVEL, DEFAULT_SETUP, MODES, SPEEDS, START_ARMY, START_RESOURCES, isMode, isSeatPick, playable, type Difficulty, type GameSetup, type Mode, type SeatPick } from '../../data/setup.ts';
+import { AI_LEVEL, DEFAULT_SETUP, FOG_MODES, MODES, isFogMode, SPEEDS, START_ARMY, START_RESOURCES, isMode, isSeatPick, playable, type Difficulty, type GameSetup, type Mode, type SeatPick } from '../../data/setup.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { seatRows } from '../../components/seats/seats.ts';
 
@@ -33,7 +33,7 @@ const MARKUP = `
     ${group('resources', 'Starting resources', Object.entries(START_RESOURCES).map(([value, r]) => ({ value, label: r.name })), 'Resources')}
     ${group('army', 'Starting units', Object.entries(START_ARMY).map(([value, a]) => ({ value, label: a.name, title: a.desc })), 'Units')}
     ${group('speed', 'Game speed', SPEEDS.map((s) => ({ value: String(s), label: `${s}x` })), 'Speed')}
-    ${group('fog', 'Fog of war', [{ value: 'on', label: 'On' }, { value: 'off', label: 'Off', title: 'See the whole map' }], 'Fog')}
+    ${group('fog', 'Fog of war', Object.entries(FOG_MODES).map(([value, f]) => ({ value, label: f.name, title: f.desc })), 'Fog')}
     <div class="setup-row" role="group" aria-label="Map">
       <span class="setup-label">Map</span>
       <div class="setup-map">
@@ -62,6 +62,9 @@ function load(): GameSetup {
     if (!(out.resources in START_RESOURCES)) out.resources = DEFAULT_SETUP.resources;
     if (!(out.army in START_ARMY)) out.army = DEFAULT_SETUP.army;
     if (!SPEEDS.includes(out.speed)) out.speed = DEFAULT_SETUP.speed;
+    // fog was on/off before Regrow: on was today's Always show
+    const fog = out.fog as unknown;
+    out.fog = fog === false ? 'off' : isFogMode(fog) ? fog : DEFAULT_SETUP.fog;
     return out;
   } catch { return { ...DEFAULT_SETUP }; }
 }
@@ -121,7 +124,7 @@ export function mountSetup(root: HTMLElement, opts: SetupOptions) {
       resources: radio('resources') as GameSetup['resources'],
       army: radio('army') as GameSetup['army'],
       speed: Number(radio('speed')) || 1,
-      fog: radio('fog') !== 'off',
+      fog: isFogMode(radio('fog')) ? radio('fog') as GameSetup['fog'] : DEFAULT_SETUP.fog,
     };
   };
 
@@ -148,7 +151,7 @@ export function mountSetup(root: HTMLElement, opts: SetupOptions) {
       set('resources', s.resources);
       set('army', s.army);
       set('speed', String(s.speed));
-      set('fog', s.fog ? 'on' : 'off');
+      set('fog', s.fog);
       seed.value = '';
       title.textContent = watchAi ? 'Watch AI vs AI' : 'New game';
       showSeats();
