@@ -10,7 +10,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -289,7 +289,12 @@ function tableHtml(rows: Row[]): string {
 
 const num = (x: number): string => (Math.abs(x) < 10 ? x.toFixed(1).replace(/\.0$/, '') : String(Math.round(x)));
 const hpText = (e: Ent): string => `${Math.ceil(e.hp)} / ${e.maxhp}`;
-const costText = (t: string): string => (t in UNIT || t in BUILDING ? priceText(priceOf(t as Buildable)) : '');
+/** price and how long it takes to make, e.g. "100 ore · 20 wood · Train 3s" (demons and hatched units aren't trained) */
+const costText = (t: string): string => {
+  if (!(t in UNIT || t in BUILDING)) return '';
+  const u = t in UNIT ? UNIT[t as UnitType] : undefined;
+  return priceText(priceOf(t as Buildable)) + (u?.demon || u?.hatched ? '' : ` · ${timeText(t as Buildable)}`);
+};
 const ARMOR_NAME: Record<ArmorClass, string> = { none: 'None', light: 'Light', heavy: 'Heavy', building: 'Building', air: 'Air' };
 const DPS_SHORT: Record<ArmorClass, string> = { none: 'Inf', light: 'Light', heavy: 'Heavy', building: 'Bldg', air: 'Air' };
 

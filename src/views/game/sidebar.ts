@@ -4,7 +4,7 @@ import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
-import { atLimit, available, unitNeeds, unitSlots, canAfford, priceOf, descOf, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { atLimit, available, unitNeeds, unitSlots, canAfford, priceOf, descOf, timeText, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -180,7 +180,7 @@ function tooltipHtml(t: Buildable): string {
   const wt = isUnitType(t) ? UNIT[t].weapon : t in BUILDING ? BUILDING[t as BldType].weapon : null;
   const dps = wt ? ` · DPS ${dpsText(wt, isUnitType(t) ? teamWeaponBonus(V.team, t) : 1)}` : '';
   const via = key && p ? `<br><small>Hotkey with the ${BUILDING[p].name} selected</small>` : '';
-  return `<b>${nameOf(t)}</b>${keys}<br>${descOf(t)}<br><small>${priceText(priceOf(t))}${dps}</small>${via}`;
+  return `<b>${nameOf(t)}</b>${keys}<br>${descOf(t)}<br><small>${priceText(priceOf(t))} · ${timeText(t)}${dps}</small>${via}`;
 }
 
 export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip: HTMLElement): void {

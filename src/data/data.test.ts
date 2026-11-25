@@ -7,6 +7,16 @@ import { FFA_ORE_SOURCES, FFA_YARDS, ORE_SOURCES, START_YARDS } from './map.ts';
 import { MW, MH } from '../game/const.ts';
 
 describe('static data', () => {
+  it('trains cheap troops fast and big ones slowly (Alex: different units take different times)', () => {
+    const trained = UNIT_TYPES.filter((u) => !UNIT[u].demon && !UNIT[u].hatched);
+    const times = trained.map((u) => UNIT[u].t);
+    expect(Math.max(...times) / Math.min(...times)).toBeGreaterThanOrEqual(20);
+    expect(UNIT.swordsman.t).toBe(Math.min(...times)); // the Footman is quick to raise
+    expect(UNIT.tank.t).toBeGreaterThanOrEqual(UNIT.jeep.t * 2);
+    expect(UNIT.titan.t).toBeGreaterThan(UNIT.heavy.t);
+    expect(UNIT.giant.t).toBeGreaterThan(UNIT.titan.t);
+  });
+
   it('only requires buildings that exist, and never itself', () => {
     for (const t of BLD_TYPES) for (const r of BUILDING[t].requires) { expect(BUILDING[r]).toBeDefined(); expect(r).not.toBe(t); }
   });
