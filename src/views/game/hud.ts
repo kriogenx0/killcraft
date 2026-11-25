@@ -6,7 +6,7 @@ import { extraHall } from '../../game/building.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
-import { GATHER, gatherSetting, type GatherRes } from '../../game/autogather.ts';
+import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autogather.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
@@ -173,6 +173,11 @@ export function commandList(): Command[] {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
     if (up) list.push(up);
+    if (first.type === 'derrick' && first.done) {
+      const n = crewAt(first), dry = first.carry <= 1 && oilLeft(first) <= 0;
+      list.push({ id: 'recruit', label: 'Send Worker', hotkey: '', icon: ICON.worker, disabled: dry || !G.ents.some((u) => !u.dead && u.team === V.team && u.type === 'worker'),
+        tip: dry ? 'This well has run dry' : `Send your nearest free Worker to haul oil from here (${n} on it now). A Derrick pumps slowly: one Worker keeps up with it` });
+    }
     // team games: a Town Hall can give a teammate who has lost theirs a new one
     if (first.type === 'yard' && first.done && !G.over) for (const t of fallenAllies(V.team)) {
       const who = teamColors(t).name;
@@ -210,6 +215,7 @@ export function runCommand(id: string): void {
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
+  else if (id === 'recruit' && s[0]) dispatch({ c: 'recruit', id: s[0].id });
   else if (id === 'upgrade' && s[0]) dispatch({ c: 'upgrade', id: s[0].id });
   else if (id.startsWith('revive:')) dispatch({ c: 'revive', team: Number(id.slice(7)) });
   else if (id === 'scrap' && s[0]) { dispatch({ c: 'scrap', id: s[0].id }); V.sel = []; }

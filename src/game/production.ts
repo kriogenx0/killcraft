@@ -7,6 +7,7 @@
 // can't afford yet waits (in the queue, or as a placed site) and starts on its own once the side can
 // pay; cancelling refunds what was paid, so a waiting order costs nothing to call off. The computer
 // only orders what it can pay for now. Production runs at half speed on low power.
+import { autoGather } from './autogather.ts';
 import { aiPace } from './ai.ts';
 import { ARMY_SLOW_FROM, ARMY_SLOW_STEP, LEADER_SPEED } from '../data/economy.ts';
 import { refitBonus } from './refit.ts';
@@ -320,7 +321,9 @@ function deliver(team: number, type: UnitType, b: Ent): void {
   const [x, y] = exitTile(b, rally ?? undefined), u = addUnit(type, team, (x + 0.5) * TS, (y + 0.5) * TS);
   u.face = u.tface = Math.PI / 2;
   say(team, `${UNIT[type].name} ready`);
-  if (haul) orderHarvest(u, x, y);
+  // a new Worker starts on Auto: off to whatever the side has least of
+  if (type === 'worker') { if (!autoGather(u)) orderHarvest(u, x, y); }
+  else if (haul) orderHarvest(u, x, y);
   else if (rally) orderMove(u, tileOf(rally.x), tileOf(rally.y));
 }
 

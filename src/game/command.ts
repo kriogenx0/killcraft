@@ -10,7 +10,7 @@ import { cancel, enqueue, startSite, toggleHold, type Buildable } from './produc
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
-import { GATHER, forgetAether, forgetResume, sendGather, type GatherRes } from './autogather.ts';
+import { GATHER, forgetAether, forgetResume, recruitTo, sendGather, type GatherRes } from './autogather.ts';
 import { revive } from './revive.ts';
 
 export type Command =
@@ -35,6 +35,8 @@ export type Command =
   | { c: 'cancel'; type: Buildable }
   | { c: 'place'; type: BldType; tx: number; ty: number; ex?: number; ey?: number }
   | { c: 'repair'; id: number }
+  /** send a Worker to haul from an Oil Derrick */
+  | { c: 'recruit'; id: number }
   | { c: 'scrap'; id: number }
   | { c: 'upgrade'; id: number }
   /** give a fallen ally a new Town Hall and two Workers (team games) */
@@ -84,6 +86,7 @@ export function parseCommand(raw: unknown): Command | null {
       if (o.ex !== undefined || o.ey !== undefined) return inMap(o.ex, o.ey) ? { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number, ex: o.ex as number, ey: o.ey as number } : null;
       return { c: 'place', type: o.type as BldType, tx: o.tx as number, ty: o.ty as number };
     case 'repair':
+    case 'recruit':
     case 'scrap':
     case 'upgrade':
       return isInt(o.id) ? { c: o.c, id: o.id } : null;
@@ -178,6 +181,11 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'place':
       startSite(team, cmd.type, cmd.tx, cmd.ty, cmd.ex, cmd.ey, true);
       break;
+    case 'recruit': {
+      const b = ownBuilding(team, cmd.id);
+      if (b && b.type === 'derrick' && b.done && !recruitTo(b)) say(team, 'No Worker to send');
+      break;
+    }
     case 'repair': {
       const b = ownBuilding(team, cmd.id);
       if (b) toggleRepair(b);

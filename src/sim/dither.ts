@@ -14,7 +14,7 @@ import { mulberry32 } from '../util/math.ts';
 /** Seconds of walking looked back over, and how far a Worker must walk in that time without getting anywhere to count as dithering. */
 const WINDOW = 10, WALKED = 8, NET = 1.5;
 
-interface Track { last: string; flips: number[]; idleT: number; carry: number; trail: { t: number; x: number; y: number; d: number; busy: boolean }[] }
+interface Track { last: string; res: string; swaps: number[]; flips: number[]; idleT: number; carry: number; trail: { t: number; x: number; y: number; d: number; busy: boolean }[] }
 
 const jobOf = (u: Ent): string => (!u.order ? 'idle' : u.order.t === 'harvest' ? `${u.order.res ?? 'ore'}:${u.order.st}` : u.order.t);
 
@@ -37,10 +37,15 @@ export function watchWorkers(seed: number, seconds: number): string[] {
     for (const u of G.ents) {
       if (u.dead || u.team !== 0 || u.type !== 'worker') continue;
       let h = seen.get(u);
-      if (!h) seen.set(u, (h = { last: jobOf(u), flips: [], idleT: 0, carry: u.carry, trail: [] }));
+      if (!h) seen.set(u, (h = { last: jobOf(u), res: '', swaps: [], flips: [], idleT: 0, carry: u.carry, trail: [] }));
       const j = jobOf(u), kind = j.split(':')[0];
       if (j !== h.last) { if (h.last.split(':')[0] !== kind) h.flips.push(G.gameT); h.last = j; }
       h.flips = h.flips.filter((t) => G.gameT - t < 30);
+      // swapping resource (ore, wood, oil) over and over: Auto should settle
+      const res = u.order?.t === 'harvest' && u.order.res !== 'oil' ? u.order.res ?? 'ore' : ''; // a load of oil is an errand, not a swap
+      if (res && res !== h.res) { if (h.res) h.swaps.push(G.gameT); h.res = res; }
+      h.swaps = h.swaps.filter((t) => G.gameT - t < 120);
+      if (h.swaps.length >= 3) { say(u, `swapped resource ${h.swaps.length} times in 2 minutes`); h.swaps = []; }
       if (h.flips.length >= 6) { say(u, `switched jobs ${h.flips.length} times in 30s`); h.flips = []; }
       if (u.order?.t === 'harvest' && u.order.st === 'go' && !u.order.res && u.carry >= haulOf(u) - 0.5) say(u, 'set out for the field with a full load');
       if (!u.order) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
