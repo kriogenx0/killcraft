@@ -402,7 +402,7 @@ function satyr(team: number): Model {
   root.add(mesh(sph(0.052, 10, 8), M.skin(), 0.01, 0.55, 0));
   root.add(mesh(box(0.03, 0.05, 0.04), fur, 0.05, 0.51, 0)); // beard
   root.add(scl(mesh(sph(0.055, 8, 6), M.hair(), -0.005, 0.57, 0), 1, 0.75, 1.05));
-  root.add(mesh(torus(0.05, 0.012, Math.PI * 2, 6, 12), C.ivy(), 0, 0.585, 0)).rotation.x = Math.PI / 2;
+  root.add(rot(mesh(torus(0.05, 0.012, Math.PI * 2, 6, 12), C.ivy(), 0, 0.585, 0), Math.PI / 2, 0, 0)); // wreath
   for (const z of [-1, 1]) root.add(rod([0, 0.59, z * 0.03], [-0.05, 0.66, z * 0.06], 0.012, C.horn(), 5)); // little horns
   // arms raised to the panpipes at his lips
   for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
