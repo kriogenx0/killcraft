@@ -85,6 +85,21 @@
     &--aether { border-radius: 0; box-shadow: none; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: linear-gradient(135deg, #fbeaff, #c060ff 45%, #4a1080); }
   }
 
+  // weapon, armor and healing research: the level it reaches, on the picture's top-left corner
+  .build-cell-lvl {
+    position: absolute;
+    top: 15px;
+    left: 0;
+    padding: 0 3px;
+    font-size: $font-xs;
+    font-weight: bold;
+    line-height: 14px;
+    color: #1a1408;
+    pointer-events: none;
+    background: #e8c060;
+    border-bottom-right-radius: $radius;
+  }
+
   .build-cell-status {
     position: absolute;
     top: 40%;

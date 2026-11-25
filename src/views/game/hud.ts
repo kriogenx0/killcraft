@@ -9,8 +9,8 @@ import { TEND_RADIUS } from '../../game/unit.ts';
 import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autogather.ts';
 import { ERA } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
-import { armorFactor, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, eraOf, isFighter, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
+import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -273,6 +273,9 @@ export function unitAction(e: Ent): string {
   return `${HARVEST_STEP[o.st]} ${what}`;
 }
 
+/** An upgrade level after a stat, e.g. " · Lvl 2" (nothing before the first upgrade). */
+const lvlTag = (n: number): string => (n > 0 ? ` <span class="hud-lvl">Lvl ${n}</span>` : '');
+
 /** One row of the stats table: a label, a value, and whether the value needs the full width. */
 type Row = [label: string, value: string, wide?: boolean];
 
@@ -296,12 +299,13 @@ function unitDetails(e: Ent): string {
   const d = unitDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   // Armory upgrades show as percentages next to the base numbers
   const wb = Math.round((weaponFactor(e) - 1) * 100), ab = Math.round((1 - armorFactor(e)) * 100);
+  const s = d.cls === 'infantry' ? 'inf' : 'veh', wl = upgradeOf(e.team, `${s}Weapon`), al = upgradeOf(e.team, `${s}Armor`), hl = healOf(e.team);
   // organic units heal slowly on their own: show how fast for troops we can see into
-  const heal = isOrganic(e) && insight(e) ? `${Math.round(e.maxhp * healRate(e.team) * 60)}/min` : '';
+  const heal = isOrganic(e) && insight(e) ? `${Math.round(e.maxhp * healRate(e.team) * 60)}/min${lvlTag(hl)}` : '';
   const rows: Row[] = [
     ['HP', hpText(e)],
-    ['Armor', `${ARMOR_NAME[d.armor]}${ab ? ` −${ab}%` : ''}`],
-    ['Damage', w ? `${w.dmg}${wb ? ` +${wb}%` : ''}` : 'Unarmed'],
+    ['Armor', `${ARMOR_NAME[d.armor]}${ab ? ` −${ab}%` : ''}${lvlTag(al)}`],
+    ['Damage', w ? `${w.dmg}${wb ? ` +${wb}%` : ''}${lvlTag(wl)}` : 'Unarmed'],
     ['Range', w ? String(w.range) : ''],
     ['Reload', w ? `${w.cd}s` : ''],
     ['Speed', num(d.spd)],
@@ -358,6 +362,12 @@ function buildingDetails(e: Ent): string {
   ];
   if (d.weapon && e.done) rows.push(['DPS', dpsRow(d.weapon, refitBonus(e), slow) + (slow > 1 ? ' · low power' : ''), true]);
   if (yieldText) rows.push(['Output', yieldText, true]);
+  // the levels this side has researched here
+  if (own && e.type === 'armory') {
+    const lv = (t: 'infWeapon' | 'infArmor' | 'vehWeapon' | 'vehArmor') => `Lvl ${upgradeOf(e.team, t)}`;
+    rows.push(['Troops', `Weapons ${lv('infWeapon')} · Armor ${lv('infArmor')}`, true], ['Machines', `Weapons ${lv('vehWeapon')} · Armor ${lv('vehArmor')}`, true]);
+  }
+  if (own && e.type === 'hospital') rows.push(['Healing', `Lvl ${healOf(e.team)}`]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
     (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');

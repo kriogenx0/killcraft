@@ -499,6 +499,16 @@ $sidebar-width: 248px;
     color: var(--color-gold);
   }
 
+  // an upgrade level after a stat
+  .hud-lvl {
+    padding: 0 3px;
+    font-weight: bold;
+    color: #1a1408;
+    white-space: nowrap;
+    background: #e8c060;
+    border-radius: 3px;
+  }
+
   .hud-desc {
     margin: 2px 0 $space-1;
     font-size: $font-sm;
