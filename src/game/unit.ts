@@ -11,13 +11,13 @@ import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
-import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, SHARD_PULL } from '../data/aether.ts';
+import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, aetherJobOf, fetching, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
+import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
@@ -247,6 +247,13 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
 }
 
 /** Haul oil: walk to a derrick, fill up from its store, then head home. */
+/** The side's Oil Derrick (other than `not`) with the most oil waiting in its tank, if any has half a load. */
+function fullerDerrick(u: Ent, not: Ent): Ent | null {
+  let best: Ent | null = null;
+  for (const d of G.ents) if (d !== not && !d.dead && d.team === u.team && d.type === 'derrick' && d.done && d.carry >= haulOf(u) / 2 && (!best || d.carry > best.carry)) best = d;
+  return best;
+}
+
 function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
   const type = 'derrick';
   let src = valid(o.src);
@@ -279,9 +286,11 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
   // full, or the store is empty: take what we have home rather than stand by a slow pump holding it
   if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0)) o.st = 'ret';
   else if (src.carry <= 0.01) {
-    // nothing to carry: a Worker that picked this job itself finds another; one sent here waits for more
-    if (o.auto) u.order = null;
-    else o.wait = 1;
+    // an empty tank: move to another derrick with a load waiting, or gather something else until
+    // this one fills up again, rather than stand about
+    const other = fullerDerrick(u, src);
+    if (other) { o.src = other.id; [o.tx, o.ty] = [other.tx, other.ty]; o.st = 'go'; u.path = null; }
+    else u.order = null;
   }
 }
 
@@ -579,7 +588,10 @@ function act(u: Ent, dt: number): void {
     }
     // a Worker sent to draw Aether stands at its deposit until it carries a full load, banks it, and goes back;
     // Aether dropped by the fallen nearby is quicker to take than drawing, so it fetches that first
-    const ae = u.type === 'worker' ? aetherJobOf(u) : null;
+    let ae = u.type === 'worker' ? aetherJobOf(u) : null;
+    // a dry deposit, or one another of the side's Workers is already drawing from (a deposit gives
+    // to one at a time): gather something else instead of queueing there
+    if (ae) { const dep = ae; if (dep.hp < AETHER_DRY || G.ents.some((w) => w !== u && !w.dead && w.team === u.team && aetherJobOf(w) === dep && Math.hypot(w.x - dep.x, w.y - dep.y) < Math.hypot(u.x - dep.x, u.y - dep.y))) { forgetAether(u); ae = null; } }
     if (ae && (u.ae ?? 0) < AETHER_CARRY - 0.5) {
       const s = shardFor(u, SHARD_PULL);
       if (s) { fetching.add(u); orderMove(u, tileOf(s.x), tileOf(s.y)); return; }

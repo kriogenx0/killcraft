@@ -4,10 +4,9 @@
 // follows the bank. A Worker set to Ore, Wood or Oil sticks to it.
 import { AETHER_DRY, AETHER_WORTH } from '../data/aether.ts';
 import { G, tileOf, valid, type Ent, type HarvestOrder } from './state.ts';
-import { MH, MW, TREE, TS } from './const.ts';
-import { CHOP_WORTH } from '../data/economy.ts';
+import { MH, MW, TS } from './const.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
-import { WOOD_BANKS } from './chop.ts';
+import { WOOD_BANKS, treeFor } from './chop.ts';
 import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
 import { ais } from './ai.ts';
@@ -58,8 +57,7 @@ export function options(u: Ent): Res[] {
   const oreHome = bankAt(u, ORE_BANKS);
   if (banksOf(u.team, ORE_BANKS).some((b) => near(b, (i) => G.ore[i] > 0))) out.push('ore');
   if (u.type === 'worker') {
-    const woodHome = bankAt(u, [...WOOD_BANKS]);
-    if (woodHome && near(woodHome, (i) => G.terr[i] === TREE && G.treeWood[i] >= CHOP_WORTH)) out.push('wood');
+    if (treeFor(u)) out.push('wood');
     if (oreHome && derrickFor(u)) out.push('oil');
   }
   return out;
