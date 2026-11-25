@@ -58,6 +58,8 @@ export interface ProductionItem {
   spent: number;
   /** paid for and started; an order the side can't afford yet waits in the queue until it can */
   paid: boolean;
+  /** a Worker given free to a side that had none left and couldn't pay: cancelling it refunds nothing */
+  free?: boolean;
   /** finished structure waiting to be placed */
   ready: boolean;
   /** paused by the player */
@@ -171,6 +173,10 @@ export interface Ent extends Target {
 export interface Demon {
   /** the side it's raiding, or -1 while it waits by the gate */
   raid: number;
+  /** the side it has come to rescue from its last stand (it fights that side's enemies), or -1 / unset */
+  aid?: number;
+  /** a rescuer: game time it last had an enemy to fight */
+  calmT?: number;
   /** its spot by the gate (px) */
   hx: number;
   hy: number;
@@ -195,6 +201,8 @@ export interface Hell {
   stay?: number;
   /** the gate is letting out a raid that sets out at raidT */
   stir?: boolean;
+  /** game time each side was last sent help in a last stand */
+  rescued?: number[];
   /** game time the next raid sets out (Infinity while there's no leader) */
   raidT: number;
   /** game time the next Archfiend appears (Infinity while there's no leader) */
@@ -392,6 +400,13 @@ export const allied = (a: number, b: number): boolean => a === b || (a >= 0 && b
  * Neutral things (ore, Aether, cows) aren't.
  */
 export const fair = (e: Ent): boolean => e.team >= 0 || !!e.wild || !!e.demon;
+/** Is this demon out to fight `team`: raiding it, or come to rescue one of its enemies? Other demons leave the side be. */
+export const demonAfter = (e: Ent, team: number): boolean => {
+  const d = e.demon;
+  if (!d) return false;
+  if ((d.aid ?? -1) >= 0) return team >= 0 && !allied(d.aid as number, team);
+  return d.raid >= 0 && allied(d.raid, team);
+};
 /** Two real sides at war: different teams that aren't allies. */
 export const hostile = (a: number, b: number): boolean => a >= 0 && b >= 0 && !allied(a, b);
 

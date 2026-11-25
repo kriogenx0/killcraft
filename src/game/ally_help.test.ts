@@ -98,3 +98,29 @@ describe('allies lend Workers to rebuild', () => {
     expect(helpers.length).toBeLessThanOrEqual(2);
   });
 });
+
+describe('allies help even more', () => {
+  it("comes when a teammate's troops are hit away from its base, hunters too", () => {
+    const { army } = setup();
+    const friend = addUnit('rifleman', 2, 48 * TS, 30 * TS);
+    const foe = addUnit('rifleman', 1, 49 * TS, 30 * TS);
+    friend.foe = foe.id; friend.foeT = G.gameT;
+    ais[0].hunters.add(army[0].id);
+    aiThink(0);
+    for (const u of army) {
+      expect(u.order?.t).toBe('move');
+      if (u.order?.t === 'move') expect(Math.hypot(u.order.gx * TS - foe.x, u.order.gy * TS - foe.y)).toBeLessThan(6 * TS);
+    }
+    expect(ais[0].hunters.size).toBe(0);
+  });
+
+  it("joins a teammate's attack on an enemy base", () => {
+    const { army } = setup();
+    const enemy = G.ents.find((e) => e.team === 3 && e.type === 'yard');
+    if (!enemy) throw new Error('no yard');
+    for (let i = 0; i < 5; i++) addUnit('rifleman', 2, enemy.x - 10 * TS + i * 12, enemy.y - 6 * TS);
+    aiThink(0);
+    const going = army.filter((u) => u.order?.t === 'move' && Math.hypot(u.order.gx * TS - enemy.x, u.order.gy * TS - enemy.y) < 12 * TS);
+    expect(going.length).toBe(army.length);
+  });
+});

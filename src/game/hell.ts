@@ -1,13 +1,14 @@
 // The Gate of Hell (data/hell.ts): placing it, letting demons out, picking the leader they hunt,
 // sending them on raids, and how a demon behaves at the gate and out on a raid.
-import { G, say, tileOf, unitDef, valid, type Ent } from './state.ts';
+import { G, allied, say, tileOf, unitDef, valid, type Ent } from './state.ts';
+import { worth } from './bounty.ts';
 import { GRASS, MH, MW, TS } from './const.ts';
 import { WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import { isWall } from '../data/building.ts';
 import {
   ARCHFIEND, ARCHFIEND_EVERY, ARCHFIEND_FIRST, BURST_GAP, DEMON_CAP, FIEND_SHARE, FIRST_RAID, GATE_CLEAR, GATE_LEASH, GATE_OPENS, GATE_SIZE, GATE_TILE,
-  LEADER_TRAINED, LINGER, LURK_RADIUS, LURK_REGEN, RAID_EVERY, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY,
+  BRINK_AFTER, BRINK_FOES, BRINK_REACH, BRINK_SHARE, DRAKE_SHARE, LEADER_TRAINED, LINGER, RESCUE_COOLDOWN, RESCUE_DRAKES, RESCUE_SIZE, RESCUE_STAY, LURK_RADIUS, LURK_REGEN, RAID_EVERY, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY,
 } from '../data/hell.ts';
 import { eachInDisk } from './map.ts';
 import { addUnit } from './entity.ts';
@@ -97,10 +98,53 @@ function startBurst(n: number, stay: number): void {
   H.stay = stay;
 }
 
+/** A demon for a pack: mostly Imps, some Hell Fiends and flying Hell Drakes. */
+function pickDemon(): UnitType {
+  const r = Math.random();
+  return r < DRAKE_SHARE ? 'drake' : r < DRAKE_SHARE + FIEND_SHARE ? 'fiend' : 'imp';
+}
+
+/** Is this side about to lose: its Town Hall gone, or far behind with enemy troops in its base? */
+export function onBrink(team: number): boolean {
+  if (G.absent?.[team] || G.outLog?.some((o) => o.team === team)) return false;
+  const mine = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
+  if (!mine.length) return false; // nothing left to save
+  if (!mine.some((e) => e.type === 'yard' && e.done)) return true;
+  const w = worth(), top = Math.max(...w.filter((_, t) => !allied(t, team)));
+  if (w[team] >= top * BRINK_SHARE) return false;
+  let foes = 0;
+  for (const e of G.ents) {
+    if (e.dead || e.kind !== 'unit' || e.team < 0 || allied(e.team, team) || !unitDef(e).weapon || unitDef(e).haul) continue;
+    if (mine.some((b) => Math.hypot(b.x - e.x, b.y - e.y) <= BRINK_REACH * TS) && ++foes >= BRINK_FOES) return true;
+  }
+  return false;
+}
+
+/** A last stand: the gate surges and sends a pack, flyers among them, to fight for this side. */
+export function rescue(team: number): Ent[] {
+  const H = G.hell, n = Math.round(between(RESCUE_SIZE));
+  (H.rescued ??= [])[team] = G.gameT;
+  const pack = Array.from({ length: n }, (_, i) => spawnDemon(i < RESCUE_DRAKES ? 'drake' : Math.random() < 0.4 ? 'fiend' : 'imp'));
+  for (const d of pack) if (d.demon) { d.demon.aid = team; d.demon.until = Infinity; d.demon.calmT = G.gameT; }
+  for (let t = 0; t < G.teams; t++)
+    say(t, t === team ? 'The Gate of Hell answers your last stand: demons fly to your aid!' : allied(t, team) ? `Demons fly to the aid of ${teamColors(team).name}` : `The Gate of Hell sends demons to defend ${teamColors(team).name}!`);
+  return pack;
+}
+
 /** Run the gate: called about once a second. */
 export function updHell(): void {
   if (G.visualOnly || !G.hell?.gate) return;
   const H = G.hell, now = G.gameT;
+  // a side about to lose: the gate sends help
+  if (now >= BRINK_AFTER) {
+    for (let t = 0; t < G.teams; t++) {
+      if (now - (H.rescued?.[t] ?? -Infinity) < RESCUE_COOLDOWN || !onBrink(t)) continue;
+      rescue(t);
+      break; // one at a time
+    }
+  }
+  // rescuers whose side is gone go home
+  for (const d of demons()) if (d.demon && (d.demon.aid ?? -1) >= 0 && !G.ents.some((e) => !e.dead && e.team === d.demon?.aid)) goHome(d);
   // the leader
   const prey = demonPrey();
   if (prey !== H.prey) {
@@ -118,7 +162,7 @@ export function updHell(): void {
     }
   }
   // demons out on a raid against a side that's no longer the leader go home
-  for (const d of demons()) if (d.demon && d.demon.raid >= 0 && d.demon.raid !== prey) goHome(d);
+  for (const d of demons()) if (d.demon && d.demon.raid >= 0 && d.demon.raid !== prey && (d.demon.aid ?? -1) < 0) goHome(d);
   // no leader: now and then a few come out to prowl round the gate for a while
   if (prey < 0 && now >= H.spawnT) {
     H.spawnT = now + between(WANDER_EVERY);
@@ -140,7 +184,7 @@ export function updHell(): void {
   if ((H.burst ?? 0) > 0 && now >= (H.burstT ?? 0)) {
     H.burst = (H.burst ?? 1) - 1;
     H.burstT = now + BURST_GAP;
-    const d = spawnDemon(Math.random() < FIEND_SHARE ? 'fiend' : 'imp');
+    const d = spawnDemon(pickDemon());
     if (d.demon) d.demon.until = now + (H.stay ?? WANDER_STAY);
   }
   // the raid sets out
@@ -148,7 +192,7 @@ export function updHell(): void {
     H.raidT = now + between(RAID_EVERY);
     H.stir = false;
     H.burst = 0;
-    const waiting = demons().filter((d) => d.demon?.raid === -1);
+    const waiting = demons().filter((d) => d.demon?.raid === -1 && (d.demon.aid ?? -1) < 0);
     for (const d of waiting) { if (d.demon) d.demon.raid = prey; setOrder(d, null); }
     if (waiting.length) for (let t = 0; t < G.teams; t++) say(t, t === prey ? 'Demons pour out of the Gate of Hell and come for you!' : `Demons pour out of the Gate of Hell and go for ${teamColors(prey).name}`);
   }
@@ -157,6 +201,7 @@ export function updHell(): void {
 function goHome(u: Ent): void {
   if (!u.demon) return;
   u.demon.raid = -1;
+  u.demon.aid = -1;
   u.demon.until = G.hell.stir ? Infinity : G.gameT + LINGER;
   setOrder(u, null);
 }
@@ -186,6 +231,20 @@ function raidTarget(u: Ent, team: number): Ent | null {
   return best;
 }
 
+/** Whoever is attacking the side a rescuer came to save: the nearest enemy of that side within its sight, armed troops first. */
+function rescueTarget(u: Ent, team: number): Ent | null {
+  const r = unitDef(u).sight * TS;
+  let best: Ent | null = null, bs = Infinity;
+  for (const e of G.ents) {
+    if (e.dead || e.team < 0 || allied(e.team, team) || e.kind === 'source' || (e.kind === 'bld' && isWall(e.type)) || !canAttack(u, e) || cloakedFrom(e, u.team)) continue;
+    const d = edgeDist(u, e);
+    if (d > r) continue;
+    const s = d + (e.kind === 'bld' ? 200 : unitDef(e).weapon ? 0 : 40);
+    if (s < bs) { bs = s; best = e; }
+  }
+  return best;
+}
+
 /** Seconds a demon leaves alone an enemy it couldn't get at. */
 const SNUB = 6;
 
@@ -196,7 +255,8 @@ export function updDemon(u: Ent, dt: number): void {
   const c = gateCentre(), sight = unitDef(u).sight * TS;
   const snubbed = (e: Ent) => dm.snub === e.id && G.gameT < (dm.snubT ?? 0);
   // whoever is hurting it gets it back if it's close, raiding or not; waiting by the gate, it won't chase anyone far off
-  const fightable = (e: Ent) => !snubbed(e) && (dm.raid >= 0 || Math.hypot(e.x - c.x, e.y - c.y) < GATE_LEASH * TS || Math.hypot(e.x - u.x, e.y - u.y) <= sight);
+  const aid = dm.aid ?? -1;
+  const fightable = (e: Ent) => !snubbed(e) && !(aid >= 0 && allied(e.team, aid)) && (dm.raid >= 0 || aid >= 0 || Math.hypot(e.x - c.x, e.y - c.y) < GATE_LEASH * TS || Math.hypot(e.x - u.x, e.y - u.y) <= sight);
   let t = u.order?.t === 'attack' ? valid(u.order.tgt) : null;
   if (t && (!isFoe(u, t) || !fightable(t))) t = null;
   u.scan -= dt;
@@ -205,6 +265,7 @@ export function updDemon(u: Ent, dt: number): void {
     const a = attacker(u);
     if (a && fightable(a)) t = a;
     else if (dm.raid >= 0 && (!t || t.team !== dm.raid)) t = raidTarget(u, dm.raid) ?? t;
+    else if (aid >= 0 && !t) t = rescueTarget(u, aid);
   }
   if (t) {
     if (u.order?.t !== 'attack' || u.order.tgt !== t.id) setOrder(u, { t: 'attack', tgt: t.id, auto: true, ox: u.x, oy: u.y });
@@ -215,6 +276,20 @@ export function updDemon(u: Ent, dt: number): void {
     if (u.foe === t.id) u.foe = null;
     setOrder(u, null);
   } else if (u.order?.t === 'attack') setOrder(u, null);
+  if (aid >= 0) {
+    // to the rescued side's base, and stand guard there until it's been clear a while
+    if (t) dm.calmT = G.gameT;
+    const home = raidGoal(u, aid);
+    if (!home) { goHome(u); return; }
+    if (Math.hypot(u.x - home.x, u.y - home.y) > 4 * TS) {
+      const gx = tileOf(home.x), gy = tileOf(home.y);
+      if (u.order?.t !== 'move' || Math.hypot(u.order.gx - gx, u.order.gy - gy) > 2) orderMove(u, gx, gy);
+      if (followPath(u, dt)) setOrder(u, null);
+      dm.calmT = G.gameT; // still on the way
+    } else if (u.order) setOrder(u, null);
+    if (G.gameT - (dm.calmT ?? G.gameT) > RESCUE_STAY) goHome(u);
+    return;
+  }
   if (dm.raid >= 0) {
     // march on the prey's base
     const goal = raidGoal(u, dm.raid);

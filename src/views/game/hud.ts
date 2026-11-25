@@ -2,7 +2,7 @@
 import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
-import { extraHall } from '../../game/building.ts';
+import { extraHall, scrapRefund } from '../../game/building.ts';
 import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
@@ -200,7 +200,7 @@ export function commandList(): Command[] {
       if (!icon || !available(V.team, lineOf(icon as Buildable)).some((t) => groupOfType(t) === g)) continue;
       list.push({ id: `group:${g}`, label: g, hotkey: key, icon: ICON[icon], tip: `${g}: press ${key}, then the letter shown on one in the sidebar` });
     }
-    if (first.type !== 'yard' || extraHall(first)) list.push({ id: 'scrap', label: 'Scrap', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Tear this building down. Its scrap is left on the ground as ore for your Workers to carry home' });
+    if (first.type !== 'yard' || extraHall(first)) list.push({ id: 'scrap', label: 'Scrap', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: scrapTip(first) });
     return list;
   }
   return [];
@@ -527,4 +527,11 @@ export function initHud(e: HudEls): void {
     const u = p && V.sel.filter((x) => !x.dead)[Number(p.dataset.pick)];
     if (u) setSelection([u]);
   });
+}
+
+/** The Scrap button's tip: what tearing this building down pays back right now. */
+function scrapTip(b: Ent): string {
+  const r = scrapRefund(b);
+  const parts = ([[r.ore, 'ore'], [r.wood, 'wood'], [r.oil, 'oil'], [r.aether, 'Aether']] as const).filter(([n]) => n > 0).map(([n, what]) => `${n} ${what}`);
+  return `Tear this building down and get ${parts.length ? parts.join(', ') : 'nothing'} back (half its price, less if it is damaged)`;
 }

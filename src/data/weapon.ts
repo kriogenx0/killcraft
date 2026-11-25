@@ -7,7 +7,7 @@ export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
   | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'peck'
-  | 'impfire' | 'fiendclaw' | 'hellblade';
+  | 'impfire' | 'fiendclaw' | 'hellblade' | 'drakefire';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
 
@@ -119,6 +119,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // demons from the Gate of Hell (data/hell.ts): an imp's spat fire, a fiend's claws, the Archfiend's burning blade
   impfire: { element: 'fire', dmg: 12, range: 3, cd: 1.2, proj: 'orb', speed: 300, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.35, building: 0.6, air: 0.8 } },
   fiendclaw: { dmg: 30, range: 0.9, cd: 1.2, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.7, building: 1.1, air: 0 } },
+  drakefire: { element: 'fire', dmg: 26, range: 3, cd: 1.8, proj: 'orb', speed: 300, splash: 18, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.1, air: 0.5 } },
   hellblade: { element: 'fire', dmg: 110, range: 1.4, cd: 2.4, proj: 'melee', speed: 0, splash: 34, vs: { none: 0.9, light: 1, heavy: 1, building: 1.4, air: 0 } },
 };
 

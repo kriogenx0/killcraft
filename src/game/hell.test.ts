@@ -5,7 +5,9 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addUnit } from './entity.ts';
 import { acquire, dealDamage } from './combat.ts';
-import { demonPrey, demons, gateCentre, onGate, spawnDemon, updHell } from './hell.ts';
+import { demonPrey, demons, gateCentre, onBrink, onGate, spawnDemon, updHell } from './hell.ts';
+import { addBuilding } from './entity.ts';
+import { BRINK_AFTER, RESCUE_COOLDOWN, RESCUE_DRAKES } from '../data/hell.ts';
 import { wildBeasts } from './creatures.ts';
 import { visibleTo } from '../net/snapshot.ts';
 import { ARCHFIEND_FIRST, BURST_GAP, DEMON_CAP, GATE_OPENS, GATE_SIZE, GATE_TILE, LEADER_TRAINED, RAID_SIZE, RAID_WARNING, WANDER_EVERY, WANDER_SIZE, WANDER_STAY } from '../data/hell.ts';
@@ -172,6 +174,38 @@ describe('the Gate of Hell', () => {
     G.hell.archT = G.hell.raidT = G.gameT;
     updHell();
     expect(demons().filter((x) => x.type === 'archfiend')).toHaveLength(1); // one at a time
+  });
+
+  it('rescues a side making its last stand: demons, flyers among them, fly to its base and fight its attackers', () => {
+    G.gameT = BRINK_AFTER + 1;
+    const [x1, y1] = START_YARDS[1];
+    const yard = G.ents.find((e) => e.team === 1 && e.type === 'yard') as Ent;
+    const hall = addBuilding('power', 1, x1 + 5, y1 + 4, false);
+    expect(onBrink(1)).toBe(false);
+    yard.dead = true; G.byId.delete(yard.id); G.ents = G.ents.filter((e) => !e.dead); // its Town Hall has fallen
+    const raiders = Array.from({ length: 5 }, (_, i) => addUnit('swordsman', 0, (x1 + 2 + i) * TS, (y1 + 1) * TS));
+    for (const r of raiders) r.stance = 'passive'; // stand there, so the demons have someone to find
+    expect(onBrink(1)).toBe(true);
+    expect(onBrink(0)).toBe(false);
+    updHell();
+    const pack = demons();
+    expect(pack.length).toBeGreaterThanOrEqual(4);
+    expect(pack.filter((d) => d.type === 'drake')).toHaveLength(RESCUE_DRAKES);
+    for (const d of pack) expect(d.demon?.aid).toBe(1);
+    // side 0 takes the rescuers on; side 1 leaves them be
+    const guard = addUnit('swordsman', 1, hall.x, hall.y + 2 * TS);
+    for (const d of pack) expect(acquire(guard, 80, true)).not.toBe(d);
+    guard.stance = 'passive'; // only the demons fight here
+    // not again straight away
+    updHell();
+    expect(demons()).toHaveLength(pack.length);
+    run(70);
+    expect(raiders.some((r) => r.dead || r.hp < r.maxhp)).toBe(true);
+    expect(hall.hp).toBe(hall.maxhp);
+    expect(guard.hp).toBe(guard.maxhp);
+    expect(G.hell.rescued?.[1]).toBeLessThan(G.gameT - 60);
+    expect(G.gameT - (G.hell.rescued?.[1] ?? 0)).toBeLessThan(RESCUE_COOLDOWN);
+    expect(errors).toEqual([]);
   });
 
   it('keeps demons hidden in the fog of war for online players', () => {

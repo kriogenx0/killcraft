@@ -23,4 +23,13 @@ describe('Workers in a game', () => {
       expect(watchWorkers(seed, 300)).toEqual([]);
       expect(errors).toEqual([]);
     }, 30_000);
+
+  for (const seed of [2, 3, 8])
+    it(`never stand idle while the player taps out random orders (map ${seed})`, () => {
+      vi.spyOn(Math, 'random').mockImplementation(mulberry32(seed));
+      G.demo = true;
+      // orders the player gives, gather, move, stop, fix, Oil Derrick, Aether, stance, may send a
+      // Worker anywhere, but none should leave it standing about with work to be had
+      expect(watchWorkers(seed, 360, true).filter((m) => /stood/.test(m))).toEqual([]);
+    }, 30_000);
 });

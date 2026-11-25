@@ -97,7 +97,7 @@ const FALL_SECONDS = 2.5;
 function fundsWithRefunds(team: number): Price {
   const f: Price = { ore: G.credits[team], wood: G.wood[team], oil: G.oil[team], aether: G.aether[team] ?? 0 };
   const add = (p: Partial<Price>) => { f.ore += p.ore ?? 0; f.wood += p.wood ?? 0; f.oil += p.oil ?? 0; f.aether += p.aether ?? 0; };
-  for (const line of Object.values(G.prod[team])) for (const it of line) if (it.paid) add(priceOf(it.type));
+  for (const line of Object.values(G.prod[team])) for (const it of line) if (it.paid && !it.free) add(priceOf(it.type));
   for (const e of G.ents) {
     if (e.dead || e.team !== team || e.kind !== 'bld') continue;
     if (!e.done && !e.unpaid) add(priceOf(e.type as Parameters<typeof priceOf>[0]));
