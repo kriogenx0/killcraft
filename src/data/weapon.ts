@@ -2,7 +2,7 @@ import type { Element } from './spells.ts';
 /** 'air' is anything flying: only weapons with an `air` multiplier above zero can hit it */
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
 export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
-  | 'bomb' | 'planegun' | 'missile' | 'flak'
+  | 'bomb' | 'planegun' | 'missile' | 'flak' | 'aam' | 'jetbomb'
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
@@ -67,6 +67,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   planegun: { dmg: 8, range: 4, cd: 0.3, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.6, heavy: 0.25, building: 0.3, air: 1.2 } },
   missile: { dmg: 42, range: 5.5, cd: 1.8, proj: 'rocket', speed: 240, splash: 20, vs: { none: 0.25, light: 1, heavy: 1.1, building: 0.6, air: 0.7 } },
   flak: { dmg: 34, range: 7.5, cd: 1.1, proj: 'shell', speed: 760, splash: 0, vs: { none: 0, light: 0, heavy: 0, building: 0, air: 1.5 } },
+  // jets: heat-seeking missiles that only hit aircraft, and a heavy bomb dropped on a pass
+  aam: { dmg: 70, range: 6, cd: 1.5, proj: 'rocket', speed: 480, splash: 0, vs: { none: 0, light: 0, heavy: 0, building: 0, air: 1.4 } },
+  jetbomb: { dmg: 150, range: 1, cd: 3.5, proj: 'shell', speed: 300, splash: 30, vs: { none: 0.7, light: 0.9, heavy: 1, building: 1.4, air: 0 } },
   // Aether arms (hidden units)
   wraithlance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.95, heavy: 0.85, building: 0.4, air: 0 } },
   hexrifle: { dmg: 12, range: 4, cd: 0.9, proj: 'bullet', speed: 0, splash: 0, slow: 1.5, vs: { none: 1, light: 0.5, heavy: 0.2, building: 0.25, air: 0.5 } },

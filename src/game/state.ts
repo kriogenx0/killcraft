@@ -109,6 +109,8 @@ export interface Ent extends Target {
   /** the enemy that started attacking this unit, and when it last hit */
   foe: number | null;
   foeT: number;
+  /** a jet flying on out after a pass: seconds left before it turns back (see pass in move.ts) */
+  runT?: number;
   // buildings
   done: boolean;
   /** 0..1 rise-up animation after placement */
@@ -350,5 +352,7 @@ export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cl
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
 /** Aircraft fly straight over everything and only some weapons can reach them. */
 export const isAir = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'air';
+/** Jets can't hover: they make passes at targets and circle when idle (see game/move.ts). */
+export const isJet = (e: Ent): boolean => e.kind === 'unit' && !!unitDef(e).jet;
 /** How high an entity flies, in px (0 on the ground). */
 export const altOf = (e: Ent): number => (e.kind === 'unit' ? (unitDef(e).alt ?? 0) * TS : 0);

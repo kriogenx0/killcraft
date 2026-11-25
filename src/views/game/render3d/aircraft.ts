@@ -169,6 +169,84 @@ export function helicopter(team: number): Model {
   return { root, parts, height: 0.5 };
 }
 
+/** A flat plate cut to an outline drawn from above (x forward, y out to the left), `t` thick. */
+function plate(pts: [number, number][], t: number, m: THREE.Material, y = 0): THREE.Mesh {
+  const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z)));
+  const g = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false }).rotateX(Math.PI / 2);
+  return mesh(g, m, 0, y + t / 2, 0);
+}
+
+/** Both halves of a wing or tailplane: the outline is the left half, mirrored for the right. */
+function pair(pts: [number, number][], t: number, m: THREE.Material, y = 0): THREE.Object3D {
+  return group(0, 0, 0, plate(pts, t, m, y), plate(pts.map(([x, z]) => [x, -z]), t, m, y));
+}
+
+/** An afterburner: a dark nozzle with a glowing core that flickers in flight (part `burner`). */
+function nozzle(x: number, y: number, z: number, r: number, parts: Parts, key: string): THREE.Object3D {
+  const n = group(x, y, z, along(mesh(cyl(r * 0.9, r, r * 1.4, 12), M.darkSteel(), 0, 0, 0)));
+  const flame = group(-r * 0.7, 0, 0,
+    along(mesh(cone(r * 0.8, r * 4, 10), mat('#ffb347', { emissive: '#ff7a1a' }), -r * 2, 0, 0)).rotateZ(Math.PI),
+    along(mesh(cone(r * 0.45, r * 2.4, 10), mat('#fff1c0', { emissive: '#ffd27a' }), -r * 1.3, 0, 0)).rotateZ(Math.PI));
+  parts[key] = flame;
+  n.add(flame);
+  return n;
+}
+
+/** Modern age: a single-seat jet fighter with a bubble canopy, swept wings, twin fins and wingtip missiles. */
+export function fighter(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  const tm = teamMat(team, 'm', 0.45), td = teamMat(team, 'd', 0.45), grey = mat('#8a929c', { rough: 0.4, metal: 0.6 });
+  // fuselage: a slim body with a pointed radome and intakes either side of the cockpit
+  root.add(scl(mesh(sph(0.1, 16, 10), grey, 0, 0.14, 0), 4.2, 0.75, 0.85));
+  root.add(along(mesh(cone(0.06, 0.24, 12), M.darkSteel(), 0.52, 0.14, 0)));
+  root.add(scl(mesh(sph(0.06, 12, 8), M.glass(), 0.2, 0.2, 0), 2.2, 0.9, 0.85));
+  for (const z of [-0.075, 0.075]) root.add(mesh(box(0.22, 0.07, 0.05), td, 0.05, 0.13, z));
+  // swept wings in team colour, with a darker leading edge
+  root.add(pair([[0.12, 0.04], [-0.18, 0.46], [-0.27, 0.46], [-0.26, 0.04]], 0.018, tm, 0.12));
+  root.add(pair([[0.12, 0.04], [0.06, 0.12], [-0.17, 0.44], [-0.18, 0.46]], 0.022, td, 0.12));
+  // tailplanes and twin canted fins
+  root.add(pair([[-0.3, 0.05], [-0.42, 0.2], [-0.47, 0.2], [-0.46, 0.05]], 0.014, td, 0.13));
+  for (const z of [-0.07, 0.07]) root.add(rot(group(0, 0.17, z, plate([[-0.26, 0], [-0.44, 0.2], [-0.5, 0.2], [-0.47, 0]], 0.012, tm).rotateX(-Math.PI / 2)), Math.sign(z) * -0.25, 0, 0));
+  // twin missiles on the wingtips, and a gun port by the nose
+  for (const z of [-0.47, 0.47]) {
+    root.add(along(mesh(cyl(0.014, 0.014, 0.2, 8), M.white(), -0.18, 0.11, z)));
+    root.add(along(mesh(cone(0.014, 0.04, 8), M.redLamp(), -0.06, 0.11, z)));
+  }
+  const gun = group(0.3, 0.16, 0.06, along(mesh(cyl(0.006, 0.006, 0.06, 6), M.gun(), 0, 0, 0)));
+  parts.barrel = gun;
+  root.add(gun);
+  root.add(nozzle(-0.44, 0.14, 0, 0.06, parts, 'burner'));
+  return { root, parts, height: 0.4 };
+}
+
+/** Modern age: a two-seat strike jet, broad and heavy, with twin engines and bombs slung under the wings. */
+export function striker(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  const tm = teamMat(team, 'm', 0.4), td = teamMat(team, 'd', 0.4), grey = mat('#6e7670', { rough: 0.5, metal: 0.5 });
+  // a wide body with two engines side by side, a long nose and a stepped two-seat canopy
+  root.add(scl(mesh(sph(0.12, 16, 10), grey, 0, 0.15, 0), 4.4, 0.75, 1.3));
+  root.add(along(mesh(cone(0.07, 0.26, 12), M.darkSteel(), 0.62, 0.15, 0)));
+  root.add(scl(mesh(sph(0.065, 12, 8), M.glass(), 0.28, 0.22, 0), 2.6, 0.9, 0.8));
+  root.add(mesh(box(0.012, 0.05, 0.1), td, 0.26, 0.24, 0));
+  for (const z of [-0.09, 0.09]) root.add(along(mesh(cyl(0.065, 0.065, 0.5, 12), grey, -0.18, 0.13, z)));
+  // broad swept wings and tailplanes
+  root.add(pair([[0.18, 0.1], [-0.18, 0.6], [-0.3, 0.6], [-0.3, 0.1]], 0.022, tm, 0.13));
+  root.add(pair([[0.18, 0.1], [0.12, 0.16], [-0.17, 0.58], [-0.18, 0.6]], 0.026, td, 0.13));
+  root.add(pair([[-0.34, 0.1], [-0.48, 0.3], [-0.55, 0.3], [-0.54, 0.1]], 0.016, td, 0.12));
+  for (const z of [-0.1, 0.1]) root.add(rot(group(0, 0.19, z, plate([[-0.3, 0], [-0.5, 0.24], [-0.57, 0.24], [-0.54, 0]], 0.014, tm).rotateX(-Math.PI / 2)), Math.sign(z) * -0.15, 0, 0));
+  // pylons with fat bombs, two under each wing
+  const bombs = new THREE.Group();
+  for (const z of [-0.26, 0.26, -0.42, 0.42]) {
+    bombs.add(mesh(box(0.08, 0.04, 0.012), M.darkSteel(), -0.1, 0.1, z));
+    bombs.add(scl(mesh(sph(0.04, 10, 8), M.olive(), -0.1, 0.06, z), 2.4, 1, 1));
+    bombs.add(mesh(box(0.03, 0.05, 0.005), M.olive(), -0.2, 0.06, z));
+  }
+  parts.bombs = bombs;
+  root.add(bombs);
+  for (const z of [-0.09, 0.09]) root.add(nozzle(-0.46, 0.13, z, 0.06, parts, z < 0 ? 'burner' : 'burner2'));
+  return { root, parts, height: 0.45 };
+}
+
 // ---------------------------------------------------------------- structures
 
 /**

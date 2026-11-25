@@ -5,7 +5,7 @@ import { G, allied, altOf, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf,
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
-import { approach, canStep, followPath, turnToward } from './move.ts';
+import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
@@ -496,6 +496,12 @@ function sentToWall(u: Ent, gx: number, gy: number, sight: number): Ent | null {
 }
 
 export function updUnit(u: Ent, dt: number): void {
+  act(u, dt);
+  // a jet can't hover: whenever it isn't flying anywhere it circles
+  if (!u.moving && !u.dead && unitDef(u).jet && !frozen(u) && !stone(u)) cruise(u, dt);
+}
+
+function act(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
   u.cd = Math.max(0, u.cd - dt * reloadRate(u));

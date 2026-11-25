@@ -10,7 +10,7 @@ import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
 import { inReach, nearBase, reachOf, tileFree, wallLine } from '../../../game/building.ts';
 import { nearPortal } from '../../../game/map.ts';
-import { lerp } from '../../../util/math.ts';
+import { clamp, lerp } from '../../../util/math.ts';
 import { shownToPlayer } from '../render/minimap.ts';
 import { MARKER_LIFE, V, spectating } from '../view_state.ts';
 import { eraOf } from '../../../game/production.ts';
@@ -143,7 +143,7 @@ export function pickSwing(t: number): number {
 // wood a deep reddish brown so it stands out against the wicker; oil glossy black
 const CARGO_MAT: Record<Cargo, () => THREE.Material> = { ore: M.ore, wood: () => mat('#6b3414', { rough: 0.9, tex: 'wood', flat: true }), oil: () => mat('#0c0b0a', { rough: 0.12, metal: 0.4 }) };
 
-function animateUnit(m: Model, e: Ent): void {
+function animateUnit(m: Model, e: Ent, dt: number): void {
   const P = m.parts, w = e.walk * Math.PI * 2, swing = e.moving ? Math.sin(w) * 0.6 : 0;
   const atk = e.atkT > 0 ? 1 - e.atkT / 0.25 : 0;
   if (P.legL && P.legR) { P.legL.rotation.z = swing; P.legR.rotation.z = -swing; }
@@ -221,6 +221,21 @@ function animateUnit(m: Model, e: Ent): void {
     // a biplane banks into its turns
     if (e.type === 'biplane') m.root.rotation.order = 'YXZ';
     if (e.type === 'biplane') m.root.rotation.x = e.moving ? Math.sin(t * 0.7 + e.id) * 0.15 : 0;
+    if (UNIT[e.type as UnitType].jet) {
+      // a jet banks hard into its turns (rolling by how fast its heading swings) and its afterburners flicker
+      const last = (m.root.userData.face as number | undefined) ?? e.face;
+      let turn = e.face - last;
+      while (turn > Math.PI) turn -= Math.PI * 2;
+      while (turn < -Math.PI) turn += Math.PI * 2;
+      m.root.userData.face = e.face;
+      const want = clamp(turn / Math.max(dt, 1e-3) * 0.35, -0.9, 0.9), bank = (m.root.userData.bank as number | undefined) ?? 0;
+      m.root.userData.bank = bank + (want - bank) * Math.min(1, dt * 5);
+      m.root.rotation.order = 'YXZ';
+      m.root.rotation.x = m.root.userData.bank;
+      m.root.position.y = alt; // too fast to bob
+      for (const k of ['burner', 'burner2']) if (P[k]) P[k].scale.setScalar(0.85 + Math.random() * 0.3);
+      if (P.bombs) P.bombs.visible = e.atkT <= 0;
+    }
   }
   if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
@@ -452,7 +467,7 @@ export function syncEntities(dt: number): void {
     if (e.kind === 'unit') {
       r.position.set(x, 0, z);
       r.rotation.set(0, -e.face, 0, 'YXZ');
-      animateUnit(o.model, e);
+      animateUnit(o.model, e, dt);
       hitFlash(o.model, e);
       statusFx(o.model, e, dt);
       stoneLook(o.model, e);

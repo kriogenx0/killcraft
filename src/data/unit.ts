@@ -3,7 +3,7 @@ import type { BldType } from './building.ts';
 import type { SpellType } from './spells.ts';
 
 export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'harvester' | 'worker'
-  | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'medic'
+  | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'fighter' | 'striker' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
@@ -89,6 +89,11 @@ export interface UnitDef {
   scoop?: number;
   /** no longer trained from this age on (see data/era.ts) */
   until?: number;
+  /**
+   * a jet: it can't hover. It flies on at full speed, makes passes at its target (firing on the way in,
+   * then flying on out and looping back for another), and circles when it has nothing to do (game/move.ts).
+   */
+  jet?: boolean;
   /** aircraft only: how high it flies, in tiles */
   alt?: number;
   /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
@@ -118,6 +123,9 @@ export const UNIT: Record<UnitType, UnitDef> = {
   biplane: { name: 'Biplane', cls: 'air', armor: 'air', hp: 190, spd: 6.0, turn: 2.5, weapon: 'planegun', cost: 300, wood: 150, oil: 100, t: 13, era: 1, sight: 8, producer: 'air', turret: false, radius: 12, alt: 1.6, desc: 'Fast wood-and-canvas fighter. Shreds balloons, aircraft and infantry.' },
   helicopter: { name: 'Attack Helicopter', cls: 'air', armor: 'air', hp: 340, spd: 4.4, turn: 3.5, weapon: 'missile', cost: 700, oil: 300, t: 18, era: 2, sight: 7, producer: 'air', turret: false, radius: 13, alt: 1.3, desc: 'Steel gunship firing guided missiles. Deadly against tanks.' },
   drone: { name: 'Combat Drone', cls: 'air', armor: 'air', hp: 70, spd: 7.0, turn: 7, weapon: 'dronegun', cost: 200, oil: 60, t: 6, era: 2, sight: 8, producer: 'air', turret: false, radius: 8, alt: 1.1, desc: 'Cheap, fast quadcopter with a light gun. Send them in swarms; flak, rifles and machine guns knock them down.' },
+  // jets: the fastest things in the sky, and they can't hover. They make passes at a target and loop back round.
+  fighter: { name: 'Jet Fighter', cls: 'air', armor: 'air', hp: 280, spd: 9.5, turn: 2.6, weapon: 'aam', cost: 650, oil: 200, t: 16, era: 2, sight: 10, producer: 'air', turret: false, radius: 13, alt: 1.8, jet: true, desc: 'Supersonic interceptor with heat-seeking missiles. Hunts helicopters, drones, balloons and flying creatures, and outruns anything in the sky. Can\'t hit the ground, and can\'t hover: it makes passes and loops back.' },
+  striker: { name: 'Strike Jet', cls: 'air', armor: 'air', hp: 340, spd: 8.0, turn: 1.9, weapon: 'jetbomb', cost: 1000, oil: 300, t: 20, era: 2, sight: 8, producer: 'air', turret: false, radius: 15, alt: 1.8, jet: true, desc: 'Swoops in low and drops a heavy bomb, then streaks away and loops back for another run. Wrecks buildings, turrets and tanks from across the map. Can\'t hover or fight other aircraft; flak and fighters bring it down.' },
   // hidden units, revealed by Aether: each matches its regular unit, plus one trick
   wraith: { name: 'Wraith Knight', cls: 'infantry', armor: 'light', hp: 240, spd: 4.6, turn: 5, weapon: 'wraithlance', cost: 350, wood: 30, aether: 50, t: 12, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, look: 'knight', desc: 'A knight bound to Aether. Its spectral lance passes through armor.' },
   hexblade: { name: 'Hex Rifleman', cls: 'infantry', armor: 'none', hp: 57, spd: 2.0, turn: 6.5, weapon: 'hexrifle', cost: 100, wood: 20, aether: 15, t: 6, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, look: 'rifleman', desc: 'Hexed shot slows whatever it hits to half speed for a moment.' },

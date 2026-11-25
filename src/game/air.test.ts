@@ -112,7 +112,7 @@ describe('the air war', () => {
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
     if (!yard) throw new Error('no yard');
     addBuilding('airfield', 0, yard.tx + 4, yard.ty, false);
-    for (const [era, want] of [[1, ['balloon', 'biplane']], [2, ['balloon', 'biplane', 'helicopter', 'drone']]] as const) {
+    for (const [era, want] of [[1, ['balloon', 'biplane']], [2, ['balloon', 'biplane', 'helicopter', 'drone', 'fighter', 'striker']]] as const) {
       G.era[0] = era;
       expect(available(0, 'air')).toEqual(want);
     }
@@ -129,5 +129,65 @@ describe('the air war', () => {
     expect(UNIT.helicopter.wood ?? 0).toBe(0);
     expect(UNIT.helicopter.oil ?? 0).toBeGreaterThan(0);
     expect(UNIT.helicopter.cost).toBeGreaterThan(0);
+  });
+
+  describe('jets', () => {
+    it('fighters only hit aircraft; strike jets only hit the ground', () => {
+      const [x, y] = openGround(4), heli = addUnit('helicopter', 1, x, y), tank = addUnit('tank', 1, x, y + TS);
+      const f = addUnit('fighter', 0, x, y), s = addUnit('striker', 0, x, y);
+      expect(canAttack(f, heli)).toBe(true);
+      expect(canAttack(f, tank)).toBe(false);
+      expect(canAttack(s, tank)).toBe(true);
+      expect(canAttack(s, heli)).toBe(false);
+    });
+
+    it('a jet can’t hover: with nothing to do it circles near where it is', () => {
+      const [x, y] = openGround(4), f = addUnit('fighter', 0, x, y);
+      let moved = 0, far = 0, px = f.x, py = f.y;
+      for (let i = 0; i < 10 / STEP; i++) {
+        update(STEP);
+        moved += Math.hypot(f.x - px, f.y - py); px = f.x; py = f.y;
+        far = Math.max(far, Math.hypot(f.x - x, f.y - y));
+      }
+      expect(moved).toBeGreaterThan(40 * TS);
+      expect(far).toBeLessThan(12 * TS);
+    });
+
+    it('a jet sent somewhere gets there and circles over it', () => {
+      const [x, y] = openGround(4), s = addUnit('striker', 0, x, y);
+      s.stance = 'passive';
+      const gx = Math.floor(x / TS) + 20, gy = Math.floor(y / TS);
+      orderMove(s, gx, gy);
+      run(8);
+      expect(s.order).toBe(null);
+      expect(s.moving).toBe(true);
+      expect(Math.hypot(s.x - (gx + 0.5) * TS, s.y - (gy + 0.5) * TS)).toBeLessThan(10 * TS);
+    });
+
+    it('a fighter shoots down a helicopter and drones', () => {
+      const [x0, y0] = openGround(7);
+      const heli = addUnit('helicopter', 1, x0, y0), f = addUnit('fighter', 0, x0 + 6 * TS, y0);
+      orderAttack(heli, f); orderAttack(f, heli);
+      run(30);
+      expect(heli.dead).toBe(true);
+      expect(f.dead).toBe(false);
+      const [x, y] = openGround(6), fighter = addUnit('fighter', 0, x, y);
+      const drones = [0, 1, 2].map((i) => addUnit('drone', 1, x + 6 * TS, y + (i - 1) * 20));
+      for (const d of drones) orderAttack(d, fighter);
+      run(40);
+      expect(drones.every((d) => d.dead)).toBe(true);
+    });
+
+    it('a strike jet makes bombing runs that wreck a building', () => {
+      const yard = G.ents.find((e) => e.team === 1 && e.type === 'yard');
+      if (!yard) throw new Error('no yard');
+      const s = addUnit('striker', 0, yard.x - 12 * TS, yard.y);
+      orderAttack(s, yard);
+      let drops = 0;
+      hooks.fired = (src) => { if (src === s) drops++; };
+      run(30);
+      expect(drops).toBeGreaterThan(2);
+      expect(yard.hp).toBeLessThan(yard.maxhp * 0.5);
+    });
   });
 });

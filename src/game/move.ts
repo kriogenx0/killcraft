@@ -1,5 +1,5 @@
 // Walking along paths, approaching targets, and keeping units from stacking on each other.
-import { G, blkAt, isAir, tileOf, unitDef, type Ent, type Target } from './state.ts';
+import { G, blkAt, isAir, isJet, tileOf, unitDef, type Ent, type Target } from './state.ts';
 import { MW, MH, TS, SHALLOW } from './const.ts';
 import { SHALLOW_SPEED } from '../data/map.ts';
 import { clamp } from '../util/math.ts';
@@ -177,6 +177,8 @@ export function followPath(u: Ent, dt: number): boolean {
     return !u.path.length;
   };
   const wp = u.path[0], air = isAir(u);
+  // a jet can't stop on a spot: flying over near it counts as getting there (it then circles)
+  if (air && u.path.length === 1 && isJet(u) && Math.hypot((wp[0] + 0.5) * TS - u.x, (wp[1] + 0.5) * TS - u.y) < turnRadius(u) * 0.6) { u.path.shift(); return true; }
   if (!air && G.blk[wp[1] * MW + wp[0]]) return repath();
   // anywhere on a map portal's swirl counts as entering it, so a crowd doesn't have to queue for the centre
   const through = u.path[1];
@@ -213,6 +215,7 @@ function warp(u: Ent, exit: [number, number]): void {
 
 /** Walk toward a target until within range. true = in range, false = still walking, null = unreachable. */
 export function approach(u: Ent, t: Target, range: number, dt: number): boolean | null {
+  if (isJet(u)) return pass(u, t, range, dt);
   if (edgeDist(u, t) <= range) { u.path = null; return true; }
   if (isAir(u)) return fly(u, t, dt);
   u.rep -= dt;
@@ -248,6 +251,51 @@ function fly(u: Ent, t: Target, dt: number): false {
   u.path = null;
   if (Math.hypot(t.x - u.x, t.y - u.y) >= 1) steer(u, t.x, t.y, stepOf(u, dt), dt, true);
   return false;
+}
+
+/** How tight a circle an aircraft can fly at full speed, px. */
+export const turnRadius = (u: Ent): number => (unitDef(u).spd / unitDef(u).turn) * TS;
+
+/** Fly straight on along the current heading (a jet can't stop), banking back toward the middle at the map's edge. */
+function flyOn(u: Ent, dt: number): void {
+  const ax = u.x + Math.cos(u.face) * TS * 3, ay = u.y + Math.sin(u.face) * TS * 3, m = TS * 2;
+  const off = ax < m || ay < m || ax > MW * TS - m || ay > MH * TS - m;
+  steer(u, off ? (MW * TS) / 2 : ax, off ? (MH * TS) / 2 : ay, stepOf(u, dt), dt, true);
+}
+
+/** Longest a jet flies on out after a pass before it turns back, s. */
+const RUN_OUT = 4;
+
+/**
+ * A jet's attack run: it can't hover, so it heads in at full speed, fires as it comes in range,
+ * overflies the target and flies on out a few turning circles away before it loops back for
+ * another pass. A target inside its turning circle would leave it circling forever, so that also
+ * sends it out to come round again. Returns whether the target is in range right now.
+ * `runT` > 0 while it flies out (seconds left), < 0 while it loops back round (counting up to 0:
+ * no breaking off again until it faces the target or that runs out), 0 on the way in.
+ */
+function pass(u: Ent, t: Target, range: number, dt: number): boolean {
+  u.path = null;
+  const d = unitDef(u), dist = Math.hypot(t.x - u.x, t.y - u.y), r = turnRadius(u);
+  const off = angleDiff(u.face, Math.atan2(t.y - u.y, t.x - u.x));
+  let run = u.runT ?? 0;
+  if (run > 0) {
+    run -= dt;
+    if (dist > r * 2.5 || run <= 0) run = -(Math.PI / d.turn + 1);
+  } else if (run < 0) {
+    run = off < 0.5 ? 0 : Math.min(0, run + dt);
+  } else if (dist < r * 1.1 && off > 1.4) run = RUN_OUT;
+  u.runT = run;
+  if (run > 0) flyOn(u, dt);
+  else steer(u, t.x, t.y, stepOf(u, dt), dt, true);
+  return edgeDist(u, t) <= range;
+}
+
+/** A jet with nothing to do circles where it is, banking round at a steady rate. */
+export function cruise(u: Ent, dt: number): void {
+  u.runT = 0;
+  u.face += unitDef(u).turn * 0.8 * dt;
+  flyOn(u, dt);
 }
 
 /** A harvester scooping or unloading stays put; everyone else steps around it. */

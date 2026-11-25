@@ -20,6 +20,8 @@ import { applyElement, elementMult } from './spells.ts';
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
 const AIM_TOLERANCE = 0.2;
+/** A jet fires when its nose is within this many radians of the target (missiles seek the rest of the way). */
+const JET_AIM = 0.6;
 /** seconds from the start of a swing or thrust until the blow lands (and the damage with it) */
 export const MELEE_LAND = 0.15;
 /** how far a target may step away mid-swing and still be struck (px) */
@@ -105,7 +107,7 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
     return;
   }
   // gunpowder flashes; bows and catapults don't
-  const bomb = wt === 'bomb';
+  const bomb = wt === 'bomb' || wt === 'jetbomb';
   if (!bomb && (w.proj === 'bullet' || w.proj === 'shell' || w.proj === 'rocket')) {
     part('flash', mx, my, { max: 0.1, size: w.proj === 'bullet' ? 12 : 24, z: air ? z : 0, col: BEAM_COL[wt] ?? null });
     if (w.proj !== 'bullet') part('smoke', mx, my, { max: 0.9, size: 4, soft: true, vz: 12, z: air ? z : 0 });
@@ -203,7 +205,11 @@ export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
   if (!hasTurret) {
     // on the move, shoot from the hip rather than steer off course; standing, turn the body to face
     s.tface = want;
-    if (s.moving || weaponOf(s) === 'bomb') return true; // bombs just drop
+    const wt = weaponOf(s);
+    if (wt === 'bomb' || wt === 'jetbomb') return true; // bombs just drop
+    // a jet's guns and missiles point where it flies: it fires when its nose is on the target
+    if (s.kind === 'unit' && unitDef(s).jet) return angleDiff(s.face, want) < JET_AIM;
+    if (s.moving) return true;
     s.face = turnToward(s.face, want, unitDef(s).turn * dt);
     return angleDiff(s.face, want) < AIM_TOLERANCE;
   }
