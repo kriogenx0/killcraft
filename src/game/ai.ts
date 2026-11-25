@@ -2,7 +2,7 @@
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
-import { G, haulOf, oreLoadOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, oreLoadOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
 import { BUILDING, EXPAND_GAP, isExpansion, isWall, type BldType } from '../data/building.ts';

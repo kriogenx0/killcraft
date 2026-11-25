@@ -69,18 +69,25 @@ const tilesTo = (x: number, y: number, f: { tx: number; ty: number; w: number; h
  * The tree with wood worth chopping within r tiles of (cx, cy) that is closest to `home` (a
  * drop-off, so trips stay short; (cx, cy) itself if none), preferring ones nobody else is on.
  */
-export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: Ent | null): number | null {
+export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: Ent | null, alone = false): number | null {
   let best: number | null = null, bd = Infinity;
   const bad = cantReach.get(u);
   for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
     for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) {
       const i = y * MW + x;
       if (G.terr[i] !== TREE || G.treeWood[i] < CHOP_WORTH || !reachable(i) || bad?.has(i)) continue;
-      const d = (home ? tilesTo(x, y, home) : Math.hypot(x - cx, y - cy)) + choppersAt(i, u) * CROWD;
+      // a stump with less than the Worker still has room for counts as further off: it'd soon be on the move again
+      const thin = Math.max(0, 1 - G.treeWood[i] / Math.max(1, woodLoad(u) - u.carry)) * THIN;
+      const crowd = choppersAt(i, u);
+      if (alone && crowd) continue;
+      const d = (home ? tilesTo(x, y, home) : Math.hypot(x - cx, y - cy)) + crowd * CROWD + thin;
       if (d < bd) { bd = d; best = i; }
     }
   return best;
 }
+
+/** How many tiles further a Worker will walk for a tree with a whole load on it rather than a bare stump. */
+const THIN = 8;
 
 /** How many tiles further a Worker will walk for a tree of its own rather than share one: one to a tree while there are enough. */
 const CROWD = 40;
@@ -93,7 +100,8 @@ function nextTree(u: Ent, o: HarvestOrder): number | null {
   const home = valid(o.src) ?? bankAt(u, [...WOOD_BANKS]);
   if (!home) return nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 14) ?? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), MW);
   const cx = home.tx + (home.w >> 1), cy = home.ty + (home.h >> 1);
-  return nearestTree(u, cx, cy, MILL_RADIUS + 2, home) ?? nearestTree(u, cx, cy, 16, home) ?? nearestTree(u, cx, cy, MW, home);
+  // a tree of its own near the drop-off, then further out, and only then one shared with another
+  return nearestTree(u, cx, cy, MILL_RADIUS + 2, home, true) ?? nearestTree(u, cx, cy, 16, home, true) ?? nearestTree(u, cx, cy, MW, home);
 }
 
 /**
@@ -101,11 +109,15 @@ function nextTree(u: Ent, o: HarvestOrder): number | null {
  * one (it walked all that way), rather than one beside the first that may be just as far round.
  */
 function pickAnother(u: Ent, o: HarvestOrder): void {
-  const t = nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2) ?? nextTree(u, o);
+  const t = nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2, null, true) ?? nextTree(u, o);
   if (t !== null) { o.tx = t % MW; o.ty = (t / MW) | 0; }
   u.path = null;
   if (u.carry > woodLoad(u) * 0.5 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) > 5 * TS) o.st = 'ret';
 }
+
+/** How long (s) a Worker whose path ended short of its tree keeps edging in before trying another. */
+const SHORT_WAIT = 1.5;
+const shortT = new WeakMap<Ent, number>();
 
 /** Walk to a tree and chop it until the load is full; the caller takes it home once `o.st` is 'ret'. */
 export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
@@ -114,7 +126,7 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
   if (!good || (o.st === 'go' && G.treeWood[i] < CHOP_WORTH)) {
     // on the way to a tree someone else has stripped: one right here, or by that one, will do
     const close = Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < 4 * TS;
-    const t = (close ? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2) : null) ?? (o.st === 'go' && u.path ? nearestTree(u, o.tx, o.ty, 3) : null) ?? nextTree(u, o);
+    const t = (close ? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2, null, true) : null) ?? (o.st === 'go' && u.path ? nearestTree(u, o.tx, o.ty, 3, null, true) : null) ?? nextTree(u, o);
     if (t === null) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; u.path = null; return; }
     i = t;
     o.tx = i % MW; o.ty = (i / MW) | 0;
@@ -133,8 +145,11 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
       u.rep = 0.5;
     }
     const r = approach(u, tree, CHOP_REACH, dt);
-    // no way there (or the path ran out short of it): try another tree
-    if (r === null || (!r && u.path?.length === 0)) { giveUpOn(u, i); o.wait = 0.5; pickAnother(u, o); return; }
+    // the path ran out short of it (in a crowd, say): step straight in for a moment before giving up
+    const short = !r && u.path?.length === 0;
+    if (short) shortT.set(u, (shortT.get(u) ?? 0) + dt); else shortT.delete(u);
+    // no way there, or still short of it after that: try another tree
+    if (r === null || (shortT.get(u) ?? 0) > SHORT_WAIT) { shortT.delete(u); giveUpOn(u, i); o.wait = 0.5; pickAnother(u, o); return; }
     if (r) o.st = 'gather';
     return;
   }
