@@ -31,6 +31,7 @@ import { advanceSite, mend } from './building.ts';
 import { bldDef } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { stone, updWild } from './creatures.ts';
+import { updDemon } from './hell.ts';
 import { frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
@@ -555,6 +556,7 @@ function act(u: Ent, dt: number): void {
   // vehicle turrets drift back to the hull's heading when idle
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
   if (u.wild) { updWild(u, dt); return; } // guards its lair (data/creatures.ts)
+  if (u.demon) { updDemon(u, dt); return; } // lurks by the Gate of Hell, or raids the leader (data/hell.ts)
   const o = u.order;
   if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {

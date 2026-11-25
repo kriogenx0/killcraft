@@ -25,9 +25,9 @@ afterEach(() => {
 });
 
 describe('the Titan', () => {
-  it('is the biggest and toughest unit in the game', () => {
+  it('is the biggest and toughest unit a side can train', () => {
     for (const [t, d] of Object.entries(UNIT)) {
-      if (t === 'giant') continue;
+      if (t === 'giant' || d.demon) continue; // the Archfiend out of the Gate of Hell is nobody's to train
       expect(UNIT.giant.hp).toBeGreaterThan(d.hp);
       expect(UNIT.giant.cost).toBeGreaterThanOrEqual(d.cost);
       expect(UNIT.giant.radius).toBeGreaterThan(d.radius * 1.5); // dwarfs even the Cyborg Colossus

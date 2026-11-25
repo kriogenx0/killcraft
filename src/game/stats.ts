@@ -15,6 +15,8 @@ export type ResTally = Record<StatRes, number>;
 export interface SideStats {
   /** units trained (starting Workers and free ones from a Refinery not counted) */
   trained: number;
+  /** of those, fighting units (not Workers, Harvesters or Medics): the Gate of Hell's leader rule counts them (data/hell.ts) */
+  fighters?: number;
   /** this side's units destroyed */
   lost: number;
   /** enemy units this side destroyed */
@@ -73,7 +75,13 @@ function of(team: number): SideStats | null {
   return (G.stats[team] ??= { trained: 0, lost: 0, killed: 0, built: 0, razed: 0, peakArmy: 0, got: tally(), start: stockOf(team), ages: [0] });
 }
 
-export function noteTrained(team: number): void { const s = of(team); if (s) s.trained++; }
+export function noteTrained(team: number, type?: UnitType): void {
+  const s = of(team);
+  if (!s) return;
+  s.trained++;
+  const d = type ? UNIT[type] : null;
+  if (d?.weapon && !d.haul) s.fighters = (s.fighters ?? 0) + 1;
+}
 
 export function noteBuilt(b: Ent): void {
   const s = of(b.team);

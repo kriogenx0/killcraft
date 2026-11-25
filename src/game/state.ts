@@ -160,6 +160,36 @@ export interface Ent extends Target {
   wild?: Wild;
   /** a captured creature's lair (px), where it comes back wild after it dies */
   lair?: Point;
+  /** a demon from the Gate of Hell (game/hell.ts) */
+  demon?: Demon;
+}
+
+/** A demon's errand: lurking at its spot by the gate, or out raiding a side. */
+export interface Demon {
+  /** the side it's raiding, or -1 while it waits by the gate */
+  raid: number;
+  /** its spot by the gate (px) */
+  hx: number;
+  hy: number;
+  /** an enemy it gave up on (out of reach), left alone until game time `snubT` */
+  snub?: number;
+  snubT?: number;
+  /** times in a row it couldn't walk back to its spot */
+  lost?: number;
+}
+
+/** The Gate of Hell's clock and who its demons are after (game/hell.ts). */
+export interface Hell {
+  /** this map has the gate (staged test arenas clear it away) */
+  gate: boolean;
+  /** game time the next demon climbs out */
+  spawnT: number;
+  /** game time the next raid sets out (Infinity while there's no leader) */
+  raidT: number;
+  /** game time the next Archfiend appears (Infinity while there's no leader) */
+  archT: number;
+  /** the side the demons are after: the strongest army once it has trained enough troops, or -1 */
+  prey: number;
 }
 
 /** A wild creature's lair, and whether it's kneeling and being captured. */
@@ -265,6 +295,8 @@ export const G = {
   tamed: [] as string[][],
   /** creatures that died and come back wild at their lair at game time `t` */
   respawns: [] as { type: string; x: number; y: number; t: number }[],
+  /** the Gate of Hell (game/hell.ts) */
+  hell: { gate: false, spawnT: 0, raidT: Infinity, archT: Infinity, prey: -1 } as Hell,
   /** the side with a bounty on it for being far ahead (see bounty.ts), or -1 */
   leader: -1,
   /** each team has researched the Aether Ward */
@@ -342,6 +374,11 @@ export function blkAt(x: number, y: number): boolean {
 
 /** Same team, or on the same side in a team game. Wild creatures and neutrals (team -1) are only allied with each other. */
 export const allied = (a: number, b: number): boolean => a === b || (a >= 0 && b >= 0 && (G.ally[a] ?? a) === (G.ally[b] ?? b));
+/**
+ * Something any side may fight: a side's own units and buildings, a wild creature, or a demon.
+ * Neutral things (ore, Aether, cows) aren't.
+ */
+export const fair = (e: Ent): boolean => e.team >= 0 || !!e.wild || !!e.demon;
 /** Two real sides at war: different teams that aren't allies. */
 export const hostile = (a: number, b: number): boolean => a >= 0 && b >= 0 && !allied(a, b);
 

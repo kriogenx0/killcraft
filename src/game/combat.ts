@@ -1,5 +1,5 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
-import { G, allied, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
+import { G, allied, fair, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
 import { noteKill } from './stats.ts';
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
@@ -38,11 +38,11 @@ export const canHit = (wt: WeaponType | null, t: Ent): boolean => !!wt && t.kind
 /** Can this unit or turret attack this target? */
 export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
 /**
- * Is `t` still fair game for `s`: alive, not on its side, and a real enemy or a wild creature that's
- * still fighting? A creature changes sides when it's captured, so a target picked a moment ago may
+ * Is `t` still fair game for `s`: alive, not on its side, and a real enemy, a demon, or a wild
+ * creature that's still fighting? A creature changes sides when it's captured, so a target picked a moment ago may
  * have become a friend since.
  */
-export const isFoe = (s: { team: number }, t: Ent): boolean => !t.dead && !allied(s.team, t.team) && (t.team >= 0 || !!t.wild) && !kneeling(t);
+export const isFoe = (s: { team: number }, t: Ent): boolean => !t.dead && !allied(s.team, t.team) && fair(t) && !kneeling(t);
 
 /** `dot`: a tick of burning or poison, which neither sprays sparks nor sends the unit after whoever caused it. */
 export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): void {
@@ -63,7 +63,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): v
   if (t.wild && subdue(t)) return; // wild creatures kneel instead of dying
   if (t.hp <= 0 && riseFromAshes(t)) return; // a Phoenix bursts alight and rises again, once
   if (t.hp <= 0) { noteKill(t, src); hooks.killedBy(t, src); payBounty(t, src); kill(t); dropSalvage(t); return; }
-  if (dot || t.kind !== 'unit' || !src || src.dead || allied(src.team, t.team) || (src.team < 0 && !src.wild)) return;
+  if (dot || t.kind !== 'unit' || !src || src.dead || allied(src.team, t.team) || !fair(src)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
   // idle units react: engaging ones fight back, passive ones run (Workers fixing things carry on)
@@ -130,7 +130,7 @@ function chainOn(s: Ent, wt: WeaponType, first: Ent, leaps: number): void {
   for (let i = 0; i < leaps; i++) {
     let next: Ent | null = null, best = CHAIN_REACH;
     for (const e of G.ents) {
-      if (e.dead || e.kind !== 'unit' || struck.has(e.id) || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+      if (e.dead || e.kind !== 'unit' || struck.has(e.id) || allied(e.team, s.team) || !fair(e) || kneeling(e) || !canHit(wt, e)) continue;
       const d = Math.hypot(e.x - from.x, e.y - from.y);
       if (d < best) { best = d; next = e; }
     }
@@ -149,7 +149,7 @@ function otherFoesInReach(s: Ent, t: Ent, wt: WeaponType, n: number): Ent[] {
   const r = WEAPON[wt].range * TS, out: Ent[] = [];
   for (const e of G.ents) {
     if (out.length >= n) break;
-    if (e === t || e.dead || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || !canHit(wt, e)) continue;
+    if (e === t || e.dead || allied(e.team, s.team) || !fair(e) || kneeling(e) || !canHit(wt, e)) continue;
     if (edgeDist(s, e) <= r) out.push(e);
   }
   return out;
@@ -217,11 +217,12 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
   const miss = outOfReach.get(s), skip = miss && miss.until > G.gameT ? miss.id : -1;
   for (const e of G.ents) {
     if (e.id === skip) continue;
-    if (e.dead || allied(e.team, s.team) || (e.team < 0 && !e.wild) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
+    if (e.dead || allied(e.team, s.team) || !fair(e) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
     if (dist > r || dist < rmin || !canAttack(s, e)) continue;
     if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
+    if (e.demon && (e.demon.raid < 0 || !allied(e.demon.raid, s.team))) continue; // demons lurking by their gate, or out after someone else, are left alone unless they start something
     if (spotted && spotted[tileOf(e.y) * MW + tileOf(e.x)] !== 2) continue;
     const score = dist + (e.kind === 'bld' ? (bldDef(e).weapon ? 60 : 220) : e.wild ? 250 : weaponOf(e) ? 0 : 40)
       - (e.kind === 'unit' && dist <= (unitDef(e).lure ?? 0) * TS ? 400 : 0); // the Titan Chicken: nobody can look away

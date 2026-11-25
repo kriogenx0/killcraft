@@ -8,7 +8,8 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
   | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'unicorn'
-  | 'mystery' | 'chicken';
+  | 'mystery' | 'chicken'
+  | 'imp' | 'fiend' | 'archfiend';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
 export type Producer = 'infantry' | 'vehicle' | 'air';
@@ -40,6 +41,11 @@ export interface UnitDef {
    * train a kind once it has captured one.
    */
   beast?: boolean;
+  /**
+   * a demon from the Gate of Hell (data/hell.ts, game/hell.ts). Nobody trains demons: they belong to
+   * no side, lurk round the gate and now and then raid the leader.
+   */
+  demon?: boolean;
   /** fraction of max health regained each second, whatever the side's healing research (the Hydra's wounds, the heavy machines' field repairs) */
   regen?: number;
   /** damage taken from arrows, bolts and bullets is multiplied by this (the Nemean Lion's hide); blades, blasts and boulders hurt in full */
@@ -192,6 +198,11 @@ export const UNIT: Record<UnitType, UnitDef> = {
   phoenix: { name: 'Phoenix', cls: 'air', armor: 'air', hp: 200, spd: 5.0, turn: 4, weapon: 'phoenixfire', cost: 450, aether: 60, t: 12, era: 0, sight: 8, producer: 'air', turret: false, radius: 17, alt: 1.5, beast: true, rebirth: true, desc: 'Firebird. Showers flame on the ground below, and when it falls it bursts alight and rises again from its ashes, once.' },
   dragon: { name: 'Dragon', cls: 'air', armor: 'air', hp: 440, spd: 3.6, turn: 2.8, weapon: 'dragonfire', cost: 800, aether: 90, t: 22, era: 0, sight: 8, producer: 'air', turret: false, radius: 28, alt: 1.9, beast: true, hide: 0.6, desc: 'Great serpent of the sky that guards treasure (Ladon, who coiled round the golden apples). Its breath melts armor and sets whole bases ablaze, and arrows and bullets glance off its scales. Can\'t fight other flyers: send Flak, rockets, a Chimera or a Griffin against it.' },
   unicorn: { name: 'Unicorn', cls: 'infantry', armor: 'light', hp: 280, spd: 4.6, turn: 5, weapon: 'rainbow', cost: 400, aether: 40, t: 12, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 19, beast: true, cleanse: 4, desc: 'A joyful white unicorn with a rainbow mane. Its horn shoots rainbows, and its presence cures every friend nearby of burns, poison, ice, curses, hexes and stone. The answer to spellcasters and the Medusa.' },
+  // demons out of the Gate of Hell in the middle of the map (data/hell.ts). They can't be trained and
+  // fight for nobody: they wait by the gate and now and then raid the side with the strongest army.
+  imp: { name: 'Imp', cls: 'infantry', armor: 'light', hp: 130, spd: 3.6, turn: 6, weapon: 'impfire', cost: 150, t: 1, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 9, demon: true, desc: 'A little red devil from the Gate of Hell. Quick, and spits fire.' },
+  fiend: { name: 'Hell Fiend', cls: 'infantry', armor: 'light', hp: 480, spd: 2.6, turn: 4, weapon: 'fiendclaw', cost: 450, t: 1, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 15, demon: true, regen: 0.004, desc: 'A horned brute from the Gate of Hell. Tears through troops and walls with its claws.' },
+  archfiend: { name: 'Archfiend', cls: 'infantry', armor: 'heavy', hp: 3400, spd: 1.6, turn: 2, weapon: 'hellblade', cost: 2500, t: 1, era: 0, sight: 8, producer: 'infantry', turret: false, radius: 26, demon: true, regen: 0.003, desc: 'A giant demon that climbs out of the Gate of Hell only now and then. Its burning blade cleaves everything around the blow. Can\'t hit aircraft.' },
 };
 
 /** Medics heal this many hit points a second, from up to MEDIC_REACH px away, so they can stay behind the front. */

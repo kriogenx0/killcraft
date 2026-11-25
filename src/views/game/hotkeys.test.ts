@@ -7,7 +7,7 @@ import { PRODUCTION_KEYS, hotkeyProducer, groupForKey, groupOfType, hotkeyOf, it
 
 describe('hotkeys', () => {
   it('gives every structure, unit and research a key', () => {
-    for (const t of [...BLD_TYPES.filter((b) => BUILDING[b].buildable), ...UNIT_TYPES.filter((u) => !UNIT[u].hatched), ...TECH_TYPES]) {
+    for (const t of [...BLD_TYPES.filter((b) => BUILDING[b].buildable), ...UNIT_TYPES.filter((u) => !UNIT[u].hatched && !UNIT[u].demon), ...TECH_TYPES]) {
       expect(hotkeyOf(t), t).toMatch(groupOfType(t) ? /^[A-Z] [A-Z]$/ : /^[A-Z]$/);
       expect(producerOfType(t), t).toBeDefined();
     }

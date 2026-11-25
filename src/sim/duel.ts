@@ -28,7 +28,7 @@ export const duelPrice = (type: UnitType | BldType): number => {
 };
 
 /** Units that fight (not Workers, Harvesters or Medics). */
-export const FIGHTERS = UNIT_TYPES.filter((t) => UNIT[t].weapon && t !== 'worker');
+export const FIGHTERS = UNIT_TYPES.filter((t) => UNIT[t].weapon && t !== 'worker' && !UNIT[t].demon); // demons can't be trained
 
 /** Can units of this type be trained in this age? Creatures come in any age once captured. */
 export const inAge = (t: UnitType, age: number) => UNIT[t].era <= age && (UNIT[t].until ?? 99) > age;
@@ -46,6 +46,7 @@ function arena(seed: number): void {
   G.projs = [];
   G.respawns = [];
   G.portals = [];
+  G.hell.gate = false;
   G.terr.fill(GRASS);
   G.elev.fill(0);
   G.ore.fill(0);

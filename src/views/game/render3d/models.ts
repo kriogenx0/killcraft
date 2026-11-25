@@ -15,6 +15,7 @@ import { medievalBuilding, smithy } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, fighter, flak, helicopter, striker } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
+import { demonModel } from './demons3d.ts';
 import { arcaneModel } from './arcane3d.ts';
 import { giantModel } from './giant3d.ts';
 import { chickenModel } from './chicken3d.ts';
@@ -753,6 +754,7 @@ function aetherUnit(type: UnitType, team: number): Model {
 
 function makeUnit(type: UnitType, team: number): Model {
   if (UNIT[type].beast) return creatureModel(type, team) ?? rifleman(team);
+  if (UNIT[type].demon) return demonModel(type) ?? rifleman(team);
   if (UNIT[type].magic || UNIT[type].cyborg) return arcaneModel(type, team) ?? rifleman(team);
   if (UNIT[type].giant) return giantModel(team);
   if (type === 'chicken' || UNIT[type].hatches) return chickenModel(team, !!UNIT[type].hatches);
