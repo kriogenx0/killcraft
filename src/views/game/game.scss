@@ -853,7 +853,7 @@ $sidebar-width: 248px;
       // a fixed height, so selecting something doesn't resize (and blank) the map canvas
       // the panel scrolls up and down as one (selection, then build items); the radar stays put
       // what's selected across the top, then the radar beside the commands, then the build tabs
-      grid-template-rows: max-content;
+      grid-auto-rows: max-content;
       grid-template-columns: 96px minmax(0, 1fr);
       gap: $space-2;
       align-content: start;
@@ -926,7 +926,7 @@ $sidebar-width: 248px;
       grid-auto-flow: row dense;
 
       .command-group {
-        grid-column: span 4;
+        grid-column: 1 / -1;
       }
 
       .command-group-bar {
@@ -948,9 +948,39 @@ $sidebar-width: 248px;
       overflow: visible;
     }
 
-    // not pinned here: the bar scrolls as one, and pinned tabs would slide over the unit commands
+    // the tabs and the lists take their own rows in the panel, so the tabs can stay in view while
+    // the panel scrolls: pinned to the bottom edge until their place scrolls up, then to the top
+    .sidebar-build {
+      display: contents;
+    }
+
     .build-tabs {
-      position: static;
+      position: sticky;
+      top: 0;
+      bottom: 0;
+      z-index: 2;
+      grid-row: 3;
+      grid-column: 1 / -1;
+      box-shadow: 0 0 6px rgb(0 0 0 / 45%);
+    }
+
+    .build-tab {
+      height: 30px;
+    }
+
+    .build-tab-icon {
+      width: 20px;
+      height: 20px;
+    }
+
+    .build-tab-busy {
+      top: 4px;
+    }
+
+    .build-list {
+      grid-row: 4;
+      grid-column: 1 / -1;
+      scroll-margin-top: 36px; // clear of the pinned tabs
     }
 
     .build-list {

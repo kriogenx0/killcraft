@@ -189,8 +189,13 @@ export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip
   const tab0 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--structure'), tab1 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--unit');
   if (tab0 && tab1) {
     tabs = { structure: { btn: tab0, busy: tab0.querySelector('.build-tab-busy') as HTMLElement }, unit: { btn: tab1, busy: tab1.querySelector('.build-tab-busy') as HTMLElement } };
-    tab0.addEventListener('click', () => showTab('structure'));
-    tab1.addEventListener('click', () => showTab('unit'));
+    // on a phone the tabs stay pinned at the panel's edge: a tap also scrolls the chosen list into view
+    const pick = (t: Tab) => {
+      showTab(t);
+      if (matchMedia('(max-width: 760px)').matches) (t === 'unit' ? unitList : structureList).scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+    tab0.addEventListener('click', () => pick('structure'));
+    tab1.addEventListener('click', () => pick('unit'));
   }
   showTab(tab);
   for (const list of [structures, units]) {
