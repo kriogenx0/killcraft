@@ -346,6 +346,10 @@ export const bldDef = (e: Ent) => BUILDING[e.type as BldType];
 export const isHarvester = (e: Ent): boolean => e.kind === 'unit' && !!unitDef(e).haul;
 /** Ore it carries per trip. */
 export const haulOf = (e: Ent): number => unitDef(e).haul ?? 0;
+/** Most ore a unit carries per trip (Workers carry less ore than wood or oil). */
+export const oreLoadOf = (e: Ent): number => unitDef(e).oreLoad ?? haulOf(e);
+/** Most a unit carries of what it's carrying now (ore, or oil and wood). */
+export const loadOf = (e: Ent): number => ((e.cargo ?? 'ore') === 'ore' ? oreLoadOf(e) : haulOf(e));
 export const isOrganic = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'infantry';
 export const isVehicle = (e: Ent): boolean => e.kind === 'unit' && unitDef(e).cls === 'vehicle';
 /** Aircraft fly straight over everything and only some weapons can reach them. */

@@ -111,10 +111,10 @@ describe('idle Workers', () => {
   it('holding a load, take it home first and then carry on gathering', () => {
     const [w] = workers(1);
     G.credits[0] = 5000; G.wood[0] = 0;
-    w.carry = 100; w.cargo = 'ore'; // stopped halfway through digging
+    w.carry = 50; w.cargo = 'ore'; // stopped halfway through digging
     const ore = G.credits[0];
     run(IDLE_GRACE + 30);
-    expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 100);
+    expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 50);
     expect(jobOf(w)).toBe('wood');
   });
 

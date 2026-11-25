@@ -1,5 +1,5 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, allied, hostile, bldDef, haulOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { extraHall } from '../../game/building.ts';
@@ -305,7 +305,7 @@ function unitDetails(e: Ent): string {
   ];
   if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
   if (insight(e)) rows.push(['Doing', `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
-  if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${haulOf(e)}`, true]);
+  if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${loadOf(e)}`, true]);
   if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
   if (d.weapon && WEAPON[d.weapon].element) { const el = WEAPON[d.weapon].element!; rows.push(['Element', `${ELEMENT_NAME[el]}: ${ELEMENT_DESC[el]}`, true]); }
   if (d.spells?.length) {

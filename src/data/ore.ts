@@ -4,9 +4,9 @@
 export const ORE_TILE_MAX = 500;
 /** Radius in tiles of the field seeded around each crystal rock at the start. */
 export const ORE_FIELD_RADIUS = 5;
-/** Every second each crystal rock adds this much ore to a tile near it (Alex: slow regrowth). */
+/** Every second each crystal rock adds this much ore to each of ORE_REGROW_TILES tiles near it (Alex, 2026-11-25: grow back faster, twice what it was). */
 export const ORE_REGROW = 8;
-export const ORE_REGROW_TILES = 1;
+export const ORE_REGROW_TILES = 2;
 export const ORE_REGROW_RADIUS = 5;
 /**
  * Ore a tile needs before a gatherer bothers walking to it while richer ground exists anywhere:

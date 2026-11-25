@@ -2,7 +2,7 @@
 // and attacks in waves. A couple of troops go and hold an Aether deposit once the army can spare them,
 // and a small hunting party goes to beat down and capture the nearest wild creature of myth.
 import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
-import { G, haulOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, haulOf, oreLoadOf, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { TECH, isTechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
 import { BUILDING, EXPAND_GAP, isExpansion, isWall, type BldType } from '../data/building.ts';
@@ -673,7 +673,7 @@ function upkeep(team: number): void {
     if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && rich) b.repairing = true;
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
   const on = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
-  const free = () => workers.filter((w) => !w.order || w.order.t === 'move' || (w.order.t === 'harvest' && !w.order.res && w.carry < haulOf(w) * 0.5));
+  const free = () => workers.filter((w) => !w.order || w.order.t === 'move' || (w.order.t === 'harvest' && !w.order.res && w.carry < oreLoadOf(w) * 0.5));
   const digging = () => workers.filter((w) => w.order?.t === 'harvest' && !w.order.res).length;
   const chopping = () => workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
   const nearest = (list: Ent[], b: Ent) => list.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];

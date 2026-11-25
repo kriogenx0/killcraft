@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
-import { G, allied, altOf, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
+import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
@@ -72,14 +72,20 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
  * short. Crumbs of regrowth only once no tile worth a trip is left. Skips tiles another
  * gatherer has claimed, sharing one only if every tile is taken.
  */
-function pickOre(u: Ent, underway = false): [number, number] | null {
+/** How far (tiles) from a taken tile a gatherer looks for other ore before choosing afresh. */
+const AROUND_TAKEN = 5;
+
+function pickOre(u: Ent, underway = false, around: Tile | null = null): [number, number] | null {
   const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
+  // the tile it was walking out to got taken: other ore by that one, rather than turn back toward base
+  // for a patch that has just grown back
+  if (around) { const by = nearestOre(around[0], around[1], AROUND_TAKEN, ORE_WORTH, free); if (by) return by; }
   // part-way through a load, or the tile it was walking to got taken: ore right here rather than
   // trek back toward base and out again
   if (underway || (u.carry > 0 && (u.cargo ?? 'ore') === 'ore')) {
     const here = nearestOre(tileOf(u.x), tileOf(u.y), TOP_UP, ORE_WORTH, free);
     if (here) return here;
-    if (u.carry > haulOf(u) * 0.5) return null; // most of a load: bank it, then set out afresh
+    if (u.carry > oreLoadOf(u) * 0.5) return null; // most of a load: bank it, then set out afresh
   }
   const homes = banksOf(u.team, ORE_BANKS);
   const walk = walkOf(u.team, homes);
@@ -147,12 +153,12 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if (o.res === 'wood' && (o.st === 'go' || o.st === 'gather')) { updChop(u, o, dt); return; }
   if (o.res && (o.st === 'go' || o.st === 'gather')) { updHauler(u, o, dt); return; }
   // a full load goes home, however the Worker came to be setting out with it
-  if (o.st === 'go' && !o.res && u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; u.path = null; }
+  if (o.st === 'go' && !o.res && u.carry >= oreLoadOf(u) - 0.5) { o.st = 'ret'; u.path = null; }
   if (o.st === 'go') {
     const i = o.ty * MW + o.tx;
     if (G.ore[i] <= 0 || oreTaken(i, u, false)) {
       // someone else got to the tile first, near the end of the walk: ore right here instead
-      const t = pickOre(u, G.ore[i] > 0 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < TOP_UP * TS);
+      const t = pickOre(u, G.ore[i] > 0 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < TOP_UP * TS, G.ore[i] > 0 ? [o.tx, o.ty] : null);
       if (!t) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; return; }
       [o.tx, o.ty] = t;
       u.path = null;
@@ -188,15 +194,15 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   }
   if (o.st === 'gather') {
     cantReach.delete(u);
-    u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).scoop ?? HARVEST_RATE) * dt, haulOf(u) - u.carry));
+    u.carry += takeOre(o.tx, o.ty, Math.min((unitDef(u).oreScoop ?? unitDef(u).scoop ?? HARVEST_RATE) * dt, oreLoadOf(u) - u.carry));
     u.cargo = 'ore';
     u.atkT = 0.2;
     u.face = turnToward(u.face, u.face + 1, 0.4 * dt); // slow sweep while scooping
     if (Math.random() < dt * 6) part('ore', u.x + Math.cos(u.face) * 14, u.y + Math.sin(u.face) * 14, { vz: 40, vx: (Math.random() - 0.5) * 30, max: 0.5, size: 2, col: '#f0c040' });
-    if (u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; return; }
+    if (u.carry >= oreLoadOf(u) - 0.5) { o.st = 'ret'; return; }
     if (G.ore[o.ty * MW + o.tx] <= 0) {
       const t = pickOre(u);
-      if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > haulOf(u) * 0.3 ? 'ret' : 'go';
+      if (t) { [o.tx, o.ty] = t; o.st = 'go'; } else o.st = u.carry > oreLoadOf(u) * 0.3 ? 'ret' : 'go';
     }
     return;
   }
@@ -559,8 +565,8 @@ export function updUnit(u: Ent, dt: number): void {
         lastOrder.delete(u);
         const job = takeResume(u);
         // back to what it was doing before it stopped to fix something, banking any load first
-        if (job) setOrder(u, { ...job, st: u.carry > 0 && ((u.cargo ?? 'ore') !== (job.res ?? 'ore') || u.carry > haulOf(u) * 0.5) ? 'ret' : 'go', wait: 0 });
-        else if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
+        if (job) setOrder(u, { ...job, st: u.carry > 0 && ((u.cargo ?? 'ore') !== (job.res ?? 'ore') || u.carry > loadOf(u) * 0.5) ? 'ret' : 'go', wait: 0 });
+        else if (u.carry > loadOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
         else autoGather(u);
       }
     }

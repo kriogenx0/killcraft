@@ -1,5 +1,5 @@
 // Flat things drawn over the 3D view: health bars and the drag-select box.
-import { G, haulOf, isHarvester, unitDef } from '../../../game/state.ts';
+import { G, loadOf, isHarvester, unitDef } from '../../../game/state.ts';
 import { TARGET_LIFE, V } from '../view_state.ts';
 import { standLift } from './heights.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -69,7 +69,7 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
     if (!hurt) continue;
     g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - 1, y0 - 1, bw + 2, 6);
     g.fillStyle = f > 0.6 ? '#3d3' : f > 0.3 ? '#ec3' : '#e33'; g.fillRect(x, y0, bw * f, 4);
-    if (isHarvester(e) && e.team === V.team) { g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 5, bw * Math.min(1, e.carry / haulOf(e)), 2); }
+    if (isHarvester(e) && e.team === V.team) { g.fillStyle = '#f0c040'; g.fillRect(x, y0 + 5, bw * Math.min(1, e.carry / loadOf(e)), 2); }
     // a caster's mana, in blue under its health
     const mm = e.team === V.team ? maxMana(e) : 0;
     if (mm) { g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - 1, y0 + 4, bw + 2, 4); g.fillStyle = '#4a9cff'; g.fillRect(x, y0 + 5, bw * clamp((e.mana ?? 0) / mm, 0, 1), 2); }

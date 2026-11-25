@@ -3,7 +3,7 @@
 // The human side's economy is played by a simple script (Workers trained, a few structures placed)
 // while the computer plays the other side. Used by dither.test.ts and by
 // `node src/sim/dither.ts [seed] [seconds]`.
-import { G, haulOf, type Ent } from '../game/state.ts';
+import { G, oreLoadOf, type Ent } from '../game/state.ts';
 import { STEP, TS } from '../game/const.ts';
 import { ais, findSite } from '../game/ai.ts';
 import { initWorld, update } from '../game/world.ts';
@@ -42,7 +42,7 @@ export function watchWorkers(seed: number, seconds: number): string[] {
       if (j !== h.last) { if (h.last.split(':')[0] !== kind) h.flips.push(G.gameT); h.last = j; }
       h.flips = h.flips.filter((t) => G.gameT - t < 30);
       if (h.flips.length >= 6) { say(u, `switched jobs ${h.flips.length} times in 30s`); h.flips = []; }
-      if (u.order?.t === 'harvest' && u.order.st === 'go' && !u.order.res && u.carry >= haulOf(u) - 0.5) say(u, 'set out for the field with a full load');
+      if (u.order?.t === 'harvest' && u.order.st === 'go' && !u.order.res && u.carry >= oreLoadOf(u) - 0.5) say(u, 'set out for the field with a full load');
       if (!u.order) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
       const p = h.trail[h.trail.length - 1];
       // busy: swinging a pick or hammer, loading or unloading, or called away to put up a new site
