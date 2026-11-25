@@ -7,7 +7,8 @@ import type { UnitType } from '../../../data/unit.ts';
 import { UNIT } from '../../../data/unit.ts';
 import { lerp } from '../../../util/math.ts';
 import { group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { M, box, cone, cyl, mat, sph, teamMat, torus } from './materials.ts';
+import { M, box, cone, cyl, mat, teamMat, torus } from './materials.ts';
+import { ball } from './shapes.ts';
 
 const C = {
   bay: () => mat('#6e4526', { rough: 0.8 }),
@@ -57,9 +58,9 @@ function fourLegs(root: THREE.Object3D, parts: Parts, x: number, z: number, y: n
 
 /** A horse's body (barrel, chest, rump, tail); returns nothing, the caller adds neck and head. */
 function horseBody(root: THREE.Object3D, coat: Mat, hair: Mat): void {
-  root.add(scl(mesh(sph(0.2, 14, 10), coat, 0, 0.48, 0), 1.6, 0.68, 0.62));
-  root.add(scl(mesh(sph(0.14, 12, 8), coat, 0.2, 0.5, 0), 1, 1.05, 0.88));
-  root.add(scl(mesh(sph(0.14, 12, 8), coat, -0.22, 0.5, 0), 1.05, 1, 0.92));
+  root.add(scl(mesh(ball(0.2), coat, 0, 0.48, 0), 1.6, 0.68, 0.62));
+  root.add(scl(mesh(ball(0.14), coat, 0.2, 0.5, 0), 1, 1.05, 0.88));
+  root.add(scl(mesh(ball(0.14), coat, -0.22, 0.5, 0), 1.05, 1, 0.92));
   for (let i = 0; i < 3; i++) root.add(rot(mesh(box(0.05 - i * 0.008, 0.1, 0.05 - i * 0.008), hair, -0.36 - i * 0.04, 0.5 - i * 0.08, 0), 0, 0, 0.5 + i * 0.25));
 }
 
@@ -72,7 +73,7 @@ function horseHead(root: THREE.Object3D, coat: Mat, hair: Mat): void {
   root.add(mesh(box(0.02, 0.02, 0.07), M.dark(), 0.59, 0.72, 0));
   for (const z of [-0.035, 0.035]) {
     root.add(rot(mesh(cone(0.018, 0.06, 4), coat, 0.38, 0.86, z), 0, 0, -0.2));
-    root.add(mesh(sph(0.012, 6, 4), M.dark(), 0.45, 0.79, z * 1.45));
+    root.add(mesh(ball(0.012), M.dark(), 0.45, 0.79, z * 1.45));
   }
 }
 
@@ -97,11 +98,11 @@ function brute(root: THREE.Object3D, parts: Parts, k: number, skin: Mat, cloth: 
     root.add(leg);
   }
   root.add(mesh(box(0.18 * k, 0.1 * k, 0.24 * k), cloth, 0, 0.32 * k, 0)); // loincloth
-  root.add(scl(mesh(sph(0.15 * k, 12, 8), skin, 0, 0.47 * k, 0), 0.8, 1.1, 1.15)); // belly and chest
-  root.add(scl(mesh(sph(0.14 * k, 12, 8), skin, 0.01 * k, 0.58 * k, 0), 0.85, 0.8, 1.35)); // shoulders
+  root.add(scl(mesh(ball(0.15 * k), skin, 0, 0.47 * k, 0), 0.8, 1.1, 1.15)); // belly and chest
+  root.add(scl(mesh(ball(0.14 * k), skin, 0.01 * k, 0.58 * k, 0), 0.85, 0.8, 1.35)); // shoulders
   for (const [name, s] of [['armL', -1], ['armR', 1]] as const) {
     const arm = limb(0, 0.62 * k, s * 0.2 * k, 0.28 * k, 0.085 * k, skin);
-    arm.add(mesh(sph(0.055 * k, 8, 6), skin, 0, -0.3 * k, 0));
+    arm.add(mesh(ball(0.055 * k), skin, 0, -0.3 * k, 0));
     parts[name] = arm;
     root.add(arm);
   }
@@ -116,8 +117,8 @@ function centaur(team: number): Model {
   // the man rising from the horse's chest
   root.add(mesh(box(0.13, 0.22, 0.17), M.skin(), 0.24, 0.72, 0));
   root.add(rot(mesh(box(0.14, 0.04, 0.2), colour(team), 0.24, 0.74, 0), 0.6, 0, 0)); // sash
-  root.add(mesh(sph(0.06), M.skin(), 0.25, 0.89, 0));
-  root.add(scl(mesh(sph(0.064), hair, 0.235, 0.91, 0), 1, 0.75, 1));
+  root.add(mesh(ball(0.06), M.skin(), 0.25, 0.89, 0));
+  root.add(scl(mesh(ball(0.064), hair, 0.235, 0.91, 0), 1, 0.75, 1));
   root.add(mesh(box(0.012, 0.012, 0.012), M.dark(), 0.31, 0.9, 0.02));
   root.add(mesh(box(0.012, 0.012, 0.012), M.dark(), 0.31, 0.9, -0.02));
   // quiver on the back
@@ -144,17 +145,17 @@ function pegasus(team: number): Model {
 
 function griffin(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, lion = C.tawny(), plume = C.feather();
-  root.add(scl(mesh(sph(0.2, 14, 10), lion, -0.04, 0.42, 0), 1.5, 0.7, 0.65));
-  root.add(scl(mesh(sph(0.16, 12, 8), plume, 0.18, 0.5, 0), 1, 1.1, 0.85)); // feathered breast
+  root.add(scl(mesh(ball(0.2), lion, -0.04, 0.42, 0), 1.5, 0.7, 0.65));
+  root.add(scl(mesh(ball(0.16), plume, 0.18, 0.5, 0), 1, 1.1, 0.85)); // feathered breast
   fourLegs(root, parts, 0.2, 0.08, 0.34, 0.32, 0.06, lion, C.talon());
   // lion's tail with a tuft
   root.add(rod([-0.3, 0.45, 0], [-0.5, 0.6, 0], 0.015, lion, 5));
-  root.add(mesh(sph(0.035, 8, 6), C.brownFeather(), -0.51, 0.62, 0));
+  root.add(mesh(ball(0.035), C.brownFeather(), -0.51, 0.62, 0));
   // eagle's head: white, golden hooked beak, dark eyes, team collar
   root.add(mesh(cyl(0.07, 0.09, 0.05, 10), colour(team), 0.26, 0.6, 0));
-  root.add(scl(mesh(sph(0.09, 12, 8), plume, 0.32, 0.7, 0), 1.2, 1, 0.9));
+  root.add(scl(mesh(ball(0.09), plume, 0.32, 0.7, 0), 1.2, 1, 0.9));
   root.add(rot(mesh(cone(0.04, 0.12, 6), C.beak(), 0.44, 0.68, 0), 0, 0, -1.9));
-  for (const z of [-0.05, 0.05]) root.add(mesh(sph(0.014, 6, 4), M.dark(), 0.38, 0.73, z));
+  for (const z of [-0.05, 0.05]) root.add(mesh(ball(0.014), M.dark(), 0.38, 0.73, z));
   for (const z of [-0.03, 0.03]) root.add(rot(mesh(box(0.08, 0.02, 0.02), plume, 0.24, 0.79, z), 0, 0, 0.5)); // ear tufts
   wings(root, parts, 0.06, 0.58, 0.44, 0.24, C.brownFeather(), C.tawny());
   return { root, parts, height: 0.85 };
@@ -163,13 +164,13 @@ function griffin(team: number): Model {
 function harpy(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, wing = C.harpyWing();
   // a woman's head and body above bird legs, wings for arms
-  root.add(scl(mesh(sph(0.11, 12, 8), wing, 0, 0.42, 0), 0.9, 1.2, 0.9));
+  root.add(scl(mesh(ball(0.11), wing, 0, 0.42, 0), 0.9, 1.2, 0.9));
   root.add(mesh(box(0.1, 0.14, 0.12), M.skin(), 0.01, 0.52, 0));
   root.add(mesh(box(0.11, 0.03, 0.13), colour(team), 0.01, 0.47, 0)); // band
-  root.add(mesh(sph(0.055), M.skin(), 0.02, 0.64, 0));
-  root.add(scl(mesh(sph(0.065), mat('#3a2030', { rough: 0.9 }), -0.01, 0.66, 0), 1, 1, 1.05)); // wild hair
+  root.add(mesh(ball(0.055), M.skin(), 0.02, 0.64, 0));
+  root.add(scl(mesh(ball(0.065), mat('#3a2030', { rough: 0.9 }), -0.01, 0.66, 0), 1, 1, 1.05)); // wild hair
   root.add(rot(mesh(box(0.05, 0.16, 0.08), mat('#3a2030', { rough: 0.9 }), -0.05, 0.57, 0), 0, 0, 0.3));
-  for (const z of [-0.018, 0.018]) root.add(mesh(sph(0.01, 6, 4), mat('#ff3020', { emissive: '#ff2000', emissiveIntensity: 1 }), 0.07, 0.65, z));
+  for (const z of [-0.018, 0.018]) root.add(mesh(ball(0.01), mat('#ff3020', { emissive: '#ff2000', emissiveIntensity: 1 }), 0.07, 0.65, z));
   for (const [name, s] of [['legL', -1], ['legR', 1]] as const) {
     const leg = limb(0, 0.34, s * 0.04, 0.12, 0.025, C.talon());
     for (const a of [-0.5, 0, 0.5]) leg.add(rot(mesh(box(0.06, 0.012, 0.012), C.talon(), 0.03, -0.12, 0), 0, a, 0));
@@ -185,11 +186,11 @@ function minotaur(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, hide = C.bull();
   const top = brute(root, parts, 1.1, hide, colour(team));
   // bull's head: broad skull, muzzle, nose ring, horns
-  root.add(scl(mesh(sph(0.09, 12, 8), hide, 0.04, top + 0.07, 0), 1.1, 1, 1));
+  root.add(scl(mesh(ball(0.09), hide, 0.04, top + 0.07, 0), 1.1, 1, 1));
   root.add(mesh(box(0.1, 0.08, 0.1), mat('#3a2216', { rough: 0.8 }), 0.13, top + 0.03, 0));
   root.add(rot(scl(mesh(cyl(0.025, 0.025, 0.006, 10), M.gold(), 0.185, top + 0.0, 0), 1, 1, 1), 0, 0, Math.PI / 2));
   for (const z of [-1, 1]) {
-    root.add(mesh(sph(0.014, 6, 4), mat('#ff5030', { emissive: '#c02000', emissiveIntensity: 0.8 }), 0.11, top + 0.1, z * 0.045));
+    root.add(mesh(ball(0.014), mat('#ff5030', { emissive: '#c02000', emissiveIntensity: 0.8 }), 0.11, top + 0.1, z * 0.045));
     root.add(rod([0.04, top + 0.12, z * 0.08], [0.06, top + 0.2, z * 0.2], 0.022, C.horn(), 6));
     root.add(rod([0.06, top + 0.2, z * 0.2], [0.12, top + 0.27, z * 0.2], 0.014, C.horn(), 6));
   }
@@ -206,13 +207,13 @@ function minotaur(team: number): Model {
 function cyclops(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, skin = C.giant();
   const top = brute(root, parts, 1.45, skin, colour(team));
-  root.add(scl(mesh(sph(0.12, 12, 8), skin, 0.02, top + 0.1, 0), 1, 1.1, 1));
-  root.add(mesh(sph(0.045, 10, 8), C.eye(), 0.11, top + 0.13, 0)); // the one eye
-  root.add(mesh(sph(0.022, 8, 6), C.iris(), 0.15, top + 0.135, 0));
+  root.add(scl(mesh(ball(0.12), skin, 0.02, top + 0.1, 0), 1, 1.1, 1));
+  root.add(mesh(ball(0.045), C.eye(), 0.11, top + 0.13, 0)); // the one eye
+  root.add(mesh(ball(0.022), C.iris(), 0.15, top + 0.135, 0));
   root.add(mesh(box(0.025, 0.025, 0.13), skin, 0.115, top + 0.19, 0)); // a heavy, hairless brow ridge
   root.add(mesh(box(0.03, 0.02, 0.08), M.dark(), 0.12, top + 0.04, 0)); // mouth
   // a boulder in the right hand, ready to throw
-  const rock = mesh(sph(0.1, 7, 5), C.stone(), 0, -0.44, 0);
+  const rock = mesh(ball(0.1), C.stone(), 0, -0.44, 0);
   rock.name = 'rock';
   parts.rock = rock;
   parts.armR.add(rock);
@@ -229,10 +230,10 @@ function serpent(pts: [number, number, number][], r0: number, r1: number, sc: Ma
   for (let k = 0; k < n; k++) {
     const ra = lerp(r0, r1, k / n), rb = lerp(r0, r1, (k + 1) / n), [x, y, z] = pts[k];
     g.add(rod(pts[k], pts[k + 1], (ra + rb) / 2, stripe && k % 2 ? stripe : sc, 10));
-    g.add(mesh(sph(ra, 10, 8), sc, x, y, z));
-    g.add(scl(mesh(sph(ra * 0.92, 8, 6), belly, x, y - ra * 0.25, z), 1, 0.6, 1)); // belly scales
+    g.add(mesh(ball(ra), sc, x, y, z));
+    g.add(scl(mesh(ball(ra * 0.92), belly, x, y - ra * 0.25, z), 1, 0.6, 1)); // belly scales
   }
-  g.add(mesh(sph(r1, 8, 6), sc, ...pts[n]));
+  g.add(mesh(ball(r1), sc, ...pts[n]));
   return g;
 }
 
@@ -241,8 +242,8 @@ function hydra(team: number): Model {
   const eye = mat('#ffd020', { emissive: '#c09000', emissiveIntensity: 0.8 }), fang = M.white();
   // a great serpent's body lying on the ground: a thick chest where the necks rise, and a long
   // tail snaking away behind
-  root.add(scl(mesh(sph(0.16, 14, 10), sc, 0, 0.16, 0), 1.5, 0.8, 1));
-  root.add(scl(mesh(sph(0.13, 12, 8), belly, 0.05, 0.11, 0), 1.4, 0.55, 0.95));
+  root.add(scl(mesh(ball(0.16), sc, 0, 0.16, 0), 1.5, 0.8, 1));
+  root.add(scl(mesh(ball(0.13), belly, 0.05, 0.11, 0), 1.4, 0.55, 0.95));
   root.add(rot(mesh(torus(0.15, 0.025, Math.PI * 2, 6, 18), colour(team), 0.02, 0.2, 0), Math.PI / 2, 0, -0.25)); // band
   const tail = serpent([[-0.2, 0.13, 0], [-0.36, 0.09, 0.1], [-0.52, 0.07, 0.04], [-0.64, 0.05, -0.1], [-0.78, 0.04, -0.06], [-0.9, 0.035, 0.06]], 0.14, 0.02, sc, belly, dark);
   parts.tail = tail;
@@ -255,11 +256,11 @@ function hydra(team: number): Model {
     neck.scale.setScalar(f === 0 ? 1.2 : 1 - Math.abs(f) * 0.06);
     neck.add(serpent([[0, 0, 0], [0.08, 0.16, 0], [0.06, 0.32, 0], [0.13, 0.46, 0], [0.22, 0.5, 0]], 0.055, 0.035, sc, belly, i % 2 ? dark : undefined));
     // the head: long snout, a gaping jaw with fangs, golden eyes and a crest of spines
-    neck.add(scl(mesh(sph(0.055, 10, 8), sc, 0.27, 0.51, 0), 1.6, 0.75, 0.95));
+    neck.add(scl(mesh(ball(0.055), sc, 0.27, 0.51, 0), 1.6, 0.75, 0.95));
     neck.add(mesh(box(0.1, 0.022, 0.06), belly, 0.3, 0.47, 0)); // lower jaw, hanging open
     neck.add(mesh(box(0.05, 0.012, 0.05), mat('#a02020', { rough: 0.6 }), 0.3, 0.485, 0)); // mouth
     for (const s2 of [-1, 1]) {
-      neck.add(mesh(sph(0.013, 6, 4), eye, 0.3, 0.535, s2 * 0.033));
+      neck.add(mesh(ball(0.013), eye, 0.3, 0.535, s2 * 0.033));
       neck.add(rot(mesh(cone(0.006, 0.03, 4), fang, 0.335, 0.47, s2 * 0.02), Math.PI, 0, 0)); // fangs
       for (let k = 0; k < 3; k++) neck.add(rot(mesh(cone(0.01, 0.05 - k * 0.01, 4), dark, 0.22 - k * 0.04, 0.56 - k * 0.012, s2 * 0.012), 0, 0, 0.9));
     }
@@ -271,8 +272,8 @@ function hydra(team: number): Model {
 
 function cerberus(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, fur = C.hound();
-  root.add(scl(mesh(sph(0.2, 14, 10), fur, -0.02, 0.42, 0), 1.45, 0.75, 0.7));
-  root.add(scl(mesh(sph(0.16, 12, 8), fur, 0.17, 0.48, 0), 1, 1.05, 1.15)); // deep chest
+  root.add(scl(mesh(ball(0.2), fur, -0.02, 0.42, 0), 1.45, 0.75, 0.7));
+  root.add(scl(mesh(ball(0.16), fur, 0.17, 0.48, 0), 1, 1.05, 1.15)); // deep chest
   fourLegs(root, parts, 0.2, 0.09, 0.36, 0.34, 0.065, fur, M.dark());
   root.add(rod([-0.28, 0.45, 0], [-0.45, 0.58, 0], 0.02, fur, 5)); // tail
   root.add(mesh(cone(0.03, 0.08, 6), C.fire(), -0.47, 0.62, 0)); // ember at its tip
@@ -288,7 +289,7 @@ function cerberus(team: number): Model {
     head.add(mesh(box(0.06, 0.04, 0.06), fur, 0.18, 0.1, 0)); // muzzle
     head.add(mesh(box(0.03, 0.02, 0.05), C.fire(), 0.2, 0.075, 0)); // glowing maw
     for (const s of [-1, 1]) {
-      head.add(mesh(sph(0.012, 6, 4), C.fire(), 0.14, 0.15, s * 0.03));
+      head.add(mesh(ball(0.012), C.fire(), 0.14, 0.15, s * 0.03));
       head.add(rot(mesh(cone(0.02, 0.07, 4), fur, 0.06, 0.19, s * 0.03), 0, 0, 0.3));
     }
     parts[`head${i}`] = head;
@@ -306,10 +307,10 @@ function medusa(team: number): Model {
   parts.tail = tail;
   root.add(tail);
   // a woman's body above: slim waist, a chiton in the side's colour held by a gold belt, bare arms
-  root.add(scl(mesh(sph(0.065, 10, 8), skin, 0.035, 0.39, 0), 0.9, 1.2, 1.05));
-  root.add(scl(mesh(sph(0.075, 10, 8), colour(team), 0.04, 0.48, 0), 0.85, 1.1, 1.2));
+  root.add(scl(mesh(ball(0.065), skin, 0.035, 0.39, 0), 0.9, 1.2, 1.05));
+  root.add(scl(mesh(ball(0.075), colour(team), 0.04, 0.48, 0), 0.85, 1.1, 1.2));
   root.add(mesh(cyl(0.062, 0.062, 0.02, 12), M.gold(), 0.035, 0.42, 0)); // belt
-  root.add(scl(mesh(sph(0.06, 10, 8), skin, 0.04, 0.55, 0), 0.9, 0.6, 1.5)); // shoulders
+  root.add(scl(mesh(ball(0.06), skin, 0.04, 0.55, 0), 0.9, 0.6, 1.5)); // shoulders
   for (const [name, s2] of [['armL', -1], ['armR', 1]] as const) {
     const arm = limb(0.04, 0.56, s2 * 0.085, 0.17, 0.032, skin);
     arm.add(mesh(cyl(0.022, 0.022, 0.015, 8), M.gold(), 0, -0.06, 0)); // armlet
@@ -318,8 +319,8 @@ function medusa(team: number): Model {
     root.add(arm);
   }
   root.add(mesh(cyl(0.025, 0.03, 0.04, 8), skin, 0.045, 0.6, 0)); // neck
-  root.add(scl(mesh(sph(0.055, 12, 10), skin, 0.055, 0.66, 0), 1.05, 1.1, 0.95));
-  for (const z of [-0.02, 0.02]) root.add(mesh(sph(0.012, 6, 4), C.gaze(), 0.103, 0.672, z)); // the deadly eyes
+  root.add(scl(mesh(ball(0.055), skin, 0.055, 0.66, 0), 1.05, 1.1, 0.95));
+  for (const z of [-0.02, 0.02]) root.add(mesh(ball(0.012), C.gaze(), 0.103, 0.672, z)); // the deadly eyes
   root.add(mesh(box(0.006, 0.006, 0.03), mat('#5a2030', { rough: 0.6 }), 0.106, 0.635, 0)); // a thin, cold mouth
   // a crown of living snakes: each one a tapering, S-curved body rising from her scalp, with a
   // flat wedge of a head, glowing eyes and a forked red tongue, all writhing (see animateCreature)
@@ -335,13 +336,13 @@ function medusa(team: number): Model {
     for (let k = 0; k < pts.length - 1; k++) {
       const r = 0.016 - k * 0.0025;
       snake.add(rod(pts[k], pts[k + 1], r, k % 2 ? sc : C.gorgon(), 6));
-      snake.add(mesh(sph(r, 6, 4), sc, ...pts[k + 1])); // round the joints
+      snake.add(mesh(ball(r), sc, ...pts[k + 1])); // round the joints
     }
     // the head: a flattened wedge looking outward, eyes either side, tongue flicking out
     const [hx, hy, hz] = pts[pts.length - 1], head = group(hx, hy, hz);
-    head.add(scl(mesh(sph(0.021, 8, 6), sc, 0.015, 0, 0), 1.6, 0.7, 1.1));
-    head.add(scl(mesh(sph(0.011, 6, 4), belly, 0.014, -0.006, 0), 1.5, 0.4, 0.9)); // pale jaw
-    for (const z of [-0.009, 0.009]) head.add(mesh(sph(0.0045, 5, 4), eye, 0.02, 0.005, z));
+    head.add(scl(mesh(ball(0.021), sc, 0.015, 0, 0), 1.6, 0.7, 1.1));
+    head.add(scl(mesh(ball(0.011), belly, 0.014, -0.006, 0), 1.5, 0.4, 0.9)); // pale jaw
+    for (const z of [-0.009, 0.009]) head.add(mesh(ball(0.0045), eye, 0.02, 0.005, z));
     for (const z of [-0.003, 0.003]) head.add(rot(mesh(box(0.016, 0.002, 0.002), tongue, 0.04, -0.003, z), 0, z * 60, 0));
     head.rotation.z = -0.25;
     snake.add(head);
@@ -355,17 +356,17 @@ function medusa(team: number): Model {
 
 function nemean(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, hide = C.lionGold(), mane = C.mane();
-  root.add(scl(mesh(sph(0.22, 14, 10), hide, -0.04, 0.44, 0), 1.6, 0.72, 0.68));
+  root.add(scl(mesh(ball(0.22), hide, -0.04, 0.44, 0), 1.6, 0.72, 0.68));
   fourLegs(root, parts, 0.22, 0.09, 0.36, 0.34, 0.075, hide, C.talon());
   // tail with a dark tuft
   root.add(rod([-0.34, 0.47, 0], [-0.56, 0.58, 0], 0.016, hide, 5));
-  root.add(mesh(sph(0.04, 8, 6), mane, -0.57, 0.6, 0));
+  root.add(mesh(ball(0.04), mane, -0.57, 0.6, 0));
   // great shaggy mane round a broad head
-  root.add(scl(mesh(sph(0.17, 12, 10), mane, 0.24, 0.58, 0), 0.9, 1.05, 1.15));
+  root.add(scl(mesh(ball(0.17), mane, 0.24, 0.58, 0), 0.9, 1.05, 1.15));
   // its side's colours: a broad blanket over the back with gold trim and hanging tassels, and a
   // thick collar in front of the mane where it shows from every angle
   const team_ = colour(team);
-  root.add(scl(mesh(sph(0.2, 14, 8), team_, -0.06, 0.5, 0), 1.05, 0.5, 0.78));
+  root.add(scl(mesh(ball(0.2), team_, -0.06, 0.5, 0), 1.05, 0.5, 0.78));
   root.add(mesh(box(0.3, 0.015, 0.33), M.gold(), -0.06, 0.555, 0));
   for (const z of [-1, 1]) {
     root.add(mesh(box(0.3, 0.16, 0.012), team_, -0.06, 0.45, z * 0.155)); // the blanket hangs down its flanks
@@ -373,20 +374,20 @@ function nemean(team: number): Model {
     for (const x of [-0.17, -0.06, 0.05]) root.add(mesh(cone(0.012, 0.04, 5), M.gold(), x, 0.345, z * 0.157));
   }
   root.add(rot(mesh(torus(0.11, 0.025, Math.PI * 2, 6, 16), team_, 0.31, 0.56, 0), 0, Math.PI / 2, 0.5)); // collar
-  root.add(mesh(sph(0.025, 8, 6), M.gold(), 0.38, 0.5, 0)); // its medallion
-  root.add(scl(mesh(sph(0.1, 12, 8), hide, 0.34, 0.6, 0), 1.1, 1, 0.95));
+  root.add(mesh(ball(0.025), M.gold(), 0.38, 0.5, 0)); // its medallion
+  root.add(scl(mesh(ball(0.1), hide, 0.34, 0.6, 0), 1.1, 1, 0.95));
   root.add(mesh(box(0.08, 0.07, 0.09), hide, 0.43, 0.56, 0)); // muzzle
   root.add(mesh(box(0.025, 0.025, 0.04), M.dark(), 0.475, 0.585, 0)); // nose
   for (const z of [-0.04, 0.04]) {
-    root.add(mesh(sph(0.013, 6, 4), mat('#ffd040', { emissive: '#c08000', emissiveIntensity: 0.7 }), 0.41, 0.64, z));
-    root.add(mesh(sph(0.03, 6, 4), hide, 0.3, 0.71, z * 2));
+    root.add(mesh(ball(0.013), mat('#ffd040', { emissive: '#c08000', emissiveIntensity: 0.7 }), 0.41, 0.64, z));
+    root.add(mesh(ball(0.03), hide, 0.3, 0.71, z * 2));
   }
   return { root, parts, height: 0.88 };
 }
 
 function sphinx(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, body = C.sand(), wing = C.tawny();
-  root.add(scl(mesh(sph(0.21, 14, 10), body, -0.05, 0.4, 0), 1.55, 0.7, 0.66));
+  root.add(scl(mesh(ball(0.21), body, -0.05, 0.4, 0), 1.55, 0.7, 0.66));
   fourLegs(root, parts, 0.2, 0.09, 0.33, 0.31, 0.07, body, C.talon());
   root.add(rod([-0.33, 0.42, 0], [-0.5, 0.55, 0], 0.014, body, 5));
   // eagle's wings folded along her back (they don't flap: she walks)
@@ -398,13 +399,13 @@ function sphinx(team: number): Model {
     root.add(w);
   }
   // a woman's head and breast, crowned with a band in the side's colour
-  root.add(scl(mesh(sph(0.12, 12, 8), body, 0.2, 0.52, 0), 1, 1.15, 0.95));
+  root.add(scl(mesh(ball(0.12), body, 0.2, 0.52, 0), 1, 1.15, 0.95));
   root.add(mesh(cyl(0.04, 0.05, 0.08, 8), M.skin(), 0.25, 0.66, 0));
-  root.add(mesh(sph(0.07, 12, 8), M.skin(), 0.27, 0.75, 0));
-  root.add(scl(mesh(sph(0.078, 10, 8), M.hair(), 0.25, 0.77, 0), 1, 1, 1.05));
+  root.add(mesh(ball(0.07), M.skin(), 0.27, 0.75, 0));
+  root.add(scl(mesh(ball(0.078), M.hair(), 0.25, 0.77, 0), 1, 1, 1.05));
   root.add(mesh(box(0.06, 0.16, 0.13), M.hair(), 0.22, 0.68, 0)); // long hair
   root.add(mesh(cyl(0.08, 0.08, 0.025, 12), colour(team), 0.26, 0.81, 0));
-  for (const z of [-0.025, 0.025]) root.add(mesh(sph(0.011, 6, 4), mat('#40c0ff', { emissive: '#2090ff', emissiveIntensity: 1.2 }), 0.335, 0.765, z));
+  for (const z of [-0.025, 0.025]) root.add(mesh(ball(0.011), mat('#40c0ff', { emissive: '#2090ff', emissiveIntensity: 1.2 }), 0.335, 0.765, z));
   return { root, parts, height: 0.92 };
 }
 
@@ -420,13 +421,13 @@ function satyr(team: number): Model {
     parts[name] = leg;
     root.add(leg);
   }
-  root.add(scl(mesh(sph(0.07, 10, 8), fur, 0, 0.31, 0), 1, 0.8, 1.2));
+  root.add(scl(mesh(ball(0.07), fur, 0, 0.31, 0), 1, 0.8, 1.2));
   // a man's chest, a sash and a wreath of ivy
   root.add(mesh(box(0.09, 0.15, 0.14), M.skin(), 0, 0.42, 0));
   root.add(rot(mesh(box(0.1, 0.035, 0.16), colour(team), 0, 0.42, 0), 0.6, 0, 0));
-  root.add(mesh(sph(0.052, 10, 8), M.skin(), 0.01, 0.55, 0));
+  root.add(mesh(ball(0.052), M.skin(), 0.01, 0.55, 0));
   root.add(mesh(box(0.03, 0.05, 0.04), fur, 0.05, 0.51, 0)); // beard
-  root.add(scl(mesh(sph(0.055, 8, 6), M.hair(), -0.005, 0.57, 0), 1, 0.75, 1.05));
+  root.add(scl(mesh(ball(0.055), M.hair(), -0.005, 0.57, 0), 1, 0.75, 1.05));
   root.add(rot(mesh(torus(0.05, 0.012, Math.PI * 2, 6, 12), C.ivy(), 0, 0.585, 0), Math.PI / 2, 0, 0)); // wreath
   for (const z of [-1, 1]) root.add(rod([0, 0.59, z * 0.03], [-0.05, 0.66, z * 0.06], 0.012, C.horn(), 5)); // little horns
   // arms raised to the panpipes at his lips
@@ -446,22 +447,22 @@ function satyr(team: number): Model {
 
 function chimera(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, lion = C.tawny(), goat = C.goat(), sc = C.scale();
-  root.add(scl(mesh(sph(0.22, 14, 10), lion, -0.04, 0.44, 0), 1.6, 0.72, 0.7));
+  root.add(scl(mesh(ball(0.22), lion, -0.04, 0.44, 0), 1.6, 0.72, 0.7));
   fourLegs(root, parts, 0.22, 0.09, 0.36, 0.34, 0.07, lion, C.talon());
   root.add(mesh(cyl(0.14, 0.15, 0.05, 14), colour(team), 0.18, 0.52, 0)); // collar
   // the lion's head at the front, a fiery maw
   const head = group(0.28, 0.58, 0);
-  head.add(scl(mesh(sph(0.14, 12, 8), C.mane(), -0.02, 0, 0), 0.85, 1, 1.1));
-  head.add(scl(mesh(sph(0.09, 12, 8), lion, 0.07, 0.01, 0), 1.1, 1, 0.95));
+  head.add(scl(mesh(ball(0.14), C.mane(), -0.02, 0, 0), 0.85, 1, 1.1));
+  head.add(scl(mesh(ball(0.09), lion, 0.07, 0.01, 0), 1.1, 1, 0.95));
   head.add(mesh(box(0.08, 0.06, 0.08), lion, 0.15, -0.03, 0));
   head.add(mesh(box(0.03, 0.025, 0.06), C.fire(), 0.19, -0.05, 0));
-  for (const z of [-0.035, 0.035]) head.add(mesh(sph(0.012, 6, 4), C.fire(), 0.13, 0.04, z));
+  for (const z of [-0.035, 0.035]) head.add(mesh(ball(0.012), C.fire(), 0.13, 0.04, z));
   parts.head0 = head;
   root.add(head);
   // a goat's head rising from the middle of its back
   const gh = group(0.0, 0.6, 0.05);
   gh.add(rod([0, 0, 0], [0.04, 0.16, 0], 0.035, goat, 6));
-  gh.add(scl(mesh(sph(0.05, 10, 8), goat, 0.07, 0.19, 0), 1.4, 0.9, 0.9));
+  gh.add(scl(mesh(ball(0.05), goat, 0.07, 0.19, 0), 1.4, 0.9, 0.9));
   gh.add(mesh(box(0.03, 0.05, 0.02), goat, 0.1, 0.14, 0)); // beard
   for (const z of [-1, 1]) gh.add(rod([0.05, 0.23, z * 0.025], [-0.04, 0.3, z * 0.04], 0.012, C.horn(), 5));
   parts.head1 = gh;
@@ -470,7 +471,7 @@ function chimera(team: number): Model {
   const tail = group(-0.32, 0.46, 0);
   tail.add(rod([0, 0, 0], [-0.15, 0.1, 0], 0.025, sc, 6));
   tail.add(rod([-0.15, 0.1, 0], [-0.2, 0.25, 0], 0.022, sc, 6));
-  tail.add(scl(mesh(sph(0.035, 8, 6), sc, -0.17, 0.28, 0), 1.4, 0.8, 1));
+  tail.add(scl(mesh(ball(0.035), sc, -0.17, 0.28, 0), 1.4, 0.8, 1));
   parts.head2 = tail;
   root.add(tail);
   return { root, parts, height: 0.92 };
@@ -478,12 +479,12 @@ function chimera(team: number): Model {
 
 function phoenix(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, red = C.ember(), fire = C.flame(), gold = C.blaze();
-  root.add(scl(mesh(sph(0.11, 12, 8), red, 0, 0.45, 0), 1.5, 0.85, 0.8));
-  root.add(scl(mesh(sph(0.08, 10, 8), fire, 0.08, 0.47, 0), 1, 1, 0.9)); // glowing breast
+  root.add(scl(mesh(ball(0.11), red, 0, 0.45, 0), 1.5, 0.85, 0.8));
+  root.add(scl(mesh(ball(0.08), fire, 0.08, 0.47, 0), 1, 1, 0.9)); // glowing breast
   root.add(mesh(cyl(0.06, 0.07, 0.03, 10), colour(team), 0.12, 0.52, 0)); // band
-  root.add(mesh(sph(0.06, 10, 8), red, 0.18, 0.56, 0));
+  root.add(mesh(ball(0.06), red, 0.18, 0.56, 0));
   root.add(rot(mesh(cone(0.022, 0.08, 6), M.gold(), 0.26, 0.55, 0), 0, 0, -1.8));
-  for (const z of [-0.035, 0.035]) root.add(mesh(sph(0.01, 6, 4), gold, 0.21, 0.58, z));
+  for (const z of [-0.035, 0.035]) root.add(mesh(ball(0.01), gold, 0.21, 0.58, z));
   for (let i = 0; i < 3; i++) root.add(rot(mesh(cone(0.015, 0.1, 4), gold, 0.15 - i * 0.03, 0.63 + i * 0.01, 0), 0, 0, 0.5 + i * 0.25)); // crest
   // long streaming tail of flame
   const tail = group(-0.14, 0.44, 0);
@@ -498,8 +499,8 @@ function dragon(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {}, sc = mat('#7a1e18', { rough: 0.5, metal: 0.2 }), belly = mat('#d8a050', { rough: 0.7 });
   const membrane = mat('#4a1410', { rough: 0.8 }), horn = C.horn(), fire = C.flame();
   // a long armored body with a pale plated belly and a row of spines down the back
-  root.add(scl(mesh(sph(0.16, 14, 10), sc, 0, 0.46, 0), 1.9, 0.75, 0.75));
-  root.add(scl(mesh(sph(0.13, 12, 8), belly, 0.02, 0.41, 0), 1.9, 0.6, 0.7));
+  root.add(scl(mesh(ball(0.16), sc, 0, 0.46, 0), 1.9, 0.75, 0.75));
+  root.add(scl(mesh(ball(0.13), belly, 0.02, 0.41, 0), 1.9, 0.6, 0.7));
   // a ridge of tall spines down the back, with smaller ones flaring out along the flanks
   for (let i = 0; i < 9; i++) root.add(rot(mesh(cone(0.03, 0.13 - Math.abs(i - 3) * 0.01, 4), horn, 0.22 - i * 0.055, 0.55 - Math.abs(i - 3) * 0.004, 0), 0, 0, 0.35));
   for (let i = 0; i < 5; i++) for (const z of [-1, 1]) root.add(rot(mesh(cone(0.016, 0.06, 4), horn, 0.14 - i * 0.08, 0.5, z * 0.1), z * 0.9, 0, 0.4));
@@ -509,7 +510,7 @@ function dragon(team: number): Model {
   head.add(rod([0, 0, 0], [0.12, 0.12, 0], 0.055, sc, 7));
   head.add(rod([0.12, 0.12, 0], [0.2, 0.17, 0], 0.048, sc, 7));
   for (let i = 0; i < 3; i++) head.add(rot(mesh(cone(0.02, 0.07, 4), horn, 0.05 + i * 0.065, 0.1 + i * 0.045, 0), 0, 0, 0.6));
-  head.add(scl(mesh(sph(0.095, 12, 8), sc, 0.25, 0.19, 0), 1.35, 0.85, 0.95)); // skull
+  head.add(scl(mesh(ball(0.095), sc, 0.25, 0.19, 0), 1.35, 0.85, 0.95)); // skull
   head.add(mesh(box(0.15, 0.05, 0.1), sc, 0.36, 0.18, 0)); // upper jaw and snout
   head.add(rot(mesh(box(0.13, 0.03, 0.085), sc, 0.34, 0.12, 0), 0, 0, -0.3)); // lower jaw, hanging open
   head.add(rot(mesh(box(0.11, 0.025, 0.07), fire, 0.34, 0.145, 0), 0, 0, -0.15)); // fire in the throat
@@ -518,7 +519,7 @@ function dragon(team: number): Model {
     head.add(mesh(cone(0.007, 0.025, 4), C.white(), 0.38, 0.13, z * 0.9)); // lower fangs
   }
   for (const z of [-1, 1]) {
-    head.add(mesh(sph(0.016, 6, 4), mat('#ffe060', { emissive: '#ff8000', emissiveIntensity: 2 }), 0.33, 0.225, z * 0.042)); // eyes
+    head.add(mesh(ball(0.016), mat('#ffe060', { emissive: '#ff8000', emissiveIntensity: 2 }), 0.33, 0.225, z * 0.042)); // eyes
     head.add(rot(mesh(box(0.08, 0.022, 0.03), sc, 0.33, 0.25, z * 0.045), z * 0.25, 0, -0.45)); // a scowling brow, low at the front
     head.add(rod([0.24, 0.26, z * 0.04], [0.09, 0.36, z * 0.1], 0.02, horn, 5)); // swept-back horns
     head.add(rod([0.22, 0.22, z * 0.06], [0.12, 0.27, z * 0.14], 0.012, horn, 5));
@@ -539,7 +540,7 @@ function dragon(team: number): Model {
   root.add(tail);
   // clawed feet tucked up under the belly in flight (no hanging legs: they read as a slab from above)
   for (const [x, z] of [[0.14, 0.07], [0.14, -0.07], [-0.16, 0.08], [-0.16, -0.08]]) {
-    root.add(scl(mesh(sph(0.04, 8, 6), sc, x, 0.36, z), 1.3, 0.8, 1));
+    root.add(scl(mesh(ball(0.04), sc, x, 0.36, z), 1.3, 0.8, 1));
     for (const a of [-0.4, 0, 0.4]) root.add(rot(mesh(cone(0.008, 0.035, 4), C.talon(), x + 0.04, 0.34, z + a * 0.03), 0, a, -1.9));
   }
   // great bat wings of red membrane on spars of bone
@@ -554,9 +555,9 @@ export const RAINBOW = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '
 export function unicornModel(): Model {
   const root = new THREE.Group(), parts: Parts = {}, coat = C.white(), pink = mat('#ffb0d8', { rough: 0.6 });
   // a white horse with a rainbow mane, a rainbow tail and a spiral golden horn
-  root.add(scl(mesh(sph(0.2, 14, 10), coat, 0, 0.48, 0), 1.6, 0.68, 0.62));
-  root.add(scl(mesh(sph(0.14, 12, 8), coat, 0.2, 0.5, 0), 1, 1.05, 0.88));
-  root.add(scl(mesh(sph(0.14, 12, 8), coat, -0.22, 0.5, 0), 1.05, 1, 0.92));
+  root.add(scl(mesh(ball(0.2), coat, 0, 0.48, 0), 1.6, 0.68, 0.62));
+  root.add(scl(mesh(ball(0.14), coat, 0.2, 0.5, 0), 1, 1.05, 0.88));
+  root.add(scl(mesh(ball(0.14), coat, -0.22, 0.5, 0), 1.05, 1, 0.92));
   horseHead(root, coat, coat);
   fourLegs(root, parts, 0.22, 0.08, 0.38, 0.36, 0.06, coat, M.gold());
   RAINBOW.forEach((m, i) => {
@@ -570,9 +571,9 @@ export function unicornModel(): Model {
   root.add(horn);
   // a happy face: big shiny eyes, pink cheeks and a smile
   for (const z of [-0.045, 0.045]) {
-    root.add(mesh(sph(0.018, 8, 6), M.dark(), 0.46, 0.8, z));
-    root.add(mesh(sph(0.006, 5, 4), M.white(), 0.474, 0.807, z * 0.9));
-    root.add(mesh(sph(0.014, 6, 4), pink, 0.52, 0.745, z * 0.95));
+    root.add(mesh(ball(0.018), M.dark(), 0.46, 0.8, z));
+    root.add(mesh(ball(0.006), M.white(), 0.474, 0.807, z * 0.9));
+    root.add(mesh(ball(0.014), pink, 0.52, 0.745, z * 0.95));
   }
   root.add(rot(mesh(torus(0.022, 0.004, Math.PI, 4, 8), M.dark(), 0.592, 0.7, 0), 0, Math.PI / 2, Math.PI)); // smile
   return { root, parts, height: 1.0 };

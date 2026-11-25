@@ -106,3 +106,13 @@ export function turned(pts: [number, number][], sides = 8): THREE.BufferGeometry
 export function taper(len: number, top: number, bottom: number, sides = 6, depth = 1): THREE.BufferGeometry {
   return loft([[-len, bottom * depth, bottom], [-len * 0.45, top * 0.95 * depth, top * 0.95], [0, top * depth, top]], sides);
 }
+
+/** A faceted ball: the low-poly stand-in for a sphere. */
+export const ball = (r: number): THREE.BufferGeometry => gem(r, 1, 1, 1, 1);
+
+/** A faceted half ball, flat side down (a low-poly dome). */
+export function cap(r: number, sides = 10): THREE.BufferGeometry {
+  const pts: [number, number][] = [[0, 0]];
+  for (let i = 0; i <= 4; i++) { const a = (i / 4) * (Math.PI / 2); pts.push([+(Math.cos(a) * r).toFixed(4), +(Math.sin(a) * r).toFixed(4)]); }
+  return turned(pts, sides);
+}

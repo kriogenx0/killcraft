@@ -52,7 +52,14 @@ export const canAfford = (team: number, t: Buildable): boolean => { const p = pr
  */
 const revealed = (team: number, t: Buildable): boolean =>
   isUnitType(t) && UNIT[t].demon ? false : isUnitType(t) && UNIT[t].beast ? !!G.tamed[team]?.includes(t) : priceOf(t).aether <= 0 || !!G.aetherFound[team];
-const timeOf = (t: Buildable): number => defOf(t).t;
+/** base seconds to train, build (with one Worker) or research it, before power, upgrades or army size */
+export const timeOf = (t: Buildable): number => defOf(t).t;
+/** "Train 3s", "Build 1m 30s", "Research 40s" */
+export function timeText(t: Buildable): string {
+  const s = Math.round(timeOf(t)), m = Math.floor(s / 60);
+  const verb = isUnitType(t) ? 'Train' : isTechType(t) ? 'Research' : 'Build';
+  return `${verb} ${m ? `${m}m${s % 60 ? ` ${s % 60}s` : ''}` : `${s}s`}`;
+}
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
 
