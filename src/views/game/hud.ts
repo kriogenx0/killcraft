@@ -145,6 +145,9 @@ function gatherCommands(s: Ent[]): Command[] {
   });
 }
 
+/** A phone or tablet: touch is the main way in, so there's no keyboard for hotkey groups. */
+const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+
 export function commandList(): Command[] {
   if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : 'Cancel the current command' }];
   const s = ownSelected();
@@ -190,8 +193,8 @@ export function commandList(): Command[] {
     const rally = rallyCommand();
     if (rally && first.done && isUnitProducer(bldDef(first).produces)) list.push(rally);
     // Delete, away from the letters, so scrapping is hard to hit by accident
-    // sub-menus of production hotkeys, such as the yard's walls and defenses
-    for (const [g, key] of first.done ? groupsOf(first.type as BldType) : []) {
+    // sub-menus of production hotkeys, such as the yard's walls and defenses: keyboard helpers, so not on phones and tablets
+    for (const [g, key] of first.done && !coarsePointer() ? groupsOf(first.type as BldType) : []) {
       const icon = Object.keys(ICON).find((t) => groupOfType(t) === g && producerOfType(t as Buildable) === first.type);
       // hide a group with nothing in it yet, such as Aether before any is found
       if (!icon || !available(V.team, lineOf(icon as Buildable)).some((t) => groupOfType(t) === g)) continue;
