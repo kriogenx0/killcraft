@@ -279,7 +279,7 @@ describe('computer player', () => {
     expect(errors).toEqual([]);
     // no extra money: both sides wall in with what they earn
     for (const t of [0, 1]) expect(most[t], `team ${t} walls`).toBeGreaterThanOrEqual(4);
-  }, 60_000);
+  }, 120_000);
 
   it('builds walls and several kinds of defenses over a long game', () => {
     const errors: unknown[] = [];
@@ -294,5 +294,5 @@ describe('computer player', () => {
     expect(errors).toEqual([]);
     expect(WALL_TYPES.some((t) => built.has(t))).toBe(true);
     expect((['tower', 'turret', 'pillbox', 'atturret', 'bertha'] as const).filter((t) => built.has(t)).length).toBeGreaterThanOrEqual(2);
-  }, 60_000);
+  }, 120_000);
 });

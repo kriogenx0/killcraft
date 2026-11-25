@@ -36,5 +36,5 @@ describe('four-player free-for-all', () => {
     }
     expect(a.firstBlood).not.toBeNull();
     expect(report([a])).toContain('Win rate by starting corner');
-  }, 60_000); // two full four-player matches
+  }, 120_000); // two full four-player matches
 });

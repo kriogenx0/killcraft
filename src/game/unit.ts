@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { aiPace } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
-import { G, altOf, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
+import { G, allied, altOf, haulOf, hooks, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type Tile } from './state.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
@@ -85,7 +85,34 @@ function pickOre(u: Ent, underway = false): [number, number] | null {
   const walk = walkOf(u.team, homes);
   const x = tileOf(u.x), y = tileOf(u.y);
   // a tile worth a trip first: crumbs of regrowth only once there's nothing else
-  return nearestOre(x, y, MW, ORE_WORTH, free, homes, walk) ?? nearestOre(x, y, MW, 1, free, homes, walk) ?? nearestOre(x, y, MW, 1, ok, homes, walk);
+  const best = nearestOre(x, y, MW, ORE_WORTH, free, homes, walk) ?? nearestOre(x, y, MW, 1, free, homes, walk) ?? nearestOre(x, y, MW, 1, ok, homes, walk);
+  return scrapFor(u, walk, best, free) ?? best;
+}
+
+/** How many tiles further from base a gatherer will walk to pick over what's left of something destroyed. */
+const SCRAP_PULL = 14;
+/** Salvage this close (tiles) to an armed enemy is left until the fighting's over. */
+const SCRAP_DANGER = 7;
+
+/**
+ * Salvage worth going for instead of `best`: the ore left by destroyed units and structures lies
+ * where they fell, so gatherers go out of their way for it (within SCRAP_PULL tiles of a walk),
+ * but not into a fight.
+ */
+function scrapFor(u: Ent, walk: Float32Array | null, best: Tile | null, taken: (i: number) => boolean): Tile | null {
+  if (!walk) return null;
+  const limit = (best ? walk[best[1] * MW + best[0]] : Infinity) + SCRAP_PULL;
+  let foes: Ent[] | null = null, pick = -1, bd = Infinity;
+  for (let i = 0; i < MW * MH; i++) {
+    if (!G.scrap[i] || G.ore[i] < 1 || G.blk[i]) continue;
+    const d = walk[i];
+    if (d >= Math.min(bd, limit) || taken(i)) continue;
+    foes ??= G.ents.filter((e) => !e.dead && e.kind === 'unit' && !allied(e.team, u.team) && !!unitDef(e).weapon && e.type !== 'worker');
+    const x = (i % MW + 0.5) * TS, y = (((i / MW) | 0) + 0.5) * TS;
+    if (foes.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_DANGER * TS)) continue;
+    bd = d; pick = i;
+  }
+  return pick < 0 ? null : [pick % MW, (pick / MW) | 0];
 }
 
 /** How far (tiles) a gatherer with part of a load looks for more before heading off elsewhere. */

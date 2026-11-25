@@ -204,6 +204,8 @@ export const G = {
   elev: new Float32Array(MW * MH),
   /** ore on each tile */
   ore: new Int16Array(MW * MH),
+  /** 1 on tiles where ore lies salvaged from something destroyed, until it's all dug up */
+  scrap: new Uint8Array(MW * MH),
   /** oil left in the ground on each tile (never refills) */
   oilField: new Float32Array(MW * MH),
   /** wood left on each tree tile (grows back) */

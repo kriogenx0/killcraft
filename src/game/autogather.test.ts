@@ -14,6 +14,7 @@ import { canPlace } from './building.ts';
 import { BUILDING } from '../data/building.ts';
 import { IDLE_GRACE, jobOf, pickResource } from './autogather.ts';
 import { OIL_WELLS } from '../data/map.ts';
+import { dropSalvage } from './economy.ts';
 import { mulberry32 } from '../util/math.ts';
 
 function run(seconds: number): void {
@@ -247,6 +248,44 @@ describe('idle Workers', () => {
       expect(ws.every((w) => !(w.order?.t === 'harvest' && w.order.res === 'oil'))).toBe(true);
       hooks.notify = notify;
       expect(said.some((m) => /Derrick/.test(m))).toBe(true);
+    });
+  });
+
+  describe('what destroyed units leave behind', () => {
+    const wreckAt = (tx: number, ty: number) => {
+      const e = addUnit('tank', 1, (tx + 0.5) * TS, (ty + 0.5) * TS);
+      kill(e);
+      dropSalvage(e);
+      return e;
+    };
+    const onScrap = (w: Ent) => w.order?.t === 'harvest' && !w.order.res && G.scrap[w.order.ty * MW + w.order.tx] === 1;
+
+    it('Workers go and dig up the ore it leaves, then carry it home', () => {
+      const [w] = workers(1);
+      G.credits[0] = 5000; G.wood[0] = 5000;
+      applyCommand(0, { c: 'gather', ids: [w.id], res: 'ore' });
+      run(1);
+      wreckAt(yard.tx + 1, yard.ty + 10);
+      let went = false;
+      for (let i = 0; i < 60 / STEP && !went; i++) { update(STEP); went = onScrap(w); }
+      expect(went).toBe(true);
+      const left = () => { let n = 0; for (let i = 0; i < MW * MW; i++) if (G.scrap[i]) n += G.ore[i]; return n; };
+      const before = left();
+      run(60);
+      expect(left()).toBeLessThan(before);
+    });
+
+    it('but not while an enemy is standing over it', () => {
+      const [w] = workers(1);
+      G.credits[0] = 5000; G.wood[0] = 5000;
+      applyCommand(0, { c: 'gather', ids: [w.id], res: 'ore' });
+      run(1);
+      wreckAt(yard.tx + 1, yard.ty + 10);
+      const guard = addUnit('tank', 1, (yard.tx + 3.5) * TS, (yard.ty + 11.5) * TS);
+      guard.stance = 'passive';
+      let went = false;
+      for (let i = 0; i < 20 / STEP && !went; i++) { update(STEP); guard.hp = guard.maxhp; went = onScrap(w); }
+      expect(went).toBe(false);
     });
   });
 
