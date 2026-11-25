@@ -104,6 +104,8 @@ export interface Ent extends Target {
   moving: boolean;
   atkT: number;
   stance: Stance;
+  /** seconds a gun that must dig in (UnitDef.deploy) has stood still */
+  setT?: number;
   /** the enemy a skirmishing unit is shooting at without stopping */
   shot: number | null;
   /** an enemy wall this unit is breaking through to reach its target (see breach.ts) */

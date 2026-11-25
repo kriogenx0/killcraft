@@ -533,6 +533,71 @@ function tank(team: number, heavy: boolean): Model {
   return { root, parts, height: 0.5 * k };
 }
 
+/**
+ * The Artillery Tank: a self-propelled howitzer on a tank's tracks. A tall boxy gun house sits
+ * toward the back with a long barrel; spades at the tail fold down when it digs in to fire (parts:
+ * turret, elev (the barrel's elevation), barrel (recoil), spadeL/spadeR).
+ */
+function artillery(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  const tm = teamMat(team), td = teamMat(team, 'd'), tl = teamMat(team, 'l');
+  for (const side of [-1, 1]) {
+    track(root, 0.94, 0.16, 0.13, side * 0.19, 6, td);
+    root.add(mesh(box(0.14, 0.05, 0.07), M.darkSteel(), 0.22, 0.215, side * 0.2)); // tool box on the fender
+  }
+  // a low hull with a sloped nose: the driver sits up front beside the engine
+  root.add(mesh(box(0.78, 0.13, 0.34), tm, -0.02, 0.22, 0));
+  root.add(rot(mesh(box(0.14, 0.09, 0.33), td, 0.38, 0.2, 0), 0, 0, -0.55));
+  root.add(mesh(box(0.08, 0.03, 0.08), M.darkSteel(), 0.28, 0.3, 0.09)); // driver's hatch
+  root.add(mesh(box(0.012, 0.018, 0.05), M.glass(), 0.32, 0.3, 0.09));
+  for (let i = 0; i < 4; i++) root.add(mesh(box(0.014, 0.01, 0.12), M.gun(), 0.12 + i * 0.035, 0.29, -0.09)); // engine grille
+  root.add(along(mesh(cyl(0.02, 0.02, 0.05, 8), M.iron(), 0.27, 0.3, -0.14))); // exhaust
+  for (const z of [-0.13, 0.13]) root.add(along(mesh(cyl(0.018, 0.022, 0.026, 8), M.lamp(), 0.42, 0.26, z)));
+  // the travel lock the barrel rests in on the march
+  root.add(mesh(box(0.025, 0.1, 0.025), M.darkSteel(), 0.36, 0.33, 0));
+  root.add(mesh(box(0.03, 0.02, 0.06), M.darkSteel(), 0.36, 0.385, 0));
+  // spades at the tail, folded up on the march, dug into the ground to fire
+  for (const [k, z] of [['spadeL', -0.11], ['spadeR', 0.11]] as const) {
+    const sp = group(-0.42, 0.22, z,
+      mesh(box(0.03, 0.06, 0.03), M.iron(), 0, -0.02, 0),
+      mesh(box(0.035, 0.2, 0.12), M.darkSteel(), 0, -0.12, 0),
+      mesh(box(0.05, 0.03, 0.13), M.iron(), 0, -0.22, 0));
+    sp.rotation.z = -2.6;
+    parts[k] = sp;
+    root.add(sp);
+  }
+  // the gun house: tall, boxy and set well back, team coloured, with a stripe, hatches and ammo racks
+  const turret = group(-0.1, 0.29, 0);
+  turret.add(mesh(box(0.44, 0.19, 0.32), tl, 0, 0.095, 0));
+  turret.add(mesh(box(0.45, 0.025, 0.325), td, 0, 0.19, 0)); // roof edge
+  for (const z of [-0.163, 0.163]) {
+    turret.add(mesh(box(0.3, 0.035, 0.004), M.hazard(), -0.02, 0.12, z)); // stripe down each side
+    turret.add(mesh(box(0.1, 0.08, 0.004), M.darkSteel(), -0.13, 0.08, z * 1.01)); // side door
+  }
+  turret.add(mesh(cyl(0.045, 0.05, 0.04, 10), td, -0.08, 0.22, 0.08)); // commander's cupola
+  turret.add(mesh(box(0.03, 0.04, 0.03), M.darkSteel(), -0.08, 0.255, 0.08));
+  turret.add(mesh(box(0.08, 0.025, 0.08), M.darkSteel(), -0.1, 0.205, -0.08)); // loader's hatch
+  turret.add(mesh(box(0.05, 0.12, 0.27), M.darkSteel(), -0.245, 0.09, 0)); // bustle with ammo racks
+  for (const z of [-0.09, -0.03, 0.03, 0.09]) turret.add(along(mesh(cyl(0.018, 0.018, 0.02, 8), M.brass(), -0.275, 0.09, z)));
+  turret.add(mesh(cyl(0.004, 0.004, 0.42, 4), M.gun(), -0.18, 0.4, -0.12)); // antenna
+  turret.add(mesh(box(0.07, 0.14, 0.18), td, 0.23, 0.09, 0)); // mantlet
+  // the howitzer: elevated to fire, lowered onto the travel lock to move
+  const elev = group(0.24, 0.1, 0);
+  const barrel = group(0, 0, 0,
+    along(mesh(cyl(0.03, 0.034, 0.66, 10), M.gun(), 0.33, 0, 0)),
+    along(mesh(cyl(0.045, 0.045, 0.14, 10), M.gun(), 0.07, 0, 0)), // recoil cylinders
+    along(mesh(cyl(0.04, 0.04, 0.06, 10), M.gun(), 0.42, 0, 0)), // fume extractor
+    mesh(box(0.09, 0.06, 0.08), M.gun(), 0.67, 0, 0)); // muzzle brake
+  for (const z of [-0.042, 0.042]) barrel.add(mesh(box(0.06, 0.035, 0.006), M.dark(), 0.67, 0, z));
+  elev.add(barrel);
+  parts.elev = elev;
+  parts.barrel = barrel;
+  turret.add(elev);
+  parts.turret = turret;
+  root.add(turret);
+  return { root, parts, height: 0.55 };
+}
+
 /** Medieval and World War: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
 function worker(team: number): Model {
   const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
@@ -704,6 +769,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'harvester': return harvester(team);
     case 'worker': return worker(team);
     case 'catapult': return catapult(team);
+    case 'artillery': return artillery(team);
     case 'balloon': return balloon(team);
     case 'biplane': return biplane(team);
     case 'helicopter': return helicopter(team);
