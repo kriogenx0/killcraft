@@ -10,13 +10,13 @@ import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, combatStep, fireOnTheMove, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
-import { AETHER_BANK_REACH } from '../data/aether.ts';
+import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
+import { IDLE_GRACE, aetherJobOf, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
@@ -72,14 +72,24 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
  * short. Crumbs of regrowth only once no tile worth a trip is left. Skips tiles another
  * gatherer has claimed, sharing one only if every tile is taken.
  */
-function pickOre(u: Ent): [number, number] | null {
+function pickOre(u: Ent, underway = false): [number, number] | null {
   const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
+  // part-way through a load, or the tile it was walking to got taken: ore right here rather than
+  // trek back toward base and out again
+  if (underway || (u.carry > 0 && (u.cargo ?? 'ore') === 'ore')) {
+    const here = nearestOre(tileOf(u.x), tileOf(u.y), TOP_UP, ORE_WORTH, free);
+    if (here) return here;
+    if (u.carry > haulOf(u) * 0.5) return null; // most of a load: bank it, then set out afresh
+  }
   const homes = banksOf(u.team, ORE_BANKS);
   const walk = walkOf(u.team, homes);
   const x = tileOf(u.x), y = tileOf(u.y);
   // a tile worth a trip first: crumbs of regrowth only once there's nothing else
   return nearestOre(x, y, MW, ORE_WORTH, free, homes, walk) ?? nearestOre(x, y, MW, 1, free, homes, walk) ?? nearestOre(x, y, MW, 1, ok, homes, walk);
 }
+
+/** How far (tiles) a gatherer with part of a load looks for more before heading off elsewhere. */
+const TOP_UP = 5;
 
 /** Each side's walking distances from its ore drop-offs, refreshed every couple of seconds or when its drop-offs change. */
 const walkCache = new Map<number, { t: number; key: string; d: Float32Array }>();
@@ -109,10 +119,13 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   if ((o.st === 'go' || o.st === 'gather') && u.carry > 0 && (u.cargo ?? 'ore') !== (o.res ?? 'ore')) { o.st = 'ret'; u.path = null; }
   if (o.res === 'wood' && (o.st === 'go' || o.st === 'gather')) { updChop(u, o, dt); return; }
   if (o.res && (o.st === 'go' || o.st === 'gather')) { updHauler(u, o, dt); return; }
+  // a full load goes home, however the Worker came to be setting out with it
+  if (o.st === 'go' && !o.res && u.carry >= haulOf(u) - 0.5) { o.st = 'ret'; u.path = null; }
   if (o.st === 'go') {
     const i = o.ty * MW + o.tx;
     if (G.ore[i] <= 0 || oreTaken(i, u, false)) {
-      const t = pickOre(u);
+      // someone else got to the tile first, near the end of the walk: ore right here instead
+      const t = pickOre(u, G.ore[i] > 0 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < TOP_UP * TS);
       if (!t) { o.st = u.carry > 0 ? 'ret' : 'go'; o.wait = 2; return; }
       [o.tx, o.ty] = t;
       u.path = null;
@@ -403,11 +416,14 @@ function mendNear(u: Ent, r: number): Ent | null {
     if (!mendable(u, e, 0.5)) continue;
     if (e.kind === 'unit' && e.hp > e.maxhp * UNIT_FIX_BELOW) continue; // not for a scratch
     if (e.kind === 'unit' && (e.moving || G.gameT - e.foeT < UNDER_FIRE)) continue; // not one on the move or under fire: that's chasing a fight
-    if (menders(e, u) >= (e.kind === 'bld' && !e.done ? SITE_CREW : 1)) continue; // enough hands on it already
+    const crew = menders(e, u);
+    if (crew >= (e.kind === 'bld' && !e.done ? SITE_CREW : 1)) continue; // enough hands on it already
     // left to themselves, Workers don't spend the last of the bank on repairs
     if (e.kind === 'bld' && e.done && G.credits[u.team] < AUTO_REPAIR_FLOOR) continue;
     const d = Math.hypot(e.x - u.x, e.y - u.y) - (e.w ? (e.w * TS) / 2 : 0);
     if (d > r) continue;
+    // a site the crew on it will have up before this one could get there
+    if (e.kind === 'bld' && !e.done && crew && d / (unitDef(u).spd * TS) > ((1 - e.prog) * bldDef(e).t) / (WORKER_BUILD * crew)) continue;
     if (e.kind === 'bld') { if (d < bd) { bd = d; bld = e; } }
     else if (!unit || e.hp / e.maxhp < unit.hp / unit.maxhp) unit = e;
   }
@@ -431,6 +447,8 @@ export function fixNext(u: Ent): boolean {
 function updMend(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
   if (!mendable(u, t) || (!o.sent && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE)) { setOrder(u, null); return; }
+  // a Worker that went off by itself to patch up a soldier lets it go once it walks off: back to work
+  if (!o.sent && u.type === 'worker' && t.kind === 'unit' && t.moving && Math.hypot(t.x - u.x, t.y - u.y) > MEDIC_RANGE + TS) { setOrder(u, null); return; }
   // a wall segment hemmed in by others can only be reached from a tile off its corner, so a Worker
   // builds and repairs from a little further off than it patches up a soldier
   const r = approach(u, t, t.kind === 'bld' ? MEDIC_RANGE + TS : MEDIC_RANGE, dt);
@@ -480,6 +498,12 @@ export function updUnit(u: Ent, dt: number): void {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: false }); return; }
     }
+    // a Worker sent to draw Aether stands at its deposit until it carries a full load, banks it, and goes back
+    const ae = u.type === 'worker' ? aetherJobOf(u) : null;
+    if (ae && (u.ae ?? 0) < AETHER_CARRY - 0.5) {
+      if (Math.hypot(u.x - ae.x, u.y - ae.y) > AETHER_REACH * TS * 0.8) { const t = adjTile(ae, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
+      else return; // drawing
+    }
     // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
       const s = shardFor(u);
@@ -507,7 +531,8 @@ export function updUnit(u: Ent, dt: number): void {
         idleSince.delete(u);
         lastOrder.delete(u);
         const job = takeResume(u);
-        if (job) setOrder(u, { ...job, st: u.carry > 0 && (u.cargo ?? 'ore') !== (job.res ?? 'ore') ? 'ret' : 'go', wait: 0 }); // back to what it was doing before it stopped to fix something
+        // back to what it was doing before it stopped to fix something, banking any load first
+        if (job) setOrder(u, { ...job, st: u.carry > 0 && ((u.cargo ?? 'ore') !== (job.res ?? 'ore') || u.carry > haulOf(u) * 0.5) ? 'ret' : 'go', wait: 0 });
         else if (u.carry > haulOf(u) * 0.5) setOrder(u, { t: 'harvest', st: 'ret', tx: tileOf(u.x), ty: tileOf(u.y), wait: 0, res: u.cargo === 'wood' || u.cargo === 'oil' ? u.cargo : undefined });
         else autoGather(u);
       }

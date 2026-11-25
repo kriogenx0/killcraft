@@ -10,6 +10,7 @@ import { WOOD_BANKS } from './chop.ts';
 import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
 import { ais } from './ai.ts';
+import { oilLeft as oilLeftOf } from './economy.ts';
 
 export type Res = 'ore' | 'wood' | 'oil';
 
@@ -158,13 +159,30 @@ export function autoGather(u: Ent): boolean {
 /** A Worker that chose its own job has just dropped a load off: switch if the side now needs something else more. */
 export function rethink(u: Ent, o: HarvestOrder): void {
   if (!o.auto || u.type !== 'worker' || computer(u.team)) return;
-  // a Worker sticks to its resource: it only moves over when the side is short of another and not of this one
   const now = o.res ?? 'ore', can = options(u), r = pickResource(u, can);
   // a derrick pumps slowly: rather than shuttle back and forth with a few drops each time, do
   // something else until it has a load waiting again
   if (now === 'oil' && !can.includes('oil')) { if (r) gather(u, r); return; }
-  if (!r || r === now || shortfall(u.team, now) > 0 || shortfall(u.team, r) <= 0) return;
-  gather(u, r);
+  // short of something and not of this: go and get it
+  if (r && r !== now && shortfall(u.team, now) <= 0 && shortfall(u.team, r) > 0) { gather(u, r); return; }
+  if (shortfall(u.team, now) > 0) return; // still needed here
+  // nothing short: even out the split, but only when it's off by a whole Worker either way, so
+  // nobody flits back and forth over a fraction
+  const b = imbalance(u, can, now);
+  if (b) gather(u, b);
+}
+
+/** The resource a self-directed Worker should move to from `now` to even out the side's split, if any. */
+function imbalance(u: Ent, can: Res[], now: Res): Res | null {
+  if (can.length < 2 || !can.includes(now)) return null;
+  const crew = { ore: 0, wood: 0, oil: 0 };
+  for (const e of G.ents) if (e !== u && !e.dead && e.team === u.team && e.type === 'worker') { const j = jobOf(e); if (j) crew[j]++; }
+  const total = can.reduce((n, r) => n + crew[r], 0) + 1, share = can.reduce((n, r) => n + SHARE[r], 0);
+  const want = (r: Res) => (SHARE[r] / share) * total;
+  if (crew[now] + 1 - want(now) < 1) return null;
+  let best: Res | null = null, most = 0;
+  for (const r of can) if (r !== now && want(r) - crew[r] >= 1 && want(r) - crew[r] > most) { most = want(r) - crew[r]; best = r; }
+  return best;
 }
 
 /** The gathering job each Worker set aside to go and fix something, to take up again after. */
@@ -177,3 +195,61 @@ export function takeResume(u: Ent): HarvestOrder | null {
 }
 /** A player's order replaces whatever the Worker meant to go back to. */
 export const forgetResume = (u: Ent): void => { resume.delete(u); };
+
+/** What a player can send Workers to gather. */
+export const GATHER = ['ore', 'wood', 'oil', 'aether'] as const;
+export type GatherRes = (typeof GATHER)[number];
+
+/** The Aether deposit each Worker was sent to draw from, to go back to after banking what it carries. */
+const aetherJob = new WeakMap<Ent, number>();
+export const aetherJobOf = (u: Ent): Ent | null => {
+  const id = aetherJob.get(u), d = id === undefined ? null : G.byId.get(id) ?? null;
+  if (d && (d.dead || d.type !== 'aether')) { aetherJob.delete(u); return null; }
+  return d;
+};
+export const forgetAether = (u: Ent): void => { aetherJob.delete(u); };
+
+/** Walking-free distance (tiles) from the side's nearest Town Hall, Refinery or Mining Camp. */
+function fromBase(team: number, x: number, y: number): number {
+  let d = Infinity;
+  for (const b of banksOf(team, ORE_BANKS)) d = Math.min(d, Math.hypot(b.x - x, b.y - y));
+  return d;
+}
+
+/**
+ * The player sends a Worker to gather one resource: the ore, trees, Oil Derrick or Aether deposit
+ * nearest the base. It's the player's choice, so it sticks to it (no switching to even things out).
+ * Returns false if there's none of that to gather.
+ */
+export function sendGather(u: Ent, r: GatherRes): boolean {
+  if (u.type !== 'worker') return false;
+  forgetAether(u);
+  if (r === 'ore' || r === 'wood') {
+    // start from the drop-off itself: the Worker then picks the ore (unit.ts pickOre) or tree
+    // (chop.ts nextTree) nearest the base, not the one nearest where it stands
+    const b = bankAt(u, r === 'ore' ? ORE_BANKS : [...WOOD_BANKS]);
+    if (!b) return false;
+    setOrder(u, { t: 'harvest', st: u.carry > 0 && (u.cargo ?? 'ore') !== r ? 'ret' : 'go', tx: b.tx, ty: b.ty, wait: 0, res: r === 'wood' ? 'wood' : undefined });
+    return true;
+  }
+  if (r === 'oil') {
+    let best: Ent | null = null, bd = Infinity;
+    for (const d of G.ents) {
+      if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || (d.carry <= 1 && oilLeftOf(d) <= 0)) continue;
+      const crew = G.ents.filter((w) => w !== u && !w.dead && w.order?.t === 'harvest' && w.order.src === d.id).length;
+      const s = crew * 8 + fromBase(u.team, d.x, d.y) / 32; // spread over the derricks, nearest the base first
+      if (s < bd) { bd = s; best = d; }
+    }
+    if (!best) return false;
+    setOrder(u, { t: 'harvest', st: u.carry > 0 && u.cargo !== 'oil' ? 'ret' : 'go', tx: best.tx, ty: best.ty, wait: 0, res: 'oil', src: best.id });
+    return true;
+  }
+  // Aether: the deposit nearest the base; the Worker draws it, banks it and goes back for more
+  let best: Ent | null = null, bd = Infinity;
+  for (const d of G.ents) if (!d.dead && d.type === 'aether') { const dist = fromBase(u.team, d.x, d.y); if (dist < bd) { bd = dist; best = d; } }
+  if (!best) return false;
+  aetherJob.set(u, best.id);
+  setOrder(u, null);
+  u.scan = 0;
+  return true;
+}

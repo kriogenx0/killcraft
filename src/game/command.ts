@@ -1,6 +1,6 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { G, STANCES, hostile, isHarvester, unitDef, valid, type Ent, type Stance } from './state.ts';
+import { G, STANCES, hostile, isHarvester, say, unitDef, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
@@ -10,7 +10,7 @@ import { cancel, enqueue, startSite, toggleHold, type Buildable } from './produc
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
-import { forgetResume } from './autogather.ts';
+import { GATHER, forgetAether, forgetResume, sendGather, type GatherRes } from './autogather.ts';
 import { revive } from './revive.ts';
 
 export type Command =
@@ -22,6 +22,8 @@ export type Command =
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
   | { c: 'haul'; ids: number[]; target: number }
+  /** send Workers to gather one resource, from what's nearest the base */
+  | { c: 'gather'; ids: number[]; res: GatherRes }
   | { c: 'fix'; ids: number[]; target: number }
   /** fight one enemy unit or building until it falls */
   | { c: 'attack'; ids: number[]; target: number }
@@ -60,6 +62,8 @@ export function parseCommand(raw: unknown): Command | null {
     case 'tend':
     case 'return':
       return isIds(o.ids) ? { c: o.c, ids: o.ids } : null;
+    case 'gather':
+      return isIds(o.ids) && (GATHER as readonly unknown[]).includes(o.res) ? { c: 'gather', ids: o.ids, res: o.res as GatherRes } : null;
     case 'haul':
     case 'fix':
     case 'attack':
@@ -104,7 +108,7 @@ function ownBuilding(team: number, id: number): Ent | null {
 export function applyCommand(team: number, cmd: Command): void {
   // any other order for a Worker ends "fix, then harvest"
   // a new order replaces the job a Worker meant to go back to (a change of stance doesn't)
-  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance') for (const u of ownUnits(team, cmd.ids)) forgetResume(u);
+  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance') for (const u of ownUnits(team, cmd.ids)) { forgetResume(u); forgetAether(u); }
   switch (cmd.c) {
     case 'tend':
       // Workers fix everything damaged nearby (buildings, sites, wounded units), then go back to harvesting
@@ -131,6 +135,12 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'return':
       for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderReturn(u);
       break;
+    case 'gather': {
+      let sent = 0;
+      for (const u of ownUnits(team, cmd.ids)) if (sendGather(u, cmd.res)) sent++;
+      if (!sent && ownUnits(team, cmd.ids).some((u) => u.type === 'worker')) say(team, cmd.res === 'oil' ? 'No Oil Derrick with oil to haul' : cmd.res === 'aether' ? 'No Aether left on the map' : cmd.res === 'wood' ? 'Nowhere to take wood' : 'Nowhere to take ore');
+      break;
+    }
     case 'haul': {
       const b = ownBuilding(team, cmd.target);
       if (b && b.done && (b.type === 'mill' || b.type === 'derrick')) for (const u of ownUnits(team, cmd.ids)) if (isHarvester(u)) orderHaul(u, b);

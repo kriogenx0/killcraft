@@ -282,7 +282,7 @@ export function sealsIn(team: number, yard: Ent, tiles: number[]): boolean {
 }
 let sealBase: { t: number; yard: Ent | null; n: number } = { t: -1, yard: null, n: 0 };
 
-function findSite(team: number, type: BldType): Tile | null {
+export function findSite(team: number, type: BldType): Tile | null {
   const s = BUILDING[type].size, own = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   const yard = own.find((e) => e.type === 'yard') ?? own[0];
   if (!yard) return null;

@@ -255,7 +255,9 @@ export function sendBuilder(team: number, site: Ent): Ent | null {
   // building comes before chopping wood: with nobody else free, take a chopper
   let free = workers.filter(freeToBuild);
   if (!free.length) free = workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
-  const w = free.sort((a, c) => Math.hypot(a.x - site.x, a.y - site.y) - Math.hypot(c.x - site.x, c.y - site.y))[0];
+  // nearest first, but rather not one on its way home with a load (it'd carry it about the site)
+  const cost = (w: Ent) => Math.hypot(w.x - site.x, w.y - site.y) + (w.carry > 0 && w.order?.t === 'harvest' && w.order.st === 'ret' ? 4 * TS : 0);
+  const w = free.sort((a, c) => cost(a) - cost(c))[0];
   if (w) {
     if (w.order?.t === 'harvest') keepResume(w, { ...w.order }); // back to it once the site is up
     orderFix(w, site);

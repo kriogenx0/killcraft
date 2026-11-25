@@ -198,15 +198,64 @@ describe('idle Workers', () => {
     });
   });
 
-  it('stick to their resource unless the side runs short of another', () => {
+  it('on their own, even out across resources without flitting back and forth', () => {
     const ws = workers(4);
     G.credits[0] = 5000; G.wood[0] = 5000;
-    // three on wood, one on ore: off the usual split, but nothing's short
+    // three on wood, one on ore: off the usual split, though nothing's short
     ws.forEach((w, k) => { w.order = { t: 'harvest', st: 'go', tx: w.x / TS | 0, ty: w.y / TS | 0, wait: 0, res: k ? 'wood' : undefined, auto: true }; });
-    const jobs = ws.map(jobOf);
-    // the bank swings about, but nothing runs short: nobody switches
-    for (let k = 0; k < 6; k++) { G.credits[0] = 1000 + k * 800; G.wood[0] = 5000 - k * 700; run(10); }
-    expect(ws.map(jobOf)).toEqual(jobs);
+    const switches = new Map<Ent, number>(), last = new Map(ws.map((w) => [w, jobOf(w)]));
+    for (let k = 0; k < 90 / STEP; k++) {
+      update(STEP);
+      for (const w of ws) if (jobOf(w) && jobOf(w) !== last.get(w)) { switches.set(w, (switches.get(w) ?? 0) + 1); last.set(w, jobOf(w)); }
+    }
+    const on = (r: string) => ws.filter((w) => jobOf(w) === r).length;
+    expect(on('ore')).toBe(2);
+    expect(on('wood')).toBe(2);
+    expect(Math.max(...ws.map((w) => switches.get(w) ?? 0))).toBeLessThanOrEqual(1); // one move, not a dance
+  });
+
+  it('sent by the player to one resource, stick to it', () => {
+    const ws = workers(4);
+    G.credits[0] = 5000; G.wood[0] = 5000;
+    applyCommand(0, { c: 'gather', ids: ws.map((w) => w.id), res: 'wood' });
+    run(60);
+    expect(ws.every((w) => jobOf(w) === 'wood')).toBe(true);
+  });
+
+  describe('the Gather buttons', () => {
+    it('Ore sends a Worker to the ore nearest the base, not the ore where it stands', () => {
+      const [w] = workers(1);
+      // a patch right under a Worker far out on the map
+      w.x = (yard.tx + 30.5) * TS; w.y = (yard.ty + 1.5) * TS;
+      for (let ty = yard.ty; ty < yard.ty + 3; ty++) for (let tx = yard.tx + 29; tx < yard.tx + 32; tx++) G.ore[ty * MW + tx] = 400;
+      const far = Math.hypot(w.x - yard.x, w.y - yard.y);
+      applyCommand(0, { c: 'gather', ids: [w.id], res: 'ore' });
+      run(2);
+      const o = w.order;
+      expect(o?.t === 'harvest' && !o.res).toBe(true);
+      if (o?.t !== 'harvest') return;
+      expect(Math.hypot((o.tx + 0.5) * TS - yard.x, (o.ty + 0.5) * TS - yard.y)).toBeLessThan(far / 2);
+    });
+
+    it("Oil with no Oil Derrick leaves the Workers be, and says why", () => {
+      const ws = workers(2);
+      const said: string[] = [];
+      const notify = hooks.notify;
+      hooks.notify = (_t, m) => said.push(m);
+      G.demo = false;
+      applyCommand(0, { c: 'gather', ids: ws.map((w) => w.id), res: 'oil' });
+      expect(ws.every((w) => !(w.order?.t === 'harvest' && w.order.res === 'oil'))).toBe(true);
+      hooks.notify = notify;
+      expect(said.some((m) => /Derrick/.test(m))).toBe(true);
+    });
+  });
+
+  it('a Worker never sets out for the field with a full load: it goes home first', () => {
+    const [w] = workers(1);
+    w.carry = 300; w.cargo = 'ore';
+    w.order = { t: 'harvest', st: 'go', tx: yard.tx + 20, ty: yard.ty, wait: 0 };
+    run(0.2);
+    expect(w.order?.t === 'harvest' && w.order.st).toBe('ret');
   });
 
   it('dropping a load off, a Worker first fixes what is damaged nearby', () => {
