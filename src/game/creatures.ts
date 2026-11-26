@@ -1,19 +1,19 @@
 // Wild creatures of Greek myth: placing their lairs, how they guard them, beating one down until it
 // kneels, and capturing it. Tuning lives in data/creatures.ts.
-import { G, defaultStance, isOrganic, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { G, defaultStance, hooks, isOrganic, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import {
   BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_FFA_SITES, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, PETRIFY_IMMUNE, REBIRTH_HP, RISE_HP,
-  RESPAWN_TIME, SONG_RANGE, SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN,
+  RESPAWN_TIME, SONG_RANGE, SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN, BEE_LIFE, SWARM_EVERY, SWARM_MAX, SWARM_REACH,
 } from '../data/creatures.ts';
 import { eachInDisk, nearPortal } from './map.ts';
 import { addUnit } from './entity.ts';
-import { canAttack, combatStep } from './combat.ts';
+import { acquire, canAttack, combatStep, isFoe } from './combat.ts';
 import { orderMove, setOrder } from './order.ts';
-import { followPath } from './move.ts';
+import { followPath, steer, stepOf } from './move.ts';
 import { burst, part } from './fx.ts';
 import { WEAPON, type WeaponType } from '../data/weapon.ts';
 
@@ -260,4 +260,58 @@ export function satyrSong(dt: number): void {
     for (const s of pipers) if (s.team === u.team && Math.hypot(s.x - u.x, s.y - u.y) <= r) rate = Math.max(rate, unitDef(s).song ?? 0);
     if (rate) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
   }
+}
+
+// ---- the Bee Queen's swarm ----
+
+/** What a Bee Queen is fighting right now, if it's close enough to send her swarm at. */
+function queenFoe(q: Ent): Ent | null {
+  const t = valid(q.order?.t === 'attack' ? q.order.tgt : q.shot);
+  return t && isFoe(q, t) && Math.hypot(t.x - q.x, t.y - q.y) <= SWARM_REACH * TS ? t : null;
+}
+
+/** A Queen's Bees still flying. */
+export const beesOf = (q: Ent): Ent[] => G.ents.filter((e) => !e.dead && e.bee?.q === q.id);
+
+/** A Bee Queen in a fight calls up a few more Bees every SWARM_EVERY seconds, up to SWARM_MAX at once. */
+export function callSwarm(q: Ent): void {
+  const n = unitDef(q).swarm;
+  if (!n || q.dead || kneeling(q) || G.gameT < (q.swarmT ?? 0) || !queenFoe(q)) return;
+  q.swarmT = G.gameT + SWARM_EVERY;
+  const room = Math.min(n, SWARM_MAX - beesOf(q).length);
+  for (let i = 0; i < room; i++) {
+    const a = Math.random() * Math.PI * 2, b = addUnit('bee', q.team, q.x + Math.cos(a) * 12, q.y + Math.sin(a) * 12);
+    b.bee = { q: q.id, until: G.gameT + BEE_LIFE };
+    b.face = b.tface = a;
+  }
+  if (room > 0) burst('spark', q.x, q.y, 6, 30, 80, null, 30);
+}
+
+/** A Bee flies home into its Queen: gone, with no body left behind and no loss counted. */
+function flyHome(b: Ent): void {
+  b.dead = true;
+  hooks.killed(b);
+}
+
+/**
+ * A Bee's turn: sting whatever its Queen is fighting, or the nearest foe near her, and otherwise
+ * buzz round her. It flies home when its time is up, or when she falls, kneels or changes sides.
+ */
+export function updBee(b: Ent, dt: number): void {
+  const q = valid(b.bee?.q);
+  if (!q || !b.bee || G.gameT >= b.bee.until || q.team !== b.team || kneeling(q)) { flyHome(b); return; }
+  const near = (t: Ent | null): Ent | null => (t && isFoe(b, t) && Math.hypot(t.x - q.x, t.y - q.y) <= SWARM_REACH * TS ? t : null);
+  let t = queenFoe(q) ?? near(valid(b.order?.t === 'attack' ? b.order.tgt : null));
+  if (!t) {
+    b.scan -= dt;
+    if (b.scan <= 0) { b.scan = 0.4; t = near(acquire(b, 3, true)); }
+  }
+  if (t) {
+    if (b.order?.t !== 'attack' || b.order.tgt !== t.id) setOrder(b, { t: 'attack', tgt: t.id, auto: true, ox: q.x, oy: q.y });
+    if (combatStep(b, t, dt)) return;
+  }
+  if (b.order) setOrder(b, null);
+  // nothing to sting: circle the Queen
+  const a = G.gameT * 2.5 + b.id * 1.7, gx = q.x + Math.cos(a) * TS * 0.9, gy = q.y + Math.sin(a) * TS * 0.9;
+  if (Math.hypot(gx - b.x, gy - b.y) > 2) steer(b, gx, gy, stepOf(b, dt), dt, true);
 }

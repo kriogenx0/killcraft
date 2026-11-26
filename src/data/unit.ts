@@ -7,7 +7,7 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
-  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon'
+  | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'beequeen' | 'bee'
   | 'mystery' | 'chicken'
   | 'imp' | 'fiend' | 'archfiend' | 'drake';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
@@ -82,6 +82,13 @@ export interface UnitDef {
    * special unit of the side's age, and now and then a Titan Chicken
    */
   hatches?: boolean;
+  /**
+   * calls up this many Bees at a time while it fights (the Bee Queen; see SWARM_* in data/creatures.ts).
+   * They live a few seconds, fight what she fights, and fly home into her when she kneels or is captured.
+   */
+  swarm?: number;
+  /** only ever called up by another unit (a Bee by its Queen): never trained, short-lived, not counted as a unit lost or killed */
+  summoned?: boolean;
   /** only ever comes out of a Mystery Egg: it can't be trained on its own (the Titan Chicken) */
   hatched?: boolean;
   /** enemies within this many tiles can't help going for it first, whatever else is about (the Titan Chicken) */
@@ -195,6 +202,8 @@ export const UNIT: Record<UnitType, UnitDef> = {
   chimera: { name: 'Chimera', cls: 'infantry', armor: 'light', hp: 360, spd: 3.0, turn: 4.5, weapon: 'chimerafire', cost: 500, aether: 50, t: 15, era: 0, sight: 7, producer: 'infantry', turret: false, radius: 20, beast: true, desc: 'Lion, goat and serpent in one. Its fire breath reaches up into the sky: the creature that burns flyers down.' },
   phoenix: { name: 'Phoenix', cls: 'air', armor: 'air', hp: 200, spd: 5.0, turn: 4, weapon: 'phoenixfire', cost: 450, aether: 60, t: 15, era: 0, sight: 8, producer: 'air', turret: false, radius: 17, alt: 1.5, beast: true, rebirth: true, desc: 'Firebird. Showers flame on the ground below, and when it falls it bursts alight and rises again from its ashes, once.' },
   dragon: { name: 'Dragon', cls: 'air', armor: 'air', hp: 440, spd: 3.6, turn: 2.8, weapon: 'dragonfire', cost: 800, aether: 90, t: 23, era: 0, sight: 8, producer: 'air', turret: false, radius: 28, alt: 1.9, beast: true, hide: 0.6, desc: 'Great serpent of the sky that guards treasure (Ladon, who coiled round the golden apples). Its breath melts armor and sets whole bases ablaze, and arrows and bullets glance off its scales. Can\'t fight other flyers: send Flak, rockets, a Chimera or a Griffin against it.' },
+  beequeen: { name: 'Bee Queen', cls: 'air', armor: 'air', hp: 440, spd: 2.8, turn: 2.6, weapon: 'sting', cost: 600, aether: 70, t: 19, era: 0, sight: 8, producer: 'air', turret: false, radius: 28, alt: 1.4, beast: true, swarm: 3, desc: 'A bee the size of a horse, crowned in gold. As she fights she calls up her swarm, a few Bees at a time, and their stings and hers poison living things straight through armor. The Bees soak up the fire meant for her and swarm over archers and footmen. Poison does nothing to machines: tanks and towers shrug her off, and Flak and archers swat the swarm.' },
+  bee: { name: 'Bee', cls: 'air', armor: 'air', hp: 24, spd: 6.0, turn: 9, weapon: 'beesting', cost: 0, t: 1, era: 0, sight: 5, producer: 'air', turret: false, radius: 6, alt: 1.0, beast: true, hatched: true, summoned: true, desc: 'One of the Bee Queen\'s swarm. Only she can call it up, and it lives a few seconds: its sting poisons living things.' },
   // demons out of the Gate of Hell in the middle of the map (data/hell.ts). They can't be trained and
   // fight for nobody: they wait by the gate and now and then raid the side with the strongest army.
   imp: { name: 'Imp', cls: 'infantry', armor: 'light', hp: 130, spd: 3.6, turn: 6, weapon: 'impfire', cost: 150, t: 1, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 9, demon: true, desc: 'A little red devil from the Gate of Hell. Quick, and spits fire.' },

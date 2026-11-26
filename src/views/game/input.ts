@@ -143,7 +143,7 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
 function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
   const anyTeam = spectating();
   return G.ents.filter((e) => {
-    if (e.dead || e.kind !== 'unit' || (!anyTeam && e.team !== V.team) || e.team < 0) return false;
+    if (e.dead || e.kind !== 'unit' || (!anyTeam && e.team !== V.team) || e.team < 0 || e.bee) return false; // Bees follow their Queen, not orders
     const p = worldToScreen(e.x, e.y, midHeight(e));
     return p.front && test(p.sx, p.sy);
   });
@@ -232,7 +232,7 @@ export function startRally(): void {
 }
 
 export function selectArmy(): void {
-  setSelection(G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && !isHarvester(e)));
+  setSelection(G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && !isHarvester(e) && !e.bee));
 }
 
 function minimapWorld(ev: PointerEvent, mini: HTMLCanvasElement): [number, number] {
