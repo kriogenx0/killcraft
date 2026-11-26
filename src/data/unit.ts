@@ -2,7 +2,7 @@ import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
 import type { SpellType } from './spells.ts';
 
-export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'artillery' | 'harvester' | 'worker'
+export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'artillery' | 'harvester' | 'worker' | 'guardian'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'fighter' | 'striker' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
@@ -134,6 +134,10 @@ export const UNIT: Record<UnitType, UnitDef> = {
   crossbowman: { name: 'Crossbowman', cls: 'infantry', armor: 'none', hp: 50, spd: 2.0, turn: 6.5, weapon: 'crossbow', cost: 170, wood: 30, t: 6, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 6, desc: 'Armor-piercing bolts. Good against footmen and knights.' },
   medic: { name: 'Medic', cls: 'infantry', armor: 'none', hp: 60, spd: 2.2, turn: 6.5, weapon: null, cost: 200, t: 6, era: 0, requires: ['hospital'], sight: 8, producer: 'infantry', turret: false, radius: 6, desc: 'Unarmed. Heals wounded infantry, knights, creatures and anything that flies from up to 4 tiles away, so it can stay behind the front line. Research Field Mechanics at the Hospital and it repairs vehicles and cyborgs too.' },
   knight: { name: 'Knight', cls: 'infantry', armor: 'light', hp: 220, spd: 4.6, turn: 5, weapon: 'lance', cost: 400, wood: 50, t: 10, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, desc: 'Armored horseman. Fast charges against infantry and harvesters.' },
+  // the Guardian: a hulking foot soldier sealed in heavy plate behind a tower shield. A regular
+  // Barracks unit (no Aether), far smaller than the Titan. It holds the line: arrows and bullets
+  // barely mark it, and its giant axe chops through two foes at a swing. Rockets, cannons and spells bring it down.
+  guardian: { name: 'Guardian', cls: 'infantry', armor: 'heavy', hp: 380, spd: 1.5, turn: 4, weapon: 'greataxe', cost: 600, wood: 50, t: 13, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 15, desc: 'Huge foot soldier in heavy plate with a tower shield and a giant axe it swings through the enemy line. Arrows and bullets barely scratch it, so it holds the front while others shoot. Slow; rockets, cannons and spells bring it down.' },
   jeep: { name: 'Scout Jeep', cls: 'vehicle', armor: 'light', hp: 210, spd: 5.0, turn: 4, weapon: 'mg', cost: 325, oil: 50, t: 10, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, desc: 'Fast scout with a machine gun.' },
   tank: { name: 'Battle Tank', key: 'T', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, turn: 2.5, weapon: 'cannon', cost: 700, oil: 150, t: 20, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1200, oil: 200, t: 31, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, regen: 0.005, desc: 'Slow, heavily armored twin-cannon tank. Its crew patch it up in the field: it slowly repairs itself.' },

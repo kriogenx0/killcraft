@@ -7,6 +7,7 @@ import { WOOD_LOAD } from '../../../data/economy.ts';
 import { MH, MW, TS } from '../../../game/const.ts';
 import { BUILDING, isWall, type BldType } from '../../../data/building.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
+import { WEAPON } from '../../../data/weapon.ts';
 import { HARVESTER_CAPACITY } from '../../../data/ore.ts';
 import { inReach, nearBase, reachOf, tileFree, wallLine } from '../../../game/building.ts';
 import { nearPortal } from '../../../game/map.ts';
@@ -138,6 +139,8 @@ function recoil(p: THREE.Object3D | undefined, amount: number): void {
 const STRIKE = MELEE_LAND / 0.25;
 
 /** Worker's pick-axe cycle (arm angle): raised, a quick blow down, a pause at impact, then a slow lift. */
+/** The Guardian's arm angle at rest: its giant axe carried on the shoulder. */
+const GUARDIAN_REST = 2.3;
 const PICK_CYCLE = 0.9, PICK_UP = 2.3, PICK_DOWN = 0.15;
 export function pickSwing(t: number): number {
   const p = (t / PICK_CYCLE) % 1;
@@ -158,6 +161,19 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
   const look = UNIT[e.type as UnitType]?.look ?? e.type; // hidden units move like their regular unit
   if (UNIT[e.type as UnitType]?.cls === 'infantry' && look !== 'knight') m.root.position.y = e.moving ? Math.abs(Math.sin(w)) * 0.025 : 0;
   switch (look) {
+    case 'guardian': {
+      // the giant axe rides on its shoulder. Each swing runs over the weapon's whole swing time: it
+      // heaves the axe further back with its body turned away, chops down hard as the blow lands
+      // (halfway), then hauls the axe back up onto its shoulder
+      const sw = WEAPON.greataxe.swing ?? 0.7, p = e.atkT > 0 ? 1 - Math.min(1, e.atkT / sw) : 0;
+      const ease = (t: number) => t * t * (3 - 2 * t);
+      if (p <= 0) { P.armR.rotation.z = GUARDIAN_REST + swing * 0.08; P.body.rotation.y = 0; }
+      else if (p < 0.4) { const k = Math.sin((p / 0.4) * Math.PI / 2); P.armR.rotation.z = lerp(GUARDIAN_REST, 3.0, k); P.body.rotation.y = 0.5 * k; }
+      else if (p < 0.55) { const k = ((p - 0.4) / 0.15) ** 2; P.armR.rotation.z = lerp(3.0, 0.15, k); P.body.rotation.y = lerp(0.5, -0.35, k); }
+      else { const k = ease((p - 0.55) / 0.45); P.armR.rotation.z = lerp(0.15, GUARDIAN_REST, k); P.body.rotation.y = lerp(-0.35, 0, k); }
+      P.armL.rotation.z = 0.9 - swing * 0.2;
+      break;
+    }
     case 'swordsman':
       // overhead cut when striking, sword lowered and swaying when not
       // the blade comes down just as the blow lands (MELEE_LAND), then rests
