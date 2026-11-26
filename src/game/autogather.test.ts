@@ -349,6 +349,23 @@ describe('idle Workers', () => {
       expect(around()).toBe(0);
     });
 
+    it('Harvesters dig it too, on their own and when sent to a far wreck', () => {
+      const h = addUnit('harvester', 0, yard.x, yard.y + 4 * TS);
+      G.credits[0] = 5000;
+      run(1);
+      wreckAt(yard.tx + 1, yard.ty + 4);
+      let went = false;
+      for (let i = 0; i < 60 / STEP && !went; i++) { update(STEP); went = onScrap(h); }
+      expect(went).toBe(true);
+      wreckAt(MW >> 1, MW >> 1);
+      let tile = -1;
+      for (let y = (MW >> 1) - 3; y <= (MW >> 1) + 3 && tile < 0; y++) for (let x = (MW >> 1) - 3; x <= (MW >> 1) + 3; x++) if (G.scrap[y * MW + x] && G.ore[y * MW + x] > 0) { tile = y * MW + x; break; }
+      applyCommand(0, { c: 'harvest', ids: [h.id], tx: tile % MW, ty: (tile / MW) | 0 });
+      const around = () => { let n = 0; for (let y = (MW >> 1) - 4; y <= (MW >> 1) + 4; y++) for (let x = (MW >> 1) - 4; x <= (MW >> 1) + 4; x++) if (G.scrap[y * MW + x]) n += G.ore[y * MW + x]; return n; };
+      for (let i = 0; i < 400 / STEP && around() > 0; i++) update(STEP);
+      expect(around()).toBe(0);
+    });
+
     it('but not while an enemy is standing over it', () => {
       const [w] = workers(1);
       G.credits[0] = 5000; G.wood[0] = 5000;
