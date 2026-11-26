@@ -6,7 +6,7 @@ import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
-import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
+import { approach, canStep, cruise, followPath, narrow, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
@@ -364,6 +364,25 @@ function pullOver(u: Ent, e: Ent): Tile | null {
   return null;
 }
 
+/**
+ * Is the ground between a jammed unit and the end of its walk packed with its own side's troops
+ * standing there (others sent to the same spot that got there first)? Then it has got as close
+ * as it can, and stopping at the edge of the crowd is arriving: pushing on only shoves them about.
+ */
+function packedAround(u: Ent, goal: Tile): boolean {
+  const gx = (goal[0] + 0.5) * TS, gy = (goal[1] + 0.5) * TS, d = Math.hypot(gx - u.x, gy - u.y);
+  if (u.order?.t !== 'move' || d > 14 * TS || narrow(u.x, u.y)) return false;
+  let area = 0;
+  for (const e of G.ents) {
+    if (e === u || e.dead || e.kind !== 'unit' || e.team !== u.team || e.moving || isAir(e)) continue;
+    if (Math.hypot(e.x - gx, e.y - gy) > d) continue;
+    const w = unitDef(e).radius * 2 + 4;
+    area += w * w;
+  }
+  // a crowd standing that close packed covers at least half the ground short of us
+  return area >= 0.5 * Math.PI * (d - TS) * (d - TS);
+}
+
 /** The tile each unit last pulled over to, while it's still heading there. */
 const pulledOver = new WeakMap<Ent, Tile>();
 
@@ -395,7 +414,7 @@ function unstick(u: Ent, dt: number): void {
     if (bay) { u.path.unshift(bay); pulledOver.set(u, bay); u.px = u.x; u.py = u.y; return; }
     // close enough to the goal in a crowd counts as arrived; otherwise look for another way
     const last = u.path[u.path.length - 1];
-    if (!last || Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 2.5 * TS) u.path.length = 0;
+    if (!last || Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 2.5 * TS || packedAround(u, last)) u.path.length = 0;
     else {
       // edge over to the right, like traffic, so both can pass
       const sx = u.x - Math.sin(u.face) * SIDESTEP, sy = u.y + Math.cos(u.face) * SIDESTEP;
