@@ -177,16 +177,20 @@ export function refreshSidebar(): void {
     const needs = isUnitType(type) && !trainable.has(type) ? unitNeeds(V.team, type) ?? 'yard' : null;
     locked.add(type);
     if (!needs) locked.delete(type);
-    const status = needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : '';
+    // research queues one after another: one waiting its turn shows its place in line
+    const research = line === 'tech' || line === 'hospital' || line === 'armory';
+    const place = research && first && first.at == null ? G.prod[V.team][line].indexOf(first) + 1 : 0;
+    const status = needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : place ? 'QUEUED' : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : '';
     if (c.status.textContent !== status) c.status.textContent = status;
-    const count = (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
+    // a unit's count queued; a research's place in its line
+    const count = place ? `#${place}` : (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
     c.root.classList.toggle('build-cell--locked', !!needs);
     c.root.classList.toggle('build-cell--active', items.length > 0);
     if (items.length) busy[tabOf(type)] = true;
     c.root.classList.toggle('build-cell--ready', placing);
     c.root.classList.toggle('build-cell--waiting', !!need);
-    c.root.classList.toggle('build-cell--tech', line === 'tech' || line === 'hospital' || line === 'armory');
+    c.root.classList.toggle('build-cell--tech', research);
     // orders are paid in full up front: dim what the bank can't cover yet
     c.root.classList.toggle('build-cell--short', !canAfford(V.team, type) || (!items.length && atLimit(V.team, type)));
     c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
