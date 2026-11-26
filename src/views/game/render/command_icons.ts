@@ -28,6 +28,8 @@ export const COMMAND_GLYPH: Record<string, string> = {
   'gather:wood': svg('<ellipse cx="17" cy="12" rx="3" ry="5"/><path d="M17 7H7c-1.7 0-3 2.2-3 5s1.3 5 3 5h10"/><circle cx="17" cy="12" r="1"/>'),
   'gather:oil': svg('<path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/>'),
   'gather:aether': svg('<path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z"/>'),
+  // Harvest (a Harvester's job): a pickaxe over a crystal of ore
+  harvest: svg('<path d="M3 9Q11 1 19 6"/><path d="M11.5 4.2L6 21"/><path d="M18 12.5l3.5 4-3.5 5-3.5-5z"/>'),
   // Return Aether: a small Aether star carried home along a curved arrow
   aether: svg('<path d="M15 2.5l1.3 3.2 3.2 1.3-3.2 1.3L15 11.5l-1.3-3.2-3.2-1.3 3.2-1.3z"/><path d="M11 13.5c-4 .5-6.5 2.5-7 6"/><path d="M3 15.5l1 4 4-1.5"/><path d="M14 21v-4.5l3.5-2.5 3.5 2.5V21z"/>'),
   rally: svg('<path d="M6 21V3"/><path d="M6 4l13 4.5L6 13"/><path d="M3 21h7"/>'),
