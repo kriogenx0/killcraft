@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { aiPace, leaderHandicap } from './ai.ts';
+import { aiPace, ais, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
@@ -17,7 +17,7 @@ import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, rethink, takeResume } from './autogather.ts';
+import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, rethink, stayOnDerrick, takeResume } from './autogather.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
@@ -98,29 +98,34 @@ function pickOre(u: Ent, underway = false, around: Tile | null = null): [number,
 }
 
 /**
- * How far (tiles walked from the side's drop-offs) gatherers go for what's left of something
- * destroyed. Salvage comes first: within this, it beats any ordinary ore.
+ * How far (tiles walked from the side's drop-offs) the computer's gatherers go for what's left of
+ * something destroyed. A player's go anywhere on the map for it: salvage comes before any ordinary ore.
  */
-const SALVAGE_REACH = 36;
+const SALVAGE_REACH_AI = 36;
 /** Salvage this close (tiles) to an armed enemy (or enemy tower) is left until the fighting's over. */
 const SCRAP_DANGER = 7;
+/** Nor do gatherers go picking over wrecks this close (tiles) to an enemy building: that's their base. */
+const SCRAP_ENEMY_BASE = 10;
 
 /**
  * Salvage to dig before anything else: the ore left by destroyed units and structures lies where
- * they fell, so gatherers go for it first (the nearest to base, within SALVAGE_REACH, or a little
- * past `best` if that's further), but not into a fight.
+ * they fell, so gatherers go for it first (the nearest to base), but not into a fight or the enemy's base.
  */
 function scrapFor(u: Ent, walk: Float32Array | null, best: Tile | null, taken: (i: number) => boolean): Tile | null {
   if (!walk) return null;
-  const limit = Math.max(SALVAGE_REACH, best ? walk[best[1] * MW + best[0]] : 0);
-  let foes: Ent[] | null = null, pick = -1, bd = Infinity;
+  const limit = ais[u.team]?.on ? Math.max(SALVAGE_REACH_AI, best ? walk[best[1] * MW + best[0]] : 0) : Infinity;
+  let foes: Ent[] | null = null, bases: Ent[] = [], pick = -1, bd = Infinity;
   for (let i = 0; i < MW * MH; i++) {
     if (!G.scrap[i] || G.ore[i] < 1 || G.blk[i]) continue;
     const d = walk[i];
     if (d >= Math.min(bd, limit) || taken(i)) continue;
-    foes ??= G.ents.filter((e) => !e.dead && !allied(e.team, u.team) && e.team >= 0 && (e.kind === 'unit' ? !!unitDef(e).weapon && e.type !== 'worker' : e.kind === 'bld' && !!bldDef(e)?.weapon));
+    if (!foes) {
+      foes = G.ents.filter((e) => !e.dead && e.team >= 0 && !allied(e.team, u.team) && (e.kind === 'unit' ? !!unitDef(e).weapon && e.type !== 'worker' : e.kind === 'bld' && !!bldDef(e)?.weapon));
+      bases = G.ents.filter((e) => !e.dead && e.team >= 0 && e.kind === 'bld' && !allied(e.team, u.team));
+    }
     const x = (i % MW + 0.5) * TS, y = (((i / MW) | 0) + 0.5) * TS;
     if (foes.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_DANGER * TS)) continue;
+    if (bases.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_ENEMY_BASE * TS)) continue;
     bd = d; pick = i;
   }
   return pick < 0 ? null : [pick % MW, (pick / MW) | 0];
@@ -295,9 +300,12 @@ function updHauler(u: Ent, o: HarvestOrder, dt: number): void {
   // full, or the store is empty: take what we have home rather than stand by a slow pump holding it
   if (u.carry >= haulOf(u) - 0.5 || (src.carry <= 0.01 && u.carry > 0)) o.st = 'ret';
   else if (src.carry <= 0.01) {
-    // an empty tank: move to another derrick with a load waiting, or gather something else until
-    // this one fills up again, rather than stand about
+    // an empty tank: move to another derrick with a load waiting, or (on Auto) gather something
+    // else until this one fills up again, rather than stand about
     const other = fullerDerrick(u, src);
+    // set to Oil (or it built this derrick): it stays on oil, waiting for the pump
+    // (one waits at each pump; any more go and do something else)
+    if (!o.auto && !other && !G.ents.some((w) => w !== u && !w.dead && w.id < u.id && w.order?.t === 'harvest' && w.order.src === src.id && w.order.st === 'gather')) return;
     if (other) { o.src = other.id; [o.tx, o.ty] = [other.tx, other.ty]; o.st = 'go'; u.path = null; }
     else u.order = null;
   }
@@ -567,7 +575,10 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   if (t.kind === 'bld' && t.unpaid) return; // waits at the site until the side can pay for it
   u.atkT = 0.25; // hammers away: drawn like an attack
-  if (t.kind === 'bld' && !t.done) advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * (leaderHandicap(t.team) ? LEADER_SPEED : 1) * aiPace(t.team) * WORKER_BUILD * dt) / bldDef(t).t);
+  if (t.kind === 'bld' && !t.done) {
+    advanceSite(t, ((lowPower(t.team) ? 0.5 : 1) * (leaderHandicap(t.team) ? LEADER_SPEED : 1) * aiPace(t.team) * WORKER_BUILD * dt) / bldDef(t).t);
+    if (t.done) stayOnDerrick(u, t);
+  }
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
   else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
 }

@@ -24,6 +24,8 @@ function emptyMap(): void {
   // a plant in a far corner for each side, so the match doesn't end
   addBuilding('power', 0, 1, 61, false);
   addBuilding('power', 1, 61, 1, false);
+  // and a Town Hall for side 1, so it isn't knocked out (leaving its salvage lying about)
+  addBuilding('yard', 1, 58, 4, false);
   rebuildBlk();
 }
 

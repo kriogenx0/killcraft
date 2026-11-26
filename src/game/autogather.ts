@@ -66,6 +66,8 @@ export function options(u: Ent): Res[] {
 
 /** Oil a derrick must hold before an idle Worker walks out for it: less isn't worth the trip. */
 export const OIL_TRIP = 240;
+/** What's worth fetching when an order is waiting on oil. */
+const OIL_SHORT_TRIP = 60;
 
 /**
  * The side's nearest Oil Derrick with a load waiting and no Worker on it. A derrick pumps slowly,
@@ -73,8 +75,10 @@ export const OIL_TRIP = 240;
  */
 function derrickFor(u: Ent): Ent | null {
   let best: Ent | null = null, bd = Infinity;
+  // something waiting on oil the side hasn't got: any useful amount is worth the trip
+  const trip = owed(u.team).oil > G.oil[u.team] ? OIL_SHORT_TRIP : OIL_TRIP;
   for (const d of G.ents) {
-    if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || d.carry < OIL_TRIP) continue;
+    if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || d.carry < trip) continue;
     if (G.ents.some((w) => w !== u && !w.dead && w.team === u.team && w.order?.t === 'harvest' && w.order.src === d.id)) continue;
     const dist = Math.hypot(d.x - u.x, d.y - u.y);
     if (dist < bd) { bd = dist; best = d; }
@@ -100,12 +104,12 @@ function standing(team: number, r: Res, crew: Record<Res, number>, debt = owed(t
 /** The resource an Auto Worker should gather: whichever the side has least of (`u` itself not counted). */
 export function pickResource(u: Ent, can: Res[] = options(u)): Res | null {
   if (!can.length) return salvageFor(u) ? 'ore' : null;
-  // what's left of something destroyed comes before anything else
   if (can.length === 1) return can[0];
-  if (salvageFor(u)) return 'ore';
   const crew = crewOf(u), debt = owed(u.team);
   let best: Res | null = null, bs = Infinity;
   for (const r of can) { const v = standing(u.team, r, crew, debt); if (v < bs) { bs = v; best = r; } }
+  // what's left of something destroyed comes before anything else, bar oil when that's what's short
+  if (best !== 'oil' && salvageFor(u)) return 'ore';
   return best;
 }
 
@@ -166,6 +170,8 @@ export function rethink(u: Ent, o: HarvestOrder): void {
     if (next) gather(u, next);
     return;
   }
+  // a load of oil is an errand, not a change of job: go whenever oil is what the side has least of
+  if (now !== 'oil' && r === 'oil') { gather(u, 'oil'); return; }
   // salvage first: a trip out for it is an errand, and the Worker goes back to its own job once it's dug up
   const salvage = !!salvageFor(u);
   if (salvage && now === 'wood') { gather(u, 'ore'); errandFrom.set(u, now); return; }
@@ -188,6 +194,8 @@ const SETTLE = 60;
 const GAP = 500;
 /** What each Auto Worker was gathering before it went to fetch a load of oil. */
 const errandFrom = new WeakMap<Ent, Res>();
+/** Out on an errand (a load of oil, or salvage), to go back to its own job after. */
+export const onErrand = (u: Ent): boolean => errandFrom.has(u);
 /** When each Auto Worker last moved to another resource. */
 const movedAt = new WeakMap<Ent, number>();
 
@@ -301,3 +309,14 @@ export function recruitTo(d: Ent): Ent | null {
 
 /** How many of the side's Workers haul from a derrick. */
 export const crewAt = (d: Ent): number => G.ents.filter((u) => !u.dead && u.team === d.team && u.order?.t === 'harvest' && u.order.src === d.id).length;
+
+/**
+ * The Worker that finished building an Oil Derrick stays on and hauls its oil (set to Oil), unless
+ * another Worker already does.
+ */
+export function stayOnDerrick(u: Ent, d: Ent): void {
+  if (d.type !== 'derrick' || !d.done || d.dead || u.type !== 'worker' || d.team !== u.team || computer(u.team) || crewAt(d)) return;
+  forgetAether(u);
+  resume.delete(u);
+  setOrder(u, { t: 'harvest', st: u.carry > 0 && u.cargo !== 'oil' ? 'ret' : 'go', tx: d.tx, ty: d.ty, wait: 0, res: 'oil', src: d.id });
+}
