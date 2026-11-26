@@ -32,7 +32,7 @@ $sidebar-width: 248px;
     pointer-events: none;
   }
 
-  // top bar: ore, power, age, time
+  // top bar: ore, wood, oil, power, units, time
   .topbar {
     position: absolute;
     top: 0;
@@ -64,18 +64,12 @@ $sidebar-width: 248px;
       min-width: 7ch;
     }
 
-    // the age name is last before the spacer, so on a cramped bar it gives way (with an ellipsis)
-    // and nothing else moves
-    .ui-resource:has(.topbar-era) {
+    // the unit count is last before the spacer, so on a very cramped bar it is the one that gets
+    // clipped and the buttons stay on screen
+    .ui-resource:has(.topbar-units) {
       flex: 0 1 auto;
       min-width: 0;
       overflow: hidden;
-    }
-
-    .topbar-era {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
   }
 
@@ -894,8 +888,20 @@ $sidebar-width: 248px;
         gap: 2px;
       }
 
+      // no room for fixed-width counters on a phone: each takes just what its number needs
+      .ui-resource-value,
+      .topbar-power {
+        min-width: 0;
+      }
+
       .ui-button--small {
         min-width: 36px;
+      }
+
+      // the smallest phones: tighter spacing so every counter and button fits
+      @media (max-width: 360px) {
+        gap: 2px;
+        padding: 0 $space-1;
       }
     }
 

@@ -22,7 +22,7 @@
     &--oil { border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: radial-gradient(circle at 35% 35%, #8a8aa0, #22222e 55%, #050508); }
     &--aether { border-radius: 0; box-shadow: none; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: linear-gradient(135deg, #fbeaff, #c060ff 45%, #4a1080); }
     &--power { background: radial-gradient(circle at 35% 35%, #e8fff0, #40d070 50%, #106030); }
-    &--era { background: radial-gradient(circle at 35% 35%, #f0e8ff, #9a70e0 50%, #40207a); }
+    &--units { border-radius: 50% 50% 2px 2px; background: radial-gradient(circle at 50% 30%, #e0ecff, #5a8ae0 50%, #1a3a7a); }
   }
 
   .ui-resource-value {
