@@ -31,12 +31,26 @@ const locked = new Set<Buildable>();
 type Tab = 'structure' | 'unit';
 let tab: Tab = 'structure', lastProducer: BldType | null = null;
 let tabs: Record<Tab, { btn: HTMLElement; busy: HTMLElement }> | null = null;
+/**
+ * Phones only: a third tab, Selected, holds what's selected and its commands, so the bottom panel
+ * shows one thing at a time beside the radar. It appears while something is selected.
+ */
+let selTab: HTMLElement | null = null, onSel = false, selKey = '';
+const narrow = (): boolean => matchMedia('(max-width: 760px)').matches;
 
 function showTab(t: Tab): void {
   tab = t;
   structureList.parentElement?.classList.toggle('sidebar-build--structure', t === 'structure');
   structureList.parentElement?.classList.toggle('sidebar-build--unit', t === 'unit');
-  if (tabs) for (const k of ['structure', 'unit'] as const) tabs[k].btn.setAttribute('aria-selected', String(k === t));
+  showSel(false);
+}
+
+function showSel(on: boolean): void {
+  on &&= narrow(); // the desktop sidebar shows the selection and the build lists together
+  onSel = on;
+  structureList.closest('.sidebar')?.classList.toggle('sidebar--sel', on);
+  selTab?.setAttribute('aria-selected', String(on));
+  if (tabs) for (const k of ['structure', 'unit'] as const) tabs[k].btn.setAttribute('aria-selected', String(!on && k === tab));
 }
 
 const tabOf = (t: Buildable): Tab => (isUnitType(t) ? 'unit' : 'structure');
@@ -136,6 +150,16 @@ export function refreshSidebar(): void {
     lastProducer = producer;
     if (producer) showTab(isUnitProducer(BUILDING[producer].produces) ? 'unit' : 'structure');
   }
+  // a new selection (other than a producer, which opens its build tab) opens the Selected tab;
+  // selecting nothing goes back to the build tab
+  const pane = structureList.closest('.sidebar')?.querySelector<HTMLElement>('.sidebar-selection');
+  const has = !!pane && !pane.hidden;
+  const sk = has ? V.sel.map((e) => e.id).join() : '';
+  if (sk !== selKey) {
+    selKey = sk;
+    if (!has) { if (onSel) showSel(false); }
+    else if (!producer || !ownSelected().some((e) => e.kind === 'bld')) showSel(true);
+  }
   const busy: Record<Tab, boolean> = { structure: false, unit: false };
   for (const [type, c] of cells) {
     const line = lineOf(type), structure = line === 'structure';
@@ -189,13 +213,12 @@ export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip
   const tab0 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--structure'), tab1 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--unit');
   if (tab0 && tab1) {
     tabs = { structure: { btn: tab0, busy: tab0.querySelector('.build-tab-busy') as HTMLElement }, unit: { btn: tab1, busy: tab1.querySelector('.build-tab-busy') as HTMLElement } };
-    // on a phone the tabs stay pinned at the panel's edge: a tap also scrolls the chosen list into view
-    const pick = (t: Tab) => {
-      showTab(t);
-      if (matchMedia('(max-width: 760px)').matches) (t === 'unit' ? unitList : structureList).scrollIntoView({ block: 'start', behavior: 'smooth' });
-    };
-    tab0.addEventListener('click', () => pick('structure'));
-    tab1.addEventListener('click', () => pick('unit'));
+    // on a phone the panel scrolls under the pinned tabs: a tap starts the chosen tab at its top
+    const top = () => { const bar = structureList.closest<HTMLElement>('.sidebar'); if (bar && narrow()) bar.scrollTop = 0; };
+    tab0.addEventListener('click', () => { showTab('structure'); top(); });
+    tab1.addEventListener('click', () => { showTab('unit'); top(); });
+    selTab = structures.parentElement?.querySelector<HTMLElement>('.build-tab--selection') ?? null;
+    selTab?.addEventListener('click', () => { showSel(true); top(); });
   }
   showTab(tab);
   for (const list of [structures, units]) {

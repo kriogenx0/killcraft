@@ -536,6 +536,15 @@ $sidebar-width: 248px;
     }
   }
 
+  // phones only (see the narrow-screen rules)
+  .build-tab--selection {
+    display: none;
+
+    & + .build-tab {
+      border-left: 0;
+    }
+  }
+
   .build-tab-icon {
     width: 24px;
     height: 24px;
@@ -851,10 +860,10 @@ $sidebar-width: 248px;
       left: 0;
       display: grid;
       // a fixed height, so selecting something doesn't resize (and blank) the map canvas
-      // the panel scrolls up and down as one (selection, then build items); the radar stays put
-      // what's selected across the top, then the radar beside the commands, then the build tabs
+      // the radar sits pinned on the left; beside it the tabs (Selected, Buildings, Units) and the
+      // chosen tab's contents, which scroll under the pinned tabs
       grid-auto-rows: max-content;
-      grid-template-columns: 96px minmax(0, 1fr);
+      grid-template-columns: 112px minmax(0, 1fr);
       gap: $space-2;
       align-content: start;
       width: auto;
@@ -862,16 +871,20 @@ $sidebar-width: 248px;
       overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
-      padding: $space-2 $gutter;
+      // no top padding: the pinned tabs sit flush with the edge so nothing scrolls past above them
+      padding: 0 $gutter $space-2;
       border-top-width: 3px;
       border-left-width: 0;
     }
 
     .sidebar-minimap {
-      grid-row: 2;
+      position: sticky;
+      top: 0;
+      grid-row: 1 / span 3;
       grid-column: 1;
       align-self: start;
-      width: 96px;
+      margin-top: $space-2;
+      width: 112px;
     }
 
     // its two parts take their own places in the panel's grid
@@ -880,8 +893,8 @@ $sidebar-width: 248px;
     }
 
     .selection-details {
-      grid-row: 1;
-      grid-column: 1 / -1;
+      grid-row: 2;
+      grid-column: 2;
       min-width: 0;
       padding: $space-1 $space-2;
       background: var(--color-inset);
@@ -889,15 +902,24 @@ $sidebar-width: 248px;
     }
 
     .selection-commands {
-      grid-row: 2;
+      grid-row: 3;
       grid-column: 2;
       align-self: start;
       margin-top: 0;
     }
 
-    .sidebar-build {
-      grid-row: 3;
-      grid-column: 1 / -1;
+    // one tab at a time: what's selected, or a build list
+    .sidebar:not(.sidebar--sel) .sidebar-selection,
+    .sidebar--sel .build-list {
+      display: none;
+    }
+
+    .sidebar:has(.sidebar-selection:not([hidden])) .build-tab--selection {
+      display: flex;
+
+      & + .build-tab {
+        border-left: 1px solid var(--color-rim);
+      }
     }
 
     // long descriptions and how-to notes fold to two lines (the selection panel stays short)
@@ -948,8 +970,8 @@ $sidebar-width: 248px;
       overflow: visible;
     }
 
-    // the tabs and the lists take their own rows in the panel, so the tabs can stay in view while
-    // the panel scrolls: pinned to the bottom edge until their place scrolls up, then to the top
+    // the tabs and the lists take their own places in the panel, so the tabs stay pinned at the top
+    // while the contents scroll
     .sidebar-build {
       display: contents;
     }
@@ -957,10 +979,10 @@ $sidebar-width: 248px;
     .build-tabs {
       position: sticky;
       top: 0;
-      bottom: 0;
       z-index: 2;
-      grid-row: 3;
-      grid-column: 1 / -1;
+      grid-row: 1;
+      grid-column: 2;
+      margin-top: $space-2;
       box-shadow: 0 0 6px rgb(0 0 0 / 45%);
     }
 
@@ -978,8 +1000,8 @@ $sidebar-width: 248px;
     }
 
     .build-list {
-      grid-row: 4;
-      grid-column: 1 / -1;
+      grid-row: 2 / span 2;
+      grid-column: 2;
       scroll-margin-top: 36px; // clear of the pinned tabs
     }
 
