@@ -3,7 +3,8 @@ import { G, hooks, type Ent } from './state.ts';
 import { MH, MW, STEP, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
-import { addUnit } from './entity.ts';
+import { addBuilding, addUnit } from './entity.ts';
+import { addBeast } from './creatures.ts';
 import { fire, MELEE_LAND, updProjs } from './combat.ts';
 import { applyCommand } from './command.ts';
 import { groupMove, orderAttack, setStance } from './order.ts';
@@ -170,5 +171,26 @@ describe('stances', () => {
     for (const u of [a, b]) expect(u.order?.t === 'attack' && u.order.tgt).toBe(picked.id);
     run(25);
     expect(picked.dead).toBe(true);
+  });
+
+  it('goes back to a picked building after fighting off whoever shot at it', () => {
+    const [x, y] = openGround(10);
+    const hut = addBuilding('barracks', 1, Math.floor(x / TS) + 7, Math.floor(y / TS) - 1, false);
+    const a = addUnit('tank', 0, x, y);
+    applyCommand(0, { c: 'attack', ids: [a.id], target: hut.id });
+    run(1);
+    const foe = addUnit('rifleman', 1, x + TS, y + TS);
+    run(12);
+    expect(foe.dead).toBe(true);
+    expect(a.order?.t === 'attack' && a.order.tgt).toBe(hut.id);
+    run(4);
+    expect(hut.hp).toBeLessThan(hut.maxhp);
+  });
+
+  it('troops can be sent after a wild creature', () => {
+    const [x, y] = openGround(8);
+    const a = addUnit('tank', 0, x, y), beast = addBeast('minotaur', x + 6 * TS, y);
+    applyCommand(0, { c: 'attack', ids: [a.id], target: beast.id });
+    expect(a.order?.t === 'attack' && a.order.tgt).toBe(beast.id);
   });
 });

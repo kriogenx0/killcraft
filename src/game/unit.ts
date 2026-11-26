@@ -8,7 +8,7 @@ import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
 import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
-import { acquire, attacker, betterTarget, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
+import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, SHARD_PULL } from '../data/aether.ts';
@@ -696,11 +696,12 @@ function act(u: Ent, dt: number): void {
     case 'attack': {
       let t = valid(o.tgt);
       u.scan -= dt;
-      // a target the player picked is kept unless something hits back; one the unit found itself gives way to a better one
+      // a target the player picked is kept unless something hits back (then it's taken up again after);
+      // one the unit found itself gives way to a better one
       if (t && u.scan <= 0) {
         u.scan = 0.3;
         const b = betterTarget(u, t, lookRange(u), !o.auto);
-        if (b) { t = b; o.tgt = b.id; u.path = null; }
+        if (b) { if (!o.auto && o.pick === undefined) o.pick = t.id; t = b; o.tgt = b.id; u.path = null; }
       }
       const strayed = o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE;
       const gaveUp = !t || strayed || !combatStep(u, t, dt);
@@ -709,6 +710,9 @@ function act(u: Ent, dt: number): void {
         if (strayed && t && u.foe === t.id) u.foe = null;
         // couldn't get at it at all: leave it be for a while rather than taking it straight up again
         else if (t && !strayed && !t.dead && isFoe(u, t)) cantReachFoe(u, t);
+        // dealt with whatever got in the way: back to the target the player picked
+        const back = o.pick !== undefined ? valid(o.pick) : null;
+        if (back && back !== t && isFoe(u, back) && canAttack(u, back)) { o.tgt = back.id; o.pick = undefined; u.path = null; u.scan = 0; break; }
         u.order = null; u.path = null; u.scan = 0;
       }
       break;

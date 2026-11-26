@@ -149,7 +149,7 @@ function gatherCommands(s: Ent[]): Command[] {
 const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function commandList(): Command[] {
-  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : 'Cancel the current command' }];
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
@@ -160,6 +160,7 @@ export function commandList(): Command[] {
   if (first.kind === 'unit')
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
+      ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon && !isHarvester(u)) ? [{ id: 'attack', label: 'Attack', hotkey: COMMAND_KEYS.attack, icon: ICON.attack, tip: 'Pick an enemy unit or building (a wall too) for your fighters to attack and stay on until it falls' }] : []),
       ...(s.some((u) => u.kind === 'unit' && (unitDef(u).weapon || u.type === 'medic')) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way (Medics heal the wounded they pass)' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       // Fix, then harvest is for Workers only (and is theirs by default)
@@ -213,7 +214,7 @@ export function runCommand(id: string): void {
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'follow') toggleFollow();
   else if (id === 'formation') toggleFormation();
-  else if (id === 'move' || id === 'patrol' || id === 'rally') V.mode = { t: id };
+  else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
