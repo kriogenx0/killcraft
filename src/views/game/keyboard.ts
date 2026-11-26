@@ -57,7 +57,7 @@ export const GLOBAL_KEYS = { pause: 'P', home: 'H' } as const;
  */
 export const FOLLOW_KEY = 'Shift+F';
 
-/** Rally the army: pick a spot every fighting unit heads to, and new troops from every producer follow. */
+/** Rally point: pick a spot new troops from every producer head to. */
 export const RALLY_KEY = 'Shift+R';
 
 /** Keep formation: a group moves together at its slowest unit's pace and keeps its shape. */

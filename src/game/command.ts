@@ -30,8 +30,8 @@ export type Command =
   /** fight one enemy unit or building until it falls */
   | { c: 'attack'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
-  /** the army rally point: every producer's new troops go there, and with `send` the whole army too */
-  | { c: 'muster'; x: number; y: number; send: boolean }
+  /** the army rally point: every producer's new troops go there (troops already out stay put) */
+  | { c: 'muster'; x: number; y: number }
   | { c: 'build'; type: Buildable }
   | { c: 'hold'; type: Buildable }
   | { c: 'cancel'; type: Buildable }
@@ -79,7 +79,7 @@ export function parseCommand(raw: unknown): Command | null {
     case 'rally':
       return isInt(o.id) && inWorld(o.x, o.y) ? { c: 'rally', id: o.id, x: o.x as number, y: o.y as number } : null;
     case 'muster':
-      return inWorld(o.x, o.y) && typeof o.send === 'boolean' ? { c: 'muster', x: o.x as number, y: o.y as number, send: o.send } : null;
+      return inWorld(o.x, o.y) ? { c: 'muster', x: o.x as number, y: o.y as number } : null;
     case 'build':
     case 'hold':
     case 'cancel':
@@ -177,7 +177,7 @@ export function applyCommand(team: number, cmd: Command): void {
       break;
     }
     case 'muster':
-      rallyArmy(team, cmd.x, cmd.y, cmd.send);
+      rallyArmy(team, cmd.x, cmd.y);
       break;
     case 'build':
       enqueue(team, cmd.type); // paid in full the moment it's queued; turned down if the side can't pay

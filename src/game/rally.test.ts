@@ -25,12 +25,13 @@ describe('rally army leaves Workers alone', () => {
     const rx = Math.min(G.ents[0].x + 40 * TS, 60 * TS), ry = yard.y;
     const workersBefore = G.ents.filter((e) => e.team === 0 && e.type === 'worker');
     const start = new Map(workersBefore.map((w) => [w.id, dist(w, rx, ry)]));
-    applyCommand(0, { c: 'muster', x: rx, y: ry, send: true });
+    applyCommand(0, { c: 'muster', x: rx, y: ry });
     expect(producers(0)).not.toContain(yard);
     expect(yard.rally).toBeFalsy();
     expect(army(0)).toContain(foot);
     expect(army(0).some((u) => u.type === 'worker')).toBe(false);
-    expect(foot.order?.t).toBe('move');
+    // setting the rally point doesn't move troops already out
+    expect(foot.order?.t).not.toBe('move');
     G.credits[0] = G.wood[0] = 99999;
     enqueue(0, 'worker');
     enqueue(0, 'worker');

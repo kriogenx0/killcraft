@@ -61,13 +61,17 @@ describe('army rally point', () => {
     const foot = addUnit('swordsman', 0, (bx + 1) * TS, (by + 4) * TS);
     const worker = G.ents.find((e) => e.team === 0 && e.type === 'worker')!;
     const workerOrder = worker.order;
-    expect(parseCommand({ c: 'muster', x: 400, y: 500, send: true })).toEqual({ c: 'muster', x: 400, y: 500, send: true });
-    expect(parseCommand({ c: 'muster', x: 400, y: 500 })).toBeNull();
-    applyCommand(0, { c: 'muster', x: 400, y: 500, send: true });
+    expect(parseCommand({ c: 'muster', x: 400, y: 500 })).toEqual({ c: 'muster', x: 400, y: 500 });
+    // older clients still send `send`; it's ignored
+    expect(parseCommand({ c: 'muster', x: 400, y: 500, send: true })).toEqual({ c: 'muster', x: 400, y: 500 });
+    expect(parseCommand({ c: 'muster', x: -5, y: 500 })).toBeNull();
+    const footOrder = foot.order;
+    applyCommand(0, { c: 'muster', x: 400, y: 500 });
     expect(producers(0).length).toBeGreaterThan(0);
     expect(G.rally[0]).toEqual({ x: 400, y: 500 });
     for (const b of producers(0)) expect(b.rally).toEqual({ x: 400, y: 500 });
-    expect(foot.order?.t).toBe('move');
+    // troops already out stay put
+    expect(foot.order).toBe(footOrder);
     expect(worker.order).toBe(workerOrder);
     // the other side's producers are untouched
     expect(G.rally[1]).toBeNull();

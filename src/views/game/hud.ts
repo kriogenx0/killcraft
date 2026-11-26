@@ -118,10 +118,10 @@ function formationCommand(): Command {
   return { id: 'formation', label: 'Formation', hotkey: FORMATION_KEY, icon: ICON.formation, active: on, tip: on ? 'On: groups move together at the slowest unit\'s pace and keep their shape. Turn off to let everyone go at full speed' : 'Move groups in formation: together at the slowest unit\'s pace, keeping their shape, so they arrive at once' };
 }
 
-/** Rally the army: every fighter heads to one spot, and new troops from every producer follow. */
+/** Rally point: new troops from every producer head to one spot. Troops already out stay put. */
 function rallyCommand(): Command | null {
   if (spectating() || G.over) return null;
-  return { id: 'rally', label: 'Rally army', hotkey: RALLY_KEY, icon: ICON.rally, tip: 'Pick a spot: your whole army heads there now, and new troops from every Barracks, Factory and Airfield follow. Workers keep working' };
+  return { id: 'rally', label: 'Rally point', hotkey: RALLY_KEY, icon: ICON.rally, tip: 'Pick a spot where new troops from every Barracks, Factory and Airfield go. Troops already out stay where they are' };
 }
 
 const GATHER_INFO: Record<GatherRes, { label: string; tip: string }> = {
@@ -161,12 +161,12 @@ function gatherCommands(s: Ent[]): Command[] {
 const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function commandList(): Command[] {
-  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to send new troops there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
   // nothing of yours selected: enemy units you can see, and anything while spectating, can be followed
-  // (Rally army stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
+  // (Rally point stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
   if (!first) return follow ? [follow] : [];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
@@ -404,7 +404,7 @@ function buildingDetails(e: Ent): string {
   if (own && e.type === 'hospital') rows.push(['Healing', `Lvl ${healOf(e.team)}`]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
-    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats hud-hint">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
+    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats hud-hint">Right-click or tap the ground to set this building\'s rally point. Rally point sets one for every building.</p>' : '');
 }
 
 /** What a producing building is making (each Barracks trains its own order; the queue is shared by every building of the type). */

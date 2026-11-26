@@ -121,7 +121,7 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
   }
   V.mode = null;
   if (m.t === 'rally') {
-    dispatch({ c: 'muster', x: Math.round(wx), y: Math.round(wy), send: true });
+    dispatch({ c: 'muster', x: Math.round(wx), y: Math.round(wy) });
     mark(wx, wy, '#5f5');
     refreshCommands(true);
     return;
@@ -203,7 +203,7 @@ function tap(sx: number, sy: number, add = false): void {
     return;
   }
   // only units take orders from a tap; with just a building selected, tapping the ground lets go of it
-  // (its rally point is set with the Rally army command)
+  // (its rally point is set with the Rally point command)
   if (ownSelected().some((x) => x.kind === 'unit') && w) worldCommand(w.x, w.y, e);
   else setSelection(e ? [e] : []);
 }
