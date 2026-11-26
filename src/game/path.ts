@@ -172,11 +172,11 @@ export function knownUnreachable(sx: number, sy: number, gx: number, gy: number,
   return !G.blk[gi] && closedStamp[gi] !== stamp && lastFail.map === mapPrint();
 }
 
-/** Can a unit (7px half-width) walk straight from one point to another? */
-export function los(x0: number, y0: number, x1: number, y1: number): boolean {
+/** Can a unit (`half` px half-width, 7 by default) walk straight from one point to another? */
+export function los(x0: number, y0: number, x1: number, y1: number, half = 7): boolean {
   const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy);
   if (d < 1) return true;
-  const n = Math.ceil(d / 6), px = (-dy / d) * 7, py = (dx / d) * 7;
+  const n = Math.ceil(d / 6), px = (-dy / d) * half, py = (dx / d) * half;
   for (let i = 1; i <= n; i++) {
     const x = x0 + (dx * i) / n, y = y0 + (dy * i) / n;
     if (blkAt(x, y) || blkAt(x + px, y + py) || blkAt(x - px, y - py)) return false;

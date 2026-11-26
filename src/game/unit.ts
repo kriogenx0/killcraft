@@ -5,7 +5,7 @@ import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester,
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
-import { DIRS, adjTile, edgeDist, nearestFree, pathFor, pathTo } from './path.ts';
+import { DIRS, adjTile, edgeDist, los, nearestFree, pathFor, pathTo } from './path.ts';
 import { approach, canStep, cruise, followPath, narrow, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
@@ -412,6 +412,11 @@ function unstick(u: Ent, dt: number): void {
     if (u.path[0] === pulledOver.get(u)) u.path.shift(); // couldn't get there either
     const e = oncoming(u), bay = e && e.id < u.id ? pullOver(u, e) : null;
     if (bay) { u.path.unshift(bay); pulledOver.set(u, bay); u.px = u.x; u.py = u.y; return; }
+    // jostling for a waypoint on the way (a corner, a gap) with others: close by is near enough
+    const wp = u.path[0];
+    const nx = u.path[1];
+    if (nx && G.warp[wp[1] * MW + wp[0]] < 0 && Math.hypot((wp[0] + 0.5) * TS - u.x, (wp[1] + 0.5) * TS - u.y) < 0.75 * TS
+      && los(u.x, u.y, (nx[0] + 0.5) * TS, (nx[1] + 0.5) * TS, 2)) { u.path.shift(); u.px = u.x; u.py = u.y; return; }
     // close enough to the goal in a crowd counts as arrived; otherwise look for another way
     const last = u.path[u.path.length - 1];
     if (!last || Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 2.5 * TS || packedAround(u, last)) u.path.length = 0;
