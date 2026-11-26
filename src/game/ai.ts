@@ -244,7 +244,7 @@ const alarmed = (team: number): boolean => careful(team) && G.gameT - (ais[team]
  * After a raid on the base, a defense to answer it, whatever the bank (beyond a Worker's price): up to
  * ALARM_DEFENSES (more in later ages), one site at a time.
  */
-function alarmDefense(team: number, can: readonly string[]): BldType | null {
+function alarmDefense(team: number, can: readonly string[], note = true): BldType | null {
   if (!alarmed(team) || sitesOf(team).some((e) => DEFENSES.includes(e.type as BldType))) return null;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
   if (turrets >= ALARM_DEFENSES + 2 * G.era[team]) return null;
@@ -254,7 +254,7 @@ function alarmDefense(team: number, can: readonly string[]): BldType | null {
   const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
   const pick = infantry * 2 >= foe.length ? vsInfantry : vsArmor;
   if (!can.includes(pick)) return null;
-  aiNote(team, `raided: putting up a ${label(pick)}`, `alarm ${pick}`);
+  if (note) aiNote(team, `raided: putting up ${label(pick)}`, `alarm ${pick}`);
   return pick;
 }
 
@@ -707,7 +707,7 @@ function training(team: number): void {
   // troops always leave the price of a Worker in hand. Nothing else reliably brings ore home, so a side that loses them all must be able to train one.
   const keep = workerKeep();
   // raided lately: troops come before the structure being saved for (but not before an alarm defense)
-  const alarm = alarmed(team) && !alarmDefense(team, available(team, 'structure'));
+  const alarm = alarmed(team) && !alarmDefense(team, available(team, 'structure'), false);
   const prod = G.prod[team], credits = G.credits[team] - (alarm ? keep : Math.max(ais[team].reserve, keep)) - (alarm ? 0 : ais[team].refitSave ?? 0);
   // saving up for the next structure
   const saving = credits < 150;
@@ -962,6 +962,16 @@ function forceNear(x: number, y: number, r: number, whose: (team: number) => boo
   return n;
 }
 
+/** Total worth of the armed enemies of `team` within r tiles of any of `us`. */
+function foesAround(us: readonly Ent[], r: number, team: number): number {
+  let n = 0;
+  for (const e of G.ents) {
+    if (e.dead || e.team < 0 || !hostile(e.team, team) || !armed(e)) continue;
+    if (us.some((u) => Math.hypot(e.x - u.x, e.y - u.y) < r * TS)) n += worth(e);
+  }
+  return n;
+}
+
 /** Troops this far (tiles) from the Town Hall are away from home. */
 const AWAY = 22;
 /** Raiders worth more than this share of what's at home to meet them call the whole army back. */
@@ -1037,13 +1047,16 @@ function military(team: number): void {
   const home = homeOf(team);
   // defend against anyone, not just the side we're fighting
   const threat = home && baseRaid(team, home);
+  // only a raid bigger than what's at home holds the next wave back; a few raiders are the home guard's job
+  let bigRaid = false;
   if (home && threat) {
     A.raidT = G.gameT;
     // a raid bigger than what's at home calls the whole army back, whatever it's doing out there
     const away = (u: Ent) => Math.hypot(u.x - home.x, u.y - home.y) >= AWAY * TS && Math.hypot(u.x - threat.x, u.y - threat.y) >= AWAY * TS;
     const raid = forceNear(threat.x, threat.y, 10, (t) => hostile(t, team));
     const held = forceNear(threat.x, threat.y, 10, (t) => t === team) + army.filter((u) => !away(u) && Math.hypot(u.x - threat.x, u.y - threat.y) >= 10 * TS).reduce((n, u) => n + worth(u), 0);
-    const recall = careful(team) && raid > held * RECALL && army.some(away);
+    bigRaid = careful(team) && raid > held * RECALL;
+    const recall = bigRaid && army.some(away);
     if (recall) {
       if (A.attacking) aiNote(team, `base raided (${Math.round(raid)} against ${Math.round(held)}): pulling the army home`, 'recall');
       A.attacking = false;
@@ -1083,7 +1096,7 @@ function military(team: number): void {
   const idle = army.filter((u) => !u.order);
   const enemyArmy = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length;
   // attack in waves, or press on whenever the enemy army is clearly smaller
-  const L = lvl(team), ready = G.gameT >= L.firstAttack && G.gameT >= (A.regroupT ?? 0) && !threat;
+  const L = lvl(team), ready = G.gameT >= L.firstAttack && G.gameT >= (A.regroupT ?? 0) && !bigRaid;
   // a guard stays home while the wave is out (Normal and up)
   const guard = A.home ??= new Set();
   for (const id of guard) { const g = G.byId.get(id); if (!g || g.dead) guard.delete(id); }
@@ -1108,8 +1121,9 @@ function military(team: number): void {
   if (A.attacking && home && careful(team)) {
     const front = out.filter((u) => Math.hypot(u.x - home.x, u.y - home.y) >= AWAY * TS);
     if (front.length >= 3) {
-      const cx = front.reduce((a, u) => a + u.x, 0) / front.length, cy = front.reduce((a, u) => a + u.y, 0) / front.length;
-      const ours = forceNear(cx, cy, 10, (t) => allied(t, team)), theirs = forceNear(cx, cy, 10, (t) => hostile(t, team));
+      // weigh the wave against what's armed and close to any of it (a wave strung out across the map has
+      // no middle worth measuring at)
+      const ours = front.reduce((n, u) => n + worth(u), 0), theirs = foesAround(front, 8, team);
       if (ours < theirs * FALL_BACK) {
         aiNote(team, `wave beaten (${Math.round(ours)} against ${Math.round(theirs)}): falling back to regroup`, 'fall back');
         A.attacking = false;
