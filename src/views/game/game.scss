@@ -387,6 +387,83 @@ $sidebar-width: 248px;
     }
   }
 
+  // control group buttons (1-5, more once used): bottom-left of the map, above the touch bar on touch screens
+  .group-bar {
+    position: absolute;
+    bottom: $space-3;
+    left: $gutter;
+    z-index: 5;
+    display: none;
+    gap: $space-1;
+    max-width: calc(100% - 2 * #{$gutter});
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .group-bar--on {
+    display: flex;
+  }
+
+  .group-bar-btn {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 30px;
+    padding: 0;
+    font: inherit;
+    font-size: $font-sm;
+    font-weight: bold;
+    color: var(--color-button-text);
+    cursor: pointer;
+    user-select: none;
+    background: linear-gradient(var(--color-button-top), var(--color-button-bottom));
+    border: 2px solid var(--color-rim);
+    border-radius: $radius;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 45%);
+    appearance: none;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+
+    &:active {
+      filter: brightness(1.25);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--color-focus);
+    }
+
+    // the group is what is selected now
+    &[aria-pressed='true'] {
+      color: #0d1a0d;
+      background: linear-gradient(#9e9, #5b5);
+      box-shadow: inset 0 0 0 1px #cfc;
+    }
+  }
+
+  // an empty slot: there to be filled, but quiet
+  .group-bar-btn--empty {
+    opacity: 0.55;
+    box-shadow: none;
+  }
+
+  // how many units the group holds, tucked in the corner
+  .group-bar-count {
+    position: absolute;
+    right: 1px;
+    bottom: 0;
+    font-size: 9px;
+    font-weight: normal;
+    line-height: 1.1;
+
+    &:empty {
+      display: none;
+    }
+  }
+
   .touch-bar-icon {
     width: 26px;
     height: 26px;
@@ -1024,11 +1101,34 @@ $sidebar-width: 248px;
       bottom: calc(min(40vh, 320px) + #{$space-2});
       left: $space-2;
     }
+
+    .group-bar {
+      bottom: calc(min(40vh, 320px) + #{$space-2});
+      left: $space-2;
+    }
   }
 }
 
 :root.touch-ui .view-game .touch-bar--on {
   display: inline-flex;
+}
+
+// touch screens: bigger group buttons, stacked just above the touch bar (48px buttons + 2px rims each side)
+:root.touch-ui .view-game {
+  .group-bar {
+    margin-bottom: 52px + $space-1;
+  }
+
+  .group-bar-btn {
+    width: 44px;
+    height: 38px;
+    font-size: $font-md;
+  }
+
+  .group-bar-count {
+    right: 3px;
+    font-size: 10px;
+  }
 }
 
 // phones and tablets have no keyboard: hide the hotkey letters on buttons and build items

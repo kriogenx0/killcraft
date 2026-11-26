@@ -1,5 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, allied, bldDef, hostile, isHarvester, tileOf, unitDef, valid, type Ent } from '../../game/state.ts';
+import { G, allied, bldDef, hostile, isHarvester, tileOf, unitDef, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TREE, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
@@ -11,6 +11,7 @@ import { centerCam, clampCam, inFormation, ownSelected, selectedUnits, spectatin
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, SPEED_KEYS, isTyping, zoomKey, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
 import { productionHotkey } from './sidebar.ts';
+import { recallGroup, saveGroup } from './control_groups.ts';
 import { panDelta } from './camera_rig.ts';
 import { screenToWorld, worldToScreen } from './render3d/scene.ts';
 import { midHeight, pickEntity } from './render3d/entities3d.ts';
@@ -432,7 +433,7 @@ export function initInput(canvas: HTMLCanvasElement, mini: HTMLCanvasElement): v
 }
 
 export const keys = new Set<string>();
-let lastGroupKey = 0;
+let lastGroupKey = '', lastGroupAt = 0;
 
 function onKey(ev: KeyboardEvent): void {
   if (!V.started) return;
@@ -460,17 +461,17 @@ function onKey(ev: KeyboardEvent): void {
     if (y) { centerCam(y.x, y.y); if (y.type === 'yard') setSelection([y]); }
     return;
   }
-  if (/^[1-9]$/.test(k)) {
-    if (ev.ctrlKey || ev.metaKey) {
+  // control groups: Ctrl/Cmd (or Alt, where the browser keeps Ctrl+number for its tabs) + number saves,
+  // Shift + number adds, the number selects, pressing it twice looks at the group. By key position, so Shift works
+  const digit = /^(?:Digit|Numpad)([1-9])$/.exec(ev.code)?.[1] ?? (/^[1-9]$/.test(k) ? k : null);
+  if (digit) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) {
       ev.preventDefault();
-      V.groups.set(k, ownSelected().map((x) => x.id));
+      saveGroup(digit, ev.shiftKey && !(ev.ctrlKey || ev.metaKey || ev.altKey));
       return;
     }
-    const l = (V.groups.get(k) ?? []).map(valid).filter((x): x is Ent => !!x);
-    if (!l.length) return;
-    setSelection(l);
-    if (performance.now() - lastGroupKey < 400) centerCam(l[0].x, l[0].y);
-    lastGroupKey = performance.now();
+    const twice = digit === lastGroupKey && performance.now() - lastGroupAt < 400;
+    if (recallGroup(digit, twice)) { lastGroupKey = digit; lastGroupAt = performance.now(); }
     return;
   }
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;

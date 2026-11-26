@@ -53,6 +53,7 @@ import { initSidebar, refreshSidebar } from './sidebar.ts';
 import { initInput, scrollCamera, updatePlacement } from './input.ts';
 import { updateFollow } from './follow_cam.ts';
 import { initTouchBar, refreshTouchBar } from './touch_bar.ts';
+import { initGroupBar, refreshGroupBar } from './group_bar.ts';
 import { ageMarkers, centerCam, clampCam, V } from './view_state.ts';
 import { perfEnd, perfLap, perfStart } from './perf.ts';
 import { initPerfReport } from './perf_report.ts';
@@ -192,6 +193,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   initSidebar(must(root, '.build-list--structure'), must(root, '.build-list--unit'), must(root, '.game-tooltip'));
   initInput(canvas, minimap);
   initTouchBar(root);
+  initGroupBar(root);
 
   const resize = () => {
     V.vw = window.innerWidth;
@@ -607,6 +609,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       refreshHud();
       refreshSidebar();
       refreshTouchBar();
+      refreshGroupBar();
       perfLap('ui');
     } catch (err) {
       hooks.error(err);
