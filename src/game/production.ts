@@ -28,8 +28,8 @@ import { hatch } from './mystery.ts';
 
 export type Buildable = UnitType | BldType | TechType;
 
-/** Most orders of one unit type a building can have queued at once. */
-const QUEUE_MAX = 10;
+/** Most units a production line (Barracks, War Factory, Airfield...) can have queued at once, all types together. */
+export const QUEUE_MAX = 40;
 const PRODUCER: Record<ProductionLine, BldType> = { structure: 'yard', infantry: 'barracks', vehicle: 'factory', air: 'airfield', tech: 'yard', hospital: 'hospital', armory: 'armory' };
 const LINES: ProductionLine[] = ['structure', 'infantry', 'vehicle', 'air', 'tech', 'hospital', 'armory'];
 const FUNDS_NOTICE = 6;
@@ -221,7 +221,7 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
   if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
   const research = isResearch(line);
   if (research && q.length) { say(team, 'Already researching'); return false; }
-  if (!research && q.filter((x) => x.type === type).length >= QUEUE_MAX) { say(team, `Only ${QUEUE_MAX} ${nameOf(type)} can be queued`); return false; }
+  if (!research && q.length >= QUEUE_MAX) { say(team, `Queue full: ${QUEUE_MAX} units at most`); return false; }
   if (short && !wait) { fundsNotice(team, short); return false; }
   const it: ProductionItem = { type, prog: 0, spent: 0, ready: false, hold: false, paid: false };
   q.push(it);

@@ -48,3 +48,13 @@ describe("a player's queued orders", () => {
     expect(G.credits[0]).toBe(10000);
   });
 });
+
+describe('the queue cap', () => {
+  it('holds 40 units in total on a line, of any mix of types', () => {
+    G.credits[0] = 1e7; G.wood[0] = 1e7;
+    for (let i = 0; i < 30; i++) applyCommand(0, { c: 'build', type: 'swordsman' });
+    for (let i = 0; i < 20; i++) applyCommand(0, { c: 'build', type: 'worker' });
+    expect(queue()).toHaveLength(40);
+    expect(queue().filter((x) => x.type === 'swordsman')).toHaveLength(30);
+  });
+});
