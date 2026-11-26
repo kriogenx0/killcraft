@@ -16,7 +16,7 @@ import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
 import { hideFactor, kneeling, petrify, riseFromAshes, subdue } from './creatures.ts';
 import { GUARD_RADIUS as WILD_REACH } from '../data/creatures.ts';
 import { armorFactor, weaponFactor } from './upgrade.ts';
-import { applyElement, elementMult } from './spells.ts';
+import { applyElement, elementMult, soakShield } from './spells.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -47,9 +47,12 @@ export const isFoe = (s: { team: number }, t: Ent): boolean => !t.dead && !allie
 /** `dot`: a tick of burning or poison, which neither sprays sparks nor sends the unit after whoever caused it. */
 export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): void {
   if (t.dead || t.kind === 'source' || kneeling(t)) return;
-  t.hp -= Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
+  const raw = Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
+  const left = dot ? raw : soakShield(t, raw);
+  t.hp -= left;
   t.flash = 0.1;
-  if (dot) { /* the flames and fumes show it (render3d/status3d.ts) */ } else if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
+  if (!dot) t.hitT = G.gameT;
+  if (left <= 0) { /* the Shield took it all */ } else if (dot) { /* the flames and fumes show it (render3d/status3d.ts) */ } else if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));
   else burst('spark', t.x + (Math.random() - 0.5) * (t.w || 0.6) * TS * 0.6, t.y - 6, 3, 50, 140);
   if (t.team >= 0) {

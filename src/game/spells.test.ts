@@ -6,9 +6,9 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addUnit } from './entity.ts';
 import { dealDamage, fire, updProjs } from './combat.ts';
-import { applyElement, burning, cast, frozen, lusting, poisoned, sludged, updCaster, wet } from './spells.ts';
+import { applyElement, burning, cast, frozen, lusting, poisoned, shielded, sludged, updCaster, wet } from './spells.ts';
 import { setOrder } from './order.ts';
-import { SPELL, WET_SHOCK } from '../data/spells.ts';
+import { BURN_TIME, SHIELD_HP, SPELL, WET_SHOCK, WRECK_BURN_AT } from '../data/spells.ts';
 import { UNIT } from '../data/unit.ts';
 
 beforeEach(() => {
@@ -80,6 +80,50 @@ describe('auto-cast spells', () => {
     expect(burning(ally)).toBe(false);
     expect(tide.mana).toBeLessThan(UNIT.tidecaller.mana! / 2);
   });
+
+  it('Shield soaks up hits until it bursts, but burning still gets through', () => {
+    const tide = addUnit('tidecaller', 0, 20 * TS, y), knight = addUnit('knight', 0, 21 * TS, y);
+    tide.mana = UNIT.tidecaller.mana!;
+    cast(tide, 'shield', knight);
+    expect(shielded(knight)).toBe(true);
+    const hp = knight.hp;
+    dealDamage(knight, 40, null);
+    expect(knight.hp).toBe(hp);
+    dealDamage(knight, 1, null, true); // a tick of fire slips past
+    expect(knight.hp).toBeLessThan(hp);
+    const hp2 = knight.hp;
+    dealDamage(knight, 1000, null); // more than it can hold: it bursts and the rest goes through
+    expect(shielded(knight)).toBe(false);
+    expect(knight.hp).toBeLessThan(hp2);
+    expect(hp2 - knight.hp).toBeLessThan(1000);
+  });
+
+  it('a Tide Caller Shields a friend under fire, and not one that is safe', () => {
+    const tide = addUnit('tidecaller', 0, 20 * TS, y), safe = addUnit('rifleman', 0, 21 * TS, y), hit = addUnit('rifleman', 0, 21 * TS, y + TS);
+    tide.mana = UNIT.tidecaller.mana!;
+    dealDamage(hit, 5, null);
+    run(0.5);
+    expect(shielded(hit)).toBe(true);
+    expect(hit.shieldHp).toBe(SHIELD_HP);
+    expect(shielded(safe)).toBe(false);
+  });
+
+  it('good spells reach a teammate, but go on our own troops first', () => {
+    const was = G.ally;
+    G.ally = [0, 0, 2, 3];
+    try {
+      const tide = addUnit('tidecaller', 0, 20 * TS, y), mate = addUnit('knight', 1, 21 * TS, y);
+      tide.mana = UNIT.tidecaller.mana!;
+      dealDamage(mate, 5, null);
+      run(0.5);
+      expect(shielded(mate)).toBe(true);
+      const own = addUnit('rifleman', 0, 21 * TS, y + TS), mate2 = addUnit('knight', 1, 21 * TS, y - TS);
+      tide.mana = UNIT.tidecaller.mana!; tide.spellCd = {};
+      dealDamage(own, 5, null); dealDamage(mate2, 5, null);
+      run(0.5);
+      expect(shielded(own)).toBe(true);
+    } finally { G.ally = was; }
+  });
 });
 
 describe('elements', () => {
@@ -130,6 +174,53 @@ describe('elements', () => {
     applyElement(b, 'fire', null);
     run(2);
     expect(b.maxhp - b.hp).toBeGreaterThan((a.maxhp - a.hp) * 1.8);
+  });
+
+  it('fire burns slowly, for a long while', () => {
+    const a = addUnit('swordsman', 1, 24 * TS, y);
+    a.stance = 'passive';
+    applyElement(a, 'fire', null);
+    run(BURN_TIME / 2);
+    expect(burning(a)).toBe(true);
+    run(BURN_TIME / 2 + 0.5);
+    expect(burning(a)).toBe(false);
+    expect(a.hp).toBeGreaterThan(0);
+  });
+
+  it('a burning soldier sets the troops packed around it alight, but the fire stops there', () => {
+    const lit = addUnit('swordsman', 1, 24 * TS, y);
+    const near = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => addUnit('swordsman', 1, 24 * TS + Math.cos(i * 0.785) * 6, y + Math.sin(i * 0.785) * 6));
+    const far = addUnit('swordsman', 1, 30 * TS, y);
+    for (const e of [lit, ...near, far]) e.stance = 'passive';
+    applyElement(lit, 'fire', null);
+    run(BURN_TIME / 2);
+    expect(near.some(burning)).toBe(true);
+    expect(burning(far)).toBe(false);
+    run(BURN_TIME + 1);
+    expect([lit, ...near].some(burning)).toBe(false); // burnt out: caught fire doesn't spread again
+  });
+
+  it('a wrecked vehicle slowly burns until it is repaired', () => {
+    const tank = addUnit('jeep', 1, 24 * TS, y);
+    tank.stance = 'passive';
+    tank.hp = tank.maxhp * WRECK_BURN_AT * 0.9;
+    run(1);
+    expect(burning(tank)).toBe(true);
+    const hp = tank.hp;
+    run(2);
+    expect(tank.hp).toBeLessThan(hp);
+    tank.hp = tank.maxhp;
+    run(2);
+    expect(burning(tank)).toBe(false);
+  });
+
+  it('a Medic puts out the fire on whoever it tends', () => {
+    const medic = addUnit('medic', 1, 23 * TS, y), man = addUnit('rifleman', 1, 24 * TS, y);
+    man.stance = 'passive';
+    applyElement(man, 'fire', null);
+    setOrder(medic, { t: 'heal', tgt: man.id, ox: medic.x, oy: medic.y, sent: true });
+    run(1);
+    expect(burning(man)).toBe(false);
   });
 
   it('a damage tick of burning credits the unit that lit it', () => {

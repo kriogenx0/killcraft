@@ -32,7 +32,7 @@ $sidebar-width: 248px;
     pointer-events: none;
   }
 
-  // top bar: ore, power, age, time
+  // top bar: ore, wood, oil, power, units, time
   .topbar {
     position: absolute;
     top: 0;
@@ -64,18 +64,12 @@ $sidebar-width: 248px;
       min-width: 7ch;
     }
 
-    // the age name is last before the spacer, so on a cramped bar it gives way (with an ellipsis)
-    // and nothing else moves
-    .ui-resource:has(.topbar-era) {
+    // the unit count is last before the spacer, so on a very cramped bar it is the one that gets
+    // clipped and the buttons stay on screen
+    .ui-resource:has(.topbar-units) {
       flex: 0 1 auto;
       min-width: 0;
       overflow: hidden;
-    }
-
-    .topbar-era {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
   }
 
@@ -509,6 +503,11 @@ $sidebar-width: 248px;
     border-left-width: 3px;
   }
 
+  // spectating: nothing to build or train
+  .sidebar--watch .sidebar-build {
+    display: none;
+  }
+
   .sidebar-minimap {
     flex: none;
     width: 100%;
@@ -889,8 +888,20 @@ $sidebar-width: 248px;
         gap: 2px;
       }
 
+      // no room for fixed-width counters on a phone: each takes just what its number needs
+      .ui-resource-value,
+      .topbar-power {
+        min-width: 0;
+      }
+
       .ui-button--small {
         min-width: 36px;
+      }
+
+      // the smallest phones: tighter spacing so every counter and button fits
+      @media (max-width: 360px) {
+        gap: 2px;
+        padding: 0 $space-1;
       }
     }
 
@@ -898,8 +909,11 @@ $sidebar-width: 248px;
       display: none;
     }
 
+    // centred across the screen, under the radar floating in the top-right corner
     .game-message {
-      right: $gutter;
+      top: calc(48px + #{2 * $space-2} + clamp(64px, 20vw, 84px));
+      right: $space-2;
+      left: $space-2;
     }
 
     .army-bar {
@@ -910,7 +924,8 @@ $sidebar-width: 248px;
 
     .game-offline {
       top: 48px + $space-1;
-      right: $space-2;
+      right: auto;
+      left: $space-2;
     }
 
     .army-bar:not([hidden]) ~ .game-offline {
@@ -940,28 +955,36 @@ $sidebar-width: 248px;
       // the radar sits pinned on the left; beside it the tabs (Selected, Buildings, Units) and the
       // chosen tab's contents, which scroll under the pinned tabs
       grid-auto-rows: max-content;
-      grid-template-columns: 112px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       gap: $space-2;
       align-content: start;
       width: auto;
-      height: min(40vh, 320px);
+      height: min(30vh, 240px);
       overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
       // no top padding: the pinned tabs sit flush with the edge so nothing scrolls past above them
-      padding: 0 $gutter $space-2;
+      // the same 8px edge as the touch bar and the floating radar
+      padding: 0 $space-2 $space-2;
+      scrollbar-width: none;
       border-top-width: 3px;
       border-left-width: 0;
     }
 
-    .sidebar-minimap {
-      position: sticky;
-      top: 0;
-      grid-row: 1 / span 3;
-      grid-column: 1;
-      align-self: start;
-      margin-top: $space-2;
-      width: 112px;
+    // the radar floats over the top-right corner of the map, so the panel's full width is for the tabs
+    // (game_view moves it out of the panel, beside it)
+    .sidebar-minimap--float {
+      position: absolute;
+      top: 48px + $space-2;
+      right: $space-2;
+      z-index: 6;
+      width: clamp(64px, 20vw, 84px);
+      border-width: 2px;
+      box-shadow: 0 2px 8px rgb(0 0 0 / 55%);
+    }
+
+    .army-bar:not([hidden]) ~ .sidebar-minimap--float {
+      top: 48px + 18px + 2 * $space-2;
     }
 
     // its two parts take their own places in the panel's grid
@@ -971,7 +994,7 @@ $sidebar-width: 248px;
 
     .selection-details {
       grid-row: 2;
-      grid-column: 2;
+      grid-column: 1;
       min-width: 0;
       padding: $space-1 $space-2;
       background: var(--color-inset);
@@ -980,7 +1003,7 @@ $sidebar-width: 248px;
 
     .selection-commands {
       grid-row: 3;
-      grid-column: 2;
+      grid-column: 1;
       align-self: start;
       margin-top: 0;
     }
@@ -991,12 +1014,43 @@ $sidebar-width: 248px;
       display: none;
     }
 
-    .sidebar:has(.sidebar-selection:not([hidden])) .build-tab--selection {
+    // spectating: no tabs, what's selected sits beside the radar
+    .sidebar--watch {
+      .build-tabs,
+      .build-list {
+        display: none;
+      }
+
+      .sidebar-selection:not([hidden]) {
+        display: contents;
+      }
+
+      .selection-details {
+        grid-row: 1;
+        margin-top: $space-2;
+      }
+
+      .selection-commands {
+        grid-row: 2;
+      }
+    }
+
+    // always there, so the tabs don't shift as the selection changes
+    .build-tab--selection {
       display: flex;
 
       & + .build-tab {
         border-left: 1px solid var(--color-rim);
       }
+    }
+
+    .sidebar--sel:has(.sidebar-selection[hidden])::after {
+      grid-row: 2;
+      grid-column: 1;
+      padding: $space-2;
+      font-size: $font-sm;
+      color: var(--color-text-muted);
+      content: 'Nothing selected. Tap a unit or building.';
     }
 
     // long descriptions and how-to notes fold to two lines (the selection panel stays short)
@@ -1017,10 +1071,10 @@ $sidebar-width: 248px;
       background-size: 28px;
     }
 
-    // tall enough for the icon above a two-line label ("Stop & attack") without overlap
+    // compact, but tall enough for the icon above a two-line label ("Stop & attack") without overlap
     .selection-commands {
-      grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
-      grid-auto-rows: minmax(58px, auto);
+      grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+      grid-auto-rows: minmax(50px, auto);
       // a 4-way choice (attack mode, gather) takes four columns and single buttons fill in beside it
       grid-auto-flow: row dense;
 
@@ -1029,11 +1083,20 @@ $sidebar-width: 248px;
       }
 
       .command-group-bar {
-        min-height: 58px;
+        min-height: 50px;
       }
 
       .command-button {
-        background-size: 24px;
+        padding-bottom: 2px;
+        font-size: 10px;
+        background-size: 18px;
+        background-position-y: 3px;
+
+        .command-button-glyph {
+          top: 3px;
+          width: 18px;
+          height: 18px;
+        }
       }
     }
 
@@ -1058,7 +1121,7 @@ $sidebar-width: 248px;
       top: 0;
       z-index: 2;
       grid-row: 1;
-      grid-column: 2;
+      grid-column: 1;
       margin-top: $space-2;
       box-shadow: 0 0 6px rgb(0 0 0 / 45%);
     }
@@ -1078,7 +1141,7 @@ $sidebar-width: 248px;
 
     .build-list {
       grid-row: 2 / span 2;
-      grid-column: 2;
+      grid-column: 1;
       scroll-margin-top: 36px; // clear of the pinned tabs
     }
 
@@ -1098,12 +1161,25 @@ $sidebar-width: 248px;
     }
 
     .touch-bar {
-      bottom: calc(min(40vh, 320px) + #{$space-2});
+      bottom: calc(min(30vh, 240px) + #{$space-2});
       left: $space-2;
+      max-width: calc(100% - 2 * #{$space-2});
+    }
+
+    // smaller on phones, and every button fits, even six of them on a 320px phone
+    .touch-bar-seg {
+      flex: 0 1 44px;
+      min-width: 0;
+      height: 40px;
+    }
+
+    .touch-bar .touch-bar-icon {
+      width: 20px;
+      height: 20px;
     }
 
     .group-bar {
-      bottom: calc(min(40vh, 320px) + #{$space-2});
+      bottom: calc(min(30vh, 240px) + #{$space-2});
       left: $space-2;
     }
   }
@@ -1155,5 +1231,12 @@ $sidebar-width: 248px;
     .game-offline {
       font-size: $font-xs;
     }
+  }
+}
+
+// phones: group buttons stacked just above the smaller touch bar (40px buttons + 2px rims)
+@media (max-width: 760px) {
+  :root.touch-ui .view-game .group-bar {
+    margin-bottom: 44px + $space-1;
   }
 }

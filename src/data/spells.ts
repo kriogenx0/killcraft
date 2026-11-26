@@ -5,7 +5,7 @@
 // wet, and lightning hits wet things far harder.
 
 export type Element = 'fire' | 'electric' | 'poison' | 'sludge' | 'water';
-export type SpellType = 'bloodlust' | 'slow' | 'freeze' | 'douse';
+export type SpellType = 'bloodlust' | 'slow' | 'freeze' | 'douse' | 'shield';
 
 export interface SpellDef {
   name: string;
@@ -28,6 +28,7 @@ export const SPELL: Record<SpellType, SpellDef> = {
   bloodlust: { name: 'Bloodlust', mana: 30, range: 5, cd: 4, dur: 12, on: 'ally', col: '#ff4030', desc: 'a friendly unit in a fight attacks 40% faster and moves 25% faster' },
   slow: { name: 'Slow', mana: 35, range: 6, cd: 5, dur: 8, on: 'enemy', col: '#b890ff', desc: 'an enemy moves at half speed and attacks 25% slower' },
   freeze: { name: 'Freeze', mana: 90, range: 6, cd: 15, dur: 5, on: 'enemy', col: '#a8f0ff', desc: 'locks a strong enemy in ice: it can\'t move or fight' },
+  shield: { name: 'Shield', mana: 40, range: 6, cd: 5, dur: 12, on: 'ally', col: '#ffd860', desc: 'wraps a friend under fire in a golden bubble that soaks up the next 90 damage (not burning or poison)' },
   douse: { name: 'Douse', mana: 10, range: 5, cd: 1.5, dur: 0, on: 'ally', col: '#60b8ff', desc: 'puts out a burning or poisoned friend' },
 };
 
@@ -45,9 +46,25 @@ export const SLOW_ATTACK = 0.75;
 export const FREEZE_WORTH = 400;
 export const FREEZE_HP = 300;
 
-/** Burning: damage per second, and how long it lasts. Sludge-coated targets burn twice as hot and half again as long. */
-export const BURN_DPS = 4;
-export const BURN_TIME = 4;
+/** Shield: how much damage the bubble soaks up before it bursts. */
+export const SHIELD_HP = 90;
+
+/**
+ * Burning: a slow burn. Damage per second, and how long it lasts. Sludge-coated targets burn twice as
+ * hot and half again as long. Water, Douse, Freeze or a Medic's care puts it out.
+ */
+export const BURN_DPS = 2.5;
+export const BURN_TIME = 9;
+/**
+ * Fire spreads: a soldier or creature freshly alight (in the first half of its burn) can set a foot
+ * soldier or creature touching it alight, this likely each tick, for half as long. Caught fire
+ * doesn't spread again, so a packed crowd doesn't burn forever.
+ */
+export const BURN_SPREAD = 0.12;
+/** How close (tiles) another unit must be to catch fire from a burning one. */
+export const BURN_REACH = 0.55;
+/** A ground vehicle below this share of its health is on fire, and slowly burns down until repaired. */
+export const WRECK_BURN_AT = 0.25;
 /** Poison: damage per second and duration. It only harms living things (not vehicles, machines or cyborgs) and goes through armor. */
 export const POISON_DPS = 8;
 export const POISON_TIME = 6;
@@ -69,7 +86,7 @@ export const DOT_TICK = 0.5;
 export const ELEMENT_NAME: Record<Element, string> = { fire: 'Fire', electric: 'Lightning', poison: 'Poison', sludge: 'Sludge', water: 'Water' };
 /** What each element does, for the unit card. */
 export const ELEMENT_DESC: Record<Element, string> = {
-  fire: 'sets its target burning',
+  fire: 'sets its target slowly burning; a burning soldier can set the troops packed around it alight',
   electric: `hits wet targets ${Math.round((WET_SHOCK - 1) * 100)}% harder`,
   poison: 'poisons living things, straight through armor',
   sludge: 'coats its target in sludge: it moves and reloads slower, and burns hotter',

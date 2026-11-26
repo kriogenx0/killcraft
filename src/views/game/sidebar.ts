@@ -3,7 +3,7 @@
 import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
-import { BUILDING, isUnitProducer, type BldType } from '../../data/building.ts';
+import { BUILDING, type BldType } from '../../data/building.ts';
 import { atLimit, available, unitNeeds, unitSlots, canAfford, priceOf, descOf, timeText, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
@@ -29,13 +29,13 @@ let structureList: HTMLElement, unitList: HTMLElement;
 const locked = new Set<Buildable>();
 /** One list shows at a time, picked with the Buildings / Units tabs. */
 type Tab = 'structure' | 'unit';
-let tab: Tab = 'structure', lastProducer: BldType | null = null;
+let tab: Tab = 'structure';
 let tabs: Record<Tab, { btn: HTMLElement; busy: HTMLElement }> | null = null;
 /**
  * Phones only: a third tab, Selected, holds what's selected and its commands, so the bottom panel
- * shows one thing at a time beside the radar. It appears while something is selected.
+ * shows one thing at a time. The tabs never change on their own: only the player switches them.
  */
-let selTab: HTMLElement | null = null, onSel = false, selKey = '';
+let selTab: HTMLElement | null = null;
 const narrow = (): boolean => matchMedia('(max-width: 760px)').matches;
 
 function showTab(t: Tab): void {
@@ -47,7 +47,6 @@ function showTab(t: Tab): void {
 
 function showSel(on: boolean): void {
   on &&= narrow(); // the desktop sidebar shows the selection and the build lists together
-  onSel = on;
   structureList.closest('.sidebar')?.classList.toggle('sidebar--sel', on);
   selTab?.setAttribute('aria-selected', String(on));
   if (tabs) for (const k of ['structure', 'unit'] as const) tabs[k].btn.setAttribute('aria-selected', String(!on && k === tab));
@@ -145,21 +144,9 @@ export function refreshSidebar(): void {
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
-  // selecting the Town Hall shows Buildings, a Barracks or Factory shows Units; the player can still switch
-  if (producer !== lastProducer) {
-    lastProducer = producer;
-    if (producer) showTab(isUnitProducer(BUILDING[producer].produces) ? 'unit' : 'structure');
-  }
-  // a new selection (other than a producer, which opens its build tab) opens the Selected tab;
-  // selecting nothing goes back to the build tab
-  const pane = structureList.closest('.sidebar')?.querySelector<HTMLElement>('.sidebar-selection');
-  const has = !!pane && !pane.hidden;
-  const sk = has ? V.sel.map((e) => e.id).join() : '';
-  if (sk !== selKey) {
-    selKey = sk;
-    if (!has) { if (onSel) showSel(false); }
-    else if (!producer || !ownSelected().some((e) => e.kind === 'bld')) showSel(true);
-  }
+  // spectators can't build or train: no Buildings / Units tabs, just the radar and what's selected
+  const bar = structureList.closest('.sidebar'), watch = spectating();
+  if (bar && bar.classList.contains('sidebar--watch') !== watch) bar.classList.toggle('sidebar--watch', watch);
   const busy: Record<Tab, boolean> = { structure: false, unit: false };
   for (const [type, c] of cells) {
     const line = lineOf(type), structure = line === 'structure';

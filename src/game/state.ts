@@ -99,6 +99,10 @@ export interface Ent extends Target {
   cargo?: Cargo;
   /** Aether carried home from a deposit */
   ae?: number;
+  /** Return Aether switched off: the unit keeps what it carries and takes orders as usual (on by default: it walks it home first) */
+  aeKeep?: boolean;
+  /** walking Aether home under Return Aether, its orders on hold */
+  aeRun?: boolean;
   /** game time until which this unit shows as drawing Aether from a deposit (a beam, like an attack) */
   drawT?: number;
   /** bounty ore a unit is carrying home after destroying something of the leader's (see bounty.ts) */
@@ -153,6 +157,11 @@ export interface Ent extends Target {
   sludgeT?: number;
   frozenT?: number;
   lustT?: number;
+  /** the Shield spell: a bubble that soaks up hits until shieldT, or until shieldHp runs out */
+  shieldT?: number;
+  shieldHp?: number;
+  /** when it last took a direct hit (game time), so a caster can see who's under fire */
+  hitT?: number;
   /** the Slow spell: reloads take longer too (slowT covers the walking) */
   curseT?: number;
   /** who set it burning or poisoned it, for the kill */

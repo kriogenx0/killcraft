@@ -186,7 +186,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   if (boot) setupWorldView();
   makeIcons(V.team);
   initHud({
-    credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), aether: must(root, '.topbar-aether'), power: must(root, '.topbar-power'), era: must(root, '.topbar-era'), time: must(root, '.topbar-time'),
+    credits: must(root, '.topbar-credits'), wood: must(root, '.topbar-wood'), oil: must(root, '.topbar-oil'), aether: must(root, '.topbar-aether'), power: must(root, '.topbar-power'), units: must(root, '.topbar-units'), time: must(root, '.topbar-time'),
     speed: speedBtn, pause: pauseBtn,
     details: must(root, '.selection-details'), commands: must(root, '.selection-commands'), tooltip: must(root, '.game-tooltip'), army: must(root, '.army-bar'), team: must(root, '.topbar-team'),
   });
@@ -195,7 +195,16 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   initTouchBar(root);
   initGroupBar(root);
 
+  // phones: the radar floats over the map, so it lives outside the scrolling bottom panel (a fixed
+  // element inside a scroller isn't drawn reliably on iOS); on wide screens it heads the sidebar
+  const placeRadar = () => {
+    const float = matchMedia('(max-width: 760px)').matches;
+    if (float && minimap.parentElement !== root) root.insertBefore(minimap, sidebar);
+    else if (!float && minimap.parentElement !== sidebar) sidebar.prepend(minimap);
+    minimap.classList.toggle('sidebar-minimap--float', float);
+  };
   const resize = () => {
+    placeRadar();
     V.vw = window.innerWidth;
     V.vh = window.innerHeight;
     V.topH = topbar.offsetHeight;
