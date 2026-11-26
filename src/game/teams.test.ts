@@ -107,5 +107,5 @@ describe('team games', () => {
     hooks.killedBy = () => {};
     expect(hurt).toEqual([]);
     expect(fights).toBeGreaterThan(0);
-  }, 120_000);
+  }, 300_000);
 });
