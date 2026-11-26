@@ -7,6 +7,7 @@ import { clamp } from '../../../util/math.ts';
 import { TS } from '../../../game/const.ts';
 import { S, worldToScreen } from './scene.ts';
 import { modelHeight } from './entities3d.ts';
+import { fallenCreature } from './aura3d.ts';
 import { drawFloatText } from './float_text.ts';
 import { maxMana } from '../../../game/spells.ts';
 
@@ -56,6 +57,8 @@ export function drawOverlay(g: CanvasRenderingContext2D): void {
       if (s.front) workBar(g, s.sx - r.left, s.sy - r.top, e.w * 16, e.prog);
       continue;
     }
+    // a fallen creature shows its aura instead, and no health bar until it's up again (aura3d.ts)
+    if (fallenCreature(e)) continue;
     const hurt = e.hp < e.maxhp || V.sel.includes(e);
     if (!hurt && e.upT == null) continue;
     const p = worldToScreen(e.x, e.y, standLift(e) + modelHeight(e) + 0.15);

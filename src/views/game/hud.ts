@@ -7,7 +7,7 @@ import { BUILDING, REPAIR_SHARE, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
 import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autogather.ts';
-import { ERA } from '../../data/era.ts';
+import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
 import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
@@ -149,7 +149,7 @@ function gatherCommands(s: Ent[]): Command[] {
 const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function commandList(): Command[] {
-  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : 'Cancel the current command' }];
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
@@ -160,6 +160,7 @@ export function commandList(): Command[] {
   if (first.kind === 'unit')
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
+      ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon && !isHarvester(u)) ? [{ id: 'attack', label: 'Attack', hotkey: COMMAND_KEYS.attack, icon: ICON.attack, tip: 'Pick an enemy unit or building (a wall too) for your fighters to attack and stay on until it falls' }] : []),
       ...(s.some((u) => u.kind === 'unit' && (unitDef(u).weapon || u.type === 'medic')) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way (Medics heal the wounded they pass)' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       // Fix, then harvest is for Workers only (and is theirs by default)
@@ -213,7 +214,7 @@ export function runCommand(id: string): void {
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'follow') toggleFollow();
   else if (id === 'formation') toggleFormation();
-  else if (id === 'move' || id === 'patrol' || id === 'rally') V.mode = { t: id };
+  else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
@@ -310,8 +311,10 @@ function unitDetails(e: Ent): string {
   const s = d.cls === 'infantry' ? 'inf' : 'veh', wl = upgradeOf(e.team, `${s}Weapon`), al = upgradeOf(e.team, `${s}Armor`), hl = healOf(e.team);
   // organic units heal slowly on their own: show how fast for troops we can see into
   const heal = isOrganic(e) && insight(e) ? `${Math.round(e.maxhp * healRate(e.team) * 60)}/min${lvlTag(hl)}` : '';
+  // a creature beaten down shows no health until it rises again (Alex, 2026-11-26)
+  const down = !!e.wild?.down;
   const rows: Row[] = [
-    ['HP', hpText(e)],
+    ['HP', down ? 'Fallen: stand beside it to capture it before it rises' : hpText(e), down],
     ['Armor', `${ARMOR_NAME[d.armor]}${ab ? ` −${ab}%` : ''}${lvlTag(al)}`],
     ['Damage', w ? `${w.dmg}${wb ? ` +${wb}%` : ''}${lvlTag(wl)}` : 'Unarmed'],
     ['Range', w ? String(w.range) : ''],
@@ -333,7 +336,7 @@ function unitDetails(e: Ent): string {
   const fx = effectsOf(e);
   if (fx) rows.push(['Effects', fx, true]);
   if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Town Hall or a Refinery`, true]);
-  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
+  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${down ? '' : barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
 }
 
 /** The spells and elements on a unit right now, e.g. "Burning · Wet". */
@@ -395,16 +398,19 @@ export function productionDetails(e: Ent): string {
   if (!head) return `${sites}<p class="hud-stats">Free · ${others} training in other buildings</p>`;
   const need = !head.paid && waitingFor(e.team, head.type);
   const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
-  const more = [others ? `${others} in other buildings` : '', waiting ? `${waiting} more queued` : ''].filter(Boolean).map((t) => ` · ${t}`).join('');
+  // research runs one at a time: name what's queued after it
+  const next = isTechType(head.type) ? queue.filter((it) => it !== head).map((it) => nameOf(it.type)) : [];
+  const nextNote = next.length ? `<p class="hud-stats">Then: ${next.join(', ')}</p>` : '';
+  const more = next.length ? '' : [others ? `${others} in other buildings` : '', waiting ? `${waiting} more queued` : ''].filter(Boolean).map((t) => ` · ${t}`).join('');
   // a big army trains slower (ARMY_SLOW_FROM)
   const size = armySize(e.team), slow = isUnitType(head.type) && isFighter(head.type) ? armySlow(e.team, size) : 1;
   const slowNote = slow > 1 ? `<p class="hud-stats hud-warn">Army of ${size}: new troops take ${Math.round((slow - 1) * 100)}% longer</p>` : '';
-  return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}${slowNote}`;
+  return `${sites}<p class="hud-stats">${isTechType(head.type) ? 'Researching' : 'Making'} ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}${nextNote}${slowNote}`;
 }
 
 function detailsMarkup(s: Ent[]): string {
   if (s.length > 1)
-    return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
+    return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.wild?.down ? undefined : e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
   const e = s[0];
   if (!e) return '';
   if (e.kind === 'unit') return unitDetails(e);

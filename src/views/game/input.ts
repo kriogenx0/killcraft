@@ -1,5 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, allied, bldDef, hostile, isHarvester, tileOf, unitDef, type Ent } from '../../game/state.ts';
+import { G, allied, bldDef, isHarvester, targetable, tileOf, unitDef, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TREE, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
@@ -43,7 +43,8 @@ export function entityAt(wx: number, wy: number): Ent | null {
 }
 
 const mark = (x: number, y: number, color: string) => V.markers.push({ x, y, t: 0, color });
-const isEnemy = (e: Ent | null): boolean => !!e && hostile(e.team, V.team);
+/** Something your troops may attack: an enemy side's unit or building, a wild creature or a demon. */
+const isEnemy = (e: Ent | null): boolean => !!e && V.team >= 0 && targetable(V.team, e);
 
 /** Context command at a world point: attack, harvest, unload, rally or move. On open ground units move, and their stance decides whether they fight. */
 export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
@@ -115,6 +116,13 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
     return;
   }
   const us = selectedUnits();
+  if (m.t === 'attack') {
+    // an enemy picked: the fighters go for it; open ground: they move there and fight by stance on the way
+    if (hit && isEnemy(hit) && (hit.kind === 'unit' || hit.kind === 'bld') && shownAt(hit)) worldCommand(wx, wy, hit);
+    else { dispatch({ c: 'move', ids: ids(us), tx: tileOf(wx), ty: tileOf(wy), ...inFormation(us) }); mark(wx, wy, '#5f5'); }
+    refreshCommands(true);
+    return;
+  }
   dispatch({ c: m.t, ids: ids(us), tx: tileOf(wx), ty: tileOf(wy), ...inFormation(us) });
   mark(wx, wy, m.t === 'patrol' ? '#5af' : isEnemy(hit) ? '#f44' : '#5f5');
   refreshCommands(true);
@@ -176,7 +184,7 @@ function tap(sx: number, sy: number, add = false): void {
   const w = screenToWorld(sx, sy);
   let e = pickEntity(sx, sy);
   // with fighters selected, a tap near an enemy soldier counts as on it
-  if (!V.mode && (!e || (e.team !== V.team && !isEnemy(e))) && ownSelected().some((x) => x.kind === 'unit' && unitDef(x).weapon && !isHarvester(x))) e = enemyNear(sx, sy, 32) ?? e;
+  if ((!V.mode || V.mode.t === 'attack') && (!e || (e.team !== V.team && !isEnemy(e))) && ownSelected().some((x) => x.kind === 'unit' && unitDef(x).weapon && !isHarvester(x))) e = enemyNear(sx, sy, 32) ?? e;
   if (V.mode) { if (w) useMode(w.x, w.y, e); return; }
   if (e && (e.team === V.team || spectating())) {
     if (add && e.kind === 'unit') clickSelect(sx, sy, true);

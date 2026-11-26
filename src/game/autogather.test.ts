@@ -5,7 +5,7 @@ import { G, hooks, type Ent } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { rebuildBlk } from './map.ts';
-import { orderHaul, orderMove } from './order.ts';
+import { orderHaul, orderMove, setOrder } from './order.ts';
 import { applyCommand } from './command.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
@@ -116,6 +116,35 @@ describe('idle Workers', () => {
     run(IDLE_GRACE + 30);
     expect(G.credits[0]).toBeGreaterThanOrEqual(ore + 50);
     expect(jobOf(w)).toBe('wood');
+  });
+
+  it('an Auto Worker busy on ore goes for oil once oil is what the side is short of', () => {
+    const [wx, wy] = OIL_WELLS[0];
+    const d = addBuilding('derrick', 0, wx - 1, wy - 1, false);
+    d.carry = 300;
+    const [w] = workers(1);
+    G.credits[0] = 0; G.wood[0] = 5000; G.oil[0] = 5000; // ore is short: it digs ore
+    run(IDLE_GRACE + 1);
+    expect(jobOf(w)).toBe('ore');
+    G.credits[0] = 300; G.oil[0] = 0; // now oil is (if only a little): next time it drops off, it fetches oil
+    let went = false;
+    for (let i = 0; i < 90 / STEP && !went; i++) { update(STEP); d.carry = 300; G.credits[0] = Math.min(G.credits[0], 300); went = jobOf(w) === 'oil'; }
+    expect(went).toBe(true);
+  });
+
+  it('the Worker that builds an Oil Derrick stays on it, hauling oil', () => {
+    const [wx, wy] = OIL_WELLS[0];
+    const d = addBuilding('derrick', 0, wx - 1, wy - 1, true);
+    d.unpaid = false;
+    const [w] = workers(1);
+    G.credits[0] = 5000; G.wood[0] = 5000; G.oil[0] = 5000;
+    setOrder(w, { t: 'heal', tgt: d.id, ox: w.x, oy: w.y, sent: true });
+    for (let i = 0; i < 120 / STEP && !d.done; i++) update(STEP);
+    expect(d.done).toBe(true);
+    run(60);
+    expect(w.order?.t === 'harvest' && w.order.src).toBe(d.id);
+    expect(gatherSetting(w)).toBe('oil');
+    expect(G.oil[0]).toBeGreaterThan(5000);
   });
 
   it("don't crowd a slow Oil Derrick: one Worker hauls from it, and never stands there holding oil", () => {
@@ -297,6 +326,17 @@ describe('idle Workers', () => {
       expect(left()).toBe(0);
       run(30);
       expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
+    });
+
+    it('even out in the middle of the map, a long way from base', () => {
+      const ws = workers(2);
+      G.credits[0] = 5000; G.wood[0] = 0;
+      run(1);
+      wreckAt(MW >> 1, MW >> 1);
+      expect(Math.hypot(yard.tx - (MW >> 1), yard.ty - (MW >> 1))).toBeGreaterThan(36);
+      let went = false;
+      for (let i = 0; i < 90 / STEP && !went; i++) { update(STEP); went = ws.some(onScrap); }
+      expect(went).toBe(true);
     });
 
     it('but not while an enemy is standing over it', () => {

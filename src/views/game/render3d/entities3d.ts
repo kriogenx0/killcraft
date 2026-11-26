@@ -25,6 +25,7 @@ import { animateArcane } from './arcane3d.ts';
 import { animateGiant } from './giant3d.ts';
 import { animateChicken } from './chicken3d.ts';
 import { statusFx, statusTint } from './status3d.ts';
+import { resetAuras, updateAuras } from './aura3d.ts';
 import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
@@ -61,6 +62,7 @@ export function resetEntities3d(): void {
   overlays.clear();
   objs.clear();
   ringPool.length = 0;
+  resetAuras();
   markerPool.length = 0;
   ghost = null;
   rally = null;
@@ -518,6 +520,7 @@ export function syncEntities(dt: number): void {
   updateFallen();
   updateRings();
   updateTeamDiscs(drawn);
+  updateAuras(overlays, (e) => !!objs.get(e.id)?.model.root.visible);
   updateMarkers();
   updateRally();
   updateArmyFlag();

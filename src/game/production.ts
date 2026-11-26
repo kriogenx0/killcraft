@@ -1,7 +1,7 @@
 // Sidebar production: structures are placed first and then build on site (any number at once, see
-// startSite and building.ts); one research (an age, or the Aether Ward) at a time from the Town Hall,
-// one healing research at a time at the Hospital and one weapons or armor upgrade at a time at the Armory,
-// and queues of infantry and vehicles. Every Barracks (War Factory, Airfield) trains the next order on its
+// startSite and building.ts); queues of research (an age or the Aether Ward at the Town Hall, healing
+// and Field Mechanics at the Hospital, weapons and armor at the Armory), researched one at a time in
+// order, where the next level of an upgrade can queue behind the one before it; and queues of infantry and vehicles. Every Barracks (War Factory, Airfield) trains the next order on its
 // line at the same time as the others, so a second one doubles the pace (updProduction). What can be built depends on the team's age (data/era.ts).
 // The whole price (ore, wood, oil, Aether) is paid when an order starts. A player's order the side
 // can't afford yet waits (in the queue, or as a placed site) and starts on its own once the side can
@@ -16,7 +16,7 @@ import { noteTrained } from './stats.ts';
 import { TS } from './const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, BLD_TYPES, isWall, type BldType } from '../data/building.ts';
-import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, type TechType } from '../data/era.ts';
+import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, type TechType, type UpgradeTrack } from '../data/era.ts';
 import { noUpgrades, upgradeOf } from './upgrade.ts';
 import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
@@ -75,33 +75,62 @@ export const eraOf = (team: number): number => G.era[team] ?? 0;
 /** The team's healing level (index into HEAL_RATE). */
 export const healOf = (team: number): number => G.heal[team] ?? 0;
 
-/** The research that would take a team into its next age, if there is one. */
+/** Research a team has queued (on any line), so the next level can queue behind it. */
+const queuedTech = (team: number): TechType[] =>
+  ([] as TechType[]).concat(...(['tech', 'hospital', 'armory'] as const).map((l) => (G.prod[team]?.[l] ?? []).map((it) => it.type).filter(isTechType)));
+
+/** A team's healing level once everything queued is done. */
+const plannedHeal = (team: number): number => Math.max(healOf(team), ...queuedTech(team).map((t) => TECH[t].heal ?? 0));
+
+/** A team's level on an Armory track once everything queued is done. */
+const plannedUpgrade = (team: number, track: UpgradeTrack): number =>
+  Math.max(upgradeOf(team, track), ...queuedTech(team).map((t) => (TECH[t].upg?.track === track ? TECH[t].upg!.level : 0)));
+
+/** The research that would take a team into its next age, if there is one (and it isn't queued already). */
 export function nextTech(team: number): TechType | null {
-  return TECH_TYPES.find((t) => TECH[t].age === eraOf(team) + 1) ?? null;
+  const t = TECH_TYPES.find((x) => TECH[x].age === eraOf(team) + 1) ?? null;
+  return t && !queuedTech(team).includes(t) ? t : null;
 }
 
-/** The next healing research, once the team's age allows it. */
+/** The next healing research, after any queued, once the team's age allows it. */
 export function nextHeal(team: number): TechType | null {
-  return TECH_TYPES.find((t) => TECH[t].heal === healOf(team) + 1 && TECH[t].era <= eraOf(team)) ?? null;
+  return TECH_TYPES.find((t) => TECH[t].heal === plannedHeal(team) + 1 && TECH[t].era <= eraOf(team)) ?? null;
 }
 
-/** The Aether Ward, once the side has found Aether and until it's researched. */
+/** The Aether Ward, once the side has found Aether and until it's researched (or queued). */
 export function nextWard(team: number): TechType | null {
-  return G.ward[team] ? null : TECH_TYPES.find((t) => TECH[t].ward && TECH[t].era <= eraOf(team)) ?? null;
+  return G.ward[team] ? null : TECH_TYPES.find((t) => TECH[t].ward && TECH[t].era <= eraOf(team) && !queuedTech(team).includes(t)) ?? null;
 }
 
-/** Field Mechanics, until it's researched. */
+/** Field Mechanics, until it's researched (or queued). */
 export function nextMech(team: number): TechType | null {
-  return G.mech[team] ? null : TECH_TYPES.find((t) => TECH[t].mech && TECH[t].era <= eraOf(team)) ?? null;
+  return G.mech[team] ? null : TECH_TYPES.find((t) => TECH[t].mech && TECH[t].era <= eraOf(team) && !queuedTech(team).includes(t)) ?? null;
 }
 
-/** The next level on each Armory track that the team's age allows. */
+/** The next level on each Armory track, after any queued, that the team's age allows. */
 export function nextUpgrades(team: number): TechType[] {
   return UPGRADE_TRACKS.flatMap((track) => TECH_TYPES.filter((t) => {
     const u = TECH[t].upg;
-    return u && u.track === track && u.level === upgradeOf(team, track) + 1 && TECH[t].era <= eraOf(team);
+    return u && u.track === track && u.level === plannedUpgrade(team, track) + 1 && TECH[t].era <= eraOf(team);
   }));
 }
+
+/** The level a research builds on (Surgeons on Field Dressing, Rifled Barrels on Tempered Steel), if any. */
+function prevLevel(t: TechType): TechType | null {
+  const { upg, heal } = TECH[t];
+  if (upg) return upg.level > 1 ? TECH_TYPES.find((x) => TECH[x].upg?.track === upg.track && TECH[x].upg?.level === upg.level - 1) ?? null : null;
+  if (heal) return heal > 1 ? TECH_TYPES.find((x) => TECH[x].heal === heal - 1) ?? null : null;
+  return null;
+}
+
+/** Has the team finished this research? */
+function researched(team: number, t: TechType): boolean {
+  const { upg, heal, age, ward, mech } = TECH[t];
+  return upg ? upgradeOf(team, upg.track) >= upg.level : heal != null ? healOf(team) >= heal : age != null ? eraOf(team) >= age : ward ? !!G.ward[team] : mech ? !!G.mech[team] : false;
+}
+
+/** A queued research can start once the level it builds on is done. */
+const canResearch = (team: number, t: Buildable): boolean => { const p = isTechType(t) ? prevLevel(t) : null; return !p || researched(team, p); };
 
 /** Infantry the Town Hall trains while the side has no Barracks, so it can always get Workers back. */
 const YARD_INFANTRY: readonly UnitType[] = ['worker'];
@@ -119,6 +148,14 @@ export function producersOf(team: number, line: ProductionLine): Ent[] {
 
 const isResearch = (line: ProductionLine): boolean => line === 'tech' || line === 'hospital' || line === 'armory';
 
+/** What can be added to a research line now: the next level of each upgrade, after any already queued. */
+function researchable(team: number, line: ProductionLine): TechType[] {
+  if (!producerOf(team, line)) return [];
+  if (line === 'armory') return nextUpgrades(team).filter((t) => revealed(team, t));
+  if (line === 'hospital') return [nextHeal(team), nextMech(team)].filter((t): t is TechType => !!t);
+  return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
+}
+
 /** A unit with a `limit` (the Titan) can't be trained while that many are alive or in training. */
 const underLimit = (team: number, t: UnitType): boolean => {
   const n = UNIT[t].limit;
@@ -134,10 +171,10 @@ export function available(team: number, line: ProductionLine): Buildable[] {
     return BLD_TYPES.filter((t) => BUILDING[t].era <= era && revealed(team, t) && BUILDING[t].requires.every((r) => hasBuilding(team, r)) && !spentAdvance(team, t) &&
       (t !== 'waygate' || countOf(team, 'waygate') < MAX_WAYGATES));
   }
-  if (line === 'armory') return nextUpgrades(team).filter((t) => revealed(team, t));
-  if (line === 'hospital') return [nextHeal(team), nextMech(team)].filter((t): t is TechType => !!t);
-  if (line === 'tech') {
-    return [nextTech(team), nextWard(team)].filter((t): t is TechType => !!t && revealed(team, t) && TECH[t].requires.every((r) => hasBuilding(team, r)));
+  // research: what's queued (so it can be watched and called off) and what can queue next, in data order
+  if (isResearch(line)) {
+    const queued = G.prod[team][line].map((it) => it.type).filter(isTechType);
+    return TECH_TYPES.filter((t) => queued.includes(t) || researchable(team, line).includes(t));
   }
   const yardOnly = line === 'infantry' && producerOf(team, line)?.type === 'yard';
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line && !UNIT[t].hatched && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
@@ -214,13 +251,12 @@ function pay(team: number, type: Buildable): boolean {
  * Structures don't queue: they start when placed (startSite), so for one this only reports a shortfall.
  */
 export function enqueue(team: number, type: Buildable, wait = false): boolean {
-  const line = lineOf(type), q = G.prod[team][line];
-  if (!available(team, line).includes(type)) return false;
+  const line = lineOf(type), q = G.prod[team][line], research = isResearch(line);
+  if (research && q.some((it) => it.type === type)) { say(team, 'Already queued'); return false; }
+  if (!(research ? researchable(team, line) : available(team, line)).includes(type)) return false;
   if (atLimit(team, type)) { say(team, `Only ${UNIT[type as UnitType].limit} ${nameOf(type)} at a time`); return false; }
   const short = shortOf(team, type);
   if (line === 'structure') { if (short) fundsNotice(team, short); return false; }
-  const research = isResearch(line);
-  if (research && q.length) { say(team, 'Already researching'); return false; }
   if (!research && q.length >= QUEUE_MAX) { say(team, `Queue full: ${QUEUE_MAX} units at most`); return false; }
   if (short && !wait) { fundsNotice(team, short); return false; }
   const it: ProductionItem = { type, prog: 0, spent: 0, ready: false, hold: false, paid: false };
@@ -326,16 +362,33 @@ export function cancel(team: number, type: Buildable, item?: ProductionItem): bo
   const q = G.prod[team][lineOf(type)];
   for (let i = q.length - 1; i >= 0; i--)
     if (item ? q[i] === item : q[i].type === type) {
-      if (!q[i].paid || q[i].free) { q.splice(i, 1); return true; } // still waiting for funds, or free: nothing to give back
-      const p = priceOf(q[i].type);
-      G.credits[team] += p.ore;
-      G.wood[team] += p.wood;
-      G.oil[team] += p.oil;
-      G.aether[team] = (G.aether[team] ?? 0) + p.aether;
+      refund(team, q[i]);
       q.splice(i, 1);
+      // a level queued on top of the one called off goes too (Rifled Barrels needs Tempered Steel)
+      if (isResearch(lineOf(type))) dropOrphans(team, q);
       return true;
     }
   return false;
+}
+
+/** Give back what was paid for an order (nothing if it's still waiting for funds, or came free). */
+function refund(team: number, it: ProductionItem): void {
+  if (!it.paid || it.free) return;
+  const p = priceOf(it.type);
+  G.credits[team] += p.ore;
+  G.wood[team] += p.wood;
+  G.oil[team] += p.oil;
+  G.aether[team] = (G.aether[team] ?? 0) + p.aether;
+}
+
+/** Call off (and refund) queued research whose lower level is neither done nor queued ahead of it. */
+function dropOrphans(team: number, q: ProductionItem[]): void {
+  const ahead = new Set<Buildable>();
+  for (const it of [...q]) {
+    const p = isTechType(it.type) ? prevLevel(it.type) : null;
+    if (p && !researched(team, p) && !ahead.has(p)) { refund(team, it); q.splice(q.indexOf(it), 1); }
+    else ahead.add(it.type);
+  }
 }
 
 export function toggleHold(team: number, type: Buildable): void {
@@ -440,6 +493,8 @@ export function updProduction(team: number, dt: number): void {
     for (const it of q) {
       if (busy.size >= at.length) break;
       if (it.at != null || it.hold || !it.paid || it.ready) continue;
+      // a higher level waits for the one below it, even if that one is on hold
+      if (research && !canResearch(team, it.type)) continue;
       const b = at.find((e) => !busy.has(e.id) && canTrain(e, it.type));
       if (!b) continue;
       it.at = b.id;

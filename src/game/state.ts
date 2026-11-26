@@ -37,7 +37,8 @@ export const defaultStance = (type: string, team: number): Stance => (type === '
  * faster than; `fid` names the formation, so a straggler behind the pack can run to catch up.
  */
 export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number }
-export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number }
+/** pick: the target the player chose, while the unit fights off something that hit it on the way; it goes back to it after. */
+export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number; pick?: number }
 /** What a unit is carrying home. */
 export type Cargo = 'ore' | 'wood' | 'oil';
 /** Gather ore from the ground, or (with `res`) haul wood or oil from the store of building `src`. */
@@ -410,6 +411,8 @@ export const demonAfter = (e: Ent, team: number): boolean => {
   if ((d.aid ?? -1) >= 0) return team >= 0 && !allied(d.aid as number, team);
   return d.raid >= 0 && allied(d.raid, team);
 };
+/** Something a side may order its troops to attack: an enemy side's unit or building, a wild creature or a demon. */
+export const targetable = (team: number, e: Ent): boolean => !e.dead && e.kind !== 'source' && fair(e) && !allied(team, e.team);
 /** Two real sides at war: different teams that aren't allies. */
 export const hostile = (a: number, b: number): boolean => a >= 0 && b >= 0 && !allied(a, b);
 

@@ -1,6 +1,6 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { G, STANCES, allied, hostile, isHarvester, say, unitDef, valid, type Ent, type Stance } from './state.ts';
+import { G, STANCES, allied, isHarvester, say, targetable, unitDef, valid, type Ent, type Stance } from './state.ts';
 import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
@@ -158,7 +158,7 @@ export function applyCommand(team: number, cmd: Command): void {
     case 'attack': {
       // armed units go for that enemy and stay on it; Workers and Medics carry on with their jobs
       const t = valid(cmd.target);
-      if (t && t.kind !== 'source' && hostile(t.team, team)) for (const u of ownUnits(team, cmd.ids)) if (unitDef(u).weapon && !isHarvester(u)) orderAttack(u, t);
+      if (t && targetable(team, t)) for (const u of ownUnits(team, cmd.ids)) if (unitDef(u).weapon && !isHarvester(u)) orderAttack(u, t);
       break;
     }
     case 'rally': {

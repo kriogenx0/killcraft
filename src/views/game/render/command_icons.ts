@@ -10,6 +10,8 @@ const crosshair = (x: number, y: number, r: number, t: number): string =>
 
 export const COMMAND_GLYPH: Record<string, string> = {
   move: svg('<path d="M4 12h15M13 6l6 6-6 6"/>'),
+  // Attack: a sword, point up
+  attack: svg('<path d="M19 3l-9.5 9.5M15 3h4v4"/><path d="M6 12l6 6M8.5 15.5L4 20M3 19l2 2"/>'),
   patrol: svg('<path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/>'),
   stop: svg('<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M8 12h8"/>'),
   engage: svg(crosshair(12, 12, 6, 4)),
