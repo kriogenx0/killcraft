@@ -121,7 +121,7 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
   }
   V.mode = null;
   if (m.t === 'rally') {
-    dispatch({ c: 'muster', x: Math.round(wx), y: Math.round(wy), send: true });
+    dispatch({ c: 'muster', x: Math.round(wx), y: Math.round(wy) });
     mark(wx, wy, '#5f5');
     refreshCommands(true);
     return;
@@ -203,7 +203,7 @@ function tap(sx: number, sy: number, add = false): void {
     return;
   }
   // only units take orders from a tap; with just a building selected, tapping the ground lets go of it
-  // (its rally point is set with the Rally army command)
+  // (its rally point is set with the Rally point command)
   if (ownSelected().some((x) => x.kind === 'unit') && w) worldCommand(w.x, w.y, e);
   else setSelection(e ? [e] : []);
 }
@@ -497,6 +497,8 @@ function onKey(ev: KeyboardEvent): void {
   if (k === 'f' && (ev.shiftKey || spectating())) { toggleFollow(); refreshCommands(true); return; }
   if (k === 'r' && ev.shiftKey) { if (!spectating()) startRally(); return; }
   if (k === 'm' && ev.shiftKey) { if (ownSelected().filter((e) => e.kind === 'unit').length > 1) { toggleFormation(); refreshCommands(true); } return; }
+  // Shift with a letter: the card's Shift commands, such as what to do when attacked
+  if (ev.shiftKey && /^[a-z]$/.test(k) && runHotkey(`shift+${k}`)) { ev.preventDefault(); refreshCommands(true); return; }
   const hk = normalizeKey(ev.key);
   // the command card first, so a unit's M, X, G, F and V beat the Town Hall's letters
   if (runHotkey(hk) || productionHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }

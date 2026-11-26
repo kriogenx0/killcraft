@@ -453,6 +453,42 @@ describe('production', () => {
     expect(G.wood[0]).toBe(0);
   });
 
+  it('a site it cannot pay for keeps its Worker gathering; once paid, the Worker goes to build it', () => {
+    addBuilding('power', 0, 10, 82, false);
+    const w = G.ents.find((e) => e.team === 0 && e.type === 'worker')!;
+    for (const o of G.ents) if (o !== w && o.team === 0 && o.type === 'worker') kill(o);
+    orderHarvest(w, 6, 46);
+    G.credits[0] = 5000;
+    G.wood[0] = 0;
+    const site = startSite(0, 'barracks', 13, 82, 13, 82, true)!;
+    expect(site.unpaid).toBe(true);
+    run(2);
+    expect(w.order?.t).toBe('harvest'); // not pulled off to stand by the site
+    G.wood[0] = BUILDING.barracks.wood ?? 0;
+    run(STEP);
+    expect(site.unpaid).toBe(false);
+    expect(w.order?.t === 'heal' && w.order.tgt).toBe(site.id);
+  });
+
+  it('waiting sites are paid for in the order they went down', () => {
+    addBuilding('power', 0, 10, 82, false);
+    G.credits[0] = 0;
+    G.wood[0] = 0;
+    const big = startSite(0, 'barracks', 13, 82, 13, 82, true)!;
+    const small = startSite(0, 'power', 17, 82, 17, 82, true)!;
+    expect(big.unpaid && small.unpaid).toBe(true);
+    // enough for the second but not the first: it waits its turn
+    G.credits[0] = BUILDING.power.cost;
+    G.wood[0] = BUILDING.power.wood ?? 0;
+    run(STEP);
+    expect(small.unpaid).toBe(true);
+    G.credits[0] = BUILDING.barracks.cost + BUILDING.power.cost;
+    G.wood[0] = (BUILDING.barracks.wood ?? 0) + (BUILDING.power.wood ?? 0);
+    run(STEP);
+    expect(big.unpaid).toBe(false);
+    expect(small.unpaid).toBe(false);
+  });
+
   it('turns ore into credits with the two free Workers', () => {
     addBuilding('power', 0, 10, 50, false);
     const workers = G.ents.filter((e) => e.team === 0 && e.type === 'worker').length;

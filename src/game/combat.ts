@@ -1,5 +1,5 @@
 // Weapons, damage by armor class, target acquisition and projectiles.
-import { G, allied, demonAfter, fair, hostile, hooks, altOf, bldDef, isAir, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
+import { G, allied, demonAfter, fair, hostile, hooks, altOf, bldDef, isAir, reactOf, tileOf, unitDef, valid, type Ent, type Projectile } from './state.ts';
 import { noteKill } from './stats.ts';
 import { MW, TS } from './const.ts';
 import { clamp, lerp } from '../util/math.ts';
@@ -69,13 +69,14 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): v
   if (dot || t.kind !== 'unit' || !src || src.dead || allied(src.team, t.team) || !fair(src)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
-  // idle units react: engaging ones fight back, passive ones run (Workers fixing things carry on).
-  // A wild creature answers only to its lair's leash (updWild): sent after a shooter beyond it, it
-  // would drop the fight next step and take it up again with every shot.
-  if (!t.order && !t.wild) {
-    if (t.stance === 'passive') orderFlee(t, src);
-    else if (t.stance === 'engage' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
-  }
+  // the unit reacts as it's set to when attacked (reactOf): evaders run, pursuers go after the attacker,
+  // the rest stay where they are. Orders you gave come first: only an idle unit, or one at work or in a
+  // fight it picked itself, runs. A wild creature answers only to its lair's leash (updWild): sent
+  // after a shooter beyond it, it would drop the fight next step and take it up again with every shot.
+  if (t.wild) return;
+  const r = reactOf(t), o = t.order;
+  if (r === 'evade' && (!o || o.t === 'harvest' || (o.t === 'attack' && o.auto) || (o.t === 'heal' && !o.sent))) orderFlee(t, src);
+  else if (r === 'pursue' && !o && t.stance === 'engage' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
 }
 
 function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): void {

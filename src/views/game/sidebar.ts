@@ -212,14 +212,24 @@ export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip
   const tab0 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--structure'), tab1 = structures.parentElement?.querySelector<HTMLElement>('.build-tab--unit');
   if (tab0 && tab1) {
     tabs = { structure: { btn: tab0, busy: tab0.querySelector('.build-tab-busy') as HTMLElement }, unit: { btn: tab1, busy: tab1.querySelector('.build-tab-busy') as HTMLElement } };
-    // on a phone the panel scrolls under the pinned tabs: a tap starts the chosen tab at its top
-    const top = () => { const bar = structureList.closest<HTMLElement>('.sidebar'); if (bar && narrow()) bar.scrollTop = 0; };
     // switching tabs drops a building being placed (nothing is paid until it is put down)
     const unplace = () => { if (V.mode?.t === 'place') V.mode = null; };
-    tab0.addEventListener('click', () => { unplace(); showTab('structure'); top(); });
-    tab1.addEventListener('click', () => { unplace(); showTab('unit'); top(); });
+    // tabs switch on touch-down, not on click: a phone drops the click when the finger moves a
+    // little during the tap, so the tab sometimes didn't switch. Keyboard (Enter/Space) still clicks.
+    const onTab = (el: HTMLElement | null, go: () => void) => {
+      if (!el) return;
+      el.addEventListener('pointerdown', (ev) => {
+        if (ev.button !== 0) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        unplace(); go();
+      });
+      el.addEventListener('click', (ev) => { if (ev.detail === 0) { unplace(); go(); } });
+    };
+    onTab(tab0, () => showTab('structure'));
+    onTab(tab1, () => showTab('unit'));
     selTab = structures.parentElement?.querySelector<HTMLElement>('.build-tab--selection') ?? null;
-    selTab?.addEventListener('click', () => { unplace(); showSel(true); top(); });
+    onTab(selTab, () => showSel(true));
   }
   showTab(tab);
   for (const list of [structures, units]) {

@@ -1,5 +1,5 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, reactOf, unitDef, valid, type Ent, type React, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { extraHall, scrapRefund } from '../../game/building.ts';
@@ -10,7 +10,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, pendingNeeds, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -27,7 +27,7 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandsHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, REACT_KEYS, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating, toggleFormation } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, shielded, sludged, wet } from '../../game/spells.ts';
@@ -77,9 +77,26 @@ export function setSelection(list: Ent[]): void {
 const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
   engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on' },
   skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping (default)' },
-  passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies. Workers just keep harvesting' },
+  passive: { label: 'Don\'t attack', tip: 'Hold fire. Set to Evade when attacked (below), it also keeps away from enemies that come near. Workers just keep harvesting' },
   tend: { label: 'Fix & Harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
+
+/** What a unit does when it's attacked: a second pick-one bar under the attack modes, in Alex's order. */
+const REACT_INFO: Record<React, { label: string; key: string; tip: string }> = {
+  evade: { label: 'Evade', key: REACT_KEYS.evade, tip: 'When attacked, run away from the attacker. Orders you gave come first' },
+  pursue: { label: 'Pursue', key: REACT_KEYS.pursue, tip: 'When attacked, go after the attacker and fight it (default for fighters)' },
+  hold: { label: 'Stay still', key: REACT_KEYS.hold, tip: 'When attacked, stay put and fire back only if it\'s in range. Workers, Harvesters and Medics carry on working (their default)' },
+};
+const REACT_ORDER: React[] = ['evade', 'pursue', 'hold'];
+const REACT_GROUP = 'When attacked';
+
+/** The When attacked bar for the selected units: Pursue only if one of them can fight. */
+function reactCommands(s: Ent[]): Command[] {
+  const us = s.filter((u) => u.kind === 'unit'), fighters = us.some((u) => unitDef(u).weapon && !isHarvester(u));
+  return REACT_ORDER.filter((r) => r !== 'pursue' || fighters).map((r): Command => ({
+    id: `react:${r}`, label: REACT_INFO[r].label, hotkey: REACT_INFO[r].key, icon: ICON[`react:${r}`], tip: REACT_INFO[r].tip, group: REACT_GROUP, active: us.every((u) => reactOf(u) === r),
+  }));
+}
 
 /** caption over the stance buttons, which are drawn joined as one pick-one bar */
 const STANCE_GROUP = 'Attack mode';
@@ -118,10 +135,10 @@ function formationCommand(): Command {
   return { id: 'formation', label: 'Formation', hotkey: FORMATION_KEY, icon: ICON.formation, active: on, tip: on ? 'On: groups move together at the slowest unit\'s pace and keep their shape. Turn off to let everyone go at full speed' : 'Move groups in formation: together at the slowest unit\'s pace, keeping their shape, so they arrive at once' };
 }
 
-/** Rally the army: every fighter heads to one spot, and new troops from every producer follow. */
+/** Rally point: new troops from every producer head to one spot. Troops already out stay put. */
 function rallyCommand(): Command | null {
   if (spectating() || G.over) return null;
-  return { id: 'rally', label: 'Rally army', hotkey: RALLY_KEY, icon: ICON.rally, tip: 'Pick a spot: your whole army heads there now, and new troops from every Barracks, Factory and Airfield follow. Workers keep working' };
+  return { id: 'rally', label: 'Rally point', hotkey: RALLY_KEY, icon: ICON.rally, tip: 'Pick a spot where new troops from every Barracks, Factory and Airfield go. Troops already out stay where they are' };
 }
 
 const GATHER_INFO: Record<GatherRes, { label: string; tip: string }> = {
@@ -161,12 +178,12 @@ function gatherCommands(s: Ent[]): Command[] {
 const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function commandList(): Command[] {
-  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to rally your army there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to send new troops there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
   // nothing of yours selected: enemy units you can see, and anything while spectating, can be followed
-  // (Rally army stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
+  // (Rally point stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
   if (!first) return follow ? [follow] : [];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
   if (first.kind === 'unit')
@@ -175,13 +192,13 @@ export function commandList(): Command[] {
       ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon && !isHarvester(u)) ? [{ id: 'attack', label: 'Attack', hotkey: COMMAND_KEYS.attack, icon: ICON.attack, tip: 'Pick an enemy unit or building (a wall too) for your fighters to attack and stay on until it falls' }] : []),
       ...(s.some((u) => u.kind === 'unit' && (unitDef(u).weapon || u.type === 'medic')) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way (Medics heal the wounded they pass)' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
-      // units that can't attack (Harvesters, Medics) have no attack modes: just Evade attacks, on or off
+      // units that can't attack (Harvesters, Medics) have no attack modes, only what to do when attacked
       ...(s.every(unarmed)
-        ? [{ id: 'evade', label: 'Evade attacks', hotkey: COMMAND_KEYS.passive, icon: ICON.passive, active: s.every((u) => u.stance === 'passive'),
-          tip: s.every(isHarvester) ? 'Keep out of trouble: a Harvester carries on harvesting, and you get told when it\'s hit' : 'Run away from enemies that come near, then carry on' }]
+        ? []
         // Fix, then harvest is for Workers only (and is theirs by default)
         : STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
           .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) }))),
+      ...reactCommands(s),
       // a Harvester's one job, a button to send it back to it
       ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvest, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
       ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
@@ -191,7 +208,7 @@ export function commandList(): Command[] {
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
-    return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
+    return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: first.unpaid ? 'Call off this waiting site (nothing has been paid for it yet)' : 'Stop building this and get its whole price back' }];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: `Repair this building. Costs ore while it works: a full repair costs ${Math.round(REPAIR_SHARE * 100)}% of its ore price.`, disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
@@ -236,7 +253,7 @@ export function runCommand(id: string): void {
   else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (id === 'harvest') dispatch({ c: 'gather', ids: ids(s.filter(isHarvester)), res: 'ore' });
-  else if (id === 'evade') { const us = s.filter((u) => u.kind === 'unit'), on = us.every((u) => u.stance === 'passive'); dispatch({ c: 'stance', ids: ids(us), stance: on ? 'skirmish' : 'passive' }); }
+  else if (id.startsWith('react:')) dispatch({ c: 'react', ids: ids(s.filter((u) => u.kind === 'unit')), react: id.slice(6) as React });
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'aether') { const us = s.filter((u) => u.kind === 'unit'); dispatch({ c: 'aether', ids: ids(us), on: !us.every((u) => !u.aeKeep) }); }
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
@@ -348,7 +365,7 @@ function unitDetails(e: Ent): string {
     ['Cost', costText(e.type)],
   ];
   if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
-  if (insight(e)) rows.push(['Doing', unarmed(e) ? `${unitAction(e)}${e.stance === 'passive' ? ' · Evade attacks' : ''}` : `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
+  if (insight(e)) rows.push(['Doing', `${unitAction(e)}${unarmed(e) ? '' : ` · ${STANCE_INFO[e.stance].label}`} · ${REACT_INFO[reactOf(e)].label} when attacked`, true]);
   if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${loadOf(e)}`, true]);
   if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
   if (d.weapon && WEAPON[d.weapon].element) { const el = WEAPON[d.weapon].element!; rows.push(['Element', `${ELEMENT_NAME[el]}: ${ELEMENT_DESC[el]}`, true]); }
@@ -377,7 +394,7 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   const own = insight(e) && e.done;
   if (!e.done)
-    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">${e.unpaid && insight(e) ? `Waiting for ${waitingFor(e.team, e.type as BldType) ?? 'funds'} to start building` : `Under construction, ${Math.floor(e.prog * 100)}%`}${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
+    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">${e.unpaid && insight(e) ? `Waiting for ${pendingNeeds(e.team).get(e) || 'funds'}: Workers keep gathering until it's paid for, then build it` : `Under construction, ${Math.floor(e.prog * 100)}%`}${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
@@ -404,7 +421,7 @@ function buildingDetails(e: Ent): string {
   if (own && e.type === 'hospital') rows.push(['Healing', `Lvl ${healOf(e.team)}`]);
   return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
     (own ? productionDetails(e) : '') +
-    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats hud-hint">Right-click or tap the ground to set this building\'s rally point. Rally army sets one for every building.</p>' : '');
+    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats hud-hint">Right-click or tap the ground to set this building\'s rally point. Rally point sets one for every building.</p>' : '');
 }
 
 /** What a producing building is making (each Barracks trains its own order; the queue is shared by every building of the type). */

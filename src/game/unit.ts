@@ -28,7 +28,7 @@ const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
-import { bldDef } from './state.ts';
+import { bldDef, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { stone, updWild } from './creatures.ts';
 import { updDemon } from './hell.ts';
@@ -542,7 +542,7 @@ function menders(t: Ent, u: Ent): number {
 function mendNear(u: Ent, r: number): Ent | null {
   let bld: Ent | null = null, bd = Infinity, unit: Ent | null = null;
   for (const e of G.ents) {
-    if (!mendable(u, e, 0.5)) continue;
+    if (!mendable(u, e, 0.5) || e.unpaid) continue; // a site still waiting for funds: keep gathering
     if (e.kind === 'unit' && e.hp > e.maxhp * UNIT_FIX_BELOW) continue; // not for a scratch
     if (e.kind === 'unit' && (e.moving || G.gameT - e.foeT < UNDER_FIRE)) continue; // not one on the move or under fire: that's chasing a fight
     const crew = menders(e, u);
@@ -679,8 +679,11 @@ function act(u: Ent, dt: number): void {
   if (u.demon) { updDemon(u, dt); return; } // lurks by the Gate of Hell, or raids the leader (data/hell.ts)
   if (aetherHome(u, dt)) return; // Return Aether: banking comes before orders
   const o = u.order;
-  if (u.stance !== 'skirmish') u.shot = null;
+  // told to stay still when attacked, an idle fighter stands its ground and shoots only what's in range
+  const still = !o && reactOf(u) === 'hold' && !!d.weapon && !isHarvester(u) && (u.stance === 'skirmish' || u.stance === 'engage');
+  if (u.stance !== 'skirmish' && !still) u.shot = null;
   if (!o) {
+    if (still) { fireOnTheMove(u, dt); return; }
     // a skirmisher shoots what's in range from where it stands; with nothing in range it goes after
     // enemies it can see and fights back like any other, so idle troops aren't picked off from afar
     if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); if (u.shot) return; }
@@ -716,8 +719,11 @@ function act(u: Ent, dt: number): void {
     if (u.type === 'worker' && fixNext(u)) return;
     // a Worker only fights back, or an enemy that comes right up to it
     const foe = u.stance === 'passive' || u.stance === 'tend' || !d.weapon ? null : isHarvester(u) ? attacker(u) ?? acquire(u, 2) : attacker(u) ?? acquire(u, lookRange(u));
-    // a passive unit runs from enemies, but a gatherer sticks to its work with them about
-    const threat = u.stance === 'passive' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
+    // an evader that was just hit keeps away from whoever hit it rather than taking it on
+    const hitter = reactOf(u) === 'evade' ? attacker(u) : null;
+    if (hitter && !isHarvester(u)) { orderFlee(u, hitter); return; }
+    // a passive unit set to evade runs from enemies, but a gatherer sticks to its work with them about
+    const threat = u.stance === 'passive' && reactOf(u) === 'evade' && !isHarvester(u) ? nearestThreat(u, Math.min(d.sight, 7)) : null;
     if (threat) orderFlee(u, threat);
     else if (u.stance === 'passive' && !isHarvester(u)) { /* nothing to do */ } else if (foe) {
       setOrder(u, { t: 'attack', tgt: foe.id, auto: true, ox: u.x, oy: u.y });
@@ -745,7 +751,7 @@ function act(u: Ent, dt: number): void {
   busy.add(u);
   switch (o.t) {
     case 'move': {
-      if (u.stance === 'skirmish' && d.weapon) {
+      if (u.stance === 'skirmish' && d.weapon && !o.flee) {
         // keep going and shoot along the way; only an enemy wall it must get through stops it
         const wall = valid(o.sub);
         if (wall) { if (!combatStep(u, wall, dt)) { o.sub = null; u.path = null; } break; }
@@ -759,7 +765,7 @@ function act(u: Ent, dt: number): void {
         fireOnTheMove(u, dt);
         break;
       }
-      if (u.stance === 'passive' || u.stance === 'tend' || !d.weapon) {
+      if (u.stance === 'passive' || u.stance === 'tend' || !d.weapon || o.flee) {
         if (u.type === 'medic' && o.pat && medicOnPatrol(u, o, dt)) break;
         // keep going
         if (followPath(u, dt)) arrive(u);

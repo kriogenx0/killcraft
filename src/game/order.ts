@@ -1,5 +1,5 @@
 // Giving orders to units. Every order goes through setOrder so stale paths are dropped.
-import { G, tileOf, unitDef, type Ent, type Order, type Stance, type Tile } from './state.ts';
+import { G, tileOf, unitDef, type Ent, type Order, type React, type Stance, type Tile } from './state.ts';
 import { MW, MH, TS, walkable } from './const.ts';
 import { clamp } from '../util/math.ts';
 import { WEAPON } from '../data/weapon.ts';
@@ -51,7 +51,9 @@ export function orderFlee(u: Ent, from: { x: number; y: number }): void {
   const dx = u.x - from.x, dy = u.y - from.y, d = Math.hypot(dx, dy) || 1;
   const gx = clamp(Math.round(tileOf(u.x) + (dx / d) * FLEE_DIST), 0, MW - 1), gy = clamp(Math.round(tileOf(u.y) + (dy / d) * FLEE_DIST), 0, MH - 1);
   const t: Tile | null = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 4) : [gx, gy];
-  if (t) orderMove(u, t[0], t[1]);
+  if (!t) return;
+  orderMove(u, t[0], t[1]);
+  if (u.order?.t === 'move') u.order.flee = true;
 }
 
 export const orderStop = (u: Ent): void => setOrder(u, null);
@@ -63,6 +65,12 @@ export function setStance(u: Ent, stance: Stance): void {
   u.shot = null;
   if (stance !== 'engage' && u.order?.t === 'attack') orderStop(u);
   if (u.order?.t === 'move' && u.order.sub) { u.order.sub = null; u.path = null; }
+}
+
+/** Change what a unit does when attacked. One told to stay put or get away drops a chase it started on its own. */
+export function setReact(u: Ent, react: React): void {
+  u.react = react;
+  if (react !== 'pursue' && u.order?.t === 'attack' && u.order.auto) orderStop(u);
 }
 
 /** Harvest starting at a tile (or the nearest ore to it). */

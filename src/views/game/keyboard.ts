@@ -57,11 +57,14 @@ export const GLOBAL_KEYS = { pause: 'P', home: 'H' } as const;
  */
 export const FOLLOW_KEY = 'Shift+F';
 
-/** Rally the army: pick a spot every fighting unit heads to, and new troops from every producer follow. */
+/** Rally point: pick a spot new troops from every producer head to. */
 export const RALLY_KEY = 'Shift+R';
 
 /** Keep formation: a group moves together at its slowest unit's pace and keeps its shape. */
 export const FORMATION_KEY = 'Shift+M';
+
+/** When attacked: Shift with the attack-mode letter it goes with (V don't attack, G stop & attack, X stop). */
+export const REACT_KEYS = { evade: 'Shift+V', pursue: 'Shift+G', hold: 'Shift+X' } as const;
 
 /** Letters no command or production hotkey may take: the camera keys and the global keys. */
 export const RESERVED_KEYS: ReadonlySet<string> = new Set([
