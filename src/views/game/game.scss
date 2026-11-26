@@ -1031,12 +1031,22 @@ $sidebar-width: 248px;
       }
     }
 
-    .sidebar:has(.sidebar-selection:not([hidden])) .build-tab--selection {
+    // always there, so the tabs don't shift as the selection changes
+    .build-tab--selection {
       display: flex;
 
       & + .build-tab {
         border-left: 1px solid var(--color-rim);
       }
+    }
+
+    .sidebar--sel:has(.sidebar-selection[hidden])::after {
+      grid-row: 2;
+      grid-column: 2;
+      padding: $space-2;
+      font-size: $font-sm;
+      color: var(--color-text-muted);
+      content: 'Nothing selected. Tap a unit or building.';
     }
 
     // long descriptions and how-to notes fold to two lines (the selection panel stays short)
