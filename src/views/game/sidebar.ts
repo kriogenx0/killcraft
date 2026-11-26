@@ -33,9 +33,10 @@ let tab: Tab = 'structure';
 let tabs: Record<Tab, { btn: HTMLElement; busy: HTMLElement }> | null = null;
 /**
  * Phones only: a third tab, Selected, holds what's selected and its commands, so the bottom panel
- * shows one thing at a time. The tabs never change on their own: only the player switches them.
+ * shows one thing at a time. Selecting something opens it; deselecting goes back to the build tab
+ * the player was on (Buildings or Units). Selection never jumps to a build tab.
  */
-let selTab: HTMLElement | null = null;
+let selTab: HTMLElement | null = null, onSel = false, lastSel: unknown = null;
 const narrow = (): boolean => matchMedia('(max-width: 760px)').matches;
 
 function showTab(t: Tab): void {
@@ -47,6 +48,7 @@ function showTab(t: Tab): void {
 
 function showSel(on: boolean): void {
   on &&= narrow(); // the desktop sidebar shows the selection and the build lists together
+  onSel = on;
   structureList.closest('.sidebar')?.classList.toggle('sidebar--sel', on);
   selTab?.setAttribute('aria-selected', String(on));
   if (tabs) for (const k of ['structure', 'unit'] as const) tabs[k].btn.setAttribute('aria-selected', String(!on && k === tab));
@@ -144,6 +146,12 @@ export function refreshSidebar(): void {
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
   const producer = selectedProducer();
+  // a new selection (V.sel is replaced whenever the player selects) opens Selected; none goes back
+  if (V.sel !== lastSel) {
+    lastSel = V.sel;
+    if (V.sel.some((e) => !e.dead)) { if (!onSel) showSel(true); }
+    else if (onSel) showSel(false);
+  }
   // spectators can't build or train: no Buildings / Units tabs, just the radar and what's selected
   const bar = structureList.closest('.sidebar'), watch = spectating();
   if (bar && bar.classList.contains('sidebar--watch') !== watch) bar.classList.toggle('sidebar--watch', watch);
