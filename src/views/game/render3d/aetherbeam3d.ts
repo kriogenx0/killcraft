@@ -94,7 +94,7 @@ function glowTexture(): THREE.CanvasTexture {
 const glowPool: THREE.Sprite[] = [];
 /** a small spinning Aether crystal floating over each carrier's head, so carriers stand out in a crowd */
 const gemGeo = new THREE.OctahedronGeometry(1, 0).scale(0.6, 1, 0.6);
-const gemMat = new THREE.MeshBasicMaterial({ color: '#e2b8ff', transparent: true, opacity: 0.95, fog: false });
+const gemMat = new THREE.MeshBasicMaterial({ color: '#b45cff', transparent: true, opacity: 1, fog: false });
 const gemPool: THREE.Mesh[] = [];
 
 /** A soft violet halo round every visible unit carrying Aether, brighter the more it holds, and round dropped Aether. Call once per frame. */
@@ -109,7 +109,7 @@ export function updateAetherGlows(): void {
     if ((!carrying && !dropped) || !shownToPlayer(e)) continue;
     let s = glowPool[n];
     if (!s) {
-      s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#b060ff', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+      s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#a040ff', transparent: true, depthWrite: false, fog: false }));
       s.renderOrder = 3;
       glowPool.push(s);
       layer.add(s);
@@ -133,7 +133,7 @@ export function updateAetherGlows(): void {
     m.visible = true;
     m.position.set(e.x / TS, groundY(e.x, e.y) + modelHeight(e) + 0.18 + Math.sin(t * 2.4 + e.id) * 0.04, e.y / TS);
     m.rotation.y = t * 2 + e.id;
-    m.scale.setScalar(0.07 + full * 0.05);
+    m.scale.setScalar(0.1 + full * 0.06);
   }
   for (let i = n; i < glowPool.length; i++) glowPool[i].visible = false;
   for (let i = g; i < gemPool.length; i++) gemPool[i].visible = false;
