@@ -52,7 +52,7 @@ describe('the Titan', () => {
     expect(atLimit(0, 'giant')).toBe(false);
   });
 
-  it('swings its club in a wide sweep: everything in front is hit, not what is behind it', () => {
+  it('swings its club in a wide sweep: foes in front are hit, not what is behind it', () => {
     const y = 30 * TS, titan = addUnit('giant', 0, 20 * TS, y);
     const a = addUnit('swordsman', 1, 20 * TS + 40, y), side = addUnit('swordsman', 1, 20 * TS + 5, y + 60), behind = addUnit('swordsman', 1, 20 * TS - 60, y);
     fire(titan, 'quake', a);

@@ -106,8 +106,8 @@ export function fire(s: Ent, wt: WeaponType, t: Ent): void {
   if (w.proj === 'melee') {
     // the swing starts now; the blow and its damage land as the blade comes down (see updProjs)
     // many heads bite many foes at once
-    // a sweeping swing catches everything in its arc
-    const more = w.heads ? otherFoesInReach(s, t, wt, w.heads - 1) : w.sweep ? otherFoesInReach(s, t, wt, 99, w.sweep) : [];
+    // a sweeping swing catches what's in its arc, up to `heads` foes if it has a limit
+    const more = w.sweep ? otherFoesInReach(s, t, wt, (w.heads ?? 99) - 1, w.sweep) : w.heads ? otherFoesInReach(s, t, wt, w.heads - 1) : [];
     for (const e of [t, ...more])
       G.projs.push({ kind: 'melee', x: s.x, y: s.y, z: 0, z0: 0, tid: e.id, dmg: w.dmg, src: s.id, team: s.team, weapon: wt, sp: 0, d0: 0, tr: 0, a: 0, dead: false });
     return;

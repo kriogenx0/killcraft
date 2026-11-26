@@ -33,7 +33,7 @@ export interface WeaponDef {
   vs: Record<ArmorClass, number>;
   /** seconds a hit unit is slowed (see SLOW_FACTOR in data/aether.ts) */
   slow?: number;
-  /** melee: strikes this many foes in reach at once (the Hydra's heads) */
+  /** melee: strikes this many foes in reach at once (the Hydra's heads; with `sweep`, the most one swing can hit) */
   heads?: number;
   /** leaves a lasting effect on what it hits (data/spells.ts) */
   element?: Element;
@@ -95,8 +95,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // cyborg arms
   minigun: { dmg: 8, range: 4.5, cd: 0.2, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1.2, light: 0.75, heavy: 0.3, building: 0.35, air: 0.5 } },
   railgun: { dmg: 95, range: 6, cd: 3.2, proj: 'shell', speed: 900, splash: 14, vs: { none: 0.4, light: 1, heavy: 1.1, building: 1.1, air: 0 } },
-  // the Titan's club: a slow, wide sideways swing that hits everything in its arc
-  quake: { dmg: 140, range: 2.4, cd: 2.6, proj: 'melee', speed: 0, splash: 0, swing: 1.1, sweep: 1.6, vs: { none: 0.9, light: 1, heavy: 1, building: 1.5, air: 0 } },
+  // the Titan's club: a slow, wide sideways swing that hits up to three foes in its arc
+  quake: { dmg: 95, range: 2.4, cd: 2.6, proj: 'melee', speed: 0, splash: 0, swing: 1.1, sweep: 1.6, heads: 3, vs: { none: 0.9, light: 1, heavy: 1, building: 1.5, air: 0 } },
   // creatures of Greek myth
   centaurbow: { dmg: 17, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 1.3 } },
   axe: { dmg: 34, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
