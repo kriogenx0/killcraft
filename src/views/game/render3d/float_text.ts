@@ -71,7 +71,9 @@ export function drawFloatText(g: CanvasRenderingContext2D, left: number, top: nu
   g.textAlign = 'center';
   g.textBaseline = 'bottom';
   g.lineJoin = 'round';
-  g.lineWidth = 3;
+  // phones (upright or on their side): smaller numbers, so they don't cover the little units
+  const small = V.vw <= 760 || V.vh <= 500, sc = small ? 0.7 : 1;
+  g.lineWidth = small ? 2.5 : 3;
   g.strokeStyle = 'rgba(0,0,0,.85)';
   for (const p of pops) {
     const n = Math.round(p.amt);
@@ -79,9 +81,9 @@ export function drawFloatText(g: CanvasRenderingContext2D, left: number, top: nu
     const k = (G.gameT - p.t0) / p.k.life, s = worldToScreen(p.x, p.y, groundY(p.x, p.y) + p.h + 0.2);
     if (!s.front) continue;
     const big = p.unit ? true : n >= 30, pop = k < 0.12 ? 1 + (0.12 - k) * 3 : 1;
-    g.font = `bold ${Math.round((big ? 16 : 13) * pop)}px system-ui, sans-serif`;
+    g.font = `bold ${Math.round((big ? 16 : 13) * sc * pop)}px system-ui, sans-serif`;
     g.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
-    const x = s.sx - left + p.dx, y = s.sy - top - 6 + p.dy - k * p.k.rise, txt = p.unit ? `+${n}${p.unit}` : String(n);
+    const x = s.sx - left + p.dx * sc, y = s.sy - top - 6 + (p.dy - k * p.k.rise) * sc, txt = p.unit ? `+${n}${p.unit}` : String(n);
     g.strokeText(txt, x, y);
     g.fillStyle = p.col;
     g.fillText(txt, x, y);
