@@ -176,7 +176,7 @@ describe('Aether', () => {
 
   it('sends an Auto Worker that just banked a load out of its way for dropped Aether, then back to work', () => {
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
-    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.dead = true; // only this Worker to go for it
     const carrier = addUnit('swordsman', 0, yard.x + 11 * TS, yard.y);
     carrier.ae = 20;
     dealDamage(carrier, 9999, null);
@@ -193,6 +193,22 @@ describe('Aether', () => {
     run(6);
     expect(w.order?.t).toBe('harvest'); // and back to gathering
     expect(errors).toEqual([]);
+  });
+
+  it('comes first: an idle Worker fetches dropped Aether from well across the map, and only one goes', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.dead = true;
+    const carrier = addUnit('swordsman', 0, yard.x + 30 * TS, yard.y - 20 * TS);
+    carrier.ae = 20;
+    dealDamage(carrier, 9999, null);
+    expect(shards()).toHaveLength(1);
+    const a = addUnit('worker', 0, yard.x, yard.y + 3 * TS), b = addUnit('worker', 0, yard.x + TS, yard.y + 3 * TS);
+    run(2);
+    const going = [a, b].filter((w) => w.order?.t === 'move');
+    expect(going).toHaveLength(1);
+    const before = G.aether[0] ?? 0;
+    for (let i = 0; i < 120 / STEP && (G.aether[0] ?? 0) <= before; i++) update(STEP);
+    expect(G.aether[0]).toBeCloseTo(before + 20, 0);
   });
 
   it('leaves dropped Aether a side can\'t see, or that an armed enemy guards', () => {

@@ -182,14 +182,15 @@ export function available(team: number, line: ProductionLine): Buildable[] {
 
 /**
  * Every unit the side's current age offers, in a fixed order for the sidebar: Barracks, then War
- * Factory, then air; the Worker first; secret (Aether-drawn or captured) units after the regular
+ * Factory, then air; the Worker first, the Harvester right after it; secret (Aether-drawn or captured) units after the regular
  * ones; then by age and in data order. Units it can't train yet (no Barracks, no Hospital) are
  * included, so the list never shuffles as buildings go up or fall.
  */
 export function unitSlots(team: number): UnitType[] {
   const era = eraOf(team), LINES: ProductionLine[] = ['infantry', 'vehicle', 'air'];
   const secret = (t: UnitType) => (UNIT[t].beast || priceOf(t).aether > 0 ? 1 : 0);
-  const key = (t: UnitType) => [LINES.indexOf(UNIT[t].producer), t === 'worker' ? 0 : 1, secret(t), UNIT[t].era, UNIT_TYPES.indexOf(t)];
+  // the Harvester (the Worker's Modern replacement at the ore) sits right after the Worker
+  const key = (t: UnitType) => t === 'harvester' ? [0, 0.5, 0, 0, 0] : [LINES.indexOf(UNIT[t].producer), t === 'worker' ? 0 : 1, secret(t), UNIT[t].era, UNIT_TYPES.indexOf(t)];
   return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && !UNIT[t].hatched && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
     .sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i]; return 0; });
 }

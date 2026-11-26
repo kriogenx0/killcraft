@@ -3,7 +3,7 @@
 // Workers already bring each in, and look again each time they drop a load off, so the split
 // follows the bank. A Worker set to Ore, Wood or Oil sticks to it.
 import { AETHER_DRY, AETHER_WORTH } from '../data/aether.ts';
-import { G, tileOf, valid, type Ent, type HarvestOrder } from './state.ts';
+import { G, isHarvester, tileOf, valid, type Ent, type HarvestOrder } from './state.ts';
 import { MH, MW, TS } from './const.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, treeFor } from './chop.ts';
@@ -245,7 +245,8 @@ function fromBase(team: number, x: number, y: number): number {
  * Returns false if there's none of that to gather.
  */
 export function sendGather(u: Ent, r: GatherRes): boolean {
-  if (u.type !== 'worker') return false;
+  // a Harvester only digs ore
+  if (u.type !== 'worker' && !(r === 'ore' && isHarvester(u))) return false;
   forgetAether(u);
   if (r === 'auto') {
     const job = pickResource(u);

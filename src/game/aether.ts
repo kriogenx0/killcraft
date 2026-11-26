@@ -1,13 +1,14 @@
 // Aether deposits: placing them on the map, drawing Aether from a held deposit, and the tricks the
 // hidden units use (slowing hexes and cloaks). Tuning lives in data/aether.ts.
-import { G, allied, hooks, say, unitDef, type Ent, type Tile } from './state.ts';
+import { G, allied, hooks, say, tileOf, unitDef, type Ent, type Tile } from './state.ts';
+import { BUILDING, type BldType } from '../data/building.ts';
 import { noteGathered } from './stats.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
   AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, AETHER_DRY, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
-  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
+  CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_ENEMY_BASE, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
 import { edgeDist } from './path.ts';
@@ -280,17 +281,24 @@ function sideSees(u: Ent, x: number, y: number): boolean {
 
 /**
  * The nearest dropped Aether a Worker should fetch, if it has room: within `reach` tiles, somewhere
- * its side can see, and not where an armed enemy is about.
+ * its side can see, not where an armed enemy (or enemy tower) is about or in the enemy's base, and
+ * not one another of the side's Workers is already on its way to.
  */
 export function shardFor(u: Ent, reach = SHARD_SEEK): Ent | null {
   if ((u.ae ?? 0) >= AETHER_CARRY - 0.5) return null;
-  let best: Ent | null = null, bd = reach * TS, foes: Ent[] | null = null;
+  let best: Ent | null = null, bd = reach * TS, foes: Ent[] | null = null, bases: Ent[] = [];
   for (const s of G.ents) {
     if (s.dead || s.type !== 'shard') continue;
     const d = Math.hypot(s.x - u.x, s.y - u.y);
     if (d >= bd || !sideSees(u, s.x, s.y)) continue;
-    foes ??= G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team >= 0 && !allied(e.team, u.team) && !!unitDef(e).weapon && e.type !== 'worker');
+    if (!foes) {
+      foes = G.ents.filter((e) => !e.dead && e.team >= 0 && !allied(e.team, u.team) && (e.kind === 'unit' ? !!unitDef(e).weapon && e.type !== 'worker' : e.kind === 'bld' && !!BUILDING[e.type as BldType]?.weapon));
+      bases = G.ents.filter((e) => !e.dead && e.team >= 0 && e.kind === 'bld' && !allied(e.team, u.team));
+    }
     if (foes.some((e) => Math.hypot(e.x - s.x, e.y - s.y) < SHARD_DANGER * TS)) continue;
+    if (bases.some((e) => Math.hypot(e.x - s.x, e.y - s.y) < SHARD_ENEMY_BASE * TS)) continue;
+    const tx = tileOf(s.x), ty = tileOf(s.y);
+    if (G.ents.some((w) => w !== u && !w.dead && w.team === u.team && w.type === 'worker' && w.order?.t === 'move' && w.order.gx === tx && w.order.gy === ty)) continue;
     bd = d; best = s;
   }
   return best;
