@@ -7,7 +7,7 @@ import { BUILDING, REPAIR_SHARE, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
 import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autogather.ts';
-import { ERA } from '../../data/era.ts';
+import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
 import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
@@ -398,11 +398,14 @@ export function productionDetails(e: Ent): string {
   if (!head) return `${sites}<p class="hud-stats">Free · ${others} training in other buildings</p>`;
   const need = !head.paid && waitingFor(e.team, head.type);
   const state = head.hold ? 'on hold' : need ? `waiting for ${need}` : `${Math.round(head.prog * 100)}%`;
-  const more = [others ? `${others} in other buildings` : '', waiting ? `${waiting} more queued` : ''].filter(Boolean).map((t) => ` · ${t}`).join('');
+  // research runs one at a time: name what's queued after it
+  const next = isTechType(head.type) ? queue.filter((it) => it !== head).map((it) => nameOf(it.type)) : [];
+  const nextNote = next.length ? `<p class="hud-stats">Then: ${next.join(', ')}</p>` : '';
+  const more = next.length ? '' : [others ? `${others} in other buildings` : '', waiting ? `${waiting} more queued` : ''].filter(Boolean).map((t) => ` · ${t}`).join('');
   // a big army trains slower (ARMY_SLOW_FROM)
   const size = armySize(e.team), slow = isUnitType(head.type) && isFighter(head.type) ? armySlow(e.team, size) : 1;
   const slowNote = slow > 1 ? `<p class="hud-stats hud-warn">Army of ${size}: new troops take ${Math.round((slow - 1) * 100)}% longer</p>` : '';
-  return `${sites}<p class="hud-stats">Making ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}${slowNote}`;
+  return `${sites}<p class="hud-stats">${isTechType(head.type) ? 'Researching' : 'Making'} ${nameOf(head.type)}, ${state}${more}</p>${barHtml(head.prog, 'progress', 'Production')}${nextNote}${slowNote}`;
 }
 
 function detailsMarkup(s: Ent[]): string {
