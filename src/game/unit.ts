@@ -417,23 +417,39 @@ function regen(u: Ent, dt: number): void {
   u.hp = Math.min(u.maxhp, u.hp + u.maxhp * rate * dt);
 }
 
-/** What a Medic can heal: foot soldiers and creatures, anything that flies, and vehicles once its side knows Field Mechanics. */
-const medicCanHeal = (e: Ent): boolean => isOrganic(e) || isAir(e) || (e.kind === 'unit' && unitDef(e).cls === 'vehicle' && !!G.mech[e.team]);
+/**
+ * Whether Medic `u` can heal `e`: its own side's or a teammate's foot soldiers and creatures, anything
+ * that flies, and vehicles once the Medic's side knows Field Mechanics.
+ */
+const medicCanHeal = (u: Ent, e: Ent): boolean => allied(e.team, u.team) && e.kind === 'unit'
+  && (isOrganic(e) || isAir(e) || (unitDef(e).cls === 'vehicle' && !!G.mech[u.team]));
 
-/** The most hurt ally a Medic can heal (not the medic itself) within a radius, if any. */
-function woundedNear(u: Ent, r: number): Ent | null {
-  let best: Ent | null = null;
+/**
+ * The patient a Medic should see to within a radius (not the medic itself): the most hurt of its own
+ * side's wounded, and only when none of its own need it, the most hurt teammate's.
+ */
+function woundedNear(u: Ent, r: number, ownOnly = false): Ent | null {
+  let own: Ent | null = null, ally: Ent | null = null;
   for (const e of G.ents) {
-    if (e === u || e.dead || e.team !== u.team || !medicCanHeal(e) || e.hp >= e.maxhp - 0.5) continue;
+    if (e === u || e.dead || e.hp >= e.maxhp - 0.5 || !medicCanHeal(u, e)) continue;
+    const mine = e.team === u.team;
+    if (!mine && (ownOnly || own)) continue;
     if (Math.hypot(e.x - u.x, e.y - u.y) > r) continue;
-    if (!best || e.hp / e.maxhp < best.hp / best.maxhp) best = e;
+    const best = mine ? own : ally;
+    if (!best || e.hp / e.maxhp < best.hp / best.maxhp) { if (mine) own = e; else ally = e; }
   }
-  return best;
+  return own ?? ally;
 }
 
 function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
-  if (!t || t.team !== u.team || !medicCanHeal(t) || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  if (!t || !medicCanHeal(u, t) || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  // tending a teammate's unit on its own initiative: drop it for one of our own who gets hurt nearby
+  if (t.team !== u.team && !o.sent && (u.scan -= dt) <= 0) {
+    u.scan = 0.4;
+    const mine = woundedNear(u, unitDef(u).sight * TS, true);
+    if (mine) { setOrder(u, { t: 'heal', tgt: mine.id, ox: o.ox, oy: o.oy, sent: false }); return; }
+  }
   if (tend(u, t, dt) === null) setOrder(u, null);
 }
 
@@ -459,7 +475,13 @@ function medicOnPatrol(u: Ent, o: MoveOrder, dt: number): boolean {
   // back to the beat
   const resume = () => { o.sub = null; u.goal = [o.gx, o.gy]; u.path = pathFor(u, o.gx, o.gy); };
   let t = valid(o.sub);
-  if (o.sub && (!t || t.team !== u.team || !medicCanHeal(t) || t.hp >= t.maxhp - 0.5)) { t = null; resume(); }
+  if (o.sub && (!t || !medicCanHeal(u, t) || t.hp >= t.maxhp - 0.5)) { t = null; resume(); }
+  // patching up a teammate's unit: one of our own who's hurt nearby comes first
+  if (t && t.team !== u.team && (u.scan -= dt) <= 0) {
+    u.scan = 0.4;
+    const mine = woundedNear(u, unitDef(u).sight * TS, true);
+    if (mine) { t = mine; o.sub = mine.id; u.path = null; }
+  }
   if (!t) {
     u.scan -= dt;
     if (u.scan > 0) return false;
