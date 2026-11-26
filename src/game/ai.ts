@@ -188,7 +188,7 @@ function nextStructure(team: number, walling: boolean): BldType | null {
     }
   }
   // answer enemy aircraft with flak
-  const foeAir = G.ents.filter((e) => !e.dead && hostile(e.team, team) && isAir(e)).length;
+  const foeAir = G.ents.filter((e) => !e.dead && hostile(e.team, team) && isAir(e) && !e.bee).length;
   if (foeAir > 0 && countOf(team, 'flak') < Math.min(4, 1 + foeAir) && can.includes('flak') && G.credits[team] > 900) return 'flak';
   // short of wood with ore to spare: another mill, by fresh trees
   if (G.wood[team] < 200 && G.credits[team] > 1500 && countOf(team, 'mill') < 5 && can.includes('mill')) return 'mill';
@@ -739,7 +739,7 @@ function training(team: number): void {
   if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') && credits > 900) {
     // fighters answer enemy aircraft; strike jets go after bases once there's money for them
     const foeAir = G.ents.filter((e) => !e.dead && e.kind === 'unit' && hostile(e.team, team) && isAir(e)).length;
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['fighter', foeAir >= 3 ? 4 : foeAir ? 1.5 : 0.3], ['striker', credits > 1300 ? 2 : 0], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['fighter', foeAir >= 3 ? 4 : foeAir ? 1.5 : 0.3], ['striker', credits > 1300 ? 2 : 0], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0], ['beequeen', 1.5]]);
     if (t) enqueue(team, t);
   }
   // Workers: a few per refinery (by difficulty) for ore before the Modern age, plus the mills' choppers and derricks' haulers
@@ -754,7 +754,7 @@ function training(team: number): void {
   if (!saving && !full && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
-    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0], ['tidecaller', 1.2], ['plaguewitch', 1.2], ['sludgewarlock', credits > 900 ? 1 : 0],
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['guardian', credits > 800 ? 1.5 : 0], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0], ['tidecaller', 1.2], ['plaguewitch', 1.2], ['sludgewarlock', credits > 900 ? 1 : 0],
       ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5], ['giant', credits > 4200 ? 1 : 0], ['mystery', credits > 1200 ? 0.6 : 0],
       ['medusa', 1.5], ['nemean', 1.5], ['sphinx', 1], ['chimera', 1.5], ['satyr', countOf(team, 'satyr') * 8 < foot ? 1.5 : 0]]);
     if (t) enqueue(team, t);

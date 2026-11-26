@@ -96,7 +96,7 @@ export function noteGathered(team: number, kind: StatRes, amount: number): void 
 /** Something was destroyed by damage from `by` (if known). */
 export function noteKill(victim: Ent, by: Ent | null): void {
   const unit = victim.kind === 'unit', bld = victim.kind === 'bld';
-  if (!unit && !bld) return;
+  if ((!unit && !bld) || victim.bee) return; // a Bee is part of its Queen's swarm, not a unit of its own
   const v = of(victim.team);
   if (v && unit) v.lost++;
   if (!by || victim.team < 0 || !(by.team >= 0) || allied(by.team, victim.team)) return;
@@ -110,7 +110,7 @@ export function noteKill(victim: Ent, by: Ent | null): void {
 export function sampleStats(): void {
   const army = new Array<number>(G.teams).fill(0);
   for (const e of G.ents) {
-    if (e.dead || e.kind !== 'unit' || e.team < 0 || e.team >= G.teams) continue;
+    if (e.dead || e.kind !== 'unit' || e.team < 0 || e.team >= G.teams || e.bee) continue;
     const d = UNIT[e.type as UnitType];
     if (d?.weapon && e.type !== 'worker' && !d.haul) army[e.team]++;
   }

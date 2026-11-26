@@ -28,7 +28,7 @@ export const duelPrice = (type: UnitType | BldType): number => {
 };
 
 /** Units that fight (not Workers, Harvesters or Medics). */
-export const FIGHTERS = UNIT_TYPES.filter((t) => UNIT[t].weapon && t !== 'worker' && !UNIT[t].demon); // demons can't be trained
+export const FIGHTERS = UNIT_TYPES.filter((t) => UNIT[t].weapon && t !== 'worker' && !UNIT[t].demon && !UNIT[t].summoned); // demons can't be trained, nor can Bees
 
 /** Can units of this type be trained in this age? Creatures come in any age once captured. */
 export const inAge = (t: UnitType, age: number) => UNIT[t].era <= age && (UNIT[t].until ?? 99) > age;

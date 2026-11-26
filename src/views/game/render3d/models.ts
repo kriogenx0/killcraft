@@ -316,6 +316,71 @@ function swordsman(team: number): Model {
   return m;
 }
 
+/** A tower shield's outline, [z, y]: tall and square, the top corners clipped. */
+const TOWER: [number, number][] = [[-0.08, -0.17], [0.08, -0.17], [0.088, 0.09], [0.064, 0.125], [-0.064, 0.125], [-0.088, 0.09]];
+
+/** How much bigger than a foot soldier the Guardian stands. */
+const GUARDIAN_SCALE = 1.85;
+
+/**
+ * The Guardian: a hulking foot soldier sealed in heavy plate, a tower shield on one arm and a great
+ * giant axe in the other. Built as a soldier, armored over, then scaled up inside a wrapper (the renderer
+ * sets the root's own scale).
+ */
+function guardian(team: number): Model {
+  const m = soldier({ torso: M.darkSteel(), legs: M.steel(), arms: M.steel(), boots: M.darkSteel(), hands: M.darkSteel() });
+  const r = m.root, tm = teamMat(team);
+  // layered plate: breastplate, fauld bands, a team surcoat between them, a heavy gorget
+  r.add(mesh(shell(0.255, 0.41, 0.014), M.steel())); // breastplate
+  r.add(mesh(shell(0.3, 0.39, 0.02), tm)); // surcoat panel
+  r.add(mesh(shell(0.295, 0.305, 0.024), M.gold())); // its hem
+  r.add(mesh(box(0.005, 0.075, 0.022), M.gold(), chest(0.35, 0.021), 0.35, 0)); // a gold bar down the chest
+  for (const [y, o] of [[0.236, 0.016], [0.214, 0.022], [0.192, 0.026]] as const) r.add(mesh(shell(y - 0.011, y + 0.011, o), M.darkSteel())); // fauld
+  r.add(mesh(skirt(0.12, 0.19, 0.06), M.mail())); // mail skirt under the fauld
+  r.add(mesh(loft([[0.38, 0.13, 0.2], [0.41, 0.125, 0.17], [0.45, 0.085, 0.12]], 8), M.steel())); // gorget
+  // great stacked pauldrons, team-edged
+  for (const side of [-1, 1]) {
+    r.add(rot(scl(mesh(pauldron(), M.steel(), 0, 0.39, side * 0.125), 1.5, 1.3, 1.5), side * 0.4, 0, 0));
+    r.add(rot(scl(mesh(pauldron(), tm, 0, 0.372, side * 0.13), 1.62, 0.5, 1.62), side * 0.4, 0, 0));
+  }
+  // closed helm with a team crest, cheek guards and breaths
+  greatHelm(r, team, 0, 0.48, false);
+  r.add(mesh(slab([[-0.07, 0], [0.05, 0], [0.07, 0.03], [0.04, 0.06], [-0.05, 0.065], [-0.08, 0.04]], 0.018, 0.004), tm, -0.005, 0.57, 0)); // crest
+  for (const z of [-0.064, 0.064]) r.add(mesh(box(0.06, 0.05, 0.01), M.darkSteel(), 0.035, 0.445, z)); // cheek guards
+  // knee cops and greaves ride on the legs
+  for (const k of ['legL', 'legR']) {
+    m.parts[k].add(mesh(gem(0.038, 1.1, 0.9, 1), M.steel(), 0.014, -0.09, 0));
+    m.parts[k].add(mesh(taper(0.07, 0.076, 0.07, 6, 1.05), M.darkSteel(), 0.004, -0.11, 0));
+  }
+  // tower shield on the left arm: steel rim, team face, gold boss and a white bar
+  const shield = group(0.075, -0.07, -0.02,
+    rot(mesh(slab(TOWER, 0.03, 0.008), M.darkSteel(), -0.006, 0, 0), 0, Math.PI / 2, 0),
+    rot(scl(mesh(slab(TOWER, 0.03, 0.006), tm, 0.003, 0.006, 0), 0.86, 0.9, 1), 0, Math.PI / 2, 0),
+    mesh(box(0.03, 0.21, 0.022), M.white(), 0.006, -0.02, 0),
+    mesh(gem(0.028, 0.7, 1, 1), M.gold(), 0.022, 0.01, 0));
+  m.parts.armL.add(shield);
+  m.parts.armL.rotation.z = 0.9;
+  // giant double-bitted axe: a long haft, a broad crescent blade forward, a smaller one behind, a spike on top
+  const BLADE: [number, number][] = [[0.01, -0.25], [0.07, -0.225], [0.15, -0.17], [0.18, -0.26], [0.17, -0.35], [0.14, -0.43], [0.07, -0.37], [0.01, -0.34]];
+  const axe = group(0, -0.16, 0,
+    mesh(taper(0.42, 0.024, 0.022, 6), M.darkWood(), 0, 0.08, 0),
+    mesh(loft([[-0.04, 0.03, 0.03], [0.02, 0.032, 0.032]], 6), M.leather()), // grip
+    mesh(loft([[-0.35, 0.04, 0.04], [-0.24, 0.04, 0.04]], 6), M.darkSteel()), // socket
+    mesh(slab(BLADE, 0.016, 0.005), M.steel()),
+    mesh(slab(BLADE.map(([x, y]) => [-x * 0.6, y * 0.92 - 0.02] as [number, number]), 0.016, 0.005), M.steel()),
+    mesh(slab([[0.172, -0.17], [0.19, -0.26], [0.178, -0.35], [0.145, -0.435], [0.13, -0.42], [0.165, -0.26]], 0.008), M.white()), // bright honed edge
+    rot(mesh(cone(0.016, 0.07, 5), M.steel(), 0, -0.375, 0), 0, 0, Math.PI), // spike past the head
+    mesh(loft([[-0.31, 0.045, 0.045], [-0.29, 0.045, 0.045]], 6), M.gold(), 0, 0, 0)); // gold ring at the socket
+  m.parts.armR.add(axe);
+  m.parts.armR.rotation.z = 2.3; // carried on the shoulder (entities3d.ts GUARDIAN_REST)
+  m.parts.body = r; // twists into each swing
+  // scale the whole figure up inside a wrapper, so the renderer's own scale still applies on top
+  const outer = new THREE.Group();
+  r.scale.setScalar(GUARDIAN_SCALE);
+  outer.add(r);
+  return { root: outer, parts: m.parts, height: m.height * GUARDIAN_SCALE };
+}
+
 function crossbowman(team: number): Model {
   const m = soldier({ torso: M.khaki(), legs: M.leather(), arms: M.khaki(), boots: M.rubber() });
   const r = m.root;
@@ -797,6 +862,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'gunner': return gunner(team);
     case 'rocket': return rocketeer(team);
     case 'swordsman': return swordsman(team);
+    case 'guardian': return guardian(team);
     case 'crossbowman': return crossbowman(team);
     case 'knight': return knight(team);
     case 'medic': return medic(team);

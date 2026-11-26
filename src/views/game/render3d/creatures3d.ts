@@ -8,7 +8,7 @@ import { UNIT } from '../../../data/unit.ts';
 import { lerp } from '../../../util/math.ts';
 import { group, limb, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { M, box, cone, cyl, mat, teamMat, torus } from './materials.ts';
-import { ball } from './shapes.ts';
+import { ball, gem, loftX } from './shapes.ts';
 
 const C = {
   bay: () => mat('#6e4526', { rough: 0.8 }),
@@ -548,6 +548,80 @@ function dragon(team: number): Model {
   return { root, parts, height: 0.8 };
 }
 
+/** Bee wings: thin and glassy, catching the light. One material, shared. */
+let glassWing: THREE.MeshStandardMaterial | null = null;
+const beeWing = (): THREE.MeshStandardMaterial =>
+  (glassWing ??= new THREE.MeshStandardMaterial({ color: '#dfeefa', roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, flatShading: true }));
+const BEE = {
+  gold: () => mat('#e8a820', { rough: 0.6 }),
+  black: () => mat('#1e1812', { rough: 0.7 }),
+  fuzz: () => mat('#b07818', { rough: 0.95 }),
+  eye: () => mat('#2a1a10', { rough: 0.15, metal: 0.3 }),
+};
+
+/** A bee's body along +x: fuzzy thorax, head with big eyes and feelers, and a striped abdomen tapering to a sting. `k` scales it. */
+function beeBody(root: THREE.Object3D, parts: Parts, k: number, y: number): void {
+  const gold = BEE.gold(), black = BEE.black();
+  // the abdomen: rings of gold and black, swelling then tapering back to the sting
+  const abdomen = group(0, 0, 0);
+  const ring = (x0: number, x1: number, r0: number, r1: number, m: Mat) =>
+    abdomen.add(mesh(loftX([[x0 * k, r0 * k * 0.92, r0 * k], [((x0 + x1) / 2) * k, ((r0 + r1) / 2 + 0.012) * k * 0.92, ((r0 + r1) / 2 + 0.012) * k], [x1 * k, r1 * k * 0.92, r1 * k]], 8), m, 0, y - 0.02 * k, 0));
+  const R = [0.07, 0.13, 0.16, 0.165, 0.15, 0.12, 0.08, 0.035];
+  for (let i = 0; i < R.length - 1; i++) {
+    const x0 = -0.08 - i * 0.07, x1 = x0 - 0.07;
+    ring(x1, x0, R[i + 1], R[i], i % 2 ? black : gold);
+  }
+  abdomen.add(rot(mesh(cone(0.014 * k, 0.09 * k, 5), black, -0.61 * k, y - 0.03 * k, 0), 0, 0, Math.PI / 2 + 0.25)); // the sting
+  parts.tail = abdomen;
+  root.add(abdomen);
+  // thorax, a ball of fuzz
+  root.add(scl(mesh(ball(0.1 * k), BEE.fuzz(), 0, y, 0), 1.2, 1, 1));
+  // head: round, with two great dark eyes and a pair of feelers
+  root.add(scl(mesh(ball(0.07 * k), black, 0.13 * k, y + 0.01 * k, 0), 0.9, 1, 1.15));
+  for (const z of [-1, 1]) {
+    root.add(scl(mesh(gem(0.045 * k), BEE.eye(), 0.15 * k, y + 0.02 * k, z * 0.05 * k), 0.8, 1.25, 0.7));
+    root.add(rod([0.18 * k, y + 0.05 * k, z * 0.02 * k], [0.24 * k, y + 0.13 * k, z * 0.06 * k], 0.006 * k, black, 4));
+    root.add(rod([0.24 * k, y + 0.13 * k, z * 0.06 * k], [0.3 * k, y + 0.14 * k, z * 0.08 * k], 0.006 * k, black, 4));
+    root.add(rod([0.19 * k, y - 0.04 * k, z * 0.015 * k], [0.22 * k, y - 0.07 * k, z * 0.005 * k], 0.008 * k, black, 4)); // mandibles
+  }
+  // six legs folded under her in flight
+  for (const x of [0.05, 0, -0.05]) for (const z of [-1, 1]) {
+    root.add(rod([x * k, y - 0.06 * k, z * 0.05 * k], [(x + 0.03) * k, y - 0.13 * k, z * 0.1 * k], 0.01 * k, black, 4));
+    root.add(rod([(x + 0.03) * k, y - 0.13 * k, z * 0.1 * k], [(x - 0.04) * k, y - 0.2 * k, z * 0.09 * k], 0.008 * k, black, 4));
+  }
+  // two pairs of glassy wings on the thorax, veined dark at the root
+  for (const [name, s] of [['wingL', -1], ['wingR', 1]] as const) {
+    const w = group(0, y + 0.08 * k, s * 0.04 * k);
+    w.add(rot(mesh(gem(0.17 * k, 0.5, 0.05, 1), beeWing(), -0.07 * k, 0, s * 0.16 * k), 0, s * 0.45, 0)); // forewing
+    w.add(rot(mesh(gem(0.11 * k, 0.5, 0.05, 1), beeWing(), -0.13 * k, -0.005 * k, s * 0.1 * k), 0, s * 1.0, 0)); // hindwing
+    w.add(rod([0, 0, 0], [-0.08 * k, 0, s * 0.27 * k], 0.004 * k, black, 3));
+    parts[name] = w;
+    root.add(w);
+  }
+}
+
+/** The Bee Queen: a bee as big as a horse, crowned in gold, with her side's colour on a sash round her middle. */
+function beeQueen(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, k = 1.3, y = 0.5;
+  beeBody(root, parts, k, y);
+  root.add(rot(mesh(cyl(0.1 * k, 0.1 * k, 0.035 * k, 10), colour(team), -0.07 * k, y - 0.005 * k, 0), 0, 0, Math.PI / 2)); // sash where thorax meets abdomen
+  // a golden crown on her head: a band with points and a red gem at the front
+  const crown = group(0.12 * k, y + 0.085 * k, 0);
+  crown.add(mesh(cyl(0.045 * k, 0.04 * k, 0.03 * k, 8), M.gold(), 0, 0, 0));
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; crown.add(mesh(cone(0.01 * k, 0.04 * k, 4), M.gold(), Math.cos(a) * 0.042 * k, 0.032 * k, Math.sin(a) * 0.042 * k)); }
+  crown.add(mesh(gem(0.012 * k), mat('#d02040', { rough: 0.2, metal: 0.3, emissive: '#600010', emissiveIntensity: 0.5 }), 0.046 * k, 0.005 * k, 0));
+  crown.rotation.z = -0.2;
+  root.add(crown);
+  return { root, parts, height: 0.95 };
+}
+
+/** One of her Bees: small, quick, no colours. */
+function bee(): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  beeBody(root, parts, 0.35, 0.3);
+  return { root, parts, height: 0.4 };
+}
+
 /** The colours of the rainbow (also the unicorns' rainbows, unicorns3d.ts), red on the outside, glowing a little so they read at any hour. */
 export const RAINBOW = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '#9a60ff'].map((c) => mat(c, { rough: 0.5, emissive: c, emissiveIntensity: 0.45 }));
 
@@ -597,6 +671,8 @@ export function creatureModel(type: UnitType, team: number): Model | null {
     case 'chimera': return chimera(team);
     case 'phoenix': return phoenix(team);
     case 'dragon': return dragon(team);
+    case 'beequeen': return beeQueen(team);
+    case 'bee': return bee();
     default: return null;
   }
 }
@@ -658,6 +734,12 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
       if (P.tail) P.tail.rotation.y = Math.sin(t * 1.5) * 0.3;
       if (P.head0) P.head0.rotation.z = Math.sin(t * 1.2) * 0.08 + (atk > 0 ? lerp(0.35, -0.45, atk) : 0);
       break;
+    case 'beequeen':
+    case 'bee':
+      // the abdomen pumps, and curls under to sting
+      if (P.tail) P.tail.rotation.z = Math.sin(t * 3) * 0.04 + strike * 0.35;
+      m.root.position.y += Math.sin(t * 6) * 0.015;
+      break;
     case 'centaur': {
       const rest = P.gun?.userData.rest as THREE.Vector3 | undefined;
       if (P.gun && rest) P.gun.position.x = rest.x - strike * 0.03;
@@ -666,7 +748,8 @@ export function animateCreature(m: Model, e: Ent, w: number, atk: number): void 
   }
   const alt = UNIT[e.type as UnitType].alt;
   if (P.wingL && P.wingR) {
-    const flap = e.wild?.down ? -0.2 : Math.sin(t * (e.moving ? 9 : 5)) * 0.55 + 0.15;
+    const buzz = e.type === 'bee' || e.type === 'beequeen';
+    const flap = e.wild?.down ? -0.2 : buzz ? Math.sin(t * 40) * 0.5 : Math.sin(t * (e.moving ? 9 : 5)) * 0.55 + 0.15;
     P.wingL.rotation.x = flap;
     P.wingR.rotation.x = -flap;
   }

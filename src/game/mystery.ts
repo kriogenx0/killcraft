@@ -10,7 +10,7 @@ export const MYSTERY_POOL: readonly UnitType[] = [
   'wraith', 'phantom', 'starfall',
   'giant', 'juggernaut', 'titan',
   'centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'medusa', 'nemean', 'sphinx', 'chimera',
-  'pegasus', 'griffin', 'phoenix', 'dragon',
+  'pegasus', 'griffin', 'phoenix', 'dragon', 'beequeen',
 ];
 /** Chance an egg hatches a Titan Chicken instead. */
 export const CHICKEN_CHANCE = 0.15;

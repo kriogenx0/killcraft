@@ -441,6 +441,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
   switch (look ?? type) {
     case 'rifleman': case 'gunner': case 'rocket': infantry(g, look ?? type, T, p); break;
     case 'swordsman': swordsman(g, T, p); break;
+    case 'guardian': g.scale(1.6, 1.6); swordsman(g, T, p); break; // a Footman's outline, much bigger
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
     case 'medic': medic(g, T, p); break;

@@ -30,7 +30,7 @@ import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER
 import { advanceSite, mend } from './building.ts';
 import { bldDef, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
-import { stone, updWild } from './creatures.ts';
+import { callSwarm, stone, updBee, updWild } from './creatures.ts';
 import { updDemon } from './hell.ts';
 import { frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
@@ -675,6 +675,8 @@ function act(u: Ent, dt: number): void {
   unstick(u, dt);
   // vehicle turrets drift back to the hull's heading when idle
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
+  if (u.bee) { updBee(u, dt); return; } // one of a Bee Queen's swarm: it stings what she fights
+  if (d.swarm) callSwarm(u); // a Bee Queen in a fight calls up her Bees
   if (u.wild) { updWild(u, dt); return; } // guards its lair (data/creatures.ts)
   if (u.demon) { updDemon(u, dt); return; } // lurks by the Gate of Hell, or raids the leader (data/hell.ts)
   if (aetherHome(u, dt)) return; // Return Aether: banking comes before orders

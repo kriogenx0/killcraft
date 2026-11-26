@@ -1,12 +1,12 @@
 import type { Element } from './spells.ts';
 /** 'air' is anything flying: only weapons with an `air` multiplier above zero can hit it */
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
-export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
+export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'greataxe' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak' | 'aam' | 'jetbomb'
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha' | 'howitzer'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
-  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'peck'
+  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'peck' | 'sting' | 'beesting'
   | 'impfire' | 'fiendclaw' | 'hellblade' | 'drakefire';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
@@ -68,6 +68,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // a Worker's pick: a last resort, not a weapon of war
   pick: { dmg: 6, range: 0.6, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.5, heavy: 0.15, building: 0.3, air: 0 } },
   sword: { dmg: 18, range: 0.6, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.7, heavy: 0.35, building: 0.5, air: 0 } },
+  // the Guardian's giant axe: a slow, wide chop that can catch two foes in one swing
+  greataxe: { dmg: 30, range: 0.9, cd: 1.8, proj: 'melee', speed: 0, splash: 0, swing: 0.7, sweep: 0.9, heads: 2, vs: { none: 1, light: 1, heavy: 0.5, building: 1.0, air: 0 } },
   lance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 1, heavy: 0.45, building: 0.4, air: 0 } },
   crossbow: { dmg: 20, range: 4.5, cd: 1.6, proj: 'bolt', speed: 520, splash: 0, vs: { none: 1, light: 1.4, heavy: 0.35, building: 0.3, air: 1.2 } },
   ballista: { dmg: 20, range: 5.5, cd: 1.5, proj: 'bolt', speed: 560, splash: 0, vs: { none: 1, light: 1, heavy: 0.35, building: 0.3, air: 0.8 } },
@@ -104,6 +106,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   hydrabite: { element: 'poison', dmg: 13, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
   hellfire: { element: 'fire', dmg: 26, range: 1.8, cd: 1.4, proj: 'shell', speed: 300, splash: 22, vs: { none: 1.2, light: 0.8, heavy: 0.4, building: 0.6, air: 0 } },
   talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },
+  // the Bee Queen's sting and her Bees': poison that eats living things through armor, but barely scratches machines
+  sting: { element: 'poison', dmg: 22, range: 1.1, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 1.1, heavy: 0.35, building: 0.25, air: 0.4 } },
+  beesting: { element: 'poison', dmg: 4, range: 0.6, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.2, building: 0.1, air: 0.3 } },
   // the Titan Chicken's beak: a stomping peck that knocks over the infantry around it
   peck: { dmg: 34, range: 1.1, cd: 1.4, proj: 'melee', speed: 0, splash: 24, vs: { none: 1, light: 0.7, heavy: 0.3, building: 0.5, air: 0 } },
   hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },
