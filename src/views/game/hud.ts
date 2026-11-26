@@ -183,7 +183,7 @@ export function commandList(): Command[] {
         : STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
           .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) }))),
       // a Harvester's one job, a button to send it back to it
-      ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvester ?? ICON.move, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
+      ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvest, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
       ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
       aetherCommand(s),
       ...(s.some((u) => u.type === 'worker') ? gatherCommands(s) : []),
