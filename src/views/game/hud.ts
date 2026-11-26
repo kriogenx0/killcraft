@@ -10,7 +10,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -42,7 +42,7 @@ export interface HudEls {
   oil: HTMLElement;
   aether: HTMLElement;
   power: HTMLElement;
-  era: HTMLElement;
+  units: HTMLElement;
   time: HTMLElement;
   speed: HTMLButtonElement;
   pause: HTMLButtonElement;
@@ -512,8 +512,9 @@ export function refreshHud(): void {
     setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
     setText(els.power, `${p.used}/${p.made}`);
     els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
-    const era = ERA[eraOf(team)]?.name ?? '';
-    if (els.era.textContent !== era) els.era.textContent = era;
+    let units = 0;
+    for (const e of G.ents) if (!e.dead && e.kind === 'unit' && e.team === team) units++;
+    setText(els.units, shortCount(units));
   }
   els.time.textContent = formatTime(G.gameT);
   const speed = `${V.speed}x`;
@@ -537,7 +538,7 @@ export function refreshHud(): void {
 
 export function initHud(e: HudEls): void {
   els = e;
-  resourceBoxes = [e.credits, e.wood, e.oil, e.aether, e.power, e.era].map((v) => v.parentElement).filter((b): b is HTMLElement => !!b);
+  resourceBoxes = [e.credits, e.wood, e.oil, e.aether, e.power, e.units].map((v) => v.parentElement).filter((b): b is HTMLElement => !!b);
   els.commands.addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
     const c = b && commands[Number(b.dataset.index)];

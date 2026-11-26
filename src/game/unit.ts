@@ -469,6 +469,7 @@ function tend(u: Ent, t: Ent, dt: number): boolean | null {
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // tends from afar: drawn like an attack
   t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
+  t.burnT = 0; // and beats out the flames
   // a soft green ray to the patient now and then, so you can see who is being healed
   // (an amber welding ray when it's repairing a machine)
   if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: unitDef(t).cls === 'vehicle' ? '#ffc861' : '#7dff9a', size: 2 });
