@@ -277,6 +277,14 @@ export function enqueue(team: number, type: Buildable, wait = false): boolean {
  * dearer one on another line still waits.
  */
 export function payWaiting(team: number): void {
+  // sites first, in the order they went down: the first one the side can't pay for yet holds back the
+  // ones placed after it. Once paid, a Worker leaves what it was gathering to go and build it.
+  for (const b of pendingSites(team)) {
+    if (shortOf(team, b.type as BldType)) break;
+    pay(team, b.type as BldType);
+    b.unpaid = false;
+    if (!builderNear(b)) sendBuilder(team, b);
+  }
   for (const line of LINES) {
     // in queue order: the first unpaid order that can't be paid for yet holds back the ones behind it
     for (const it of G.prod[team][line]) {
@@ -287,12 +295,40 @@ export function payWaiting(team: number): void {
       it.spent = it.free ? 0 : priceOf(it.type).ore;
     }
   }
-  for (const b of G.ents) {
-    if (b.unpaid && !b.dead && b.team === team && !shortOf(team, b.type as BldType)) {
-      pay(team, b.type as BldType);
-      b.unpaid = false;
+}
+
+/** A team's sites placed before it could pay for them, oldest first: they wait, unbuilt, in this order. */
+export function pendingSites(team: number): Ent[] {
+  return G.ents.filter((e) => e.unpaid && !e.dead && e.team === team && e.kind === 'bld');
+}
+
+/**
+ * What the side still lacks before each waiting site can start, counting the sites ahead of it
+ * ("120 wood, 40 ore"), or '' for the one that can be paid for now.
+ */
+export function pendingNeeds(team: number): Map<Ent, string> {
+  const out = new Map<Ent, string>(), sum: Price = { ore: 0, wood: 0, oil: 0, aether: 0 };
+  const have: Price = { ore: G.credits[team] ?? 0, wood: G.wood[team] ?? 0, oil: G.oil[team] ?? 0, aether: G.aether[team] ?? 0 };
+  for (const b of pendingSites(team)) {
+    const p = priceOf(b.type as BldType), parts: string[] = [];
+    for (const k of ['ore', 'wood', 'oil', 'aether'] as const) {
+      sum[k] += p[k];
+      const miss = Math.ceil(sum[k] - have[k]);
+      if (miss > 0) parts.push(`${miss} ${RES_NAME[k]}`);
     }
+    out.set(b, parts.join(', '));
   }
+  return out;
+}
+
+/** Is a Worker already building a site close to this one (the next wall segment: it moves on to this after)? */
+function builderNear(b: Ent): boolean {
+  for (const w of G.ents) {
+    if (w.dead || w.team !== b.team || w.type !== 'worker' || w.order?.t !== 'heal') continue;
+    const t = G.byId.get(w.order.tgt);
+    if (t === b || (t && !t.dead && t.kind === 'bld' && !t.done && !t.unpaid && Math.hypot(t.x - b.x, t.y - b.y) <= 3 * TS)) return true;
+  }
+  return false;
 }
 
 /** Can the team lay out this structure here right now (available, affordable, and a free spot)? */
@@ -304,7 +340,8 @@ export function canStartSite(team: number, type: BldType, tx: number, ty: number
  * Place a structure: pay its whole price and lay out a site for Workers to build. A wall can be laid
  * as a line to (ex, ey): every segment is its own site, paid in full as it goes down (segments where
  * something is in the way are skipped). With `wait` (a player's order) a site the side can't pay for
- * yet is still laid out and waits, unbuilt, until it can (payWaiting); without it (the computer)
+ * yet is still laid out and waits, unbuilt, until it can (payWaiting), while Workers keep gathering;
+ * only then does one go to build it. Without `wait` (the computer)
  * placing stops where the money runs out.
  */
 export function startSite(team: number, type: BldType, tx: number, ty: number, ex = tx, ey = ty, wait = false): Ent | null {
@@ -322,10 +359,11 @@ export function startSite(team: number, type: BldType, tx: number, ty: number, e
     first ??= b;
     n++;
   }
-  if (waiting) fundsNotice(team, shortOf(team, type) ?? waiting, true);
+  if (waiting) say(team, `${SHORT_MSG[shortOf(team, type) ?? waiting]}: Workers keep gathering, then build it`);
   if (!first && line.length > 1) say(team, 'Cannot place there');
   if (n > 1) say(team, `${n} wall segments placed`);
-  if (first) sendBuilder(team, first);
+  // a site that waits for funds keeps Workers at what they're doing: one goes once it's paid (payWaiting)
+  if (first && !first.unpaid) sendBuilder(team, first);
   return first;
 }
 

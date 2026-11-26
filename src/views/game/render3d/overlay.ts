@@ -1,5 +1,5 @@
 // Flat things drawn over the 3D view: health bars and the drag-select box.
-import { G, loadOf, isHarvester, unitDef } from '../../../game/state.ts';
+import { G, loadOf, isHarvester, unitDef, type Ent } from '../../../game/state.ts';
 import { TARGET_LIFE, V } from '../view_state.ts';
 import { standLift } from './heights.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -10,6 +10,7 @@ import { modelHeight } from './entities3d.ts';
 import { fallenCreature } from './aura3d.ts';
 import { drawFloatText } from './float_text.ts';
 import { maxMana } from '../../../game/spells.ts';
+import { pendingNeeds } from '../../../game/production.ts';
 
 /**
  * The one quiet bar for work under way on a building (going up, or upgrading): thin and gold over a
@@ -20,6 +21,32 @@ function workBar(g: CanvasRenderingContext2D, cx: number, y: number, bw: number,
   g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(x - 1, y - 1, bw + 2, 4);
   g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x, y, bw, 2);
   g.fillStyle = 'rgba(240,200,90,.9)'; g.fillRect(x, y, bw * clamp(f, 0, 1), 2);
+}
+
+/**
+ * A site placed before the side could pay for it: a dashed amber outline on the ground and what it
+ * still needs, so it reads as reserved and waiting (Workers keep gathering until it's paid for).
+ */
+function drawPending(g: CanvasRenderingContext2D, e: Ent, need: string, ox: number, oy: number): void {
+  const z = standLift(e) + 0.05, x0 = e.tx * TS, y0 = e.ty * TS, x1 = (e.tx + e.w) * TS, y1 = (e.ty + e.h) * TS;
+  const pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(([x, y]) => worldToScreen(x, y, z));
+  if (pts.some((p) => !p.front)) return;
+  const pulse = 0.65 + 0.35 * Math.sin(G.gameT * 4);
+  g.save();
+  g.setLineDash([6, 4]); g.lineDashOffset = -G.gameT * 12;
+  g.lineWidth = 2; g.strokeStyle = `rgba(255,190,60,${pulse})`; g.fillStyle = 'rgba(255,190,60,.10)';
+  g.beginPath();
+  pts.forEach((p, i) => (i ? g.lineTo(p.sx - ox, p.sy - oy) : g.moveTo(p.sx - ox, p.sy - oy)));
+  g.closePath(); g.fill(); g.stroke();
+  g.restore();
+  const c = worldToScreen(e.x, e.y, z + modelHeight(e) * 0.15 + 0.3);
+  if (!c.front) return;
+  const text = need ? `Waiting: ${need}` : 'Paying...';
+  g.font = '600 11px system-ui, sans-serif';
+  const tw = g.measureText(text).width, cx = c.sx - ox, cy = c.sy - oy;
+  g.fillStyle = 'rgba(0,0,0,.65)'; g.fillRect(cx - tw / 2 - 5, cy - 8, tw + 10, 16);
+  g.fillStyle = '#ffd27a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, cx, cy + 0.5);
+  g.textAlign = 'start'; g.textBaseline = 'alphabetic';
 }
 
 /** A box around each building just given as a target, from its footprint up to its roof; it blinks, then fades. */
@@ -49,10 +76,12 @@ function drawTargets(g: CanvasRenderingContext2D, ox: number, oy: number): void 
 export function drawOverlay(g: CanvasRenderingContext2D): void {
   const w = g.canvas.width, h = g.canvas.height, r = S.canvas.getBoundingClientRect();
   g.clearRect(0, 0, w, h);
+  const needs = G.ents.some((e) => e.unpaid && e.team === V.team) ? pendingNeeds(V.team) : null;
   for (const e of G.ents) {
     if (e.dead || e.kind === 'source' || !shownToPlayer(e)) continue;
     // a construction site: a thin progress bar instead of a health bar (its health is in the panel)
     if (e.kind === 'bld' && !e.done) {
+      if (e.unpaid && e.team === V.team) { drawPending(g, e, needs?.get(e) ?? '', r.left, r.top); continue; }
       const s = worldToScreen(e.x, e.y, standLift(e) + modelHeight(e) * Math.max(0.15, e.prog) + 0.2);
       if (s.front) workBar(g, s.sx - r.left, s.sy - r.top, e.w * 16, e.prog);
       continue;

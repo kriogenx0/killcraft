@@ -542,7 +542,7 @@ function menders(t: Ent, u: Ent): number {
 function mendNear(u: Ent, r: number): Ent | null {
   let bld: Ent | null = null, bd = Infinity, unit: Ent | null = null;
   for (const e of G.ents) {
-    if (!mendable(u, e, 0.5)) continue;
+    if (!mendable(u, e, 0.5) || e.unpaid) continue; // a site still waiting for funds: keep gathering
     if (e.kind === 'unit' && e.hp > e.maxhp * UNIT_FIX_BELOW) continue; // not for a scratch
     if (e.kind === 'unit' && (e.moving || G.gameT - e.foeT < UNDER_FIRE)) continue; // not one on the move or under fire: that's chasing a fight
     const crew = menders(e, u);

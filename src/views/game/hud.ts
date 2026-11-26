@@ -10,7 +10,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, pendingNeeds, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -208,7 +208,7 @@ export function commandList(): Command[] {
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
     ];
   if (first.kind === 'bld' && s.length === 1 && !first.done)
-    return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
+    return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: first.unpaid ? 'Call off this waiting site (nothing has been paid for it yet)' : 'Stop building this and get its whole price back' }];
   if (first.kind === 'bld' && s.length === 1) {
     const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: `Repair this building. Costs ore while it works: a full repair costs ${Math.round(REPAIR_SHARE * 100)}% of its ore price.`, disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
@@ -394,7 +394,7 @@ function buildingDetails(e: Ent): string {
   const d = bldDef(e), enemy = sideTag(e), w = d.weapon ? WEAPON[d.weapon] : null;
   const own = insight(e) && e.done;
   if (!e.done)
-    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">${e.unpaid && insight(e) ? `Waiting for ${waitingFor(e.team, e.type as BldType) ?? 'funds'} to start building` : `Under construction, ${Math.floor(e.prog * 100)}%`}${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
+    return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.prog, 'progress', 'Construction')}<p class="hud-stats">${e.unpaid && insight(e) ? `Waiting for ${pendingNeeds(e.team).get(e) || 'funds'}: Workers keep gathering until it's paid for, then build it` : `Under construction, ${Math.floor(e.prog * 100)}%`}${insight(e) && lowPower(e.team) ? ' · Half speed: low power' : ''}</p>` +
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
