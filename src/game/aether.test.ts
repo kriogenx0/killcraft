@@ -101,6 +101,7 @@ describe('Aether', () => {
   it('draws Aether only while one side holds a deposit, and runs dry, then slowly grows back', () => {
     const d = deposits()[0];
     const u = beside(d, 'swordsman', 0), v = beside(d, 'swordsman', 0); // a crowd draws no faster
+    u.aeKeep = v.aeKeep = true; // carried home by hand here
     run(10.5);
     const carried = () => (u.ae ?? 0) + (v.ae ?? 0);
     expect(carried()).toBeCloseTo(AETHER_RATE * 10, -1);
@@ -165,9 +166,9 @@ describe('Aether', () => {
     // an idle Worker nearby goes and picks it up, then takes it home and banks it
     for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
     const before = G.aether[0] ?? 0;
-    const w = addUnit('worker', 0, s.x - 3 * TS, s.y);
+    addUnit('worker', 0, s.x - 3 * TS, s.y);
     let picked = false;
-    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= (w.ae ?? 0) > 0; }
+    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= G.ents.some((e) => e.type === 'worker' && e.team === 0 && (e.ae ?? 0) > 0); } // the new Worker, or one of the side's own
     expect(picked).toBe(true);
     expect(shards()).toHaveLength(0);
     expect(G.aether[0]).toBeCloseTo(before + 30, 0);
@@ -187,7 +188,7 @@ describe('Aether', () => {
     w.order = { t: 'harvest', st: 'ret', tx: w.x / TS | 0, ty: w.y / TS | 0, wait: 0, auto: true };
     const before = G.aether[0] ?? 0;
     let picked = false;
-    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= (w.ae ?? 0) > 0; }
+    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= G.ents.some((e) => e.type === 'worker' && e.team === 0 && (e.ae ?? 0) > 0); } // the new Worker, or one of the side's own
     expect(picked).toBe(true);
     expect(G.aether[0]).toBeCloseTo(before + 20, 0);
     run(6);

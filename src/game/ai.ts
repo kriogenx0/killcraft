@@ -792,6 +792,27 @@ function lendHands(team: number): void {
   }
 }
 
+/** An armed computer unit carrying Aether with armed enemies this close (tiles) fights on instead of walking it home. */
+const AETHER_FIGHT_NEAR = 8;
+
+/**
+ * Return Aether for the computer: a unit carrying Aether takes it home, unless it's a fighter with
+ * armed enemies about. Then it stays in the fight (walking off would leave its comrades short and
+ * the Aether would likely be lost anyway) and heads home once things are quiet.
+ */
+function aetherReturn(team: number): void {
+  let foes: Ent[] | null = null;
+  for (const u of G.ents) {
+    if (u.dead || u.team !== team || u.kind !== 'unit' || (!u.ae && !u.aeKeep)) continue;
+    let fight = false;
+    if (u.ae && unitDef(u).weapon && !isHarvester(u)) {
+      foes ??= G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team >= 0 && hostile(e.team, team) && !!unitDef(e).weapon && !isHarvester(e));
+      fight = foes.some((e) => Math.hypot(e.x - u.x, e.y - u.y) < AETHER_FIGHT_NEAR * TS);
+    }
+    u.aeKeep = fight ? true : undefined;
+  }
+}
+
 /** Keep a couple of troops on the nearest Aether deposit nobody else holds. */
 function holdAether(team: number, army: Ent[], home: Ent | undefined): void {
   const A = ais[team];
@@ -1022,5 +1043,6 @@ export function aiThink(team: number): void {
   training(team);
   upkeep(team);
   lendHands(team);
+  aetherReturn(team);
   military(team);
 }

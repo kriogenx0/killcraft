@@ -10,7 +10,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, eraOf, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -18,7 +18,7 @@ import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
 import { oilLeft, oilRate, treesNear, storeMax } from '../../game/economy.ts';
 import { OIL_PER_DERRICK, OIL_TRICKLE } from '../../data/economy.ts';
-import { holderOf, waygateLinked } from '../../game/aether.ts';
+import { holderOf, waygateLinked, wantsHome } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
@@ -42,7 +42,7 @@ export interface HudEls {
   oil: HTMLElement;
   aether: HTMLElement;
   power: HTMLElement;
-  era: HTMLElement;
+  units: HTMLElement;
   time: HTMLElement;
   speed: HTMLButtonElement;
   pause: HTMLButtonElement;
@@ -132,6 +132,15 @@ const GATHER_INFO: Record<GatherRes, { label: string; tip: string }> = {
   aether: { label: 'Aether', tip: 'Draw Aether at the deposit nearest your base, bank it, and go back for more' },
 };
 
+/** Return Aether, on by default: a unit carrying Aether takes it home before any other order. */
+function aetherCommand(s: Ent[]): Command {
+  const on = s.filter((u) => u.kind === 'unit').every((u) => !u.aeKeep);
+  return {
+    id: 'aether', label: 'Return Aether', hotkey: COMMAND_KEYS.aether, icon: ICON.aether, active: on,
+    tip: on ? 'On: a unit carrying Aether walks it straight home to bank, ignoring orders until it\'s banked. Turn off to keep it under your command' : 'Off: units carrying Aether take orders as usual. Turn on to have them walk it home first',
+  };
+}
+
 /** The Workers' gather setting: Auto, or one resource they stay on (Aether on its own button). */
 function gatherCommands(s: Ent[]): Command[] {
   const ws = s.filter((u) => u.type === 'worker');
@@ -174,8 +183,9 @@ export function commandList(): Command[] {
         : STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
           .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) }))),
       // a Harvester's one job, a button to send it back to it
-      ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvester ?? ICON.move, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
+      ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvest, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
       ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
+      aetherCommand(s),
       ...(s.some((u) => u.type === 'worker') ? gatherCommands(s) : []),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
@@ -228,6 +238,7 @@ export function runCommand(id: string): void {
   else if (id === 'harvest') dispatch({ c: 'gather', ids: ids(s.filter(isHarvester)), res: 'ore' });
   else if (id === 'evade') { const us = s.filter((u) => u.kind === 'unit'), on = us.every((u) => u.stance === 'passive'); dispatch({ c: 'stance', ids: ids(us), stance: on ? 'skirmish' : 'passive' }); }
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
+  else if (id === 'aether') { const us = s.filter((u) => u.kind === 'unit'); dispatch({ c: 'aether', ids: ids(us), on: !us.every((u) => !u.aeKeep) }); }
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'recruit' && s[0]) dispatch({ c: 'recruit', id: s[0].id });
@@ -277,6 +288,7 @@ const HARVEST_STEP = { go: 'Heading for', gather: 'Gathering', ret: 'Bringing ho
 /** What a unit is doing right now. */
 export function unitAction(e: Ent): string {
   const o = e.order;
+  if (e.aeRun ?? wantsHome(e)) return 'Carrying Aether home';
   if (e.shot !== null && valid(e.shot)) return `Shooting at ${entName(e.shot)}`;
   if (!o) return 'Idle';
   if (o.t === 'move') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : 'Moving';
@@ -500,8 +512,9 @@ export function refreshHud(): void {
     setTitle(els.oil, `Oil +${perMin(oilRate(team))}/min. Oil Derricks pump it from a well; Workers carry it home.`);
     setText(els.power, `${p.used}/${p.made}`);
     els.power.parentElement?.classList.toggle('ui-resource--warning', p.used > p.made);
-    const era = ERA[eraOf(team)]?.name ?? '';
-    if (els.era.textContent !== era) els.era.textContent = era;
+    let units = 0;
+    for (const e of G.ents) if (!e.dead && e.kind === 'unit' && e.team === team) units++;
+    setText(els.units, shortCount(units));
   }
   els.time.textContent = formatTime(G.gameT);
   const speed = `${V.speed}x`;
@@ -525,7 +538,7 @@ export function refreshHud(): void {
 
 export function initHud(e: HudEls): void {
   els = e;
-  resourceBoxes = [e.credits, e.wood, e.oil, e.aether, e.power, e.era].map((v) => v.parentElement).filter((b): b is HTMLElement => !!b);
+  resourceBoxes = [e.credits, e.wood, e.oil, e.aether, e.power, e.units].map((v) => v.parentElement).filter((b): b is HTMLElement => !!b);
   els.commands.addEventListener('click', (ev) => {
     const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
     const c = b && commands[Number(b.dataset.index)];

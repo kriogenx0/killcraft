@@ -4,7 +4,7 @@
 // Slow and Freeze on an enemy, Douse on a friend that's burning or poisoned. Elements stick to what
 // they hit: fire burns, poison eats at living things, sludge slows and makes fire worse, water puts
 // out fire and poison and washes off sludge but leaves its target wet, and lightning punishes wet.
-import { G, allied, demonAfter, fair, altOf, isAir, unitDef, valid, type Ent } from './state.ts';
+import { G, allied, demonAfter, fair, altOf, isAir, isVehicle, unitDef, valid, type Ent } from './state.ts';
 import { TS } from './const.ts';
 import { burst, part } from './fx.ts';
 import { cloakedFrom, hex } from './aether.ts';
@@ -13,7 +13,7 @@ import { dealDamage } from './combat.ts';
 import { UNIT } from '../data/unit.ts';
 import { WEAPON } from '../data/weapon.ts';
 import {
-  BURN_DPS, BURN_TIME, DOT_TICK, FREEZE_HP, FREEZE_WORTH, LUST_ATTACK, LUST_SPEED, MANA_REGEN, MANA_START, POISON_DPS, POISON_TIME,
+  BURN_DPS, BURN_REACH, BURN_SPREAD, BURN_TIME, DOT_TICK, WRECK_BURN_AT, FREEZE_HP, FREEZE_WORTH, LUST_ATTACK, LUST_SPEED, MANA_REGEN, MANA_START, POISON_DPS, POISON_TIME,
   SLOW_ATTACK, SLUDGE_FIRE, SLUDGE_RELOAD, WATER_VS_FIRE, SLUDGE_SPEED, SLUDGE_TIME, SPELL, WET_SHOCK, WET_TIME, type Element, type SpellType,
 } from '../data/spells.ts';
 
@@ -86,6 +86,28 @@ export function applyElement(t: Ent, el: Element | undefined, src: Ent | null): 
   }
 }
 
+/** A ground vehicle so badly hurt it's on fire. */
+export const wrecked = (e: Ent): boolean => isVehicle(e) && !e.dead && e.hp < e.maxhp * WRECK_BURN_AT;
+
+/** Can flames jump to this unit? Soldiers and creatures on foot, not already burning, wet or frozen. */
+const catches = (e: Ent): boolean => living(e) && !isAir(e) && !e.dead && !burning(e) && !wet(e) && !frozen(e) && !e.wild?.down;
+
+/**
+ * A soldier or creature freshly alight can set someone it's packed against burning too (friend or
+ * foe). Caught fire burns half as long and is past its spreading half from the start, so it stops there.
+ */
+function spread(u: Ent): void {
+  if (!living(u) || isAir(u) || (u.burnT ?? 0) - G.gameT <= BURN_TIME / 2) return;
+  const reach = BURN_REACH * TS + unitDef(u).radius;
+  for (const e of G.ents) {
+    if (e === u || e.kind !== 'unit' || !catches(e)) continue;
+    if (Math.hypot(e.x - u.x, e.y - u.y) > reach + unitDef(e).radius * 0.5) continue;
+    if (Math.random() >= BURN_SPREAD) continue;
+    e.burnT = G.gameT + BURN_TIME / 2;
+    e.burnBy = u.burnBy;
+  }
+}
+
 function steam(t: Ent): void {
   burst('smoke', t.x, t.y - 4, 4, 20, 50, null, altOf(t));
 }
@@ -95,13 +117,18 @@ function steam(t: Ent): void {
  * Call every step for every unit.
  */
 export function tickStatus(u: Ent, dt: number): void {
+  // a wrecked machine catches fire and slowly burns down, until it's repaired or it's soaked
+  if (wrecked(u) && !wet(u) && !frozen(u)) u.burnT = Math.max(u.burnT ?? 0, G.gameT + DOT_TICK * 2);
   const b = burning(u), p = poisoned(u);
   if (!b && !p) { u.dotT = 0; return; }
   u.dotT = (u.dotT ?? 0) + dt;
   if (u.dotT < DOT_TICK) return;
   u.dotT -= DOT_TICK;
   if (G.visualOnly) return;
-  if (b) dealDamage(u, BURN_DPS * DOT_TICK * (sludged(u) ? 2 : 1), valid(u.burnBy ?? null), true);
+  if (b) {
+    spread(u);
+    dealDamage(u, BURN_DPS * DOT_TICK * (sludged(u) ? 2 : 1), valid(u.burnBy ?? null), true);
+  }
   if (p && !u.dead) dealDamage(u, POISON_DPS * DOT_TICK, valid(u.poisonBy ?? null), true);
 }
 
