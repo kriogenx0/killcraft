@@ -509,6 +509,11 @@ $sidebar-width: 248px;
     border-left-width: 3px;
   }
 
+  // spectating: nothing to build or train
+  .sidebar--watch .sidebar-build {
+    display: none;
+  }
+
   .sidebar-minimap {
     flex: none;
     width: 100%;
@@ -989,6 +994,27 @@ $sidebar-width: 248px;
     .sidebar:not(.sidebar--sel) .sidebar-selection,
     .sidebar--sel .build-list {
       display: none;
+    }
+
+    // spectating: no tabs, what's selected sits beside the radar
+    .sidebar--watch {
+      .build-tabs,
+      .build-list {
+        display: none;
+      }
+
+      .sidebar-selection:not([hidden]) {
+        display: contents;
+      }
+
+      .selection-details {
+        grid-row: 1;
+        margin-top: $space-2;
+      }
+
+      .selection-commands {
+        grid-row: 2;
+      }
     }
 
     .sidebar:has(.sidebar-selection:not([hidden])) .build-tab--selection {

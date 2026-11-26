@@ -6,7 +6,7 @@ import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { rebuildBlk } from './map.ts';
-import { groupMove } from './order.ts';
+import { formRank, groupMove } from './order.ts';
 import { parseCommand } from './command.ts';
 import { mulberry32 } from '../util/math.ts';
 import { UNIT } from '../data/unit.ts';
@@ -80,6 +80,27 @@ describe('formation', () => {
     run(30);
     for (const u of us) expect(u.order).toBeNull();
     for (let i = 0; i < 4; i++) expect(tileOf(us[i * 2 + 1].x) - tileOf(us[i * 2].x)).toBe(2);
+  });
+
+  it('puts brawlers in front, then shooters, long-range units, and medics at the back', () => {
+    openField();
+    // a jumbled block heading east: medics and rocket troops up front, swordsmen at the back
+    const col = (type: Parameters<typeof addUnit>[0], x: number) => [0, 1, 2].map((i) => addUnit(type, 0, x * TS, (28.5 + i * 2) * TS));
+    const swords = col('swordsman', 12.5), rifles = col('rifleman', 15.5), rockets = col('rocket', 18.5), medics = col('medic', 21.5);
+    expect([swords[0], rifles[0], rockets[0], medics[0]].map(formRank)).toEqual([0, 1, 2, 3]);
+    const all = [...medics, ...rockets, ...rifles, ...swords];
+    const gx = (u: Ent) => (u.order?.t === 'move' ? u.order.gx : NaN);
+    const front = (us: Ent[]) => Math.max(...us.map(gx)), back = (us: Ent[]) => Math.min(...us.map(gx));
+    groupMove(all, 45, 31, false, true);
+    expect(back(swords)).toBeGreaterThan(front(rifles));
+    expect(back(rifles)).toBeGreaterThan(front(rockets));
+    expect(back(rockets)).toBeGreaterThan(front(medics));
+    // heading west they're already in order: the medics stay at the back (east side)
+    for (const [i, u] of all.entries()) { u.x = (21.5 - Math.floor(i / 3) * 3) * TS; }
+    groupMove(all, 2, 31, false, true);
+    expect(back(medics)).toBeGreaterThan(front(rockets));
+    expect(back(rockets)).toBeGreaterThan(front(rifles));
+    expect(back(rifles)).toBeGreaterThan(front(swords));
   });
 
   it('a unit left behind speeds up to join the pack, then keeps its pace', () => {

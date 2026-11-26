@@ -166,9 +166,9 @@ describe('Aether', () => {
     // an idle Worker nearby goes and picks it up, then takes it home and banks it
     for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
     const before = G.aether[0] ?? 0;
-    const w = addUnit('worker', 0, s.x - 3 * TS, s.y);
+    addUnit('worker', 0, s.x - 3 * TS, s.y);
     let picked = false;
-    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= (w.ae ?? 0) > 0; }
+    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= G.ents.some((e) => e.type === 'worker' && e.team === 0 && (e.ae ?? 0) > 0); } // the new Worker, or one of the side's own
     expect(picked).toBe(true);
     expect(shards()).toHaveLength(0);
     expect(G.aether[0]).toBeCloseTo(before + 30, 0);
@@ -177,7 +177,7 @@ describe('Aether', () => {
 
   it('sends an Auto Worker that just banked a load out of its way for dropped Aether, then back to work', () => {
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
-    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.order = null;
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.dead = true; // only this Worker to go for it
     const carrier = addUnit('swordsman', 0, yard.x + 11 * TS, yard.y);
     carrier.ae = 20;
     dealDamage(carrier, 9999, null);
@@ -188,12 +188,28 @@ describe('Aether', () => {
     w.order = { t: 'harvest', st: 'ret', tx: w.x / TS | 0, ty: w.y / TS | 0, wait: 0, auto: true };
     const before = G.aether[0] ?? 0;
     let picked = false;
-    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= (w.ae ?? 0) > 0; }
+    for (let i = 0; i < 60 / STEP && (G.aether[0] ?? 0) <= before; i++) { update(STEP); picked ||= G.ents.some((e) => e.type === 'worker' && e.team === 0 && (e.ae ?? 0) > 0); } // the new Worker, or one of the side's own
     expect(picked).toBe(true);
     expect(G.aether[0]).toBeCloseTo(before + 20, 0);
     run(6);
     expect(w.order?.t).toBe('harvest'); // and back to gathering
     expect(errors).toEqual([]);
+  });
+
+  it('comes first: an idle Worker fetches dropped Aether from well across the map, and only one goes', () => {
+    const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
+    for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.dead = true;
+    const carrier = addUnit('swordsman', 0, yard.x + 30 * TS, yard.y - 20 * TS);
+    carrier.ae = 20;
+    dealDamage(carrier, 9999, null);
+    expect(shards()).toHaveLength(1);
+    const a = addUnit('worker', 0, yard.x, yard.y + 3 * TS), b = addUnit('worker', 0, yard.x + TS, yard.y + 3 * TS);
+    run(2);
+    const going = [a, b].filter((w) => w.order?.t === 'move');
+    expect(going).toHaveLength(1);
+    const before = G.aether[0] ?? 0;
+    for (let i = 0; i < 120 / STEP && (G.aether[0] ?? 0) <= before; i++) update(STEP);
+    expect(G.aether[0]).toBeCloseTo(before + 20, 0);
   });
 
   it('leaves dropped Aether a side can\'t see, or that an armed enemy guards', () => {

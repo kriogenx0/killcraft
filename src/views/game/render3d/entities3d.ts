@@ -29,6 +29,7 @@ import { resetAuras, updateAuras } from './aura3d.ts';
 import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
+import { makeTeamDiscs, updateTeamDiscs } from './team_discs3d.ts';
 import { footprintRange, footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 interface Obj { model: Model; key: string }
@@ -67,6 +68,7 @@ export function resetEntities3d(): void {
   rally = null;
   armyFlag = null;
   S.scene.add(holder, overlays, batched);
+  makeTeamDiscs(overlays);
 }
 
 /** How far a foundation reaches below the lowest ground under it, so no gap shows at its foot. */
@@ -467,6 +469,7 @@ export function syncEntities(dt: number): void {
   const seen = new Set<number>();
   // which team's wall stands on each tile, so segments join up with their neighbours
   const walls = new Map<number, number>();
+  const drawn: Ent[] = [];
   for (const e of G.ents) if (!e.dead && e.kind === 'bld' && isWall(e.type)) walls.set(e.ty * MW + e.tx, e.team);
   for (const e of G.ents) {
     if (e.dead) continue;
@@ -482,6 +485,7 @@ export function syncEntities(dt: number): void {
     if (!r.visible) continue;
     const x = e.x / TS, z = e.y / TS;
     if (e.kind === 'unit') {
+      drawn.push(e);
       r.position.set(x, 0, z);
       r.rotation.set(0, -e.face, 0, 'YXZ');
       animateUnit(o.model, e, dt);
@@ -515,6 +519,7 @@ export function syncEntities(dt: number): void {
   }
   updateFallen();
   updateRings();
+  updateTeamDiscs(drawn);
   updateAuras(overlays, (e) => !!objs.get(e.id)?.model.root.visible);
   updateMarkers();
   updateRally();

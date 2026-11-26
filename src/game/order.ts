@@ -2,6 +2,7 @@
 import { G, tileOf, unitDef, type Ent, type Order, type Stance, type Tile } from './state.ts';
 import { MW, MH, TS, walkable } from './const.ts';
 import { clamp } from '../util/math.ts';
+import { WEAPON } from '../data/weapon.ts';
 import { nearestFree, pathFor } from './path.ts';
 
 /** How far (tiles) a passive unit runs from a threat. */
@@ -128,6 +129,45 @@ export function groupMove(us: Ent[], gx: number, gy: number, patrol = false, for
   su.forEach((u, i) => send(u, st[i] ?? st[st.length - 1] ?? [gx, gy]));
 }
 
+/** Reach (tiles) from which a unit counts as long-range in a formation, and below which it's a brawler. */
+const LONG_RANGE = 5, MELEE = 2;
+
+/**
+ * Where a unit belongs in a formation, front to back: 0 brawlers (swords, claws), 1 shooters,
+ * 2 long-range (rockets, siege, artillery), 3 Medics and anyone unarmed.
+ */
+export function formRank(u: Ent): number {
+  const w = unitDef(u).weapon;
+  if (u.type === 'medic' || !w) return 3;
+  const r = WEAPON[w].range;
+  return r < MELEE ? 0 : r < LONG_RANGE ? 1 : 2;
+}
+
+/**
+ * Brawlers take the front of a formation, shooters behind them, long-range units behind those and
+ * Medics at the very back. For each line between ranks in turn, while a unit that belongs behind it
+ * stands further forward (along the way the group is heading, `dx`,`dy`) than one that belongs in
+ * front, the frontmost such unit swaps places with the rearmost. The group keeps its shape; only who
+ * stands where changes.
+ */
+function rearrange(us: Ent[], off: number[][], dx: number, dy: number): void {
+  const l = Math.hypot(dx, dy);
+  if (!l) return;
+  const fwd = (i: number) => (off[i][0] * dx + off[i][1] * dy) / l;
+  const rank = us.map(formRank);
+  for (let line = 1; line <= 3; line++) {
+    for (let guard = 0; guard < us.length; guard++) {
+      let b = -1, f = -1;
+      for (let i = 0; i < us.length; i++) {
+        if (rank[i] >= line && (b < 0 || fwd(i) > fwd(b))) b = i;
+        if (rank[i] < line && (f < 0 || fwd(i) < fwd(f))) f = i;
+      }
+      if (b < 0 || f < 0 || fwd(b) <= fwd(f) + 0.25) break;
+      [off[b], off[f]] = [off[f], off[b]];
+    }
+  }
+}
+
 /**
  * Each unit's tile in formation: where it stands relative to the group's middle, moved to the goal.
  * A group spread wider than a tidy block is drawn in toward its middle; a spot that's blocked, water
@@ -135,6 +175,7 @@ export function groupMove(us: Ent[], gx: number, gy: number, patrol = false, for
  */
 function formationSlots(us: Ent[], gx: number, gy: number, cx: number, cy: number, free: Tile[]): Tile[] {
   const off = us.map((u) => [(u.x - cx) / TS, (u.y - cy) / TS]);
+  rearrange(us, off, gx * TS - cx, gy * TS - cy);
   const reach = Math.max(...off.map(([x, y]) => Math.hypot(x, y))), tidy = Math.max(1.5, Math.sqrt(us.length) * 0.9);
   const k = reach > tidy ? tidy / reach : 1;
   const taken = new Set<number>(), slots: Tile[] = [];

@@ -9,7 +9,7 @@ import { orderHaul, orderMove, setOrder } from './order.ts';
 import { applyCommand } from './command.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
-import { startSite } from './production.ts';
+import { startSite, unitSlots } from './production.ts';
 import { canPlace } from './building.ts';
 import { BUILDING } from '../data/building.ts';
 import { IDLE_GRACE, gatherSetting, jobOf, pickResource } from './autogather.ts';
@@ -477,5 +477,20 @@ describe('a side that has lost every Worker', () => {
     applyCommand(0, { c: 'build', type: 'worker' });
     expect(G.prod[0].infantry.some((it) => it.free)).toBe(false);
     expect(G.credits[0]).toBe(10);
+  });
+});
+
+describe('the Harvester', () => {
+  it('has a Harvest order that sends it to dig ore', () => {
+    const h = addUnit('harvester', 0, yard.x, yard.y + 4 * TS);
+    applyCommand(0, { c: 'stop', ids: [h.id] });
+    applyCommand(0, { c: 'gather', ids: [h.id], res: 'ore' });
+    expect((h.order as { t: string } | null)?.t).toBe('harvest');
+  });
+
+  it('sits right after the Worker in the unit list', () => {
+    G.era[0] = 2;
+    const slots = unitSlots(0);
+    expect(slots.indexOf('harvester')).toBe(slots.indexOf('worker') + 1);
   });
 });

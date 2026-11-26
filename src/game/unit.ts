@@ -695,7 +695,7 @@ function act(u: Ent, dt: number): void {
     }
     // an idle Worker fetches dropped Aether nearby, and takes what it carries home to bank
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
-      const s = shardFor(u, fetching.has(u) ? SHARD_PULL : undefined);
+      const s = shardFor(u, SHARD_PULL); // dropped Aether comes before anything else
       if (s) { orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
       const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
       if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
