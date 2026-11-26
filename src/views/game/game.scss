@@ -592,6 +592,7 @@ $sidebar-width: 248px;
     padding: 0;
     color: var(--color-text-muted);
     cursor: pointer;
+    touch-action: manipulation;
     background: var(--color-button-bottom);
     border: 0;
     appearance: none;
