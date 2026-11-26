@@ -7,10 +7,10 @@
 export const MILL_RADIUS = 5;
 /**
  * Wood a full-grown tree holds, and how fast a cut tree grows back (per second).
- * Alex, 2026-11-26: wood grows back slower, half what it was (0.1): a chopped-out tree now takes 50 min to refill.
+ * Alex, 2026-11-26: wood grows back slower. Halved twice that day (0.1, then 0.05): a chopped-out tree now takes about 100 min to refill.
  */
 export const TREE_WOOD = 150;
-export const TREE_REGROW = 0.05;
+export const TREE_REGROW = 0.025;
 
 /**
  * Workers chop wood at trees themselves and carry it to a Lumber Mill (or a Refinery or the
