@@ -909,8 +909,9 @@ $sidebar-width: 248px;
       display: none;
     }
 
+    // clear of the radar floating in the top-right corner
     .game-message {
-      right: $gutter;
+      right: 112px + 2 * $space-2;
     }
 
     .army-bar {
@@ -921,7 +922,8 @@ $sidebar-width: 248px;
 
     .game-offline {
       top: 48px + $space-1;
-      right: $space-2;
+      right: auto;
+      left: $space-2;
     }
 
     .army-bar:not([hidden]) ~ .game-offline {
@@ -951,7 +953,8 @@ $sidebar-width: 248px;
       // the radar sits pinned on the left; beside it the tabs (Selected, Buildings, Units) and the
       // chosen tab's contents, which scroll under the pinned tabs
       grid-auto-rows: max-content;
-      grid-template-columns: 112px minmax(0, 1fr);
+      grid-template-columns: 0 minmax(0, 1fr);
+      column-gap: 0;
       gap: $space-2;
       align-content: start;
       width: auto;
@@ -965,14 +968,19 @@ $sidebar-width: 248px;
       border-left-width: 0;
     }
 
+    // the radar floats over the top-right corner of the map, so the panel's full width is for the tabs
     .sidebar-minimap {
-      position: sticky;
-      top: 0;
-      grid-row: 1 / span 3;
-      grid-column: 1;
-      align-self: start;
-      margin-top: $space-2;
-      width: 112px;
+      position: fixed;
+      top: 48px + $space-2;
+      right: $space-2;
+      z-index: 6;
+      width: clamp(88px, 28vw, 112px);
+      border-width: 2px;
+      box-shadow: 0 2px 8px rgb(0 0 0 / 55%);
+    }
+
+    .army-bar:not([hidden]) ~ .sidebar .sidebar-minimap {
+      top: 48px + 18px + 2 * $space-2;
     }
 
     // its two parts take their own places in the panel's grid
@@ -1132,6 +1140,13 @@ $sidebar-width: 248px;
     .touch-bar {
       bottom: calc(min(40vh, 320px) + #{$space-2});
       left: $space-2;
+      max-width: calc(100% - 2 * #{$space-2});
+    }
+
+    // every button fits, even six of them on a 320px phone (Clear was cut off at the right)
+    .touch-bar-seg {
+      flex: 0 1 52px;
+      min-width: 0;
     }
 
     .group-bar {
