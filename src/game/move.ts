@@ -389,7 +389,9 @@ export function separate(): void {
       if (d >= min) continue;
       if (d < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.hypot(dx, dy); }
       const weight = (u: Ent) => (anchored(u) ? 0.05 : u.moving ? 0.3 : 1);
-      const wa = weight(a) / rad[i], wb = weight(b) / rad[j], p = Math.min(min - d, 4);
+      // a Queen's Bees buzz round her and everything else: they get out of the way, never shove anyone
+      const bee = !!a.bee !== !!b.bee;
+      const wa = bee ? (a.bee ? 1 : 0) : weight(a) / rad[i], wb = bee ? (b.bee ? 1 : 0) : weight(b) / rad[j], p = Math.min(min - d, 4);
       const sa = (p * wa) / (wa + wb), sb = (p * wb) / (wa + wb);
       const ax = (dx / d) * sa, ay = (dy / d) * sa, bx = (dx / d) * sb, by = (dy / d) * sb;
       nudge(a, ax, ay, air[i]);

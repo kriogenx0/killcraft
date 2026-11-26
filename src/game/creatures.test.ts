@@ -291,6 +291,14 @@ describe('creatures of myth', () => {
     expect(errors).toEqual([]);
   });
 
+  it("doesn't let her Bees push the Queen about", () => {
+    const q = addUnit('beequeen', 0, MID.x, MID.y);
+    q.stance = 'passive';
+    for (let i = 0; i < 6; i++) { const b = addUnit('bee', 0, MID.x + (i - 3) * 2, MID.y + 3); b.bee = { q: q.id, until: G.gameT + 99 }; }
+    run(1);
+    expect(Math.hypot(q.x - MID.x, q.y - MID.y)).toBeLessThan(1);
+  });
+
   it("sends a wild Bee Queen's swarm home when she kneels", () => {
     const q = beast('beequeen'), s = addUnit('crossbowman', 0, MID.x + 2 * TS, MID.y);
     s.hp = s.maxhp = 100000;
