@@ -1,6 +1,6 @@
 // How spells and elements show on a unit (game/spells.ts): a coloured glow over its model, a block
 // of ice around it while frozen, a golden bubble while Shielded, frost crystals and falling snow
-// while slowed, a red throbbing rage while bloodlusted, and fumes, drips or sparks rising off it.
+// while slowed, a steady red rage while bloodlusted, and fumes, drips or sparks rising off it.
 import * as THREE from 'three';
 import { G, altOf, type Ent } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
@@ -28,7 +28,7 @@ export function statusTint(e: Ent): [THREE.Color, number] | null {
   if (frozen(e)) return [COL.frozen, 0.65];
   if (burning(e)) return [COL.burning, 0.35 + Math.sin(t * 14) * 0.1];
   if (poisoned(e)) return [COL.poisoned, 0.28 + Math.sin(t * 4) * 0.06];
-  if (lusting(e)) return [COL.lust, 0.22 + heartbeat(t) * 0.35];
+  if (lusting(e)) return [COL.lust, 0.3]; // steady: a pulse was too much
   if (slowed(e)) return [COL.slow, 0.2];
   if (sludged(e)) return [COL.sludge, 0.35];
   if (wet(e)) return [COL.wet, 0.18];
@@ -37,12 +37,6 @@ export function statusTint(e: Ent): [THREE.Color, number] | null {
 
 /** Slowed by the Slow spell or a hex shot (Hex Rifle). */
 export const slowed = (e: Ent): boolean => cursed(e) || (e.slowT ?? 0) > G.gameT;
-
-/** A heart's double beat, 0..1, about 2 a second: rage. */
-function heartbeat(t: number): number {
-  const p = (t * 2) % 1;
-  return Math.max(Math.exp(-((p - 0.08) ** 2) / 0.002), 0.7 * Math.exp(-((p - 0.3) ** 2) / 0.002));
-}
 
 const iceGeo = new THREE.IcosahedronGeometry(1, 1);
 const iceMat = new THREE.MeshStandardMaterial({ color: '#cff4ff', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.45, emissive: '#5ac8ff', emissiveIntensity: 0.35, flatShading: true, depthWrite: false });
@@ -109,7 +103,7 @@ function snowfall(frost: THREE.Object3D, t: number): void {
   }
 }
 
-// ---- bloodlust: bigger, red eyes and a throbbing red glow ----
+// ---- bloodlust: bigger, red eyes and a steady red glow ----
 
 const eyeGeo = new THREE.SphereGeometry(0.017, 6, 4);
 const eyeMat = new THREE.MeshBasicMaterial({ color: '#ff2010' });
@@ -196,9 +190,9 @@ export function statusFx(m: Model, e: Ent, dt: number): void {
   if (sl) snowfall(m.root.userData.frost as THREE.Object3D, performance.now() / 1000);
   const lu = lusting(e) && !fz;
   toggle(m, 'eyes', lu && SOLDIERS.has(e.type), rageEyes);
-  // swell with rage: a bit bigger, throbbing with the heartbeat
+  // swell with rage: a bit bigger
   const base = (m.root.userData.baseScale ??= m.root.scale.x) as number;
-  const grow = lu ? 1 + LUST_GROW + heartbeat(performance.now() / 1000 + e.id) * 0.03 : 1;
+  const grow = lu ? 1 + LUST_GROW : 1;
   if (m.root.scale.x !== base * grow) m.root.scale.setScalar(base * grow);
   if (V.paused) return;
   const z = altOf(e), jx = () => e.x + (Math.random() - 0.5) * 10, jy = () => e.y + (Math.random() - 0.5) * 6;
