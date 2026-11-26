@@ -3,7 +3,7 @@ import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, un
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { extraHall, scrapRefund } from '../../game/building.ts';
-import { BUILDING, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
+import { BUILDING, REPAIR_SHARE, UPGRADE_BONUS, UPGRADE_HP, isUnitProducer, type BldType } from '../../data/building.ts';
 import { power } from '../../game/entity.ts';
 import { TEND_RADIUS } from '../../game/unit.ts';
 import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autogather.ts';
@@ -78,7 +78,7 @@ const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
   engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on' },
   skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping (default)' },
   passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies. Workers just keep harvesting' },
-  tend: { label: 'Fix, then harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
+  tend: { label: 'Fix & Harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
 
 /** caption over the stance buttons, which are drawn joined as one pick-one bar */
@@ -173,7 +173,7 @@ export function commandList(): Command[] {
   if (first.kind === 'bld' && s.length === 1 && !first.done)
     return [{ id: 'scrap', label: 'Cancel', hotkey: BUILDING_KEYS.scrap, icon: ICON.scrap, tip: 'Stop building this and get its whole price back' }];
   if (first.kind === 'bld' && s.length === 1) {
-    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: 'Repair this building. Costs ore while it works.', disabled: first.hp >= first.maxhp && !first.repairing }];
+    const list: Command[] = [{ id: 'repair', label: first.repairing ? 'Stop repair' : 'Repair', hotkey: BUILDING_KEYS.repair, icon: ICON.repair, tip: `Repair this building. Costs ore while it works: a full repair costs ${Math.round(REPAIR_SHARE * 100)}% of its ore price.`, disabled: first.hp >= first.maxhp && !first.repairing }];
     const up = upgradeCommand(first);
     if (up) list.push(up);
     if (first.type === 'derrick' && first.done) {

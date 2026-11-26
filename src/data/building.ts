@@ -116,6 +116,12 @@ export const SCRAP_SHARE = 0.5;
 export const REPAIR_RATE = 25;
 
 /**
+ * Repairing a building from nothing to full health costs this share of its ore price (Alex,
+ * 2026-11-26: "Fixing is too expensive"; was half).
+ */
+export const REPAIR_SHARE = 0.2;
+
+/**
  * Buildings keep the look of the age they were built in. Each one is upgraded on its own to its
  * side's next age, for this share of its ore and wood price and of its build time (at least
  * UPGRADE_MIN_TIME seconds).

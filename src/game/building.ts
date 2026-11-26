@@ -4,7 +4,7 @@ import { noteBuilt } from './stats.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
 import { oilNear } from './economy.ts';
 import { DERRICK_REACH } from '../data/economy.ts';
-import { BUILDING, BUILD_RADIUS, EXPAND_GAP, REPAIR_RATE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isExpansion, isWall, type BldType } from '../data/building.ts';
+import { BUILDING, BUILD_RADIUS, EXPAND_GAP, REPAIR_RATE, REPAIR_SHARE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isExpansion, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
@@ -69,7 +69,7 @@ function repair(b: Ent, dt: number): void {
 
 /** Restore up to `hp` hit points to a finished building, paying ore for it. False if the bank can't. */
 export function mend(b: Ent, hp: number): boolean {
-  const amt = Math.min(hp, b.maxhp - b.hp), cost = (amt * bldDef(b).cost) / b.maxhp / 2;
+  const amt = Math.min(hp, b.maxhp - b.hp), cost = (amt * bldDef(b).cost * REPAIR_SHARE) / b.maxhp;
   if (G.credits[b.team] < cost) return false;
   G.credits[b.team] -= cost;
   b.hp += amt;
