@@ -381,7 +381,7 @@ $sidebar-width: 248px;
     }
   }
 
-  // control group buttons (1-5, more once used): bottom-left of the map, above the touch bar on touch screens
+  // control group buttons (a picture of each saved group's main unit, then + to save a new one): bottom-left of the map, above the touch bar on touch screens
   .group-bar {
     position: absolute;
     bottom: $space-3;
@@ -404,9 +404,10 @@ $sidebar-width: 248px;
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 30px;
+    width: 38px;
+    height: 34px;
     padding: 0;
+    overflow: hidden;
     font: inherit;
     font-size: $font-sm;
     font-weight: bold;
@@ -430,28 +431,48 @@ $sidebar-width: 248px;
       box-shadow: inset 0 0 0 2px var(--color-focus);
     }
 
-    // the group is what is selected now
+    // the group is what is selected now: a green rim, like a selection ring
     &[aria-pressed='true'] {
-      color: #0d1a0d;
-      background: linear-gradient(#9e9, #5b5);
-      box-shadow: inset 0 0 0 1px #cfc;
+      border-color: #7f7;
+      box-shadow: 0 0 0 1px #7f7, 0 0 8px rgb(120 255 120 / 60%);
     }
   }
 
-  // an empty slot: there to be filled, but quiet
-  .group-bar-btn--empty {
-    opacity: 0.55;
-    box-shadow: none;
+  // the group's main unit
+  .group-bar-pic {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    border-radius: 1px;
+  }
+
+  .group-bar-add svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  // the number key, top-left; only where there is a keyboard
+  .group-bar-key {
+    position: absolute;
+    top: 0;
+    left: 2px;
+    font-size: 9px;
+    line-height: 1.1;
+    color: #fff3c0;
+    text-shadow: 0 0 2px #000, 0 0 2px #000;
   }
 
   // how many units the group holds, tucked in the corner
   .group-bar-count {
     position: absolute;
-    right: 1px;
+    right: 2px;
     bottom: 0;
-    font-size: 9px;
-    font-weight: normal;
+    font-size: 10px;
+    font-weight: bold;
     line-height: 1.1;
+    color: #fff;
+    text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000;
 
     &:empty {
       display: none;
@@ -1153,19 +1174,23 @@ $sidebar-width: 248px;
 
   .group-bar-btn {
     width: 44px;
-    height: 38px;
-    font-size: $font-md;
+    height: 40px;
+  }
+
+  .group-bar-add svg {
+    width: 22px;
+    height: 22px;
   }
 
   .group-bar-count {
-    right: 3px;
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 
 // phones and tablets have no keyboard: hide the hotkey letters on buttons and build items
 @media (hover: none) and (pointer: coarse) {
   .view-game .build-cell-key,
+  .view-game .group-bar-key,
   .view-game .command-button-key {
     display: none;
   }

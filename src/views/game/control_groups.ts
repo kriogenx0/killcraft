@@ -4,7 +4,7 @@ import { hooks, valid, type Ent } from '../../game/state.ts';
 import { centerCam, ownSelected, spectating, V } from './view_state.ts';
 import { setSelection } from './hud.ts';
 
-/** group buttons always shown on screen; keys 6-9 still work and show a button once used */
+/** groups the + button fills; keys 6-9 still work and show a button once used */
 export const GROUP_SLOTS = 5;
 export const GROUP_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -26,11 +26,11 @@ export function saveGroup(k: string, add = false): number {
   const l = add ? [...new Set([...groupMembers(k), ...sel])] : sel;
   if (!l.length) {
     V.groups.delete(k);
-    say(`Group ${k} cleared`);
+    say('Group removed');
     return 0;
   }
   V.groups.set(k, l.map((e) => e.id));
-  say(`Group ${k}: ${l.length} ${l.length === 1 ? 'unit' : 'units'}`);
+  say(`Group saved: ${l.length} ${l.length === 1 ? 'unit' : 'units'}`);
   return l.length;
 }
 
