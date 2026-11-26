@@ -30,7 +30,7 @@ import { commandsHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating, toggleFormation } from './view_state.ts';
-import { burning, cursed, frozen, lusting, poisoned, sludged, wet } from '../../game/spells.ts';
+import { burning, cursed, frozen, lusting, poisoned, shielded, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
 import { REVIVE_PRICE, canPayRevive, fallenAllies } from '../../game/revive.ts';
@@ -352,7 +352,7 @@ function unitDetails(e: Ent): string {
 
 /** The spells and elements on a unit right now, e.g. "Burning · Wet". */
 function effectsOf(e: Ent): string {
-  const on: [boolean, string][] = [[frozen(e), 'Frozen'], [burning(e), 'Burning'], [poisoned(e), 'Poisoned'], [lusting(e), 'Bloodlust'], [cursed(e), 'Slowed'], [sludged(e), 'Sludged'], [wet(e), 'Wet']];
+  const on: [boolean, string][] = [[frozen(e), 'Frozen'], [burning(e), 'Burning'], [poisoned(e), 'Poisoned'], [lusting(e), 'Bloodlust'], [shielded(e), 'Shielded'], [cursed(e), 'Slowed'], [sludged(e), 'Sludged'], [wet(e), 'Wet']];
   return on.filter(([b]) => b).map(([, n]) => n).join(' · ');
 }
 

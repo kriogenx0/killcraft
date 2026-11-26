@@ -5,7 +5,7 @@
 // wet, and lightning hits wet things far harder.
 
 export type Element = 'fire' | 'electric' | 'poison' | 'sludge' | 'water';
-export type SpellType = 'bloodlust' | 'slow' | 'freeze' | 'douse';
+export type SpellType = 'bloodlust' | 'slow' | 'freeze' | 'douse' | 'shield';
 
 export interface SpellDef {
   name: string;
@@ -28,6 +28,7 @@ export const SPELL: Record<SpellType, SpellDef> = {
   bloodlust: { name: 'Bloodlust', mana: 30, range: 5, cd: 4, dur: 12, on: 'ally', col: '#ff4030', desc: 'a friendly unit in a fight attacks 40% faster and moves 25% faster' },
   slow: { name: 'Slow', mana: 35, range: 6, cd: 5, dur: 8, on: 'enemy', col: '#b890ff', desc: 'an enemy moves at half speed and attacks 25% slower' },
   freeze: { name: 'Freeze', mana: 90, range: 6, cd: 15, dur: 5, on: 'enemy', col: '#a8f0ff', desc: 'locks a strong enemy in ice: it can\'t move or fight' },
+  shield: { name: 'Shield', mana: 40, range: 6, cd: 5, dur: 12, on: 'ally', col: '#ffd860', desc: 'wraps a friend under fire in a golden bubble that soaks up the next 90 damage (not burning or poison)' },
   douse: { name: 'Douse', mana: 10, range: 5, cd: 1.5, dur: 0, on: 'ally', col: '#60b8ff', desc: 'puts out a burning or poisoned friend' },
 };
 
@@ -44,6 +45,9 @@ export const SLOW_ATTACK = 0.75;
 /** A unit worth freezing: one that costs at least this much ore, or has this much health. */
 export const FREEZE_WORTH = 400;
 export const FREEZE_HP = 300;
+
+/** Shield: how much damage the bubble soaks up before it bursts. */
+export const SHIELD_HP = 90;
 
 /** Burning: damage per second, and how long it lasts. Sludge-coated targets burn twice as hot and half again as long. */
 export const BURN_DPS = 4;
