@@ -19,6 +19,7 @@ import { demonModel } from './demons3d.ts';
 import { arcaneModel } from './arcane3d.ts';
 import { giantModel } from './giant3d.ts';
 import { chickenModel } from './chicken3d.ts';
+import { mageTower } from './magetower3d.ts';
 import { gem, loft, loftX, slab, taper, turned } from './shapes.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, prism, sph, teamMat, torus } from './materials.ts';
 
@@ -1285,7 +1286,7 @@ function arsenal(team: number): Model {
   return { root, parts, height: 1.6 };
 }
 
-function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | AetherBld | FixedLook>, team: number): Model {
+function makeBuilding(type: Exclude<BldType, 'airfield' | 'flak' | 'hospital' | 'armory' | 'magetower' | AetherBld | FixedLook>, team: number): Model {
   switch (type) {
     case 'yard': return yard(team);
     case 'power': return powerPlant(team);
@@ -1455,6 +1456,7 @@ export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length
   if (isAetherBld(type)) return cached(`b:${type}:${team}`, () => aetherBuilding(type, team)); // timeless: the same in every age
   if (type === 'airfield') return cached(`b:${type}:${team}:${lk}`, () => (lk === 1 ? airfield(team, 'field') : lk === 2 ? industrial(airfield(team, 'hangar')) : airfield(team, 'hangar')));
   if (type === 'armory') return cached(`b:${type}:${team}:${lk}`, () => (lk <= 1 ? smithy(team, lk === 1) : lk === 2 ? industrial(arsenal(team)) : arsenal(team)));
+  if (type === 'magetower') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(mageTower(team, 3)) : mageTower(team, lk)));
   if (type === 'hospital') {
     // a barracks-sized building told apart by the red cross out front
     const base = () => (lk === 0 ? medievalBuilding('barracks', team, 'wood')

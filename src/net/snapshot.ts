@@ -18,7 +18,7 @@ import { maxMana } from '../game/spells.ts';
 
 export const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'barracks', 'factory', 'turret', 'tower', 'mill', 'derrick', 'airfield', 'flak', 'source', 'aether', 'hospital', 'works', 'armory',
   'palisade', 'stonewall', 'concretewall', 'pillbox', 'atturret', 'bertha',
-  'shrine', 'wardstone', 'waygate', 'shard', 'camp'];
+  'shrine', 'wardstone', 'waygate', 'shard', 'camp', 'magetower'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY, building age, upgrade*100 (-1: none) or for our own units the REACTS index] */

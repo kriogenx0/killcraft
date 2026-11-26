@@ -61,6 +61,8 @@ export interface TechDef {
   requires: BldType[];
   /** preferred hotkey letter; otherwise one is picked from the name (views/game/hotkeys.ts) */
   key?: string;
+  /** the hotkey sub-menu it sits in at its producer (views/game/hotkeys.ts) */
+  group?: string;
   desc: string;
 }
 
@@ -93,7 +95,7 @@ export const TECH: Record<TechType, TechDef> = {
   vehArmor1: { name: 'Iron Banding', era: 0, upg: { track: 'vehArmor', level: 1 }, at: 'armory', cost: 350, wood: 200, t: 25, requires: ['armory'], desc: 'Vehicles and aircraft take 10% less damage.' },
   vehArmor2: { name: 'Riveted Plate', era: 1, upg: { track: 'vehArmor', level: 2 }, at: 'armory', cost: 800, oil: 150, t: 40, requires: ['armory'], desc: 'Vehicles and aircraft take 10% less damage again (-20%).' },
   vehArmor3: { name: 'Composite Armor', era: 2, upg: { track: 'vehArmor', level: 3 }, at: 'armory', cost: 1400, oil: 300, t: 50, requires: ['armory'], desc: 'Vehicles and aircraft take 10% less damage again (-30%).' },
-  ward: { name: 'Aether Ward', era: 0, ward: true, cost: 500, aether: 100, t: 40, requires: [], desc: 'Aether woven into the walls: your buildings take 10% less damage.' },
+  ward: { name: 'Aether Ward', era: 0, ward: true, group: 'Aether', cost: 500, aether: 100, t: 40, requires: [], desc: 'Aether woven into the walls: your buildings take 10% less damage.' },
 };
 
 export const TECH_TYPES = Object.keys(TECH) as TechType[];

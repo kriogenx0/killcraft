@@ -115,7 +115,7 @@ const HUNTERS = 5;
 const MIN_HUNTERS = 3;
 const HUNT_ARMY = 9;
 
-const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'barracks', 'mill', 'tower', 'turret', 'power', 'refinery', 'turret', 'factory', 'derrick', 'power', 'airfield', 'pillbox', 'turret', 'flak', 'power', 'atturret', 'pillbox', 'atturret', 'bertha'];
+const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'barracks', 'mill', 'tower', 'turret', 'power', 'refinery', 'magetower', 'turret', 'factory', 'derrick', 'power', 'airfield', 'pillbox', 'turret', 'flak', 'power', 'atturret', 'pillbox', 'atturret', 'bertha'];
 const MAX_WAVE = 30;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
@@ -558,7 +558,7 @@ function research(team: number): void {
 }
 
 /** Which buildings the computer upgrades to its age first: the base's heart, then its defenses. */
-const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'derrick', 'mill'];
+const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'magetower', 'derrick', 'mill'];
 const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
 
 /** Ore the computer keeps back for troops and repairs when paying for an upgrade. */

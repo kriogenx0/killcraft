@@ -5,7 +5,7 @@ import { TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
-import { available } from './production.ts';
+import { available, unitNeeds } from './production.ts';
 import { fire, updProjs } from './combat.ts';
 import { UNIT } from '../data/unit.ts';
 import { WEAPON } from '../data/weapon.ts';
@@ -29,6 +29,10 @@ describe('spellcasters', () => {
   it('need no Aether, and come one per age', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 12, 46, false);
+    // spellcasters train at the Barracks only while there's a Mage Tower
+    expect(available(0, 'infantry')).not.toContain('mage');
+    expect(unitNeeds(0, 'mage')).toBe('magetower');
+    addBuilding('magetower', 0, 16, 46, false);
     for (const t of ['mage', 'stormcaller', 'archmage', 'tidecaller', 'plaguewitch', 'sludgewarlock'] as const) expect(UNIT[t].aether ?? 0).toBe(0);
     expect(available(0, 'infantry')).toContain('mage');
     expect(available(0, 'infantry')).not.toContain('stormcaller');

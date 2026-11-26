@@ -112,6 +112,8 @@ describe('production', () => {
     for (const t of START_UNITS) expect(UNIT[t].era).toBe(0);
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
+    expect(available(0, 'infantry')).toEqual(['swordsman', 'crossbowman', 'knight', 'worker']);
+    addBuilding('magetower', 0, 16, 50, false);
     expect(available(0, 'infantry')).toEqual(['swordsman', 'crossbowman', 'knight', 'worker', 'mage', 'tidecaller']);
     expect(available(0, 'infantry')).not.toContain('harvester');
     expect(available(0, 'structure')).not.toContain('turret');
