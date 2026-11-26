@@ -88,7 +88,18 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     mark(wx, wy, '#ff5');
     return;
   }
-  if (harvesters.length && G.ore[ty * MW + tx] > 0 && G.vis[ty * MW + tx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx, ty }); moveRest(); mark(wx, wy, '#ff5'); return; }
+  // a wreck picked: its salvage lies on the tiles round where it fell, so take the nearest of them
+  let sx = tx, sy = ty;
+  if (harvesters.length && !(G.ore[ty * MW + tx] > 0)) {
+    let bd = 2.3;
+    for (let y = ty - 2; y <= ty + 2; y++) for (let x = tx - 2; x <= tx + 2; x++) {
+      const i = y * MW + x;
+      if (x < 0 || y < 0 || x >= MW || y >= MW || !G.scrap[i] || !(G.ore[i] > 0) || !G.vis[i]) continue;
+      const d = Math.hypot(x + 0.5 - wx / TS, y + 0.5 - wy / TS);
+      if (d < bd) { bd = d; sx = x; sy = y; }
+    }
+  }
+  if (harvesters.length && G.ore[sy * MW + sx] > 0 && G.vis[sy * MW + sx]) { dispatch({ c: 'harvest', ids: ids(harvesters), tx: sx, ty: sy }); moveRest(); mark(wx, wy, '#ff5'); return; }
   dispatch({ c: 'move', ids: ids(units), tx, ty, ...inFormation(units) });
   mark(wx, wy, isEnemy(hit) ? '#f44' : '#5f5');
 }

@@ -206,10 +206,12 @@ export function initSidebar(structures: HTMLElement, units: HTMLElement, tooltip
     tabs = { structure: { btn: tab0, busy: tab0.querySelector('.build-tab-busy') as HTMLElement }, unit: { btn: tab1, busy: tab1.querySelector('.build-tab-busy') as HTMLElement } };
     // on a phone the panel scrolls under the pinned tabs: a tap starts the chosen tab at its top
     const top = () => { const bar = structureList.closest<HTMLElement>('.sidebar'); if (bar && narrow()) bar.scrollTop = 0; };
-    tab0.addEventListener('click', () => { showTab('structure'); top(); });
-    tab1.addEventListener('click', () => { showTab('unit'); top(); });
+    // switching tabs drops a building being placed (nothing is paid until it is put down)
+    const unplace = () => { if (V.mode?.t === 'place') V.mode = null; };
+    tab0.addEventListener('click', () => { unplace(); showTab('structure'); top(); });
+    tab1.addEventListener('click', () => { unplace(); showTab('unit'); top(); });
     selTab = structures.parentElement?.querySelector<HTMLElement>('.build-tab--selection') ?? null;
-    selTab?.addEventListener('click', () => { showSel(true); top(); });
+    selTab?.addEventListener('click', () => { unplace(); showSel(true); top(); });
   }
   showTab(tab);
   for (const list of [structures, units]) {

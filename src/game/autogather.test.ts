@@ -308,12 +308,12 @@ describe('idle Workers', () => {
     };
     const onScrap = (w: Ent) => w.order?.t === 'harvest' && !w.order.res && G.scrap[w.order.ty * MW + w.order.tx] === 1;
 
-    it('Workers go and dig up the ore it leaves, then carry it home', () => {
+    it('is ore like any other: the nearest to base gets dug first, and carried home', () => {
       const [w] = workers(1);
       G.credits[0] = 5000; G.wood[0] = 5000;
       applyCommand(0, { c: 'gather', ids: [w.id], res: 'ore' });
       run(1);
-      wreckAt(yard.tx + 1, yard.ty + 10);
+      wreckAt(yard.tx + 1, yard.ty + 4); // closer than any ore field
       let went = false;
       for (let i = 0; i < 60 / STEP && !went; i++) { update(STEP); went = onScrap(w); }
       expect(went).toBe(true);
@@ -321,22 +321,6 @@ describe('idle Workers', () => {
       const before = left();
       run(60);
       expect(left()).toBeLessThan(before);
-    });
-
-    it('come before anything else: an Auto Worker on wood goes for it, then back to the trees', () => {
-      const [w] = workers(1);
-      G.credits[0] = 5000; G.wood[0] = 0; // wood is what the side lacks
-      run(1);
-      expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
-      wreckAt(yard.tx + 1, yard.ty + 10);
-      let went = false;
-      for (let i = 0; i < 120 / STEP && !went; i++) { update(STEP); went = onScrap(w); }
-      expect(went).toBe(true);
-      const left = () => { let n = 0; for (let i = 0; i < MW * MW; i++) if (G.scrap[i]) n += G.ore[i]; return n; };
-      for (let i = 0; i < 400 / STEP && left() > 0; i++) update(STEP);
-      expect(left()).toBe(0);
-      run(30);
-      expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
     });
 
     it('but not out in the middle of the map, a long way from base', () => {
@@ -348,6 +332,21 @@ describe('idle Workers', () => {
       let went = false;
       for (let i = 0; i < 60 / STEP && !went; i++) { update(STEP); went = ws.some(onScrap); }
       expect(went).toBe(false);
+    });
+
+    it('a player can send Workers to a far wreck, and they pick it clean', () => {
+      const ws = workers(2);
+      G.credits[0] = 5000; G.wood[0] = 5000;
+      run(1);
+      wreckAt(MW >> 1, MW >> 1);
+      const around = () => { let n = 0; for (let y = (MW >> 1) - 4; y <= (MW >> 1) + 4; y++) for (let x = (MW >> 1) - 4; x <= (MW >> 1) + 4; x++) if (G.scrap[y * MW + x]) n += G.ore[y * MW + x]; return n; };
+      const start = around();
+      expect(start).toBeGreaterThan(0);
+      let tile = -1;
+      for (let i = 0; i < MW * MW && tile < 0; i++) if (G.scrap[i] && G.ore[i] > 0) tile = i;
+      applyCommand(0, { c: 'harvest', ids: ws.map((w) => w.id), tx: tile % MW, ty: (tile / MW) | 0 });
+      for (let i = 0; i < 600 / STEP && around() > 0; i++) update(STEP);
+      expect(around()).toBe(0);
     });
 
     it('but not while an enemy is standing over it', () => {

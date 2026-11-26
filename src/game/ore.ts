@@ -83,7 +83,8 @@ export function nearestOre(tx: number, ty: number, r: number, min = 1, skip?: (i
   for (let y = Math.max(0, ty - r); y <= Math.min(MH - 1, ty + r); y++)
     for (let x = Math.max(0, tx - r); x <= Math.min(MW - 1, tx + r); x++) {
       const i = y * MW + x;
-      if (G.ore[i] < min || G.blk[i]) continue;
+      // salvage is spread thin over the tiles round a wreck, but it's all worth the trip
+      if ((G.ore[i] < min && !(G.scrap[i] && G.ore[i] >= 1)) || G.blk[i]) continue;
       let d = Math.hypot(x - tx, y - ty);
       if (walk) { d = walk[i]; if (d === Infinity) continue; }
       else if (homes?.length) { d = Infinity; for (const h of homes) d = Math.min(d, tilesTo(x, y, h)); }

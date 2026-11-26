@@ -140,8 +140,10 @@ function avoid(u: Ent, ux: number, uy: number, look: number, dt: number): [numbe
     }
     if (e.team === u.team && idle(e) && !anchored(e) && along < ru + re + 16) {
       // a friend standing in the way steps off our line
+      // (no room either side, as in a lane between buildings: it walks on ahead of us and out the far end)
       const s = lat >= 0 ? 1 : -1, d = stepOf(e, dt) * 0.8;
       if (canStep(e.x, e.y, e.x + px * s * d, e.y + py * s * d)) { e.x += px * s * d; e.y += py * s * d; }
+      else if (canStep(e.x, e.y, e.x + ux * d, e.y + uy * d)) { e.x += ux * d; e.y += uy * d; }
     }
     const urgency = (1 - along / look) * (1 - Math.abs(lat) / clear);
     const oncoming = e.moving && Math.cos(e.face - heading) < -0.5;
@@ -198,6 +200,27 @@ function formationPace(u: Ent): number {
 
 export const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, formationPace(u)) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
 
+/** How near (px) the end of its walk a unit must be before a friend standing in the way counts as getting there. */
+const SHORT = TS * 2.5;
+
+/** Is (x, y) in a gap or lane one tile wide, where a unit stopping would block the way? */
+export function narrow(x: number, y: number): boolean {
+  return (blkAt(x - TS, y) && blkAt(x + TS, y)) || (blkAt(x, y - TS) && blkAt(x, y + TS));
+}
+
+/** On a move order, within SHORT of (gx, gy), with a friend standing still right in front of it, between it and that spot. */
+function blockedShort(u: Ent, gx: number, gy: number): boolean {
+  const dx = gx - u.x, dy = gy - u.y, d = Math.hypot(dx, dy);
+  if (u.order?.t !== 'move' || d > SHORT || d < 1 || narrow(u.x, u.y)) return false;
+  const ru = unitDef(u).radius;
+  for (const e of nearby(u.x, u.y)) {
+    if (e === u || e.team !== u.team || e.moving) continue;
+    const rx = e.x - u.x, ry = e.y - u.y, gap = Math.hypot(rx, ry) - ru - unitDef(e).radius;
+    if (gap < 6 && (rx * dx + ry * dy) / d > Math.hypot(rx, ry) * 0.5) return true;
+  }
+  return false;
+}
+
 /** Step along the unit's path. Returns true when the path is finished. */
 export function followPath(u: Ent, dt: number): boolean {
   if (!u.path || !u.path.length) return true;
@@ -221,12 +244,19 @@ export function followPath(u: Ent, dt: number): boolean {
   }
   // A crowd can't all stand on a waypoint's centre: near enough to one on the way counts as passing
   // it, as long as the next one is in a clear straight line (and neither is a portal gate).
+  // In a crowd, being level with it (pushed off to one side, but no longer short of it) counts too.
   const after = u.path[1];
-  if (after && !air && Math.hypot((wp[0] + 0.5) * TS - u.x, (wp[1] + 0.5) * TS - u.y) < TS * 0.5 && !isJump(wp, after)
-    && G.warp[wp[1] * MW + wp[0]] < 0 && G.warp[after[1] * MW + after[0]] < 0 && los(u.x, u.y, (after[0] + 0.5) * TS, (after[1] + 0.5) * TS)) {
-    u.path.shift();
-    return false;
+  if (after && !air && !isJump(wp, after) && G.warp[wp[1] * MW + wp[0]] < 0 && G.warp[after[1] * MW + after[0]] < 0) {
+    const wx = (wp[0] + 0.5) * TS, wy = (wp[1] + 0.5) * TS, off = Math.hypot(wx - u.x, wy - u.y);
+    const level = (u.x - wx) * (after[0] - wp[0]) + (u.y - wy) * (after[1] - wp[1]) >= 0;
+    if ((off < TS * 0.5 || (level && off < TS * 2)) && los(u.x, u.y, (after[0] + 0.5) * TS, (after[1] + 0.5) * TS)) {
+      u.path.shift();
+      return false;
+    }
   }
+  // the last stretch: a friend already standing between it and the spot means it's there (in a
+  // crowd sent to one place not everyone fits on the spot itself; pressing on only jostles)
+  if (!air && u.path.length === 1 && G.warp[wp[1] * MW + wp[0]] < 0 && blockedShort(u, (wp[0] + 0.5) * TS, (wp[1] + 0.5) * TS)) { u.path.shift(); return true; }
   const r = steer(u, (wp[0] + 0.5) * TS, (wp[1] + 0.5) * TS, stepOf(u, dt), dt, air);
   if (r === 'blocked') return repath(); // something was built in the way
   if (r === 'moving') return false;

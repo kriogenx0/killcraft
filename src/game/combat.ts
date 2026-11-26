@@ -69,8 +69,10 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): v
   if (dot || t.kind !== 'unit' || !src || src.dead || allied(src.team, t.team) || !fair(src)) return;
   // remember who started it: a unit keeps fighting its first attacker rather than flitting between them
   if (!attacker(t) || t.foe === src.id) { t.foe = src.id; t.foeT = G.gameT; }
-  // idle units react: engaging ones fight back, passive ones run (Workers fixing things carry on)
-  if (!t.order) {
+  // idle units react: engaging ones fight back, passive ones run (Workers fixing things carry on).
+  // A wild creature answers only to its lair's leash (updWild): sent after a shooter beyond it, it
+  // would drop the fight next step and take it up again with every shot.
+  if (!t.order && !t.wild) {
     if (t.stance === 'passive') orderFlee(t, src);
     else if (t.stance === 'engage' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
   }

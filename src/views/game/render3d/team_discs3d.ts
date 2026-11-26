@@ -17,10 +17,10 @@ function discTexture(): THREE.Texture {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!, grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, 'rgba(255,255,255,.22)');
+  grad.addColorStop(0, 'rgba(255,255,255,.15)');
   grad.addColorStop(0.62, 'rgba(255,255,255,.3)');
-  grad.addColorStop(0.82, 'rgba(255,255,255,.7)');
-  grad.addColorStop(0.92, 'rgba(255,255,255,.6)');
+  grad.addColorStop(0.82, 'rgba(255,255,255,.5)');
+  grad.addColorStop(0.92, 'rgba(255,255,255,.4)');
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
@@ -35,7 +35,7 @@ const pos = new THREE.Vector3(), scl = new THREE.Vector3(), col = new THREE.Colo
 
 /** Build the disc batch and add it to `parent` (call again after the scene is cleared). */
 export function makeTeamDiscs(parent: THREE.Object3D): void {
-  const mat = new THREE.MeshBasicMaterial({ map: discTexture(), transparent: true, opacity: 0.55, depthWrite: false, fog: false });
+  const mat = new THREE.MeshBasicMaterial({ map: discTexture(), transparent: true, opacity: 0.32, depthWrite: false, fog: false });
   // drawn over the ground and the fog layer, under the selection rings
   discs = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2), mat, MAX);
   discs.renderOrder = 2.6;

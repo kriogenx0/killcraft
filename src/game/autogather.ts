@@ -11,7 +11,6 @@ import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
 import { ais } from './ai.ts';
 import { oilLeft } from './economy.ts';
-import { salvageFor } from './unit.ts';
 
 export type Res = 'ore' | 'wood' | 'oil';
 
@@ -104,13 +103,11 @@ function standing(team: number, r: Res, crew: Record<Res, number>, debt = owed(t
 
 /** The resource an Auto Worker should gather: whichever the side has least of (`u` itself not counted). */
 export function pickResource(u: Ent, can: Res[] = options(u)): Res | null {
-  if (!can.length) return salvageFor(u) ? 'ore' : null;
+  if (!can.length) return null;
   if (can.length === 1) return can[0];
   const crew = crewOf(u), debt = owed(u.team);
   let best: Res | null = null, bs = Infinity;
   for (const r of can) { const v = standing(u.team, r, crew, debt); if (v < bs) { bs = v; best = r; } }
-  // what's left of something destroyed comes before anything else, bar oil when that's what's short
-  if (best !== 'oil' && salvageFor(u)) return 'ore';
   return best;
 }
 
@@ -173,14 +170,6 @@ export function rethink(u: Ent, o: HarvestOrder): void {
   }
   // a load of oil is an errand, not a change of job: go whenever oil is what the side has least of
   if (now !== 'oil' && r === 'oil') { gather(u, 'oil'); return; }
-  // salvage first: a trip out for it is an errand, and the Worker goes back to its own job once it's dug up
-  const salvage = !!salvageFor(u);
-  if (salvage && now === 'wood') { gather(u, 'ore'); errandFrom.set(u, now); return; }
-  if (now === 'ore' && !salvage && errandFrom.has(u)) {
-    const back = errandFrom.get(u);
-    errandFrom.delete(u);
-    if (back && can.includes(back)) { gather(u, back); movedAt.delete(u); return; }
-  }
   if (!r || r === now || !can.includes(now)) return;
   // stay put a while after a move, so a Worker is seen to stick at a job
   if (G.gameT - (movedAt.get(u) ?? -Infinity) < SETTLE) return;

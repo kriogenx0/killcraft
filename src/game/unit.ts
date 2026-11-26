@@ -5,8 +5,8 @@ import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester,
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
-import { DIRS, adjTile, edgeDist, nearestFree, pathFor, pathTo } from './path.ts';
-import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
+import { DIRS, adjTile, edgeDist, los, nearestFree, pathFor, pathTo } from './path.ts';
+import { approach, canStep, cruise, followPath, narrow, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
@@ -74,11 +74,20 @@ function oreTaken(i: number, u: Ent, choosing: boolean): boolean {
  * short. Crumbs of regrowth only once no tile worth a trip is left. Skips tiles another
  * gatherer has claimed, sharing one only if every tile is taken.
  */
+/** How far (tiles) a destroyed thing's salvage lies from where it fell (economy.ts dropSalvage spreads it). */
+const WRECK_SPREAD = 4;
 /** How far (tiles) from a taken tile a gatherer looks for other ore before choosing afresh. */
 const AROUND_TAKEN = 5;
 
 function pickOre(u: Ent, underway = false, around: Tile | null = null): [number, number] | null {
-  const bad = cantReach.get(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true), ok = bad && ((i: number) => bad.has(i));
+  const bad = cantReach.get(u), danger = scrapInDanger(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true) || danger(i), ok = bad && ((i: number) => bad.has(i));
+  // sent to pick over a wreck: what's left of it first, until it's all carried off
+  const o = u.order;
+  if (o?.t === 'harvest' && o.wreck) {
+    const w = nearestOre(o.wreck[0], o.wreck[1], WRECK_SPREAD, 1, (i) => !G.scrap[i] || free(i));
+    if (w) return w;
+    o.wreck = undefined;
+  }
   // the tile it was walking out to got taken: other ore by that one, rather than turn back toward base
   // for a patch that has just grown back
   if (around) { const by = nearestOre(around[0], around[1], AROUND_TAKEN, ORE_WORTH, free); if (by) return by; }
@@ -94,48 +103,24 @@ function pickOre(u: Ent, underway = false, around: Tile | null = null): [number,
   const x = tileOf(u.x), y = tileOf(u.y);
   // a tile worth a trip first: crumbs of regrowth only once there's nothing else
   const best = nearestOre(x, y, MW, ORE_WORTH, free, homes, walk) ?? nearestOre(x, y, MW, 1, free, homes, walk) ?? nearestOre(x, y, MW, 1, ok, homes, walk);
-  return scrapFor(u, walk, best, free) ?? best;
+  return best;
 }
 
-/**
- * How far (tiles walked from the side's drop-offs) gatherers go for what's left of something
- * destroyed: salvage within it comes before ordinary ore, but Workers don't wander off across the map.
- */
-const SALVAGE_REACH = 24;
 /** Salvage this close (tiles) to an armed enemy (or enemy tower) is left until the fighting's over. */
 const SCRAP_DANGER = 7;
-/** Nor do gatherers go picking over wrecks this close (tiles) to an enemy building: that's their base. */
-const SCRAP_ENEMY_BASE = 10;
 
 /**
- * Salvage to dig before anything else: the ore left by destroyed units and structures lies where
- * they fell, so gatherers go for it first (the nearest to base, within SALVAGE_REACH or no further
- * than the ore they'd dig otherwise), but not into a fight or the enemy's base.
+ * The salvage tiles (ore left by destroyed units and structures) that are too near an armed enemy
+ * to dig now. Otherwise salvage is ore like any other: the nearest to base gets dug first.
  */
-function scrapFor(u: Ent, walk: Float32Array | null, best: Tile | null, taken: (i: number) => boolean): Tile | null {
-  if (!walk) return null;
-  const limit = Math.max(SALVAGE_REACH, best ? walk[best[1] * MW + best[0]] : 0);
-  let foes: Ent[] | null = null, bases: Ent[] = [], pick = -1, bd = Infinity;
-  for (let i = 0; i < MW * MH; i++) {
-    if (!G.scrap[i] || G.ore[i] < 1 || G.blk[i]) continue;
-    const d = walk[i];
-    if (d >= Math.min(bd, limit) || taken(i)) continue;
-    if (!foes) {
-      foes = G.ents.filter((e) => !e.dead && e.team >= 0 && !allied(e.team, u.team) && (e.kind === 'unit' ? !!unitDef(e).weapon && e.type !== 'worker' : e.kind === 'bld' && !!bldDef(e)?.weapon));
-      bases = G.ents.filter((e) => !e.dead && e.team >= 0 && e.kind === 'bld' && !allied(e.team, u.team));
-    }
+function scrapInDanger(u: Ent): (i: number) => boolean {
+  let foes: Ent[] | null = null;
+  return (i) => {
+    if (!G.scrap[i]) return false;
+    foes ??= G.ents.filter((e) => !e.dead && e.team >= 0 && !allied(e.team, u.team) && (e.kind === 'unit' ? !!unitDef(e).weapon && e.type !== 'worker' : e.kind === 'bld' && !!bldDef(e)?.weapon));
     const x = (i % MW + 0.5) * TS, y = (((i / MW) | 0) + 0.5) * TS;
-    if (foes.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_DANGER * TS)) continue;
-    if (bases.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_ENEMY_BASE * TS)) continue;
-    bd = d; pick = i;
-  }
-  return pick < 0 ? null : [pick % MW, (pick / MW) | 0];
-}
-
-/** Salvage a gatherer could go and dig right now (see scrapFor), or null. */
-export function salvageFor(u: Ent): Tile | null {
-  const bad = cantReach.get(u);
-  return scrapFor(u, walkOf(u.team, banksOf(u.team, ORE_BANKS)), null, (i) => !!bad?.has(i) || oreTaken(i, u, true));
+    return foes.some((e) => Math.hypot(e.x - x, e.y - y) < SCRAP_DANGER * TS);
+  };
 }
 
 /** How far (tiles) a gatherer with part of a load looks for more before heading off elsewhere. */
@@ -365,6 +350,25 @@ function pullOver(u: Ent, e: Ent): Tile | null {
   return null;
 }
 
+/**
+ * Is the ground between a jammed unit and the end of its walk packed with its own side's troops
+ * standing there (others sent to the same spot that got there first)? Then it has got as close
+ * as it can, and stopping at the edge of the crowd is arriving: pushing on only shoves them about.
+ */
+function packedAround(u: Ent, goal: Tile): boolean {
+  const gx = (goal[0] + 0.5) * TS, gy = (goal[1] + 0.5) * TS, d = Math.hypot(gx - u.x, gy - u.y);
+  if (u.order?.t !== 'move' || d > 14 * TS || narrow(u.x, u.y)) return false;
+  let area = 0;
+  for (const e of G.ents) {
+    if (e === u || e.dead || e.kind !== 'unit' || e.team !== u.team || e.moving || isAir(e)) continue;
+    if (Math.hypot(e.x - gx, e.y - gy) > d) continue;
+    const w = unitDef(e).radius * 2 + 4;
+    area += w * w;
+  }
+  // a crowd standing that close packed covers at least half the ground short of us
+  return area >= 0.5 * Math.PI * (d - TS) * (d - TS);
+}
+
 /** The tile each unit last pulled over to, while it's still heading there. */
 const pulledOver = new WeakMap<Ent, Tile>();
 
@@ -394,9 +398,14 @@ function unstick(u: Ent, dt: number): void {
     if (u.path[0] === pulledOver.get(u)) u.path.shift(); // couldn't get there either
     const e = oncoming(u), bay = e && e.id < u.id ? pullOver(u, e) : null;
     if (bay) { u.path.unshift(bay); pulledOver.set(u, bay); u.px = u.x; u.py = u.y; return; }
+    // jostling for a waypoint on the way (a corner, a gap) with others: close by is near enough
+    const wp = u.path[0];
+    const nx = u.path[1];
+    if (nx && G.warp[wp[1] * MW + wp[0]] < 0 && Math.hypot((wp[0] + 0.5) * TS - u.x, (wp[1] + 0.5) * TS - u.y) < 0.75 * TS
+      && los(u.x, u.y, (nx[0] + 0.5) * TS, (nx[1] + 0.5) * TS, 2)) { u.path.shift(); u.px = u.x; u.py = u.y; return; }
     // close enough to the goal in a crowd counts as arrived; otherwise look for another way
     const last = u.path[u.path.length - 1];
-    if (!last || Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 2.5 * TS) u.path.length = 0;
+    if (!last || Math.hypot((last[0] + 0.5) * TS - u.x, (last[1] + 0.5) * TS - u.y) < 2.5 * TS || packedAround(u, last)) u.path.length = 0;
     else {
       // edge over to the right, like traffic, so both can pass
       const sx = u.x - Math.sin(u.face) * SIDESTEP, sy = u.y + Math.cos(u.face) * SIDESTEP;

@@ -90,7 +90,7 @@ function walkTo(walk: Float32Array | null, x: number, y: number): number {
  * The tree with wood worth chopping within r tiles of (cx, cy) that is closest to `home` (a
  * drop-off, so trips stay short; (cx, cy) itself if none), preferring ones nobody else is on.
  */
-export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: Ent | null, alone = false): number | null {
+export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: Ent | null, alone = false, maxWalk = Infinity): number | null {
   let best: number | null = null, bd = Infinity;
   const bad = cantReach.get(u), walk = home ? walkFrom(home) : null;
   for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
@@ -104,12 +104,15 @@ export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: En
       // from a drop-off, measured by the walk to the tree (round woods, rock and buildings): one
       // with no way to it is skipped outright
       const reach = home ? walkTo(walk, x, y) : Math.hypot(x - cx, y - cy);
-      if (reach === Infinity) continue;
+      if (reach === Infinity || reach > maxWalk) continue;
       const d = reach + crowd * CROWD + thin;
       if (d < bd) { bd = d; best = i; }
     }
   return best;
 }
+
+/** Longest walk (tiles) from the drop-off to a tree of its own before a Worker would rather share a nearer one. */
+const TREE_WALK = 24;
 
 /** How many tiles further a Worker will walk for a tree with a whole load on it rather than a bare stump. */
 const THIN = 8;
@@ -125,8 +128,9 @@ function nextTree(u: Ent, o: HarvestOrder): number | null {
   const home = valid(o.src) ?? bankAt(u, [...WOOD_BANKS]);
   if (!home) return nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 14) ?? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), MW);
   const cx = home.tx + (home.w >> 1), cy = home.ty + (home.h >> 1);
-  // a tree of its own near the drop-off, then further out, and only then one shared with another
-  return nearestTree(u, cx, cy, MILL_RADIUS + 2, home, true) ?? nearestTree(u, cx, cy, 16, home, true) ?? nearestTree(u, cx, cy, MW, home);
+  // a tree of its own near the drop-off, then further out (but not one a long way round woods or
+  // rock: walk is counted in half tiles), and only then one shared with another
+  return nearestTree(u, cx, cy, MILL_RADIUS + 2, home, true) ?? nearestTree(u, cx, cy, 16, home, true, 2 * TREE_WALK) ?? nearestTree(u, cx, cy, MW, home);
 }
 
 /**

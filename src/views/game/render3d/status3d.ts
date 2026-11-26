@@ -1,6 +1,6 @@
 // How spells and elements show on a unit (game/spells.ts): a coloured glow over its model, a block
 // of ice around it while frozen, a golden bubble while Shielded, frost crystals and falling snow
-// while slowed, a red throbbing rage while bloodlusted, and fumes, drips or sparks rising off it.
+// while slowed, a red halo while bloodlusted, and fumes, drips or sparks rising off it.
 import * as THREE from 'three';
 import { G, altOf, type Ent } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
@@ -14,7 +14,6 @@ const COL = {
   frozen: new THREE.Color('#9ae8ff'),
   burning: new THREE.Color('#ff7a20'),
   poisoned: new THREE.Color('#70ff30'),
-  lust: new THREE.Color('#ff3a00'),
   // a cold, pale frost: no strong colour, so it doesn't read as a magic shield
   slow: new THREE.Color('#d6eeff'),
   sludge: new THREE.Color('#6a4010'),
@@ -28,7 +27,7 @@ export function statusTint(e: Ent): [THREE.Color, number] | null {
   if (frozen(e)) return [COL.frozen, 0.65];
   if (burning(e)) return [COL.burning, 0.35 + Math.sin(t * 14) * 0.1];
   if (poisoned(e)) return [COL.poisoned, 0.28 + Math.sin(t * 4) * 0.06];
-  if (lusting(e)) return [COL.lust, 0.22 + heartbeat(t) * 0.35];
+  // bloodlust shows as a red halo instead (lustHalo): a glow over the whole unit was too much
   if (slowed(e)) return [COL.slow, 0.2];
   if (sludged(e)) return [COL.sludge, 0.35];
   if (wet(e)) return [COL.wet, 0.18];
@@ -37,12 +36,6 @@ export function statusTint(e: Ent): [THREE.Color, number] | null {
 
 /** Slowed by the Slow spell or a hex shot (Hex Rifle). */
 export const slowed = (e: Ent): boolean => cursed(e) || (e.slowT ?? 0) > G.gameT;
-
-/** A heart's double beat, 0..1, about 2 a second: rage. */
-function heartbeat(t: number): number {
-  const p = (t * 2) % 1;
-  return Math.max(Math.exp(-((p - 0.08) ** 2) / 0.002), 0.7 * Math.exp(-((p - 0.3) ** 2) / 0.002));
-}
 
 const iceGeo = new THREE.IcosahedronGeometry(1, 1);
 const iceMat = new THREE.MeshStandardMaterial({ color: '#cff4ff', roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.45, emissive: '#5ac8ff', emissiveIntensity: 0.35, flatShading: true, depthWrite: false });
@@ -109,7 +102,7 @@ function snowfall(frost: THREE.Object3D, t: number): void {
   }
 }
 
-// ---- bloodlust: bigger, red eyes and a throbbing red glow ----
+// ---- bloodlust: a red halo over its head, red eyes, and a bit bigger ----
 
 const eyeGeo = new THREE.SphereGeometry(0.017, 6, 4);
 const eyeMat = new THREE.MeshBasicMaterial({ color: '#ff2010' });
@@ -123,6 +116,18 @@ function rageEyes(): THREE.Group {
   const g = new THREE.Group();
   for (const z of [-0.04, 0.04]) g.add(new THREE.Mesh(eyeGeo, eyeMat).translateX(0.112).translateY(0.476).translateZ(z));
   return g;
+}
+
+const haloGeo = new THREE.TorusGeometry(1, 0.09, 6, 28).rotateX(Math.PI / 2);
+const haloMat = new THREE.MeshBasicMaterial({ color: '#ff2a10', transparent: true, opacity: 0.9 });
+
+/** A steady red ring floating over the unit's head, sized to it. */
+function lustHalo(e: Ent, m: Model, base: number): THREE.Mesh {
+  const r = (UNIT[e.type as UnitType]?.radius ?? 8) / 32 / base, h = (m.height || 0.6) / base;
+  const o = new THREE.Mesh(haloGeo, haloMat);
+  o.scale.setScalar(Math.min(0.2, Math.max(0.09, r * 0.5)));
+  o.position.y = h + 0.1;
+  return o;
 }
 
 /** Add or remove an effect's extra meshes on a model. */
@@ -196,9 +201,10 @@ export function statusFx(m: Model, e: Ent, dt: number): void {
   if (sl) snowfall(m.root.userData.frost as THREE.Object3D, performance.now() / 1000);
   const lu = lusting(e) && !fz;
   toggle(m, 'eyes', lu && SOLDIERS.has(e.type), rageEyes);
-  // swell with rage: a bit bigger, throbbing with the heartbeat
+  // swell with rage: a bit bigger, under a red halo
   const base = (m.root.userData.baseScale ??= m.root.scale.x) as number;
-  const grow = lu ? 1 + LUST_GROW + heartbeat(performance.now() / 1000 + e.id) * 0.03 : 1;
+  toggle(m, 'halo', lu, () => lustHalo(e, m, base));
+  const grow = lu ? 1 + LUST_GROW : 1;
   if (m.root.scale.x !== base * grow) m.root.scale.setScalar(base * grow);
   if (V.paused) return;
   const z = altOf(e), jx = () => e.x + (Math.random() - 0.5) * 10, jy = () => e.y + (Math.random() - 0.5) * 6;
