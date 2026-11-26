@@ -6,9 +6,9 @@ import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit, kill } from './entity.ts';
 import { available } from './production.ts';
 import { acquire, dealDamage, fire } from './combat.ts';
-import { addBeast, captorOf, satyrSong, stone, wildBeasts } from './creatures.ts';
+import { addBeast, beesOf, captorOf, satyrSong, stone, wildBeasts } from './creatures.ts';
 import { START_YARDS } from '../data/map.ts';
-import { BEASTS, CAPTURE_TIME, PETRIFY_IMMUNE, RESPAWN_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
+import { BEE_LIFE, SWARM_MAX, BEASTS, CAPTURE_TIME, PETRIFY_IMMUNE, RESPAWN_TIME, LAIR_PAIRS_PER_MAP, SUBDUE_AT, SUBDUE_RECOVER } from '../data/creatures.ts';
 import { WEAPON } from '../data/weapon.ts';
 import { orderMove } from './order.ts';
 import { cloakedFrom } from './aether.ts';
@@ -265,6 +265,43 @@ describe('creatures of myth', () => {
     expect(p.hp).toBeGreaterThan(p.maxhp * 0.4);
     dealDamage(p, p.maxhp * 3, null);
     expect(p.dead).toBe(true);
+  });
+
+  it('lets a Bee Queen call up a swarm of Bees that sting what she fights, then fly home', () => {
+    const q = addUnit('beequeen', 0, MID.x, MID.y), foe = addUnit('swordsman', 1, MID.x + 3 * TS, MID.y);
+    foe.stance = 'passive';
+    foe.hp = foe.maxhp = 100000;
+    q.order = { t: 'attack', tgt: foe.id, auto: false, ox: q.x, oy: q.y };
+    run(1);
+    const bees = beesOf(q);
+    expect(bees.length).toBe(UNIT.beequeen.swarm);
+    for (const b of bees) expect(b.team).toBe(0);
+    run(16);
+    expect(beesOf(q).length).toBeLessThanOrEqual(SWARM_MAX);
+    expect(beesOf(q).length).toBeGreaterThan(0);
+    expect(foe.poisonT ?? 0).toBeGreaterThan(G.gameT);
+    // Bees are never trained, never counted as lost, and live only so long
+    expect(UNIT.bee.hatched && UNIT.bee.summoned).toBe(true);
+    const lost = G.stats[0]?.lost ?? 0;
+    foe.dead = true;
+    run(BEE_LIFE + 1);
+    expect(beesOf(q)).toHaveLength(0);
+    expect(G.stats[0]?.lost ?? 0).toBe(lost);
+    expect(BEASTS).toContain('beequeen');
+    expect(errors).toEqual([]);
+  });
+
+  it("sends a wild Bee Queen's swarm home when she kneels", () => {
+    const q = beast('beequeen'), s = addUnit('crossbowman', 0, MID.x + 2 * TS, MID.y);
+    s.hp = s.maxhp = 100000;
+    run(2);
+    const bees = beesOf(q);
+    expect(bees.length).toBeGreaterThan(0);
+    for (const b of bees) expect(b.team).toBe(-1);
+    dealDamage(q, q.maxhp, null);
+    expect(q.wild?.down).toBe(true);
+    run(0.5);
+    expect(beesOf(q)).toHaveLength(0);
   });
 
   it('lets a Sphinx see cloaked units', () => {

@@ -6,7 +6,7 @@ export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha' | 'howitzer'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
   | 'centaurbow' | 'axe' | 'hurl' | 'hydrabite' | 'hellfire' | 'talons' | 'hoof' | 'griffclaw' | 'pick'
-  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'peck'
+  | 'gaze' | 'lionclaw' | 'sphinxclaw' | 'thyrsus' | 'chimerafire' | 'phoenixfire' | 'dragonfire' | 'peck' | 'sting' | 'beesting'
   | 'impfire' | 'fiendclaw' | 'hellblade' | 'drakefire';
 /** melee and bullets hit at once; the rest fly as projectiles */
 export type ProjectileKind = 'melee' | 'bullet' | 'shell' | 'rocket' | 'bolt' | 'boulder' | 'orb';
@@ -106,6 +106,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   hydrabite: { element: 'poison', dmg: 13, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
   hellfire: { element: 'fire', dmg: 26, range: 1.8, cd: 1.4, proj: 'shell', speed: 300, splash: 22, vs: { none: 1.2, light: 0.8, heavy: 0.4, building: 0.6, air: 0 } },
   talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },
+  // the Bee Queen's sting and her Bees': poison that eats living things through armor, but barely scratches machines
+  sting: { element: 'poison', dmg: 22, range: 1.1, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 1.1, heavy: 0.35, building: 0.25, air: 0.4 } },
+  beesting: { element: 'poison', dmg: 4, range: 0.6, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.2, building: 0.1, air: 0.3 } },
   // the Titan Chicken's beak: a stomping peck that knocks over the infantry around it
   peck: { dmg: 34, range: 1.1, cd: 1.4, proj: 'melee', speed: 0, splash: 24, vs: { none: 1, light: 0.7, heavy: 0.3, building: 0.5, air: 0 } },
   hoof: { dmg: 24, range: 0.8, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.45, building: 0.4, air: 1 } },

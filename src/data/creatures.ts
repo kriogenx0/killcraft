@@ -9,7 +9,7 @@ import type { UnitType } from './unit.ts';
 /** Every creature a lair can hold. */
 export const BEASTS: UnitType[] = [
   'centaur', 'minotaur', 'cyclops', 'hydra', 'cerberus', 'harpy', 'pegasus', 'griffin',
-  'medusa', 'nemean', 'sphinx', 'satyr', 'chimera', 'phoenix', 'dragon',
+  'medusa', 'nemean', 'sphinx', 'satyr', 'chimera', 'phoenix', 'dragon', 'beequeen',
 ];
 
 /**
@@ -59,3 +59,12 @@ export const PETRIFY_IMMUNE = 3;
 export const SONG_RANGE = 3.5;
 /** Health (fraction) a Phoenix rises from its ashes with. */
 export const REBIRTH_HP = 0.5;
+
+/** A Bee Queen calls up her swarm (UnitDef.swarm Bees) this often while she fights, in seconds… */
+export const SWARM_EVERY = 5;
+/** …keeping at most this many Bees about her… */
+export const SWARM_MAX = 6;
+/** …each of which lives this many seconds. */
+export const BEE_LIFE = 14;
+/** She only calls them for a foe within this many tiles, and they don't chase anything further than this from her. */
+export const SWARM_REACH = 6;

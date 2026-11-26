@@ -198,6 +198,10 @@ export interface Ent extends Target {
   lair?: Point;
   /** a demon from the Gate of Hell (game/hell.ts) */
   demon?: Demon;
+  /** a Bee called up by a Bee Queen: her id, and the game time it flies home (game/creatures.ts) */
+  bee?: { q: number; until: number };
+  /** a Bee Queen: game time she can next call up her swarm */
+  swarmT?: number;
 }
 
 /** A demon's errand: lurking at its spot by the gate, or out raiding a side. */
@@ -430,10 +434,10 @@ export function blkAt(x: number, y: number): boolean {
 /** Same team, or on the same side in a team game. Wild creatures and neutrals (team -1) are only allied with each other. */
 export const allied = (a: number, b: number): boolean => a === b || (a >= 0 && b >= 0 && (G.ally[a] ?? a) === (G.ally[b] ?? b));
 /**
- * Something any side may fight: a side's own units and buildings, a wild creature, or a demon.
+ * Something any side may fight: a side's own units and buildings, a wild creature (or its Bees), or a demon.
  * Neutral things (ore, Aether, cows) aren't.
  */
-export const fair = (e: Ent): boolean => e.team >= 0 || !!e.wild || !!e.demon;
+export const fair = (e: Ent): boolean => e.team >= 0 || !!e.wild || !!e.demon || !!e.bee;
 /** Is this demon out to fight `team`: raiding it, or come to rescue one of its enemies? Other demons leave the side be. */
 export const demonAfter = (e: Ent, team: number): boolean => {
   const d = e.demon;
