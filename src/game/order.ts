@@ -67,7 +67,8 @@ export function setStance(u: Ent, stance: Stance): void {
 
 /** Harvest starting at a tile (or the nearest ore to it). */
 export function orderHarvest(u: Ent, tx: number, ty: number): void {
-  setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0 });
+  // sent to a wreck's salvage: stick with that wreck, however far from base
+  setOrder(u, { t: 'harvest', st: 'go', tx, ty, wait: 0, ...(G.scrap[ty * MW + tx] ? { wreck: [tx, ty] as Tile } : {}) });
 }
 
 /** Chop wood in a Lumber Mill's woods (Workers only), or haul oil from an Oil Derrick back to base, over and over. */
