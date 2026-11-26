@@ -10,6 +10,7 @@ import { WOOD_BANKS, treeFor } from './chop.ts';
 import { priceOf } from './production.ts';
 import { setOrder } from './order.ts';
 import { ais } from './ai.ts';
+import { oilLeft } from './economy.ts';
 import { salvageFor } from './unit.ts';
 
 export type Res = 'ore' | 'wood' | 'oil';
@@ -80,7 +81,7 @@ function derrickFor(u: Ent): Ent | null {
   for (const d of G.ents) {
     if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done || d.carry < trip) continue;
     if (G.ents.some((w) => w !== u && !w.dead && w.team === u.team && w.order?.t === 'harvest' && w.order.src === d.id)) continue;
-    const dist = Math.hypot(d.x - u.x, d.y - u.y);
+    const dist = Math.hypot(d.x - u.x, d.y - u.y) + (oilLeft(d) > 0 ? 0 : 1e6); // a well still on oil first
     if (dist < bd) { bd = dist; best = d; }
   }
   return best;
@@ -267,7 +268,8 @@ export function sendGather(u: Ent, r: GatherRes): boolean {
     for (const d of G.ents) {
       if (d.dead || d.team !== u.team || d.type !== 'derrick' || !d.done) continue; // a dry well still trickles into its tank
       const crew = G.ents.filter((w) => w !== u && !w.dead && w.order?.t === 'harvest' && w.order.src === d.id).length;
-      const s = crew * 8 + fromBase(u.team, d.x, d.y) / 32; // spread over the derricks, nearest the base first
+      // the nearest derrick still on oil (a dry one only trickles), spread over them
+      const s = (oilLeft(d) > 0 ? 0 : 1000) + crew * 8 + Math.hypot(d.x - u.x, d.y - u.y) / TS;
       if (s < bd) { bd = s; best = d; }
     }
     if (!best) return false;

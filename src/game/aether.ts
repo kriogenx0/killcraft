@@ -130,7 +130,6 @@ export function drawAether(dt: number): void {
     carrier.drawT = G.gameT + DRAW_SHOW;
     carrier.atkT = Math.max(carrier.atkT, 0.25);
     if (!carrier.order && !carrier.moving) carrier.face = carrier.tface = Math.atan2(d.y - carrier.y, d.x - carrier.x);
-    if (d.hp < AETHER_DRY) for (const t of teams()) say(t, 'An Aether deposit has run dry. It will slowly grow back');
   }
 }
 

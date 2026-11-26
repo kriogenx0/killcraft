@@ -1,5 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
-import { aiPace, ais, leaderHandicap } from './ai.ts';
+import { aiPace, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
@@ -98,10 +98,10 @@ function pickOre(u: Ent, underway = false, around: Tile | null = null): [number,
 }
 
 /**
- * How far (tiles walked from the side's drop-offs) the computer's gatherers go for what's left of
- * something destroyed. A player's go anywhere on the map for it: salvage comes before any ordinary ore.
+ * How far (tiles walked from the side's drop-offs) gatherers go for what's left of something
+ * destroyed: salvage within it comes before ordinary ore, but Workers don't wander off across the map.
  */
-const SALVAGE_REACH_AI = 36;
+const SALVAGE_REACH = 24;
 /** Salvage this close (tiles) to an armed enemy (or enemy tower) is left until the fighting's over. */
 const SCRAP_DANGER = 7;
 /** Nor do gatherers go picking over wrecks this close (tiles) to an enemy building: that's their base. */
@@ -109,11 +109,12 @@ const SCRAP_ENEMY_BASE = 10;
 
 /**
  * Salvage to dig before anything else: the ore left by destroyed units and structures lies where
- * they fell, so gatherers go for it first (the nearest to base), but not into a fight or the enemy's base.
+ * they fell, so gatherers go for it first (the nearest to base, within SALVAGE_REACH or no further
+ * than the ore they'd dig otherwise), but not into a fight or the enemy's base.
  */
 function scrapFor(u: Ent, walk: Float32Array | null, best: Tile | null, taken: (i: number) => boolean): Tile | null {
   if (!walk) return null;
-  const limit = ais[u.team]?.on ? Math.max(SALVAGE_REACH_AI, best ? walk[best[1] * MW + best[0]] : 0) : Infinity;
+  const limit = Math.max(SALVAGE_REACH, best ? walk[best[1] * MW + best[0]] : 0);
   let foes: Ent[] | null = null, bases: Ent[] = [], pick = -1, bd = Infinity;
   for (let i = 0; i < MW * MH; i++) {
     if (!G.scrap[i] || G.ore[i] < 1 || G.blk[i]) continue;

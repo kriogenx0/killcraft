@@ -30,6 +30,7 @@ import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
 import { makeTeamDiscs, updateTeamDiscs } from './team_discs3d.ts';
+import { resetTargets, updateTargets } from './targets3d.ts';
 import { footprintRange, footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
 interface Obj { model: Model; key: string }
@@ -62,6 +63,7 @@ export function resetEntities3d(): void {
   overlays.clear();
   objs.clear();
   ringPool.length = 0;
+  resetTargets();
   resetAuras();
   markerPool.length = 0;
   ghost = null;
@@ -519,6 +521,7 @@ export function syncEntities(dt: number): void {
   }
   updateFallen();
   updateRings();
+  updateTargets(overlays, (e) => !!objs.get(e.id)?.model.root.visible);
   updateTeamDiscs(drawn);
   updateAuras(overlays, (e) => !!objs.get(e.id)?.model.root.visible);
   updateMarkers();

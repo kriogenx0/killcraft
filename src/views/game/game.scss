@@ -952,21 +952,15 @@ $sidebar-width: 248px;
       left: 0;
       display: grid;
       // a fixed height, so selecting something doesn't resize (and blank) the map canvas
-      // the radar sits pinned on the left; beside it the tabs (Selected, Buildings, Units) and the
-      // chosen tab's contents, which scroll under the pinned tabs
-      grid-auto-rows: max-content;
+      // the tabs (Selected, Buildings, Units) stay put on top; only the chosen tab's contents scroll
+      grid-template-rows: auto minmax(0, 1fr);
       grid-template-columns: minmax(0, 1fr);
       gap: $space-2;
-      align-content: start;
       width: auto;
       height: min(30vh, 240px);
-      overflow-x: hidden;
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      // no top padding: the pinned tabs sit flush with the edge so nothing scrolls past above them
+      overflow: hidden;
       // the same 8px edge as the touch bar and the floating radar
-      padding: 0 $space-2 $space-2;
-      scrollbar-width: none;
+      padding: $space-2;
       border-top-width: 3px;
       border-left-width: 0;
     }
@@ -987,14 +981,21 @@ $sidebar-width: 248px;
       top: 48px + 18px + 2 * $space-2;
     }
 
-    // its two parts take their own places in the panel's grid
-    .sidebar-selection {
-      display: contents;
+    // each tab's contents scroll on their own under the tabs
+    .sidebar-selection,
+    .build-list {
+      grid-row: 2;
+      grid-column: 1;
+      min-height: 0;
+      padding: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      background: none;
     }
 
     .selection-details {
-      grid-row: 2;
-      grid-column: 1;
       min-width: 0;
       padding: $space-1 $space-2;
       background: var(--color-inset);
@@ -1002,10 +1003,7 @@ $sidebar-width: 248px;
     }
 
     .selection-commands {
-      grid-row: 3;
-      grid-column: 1;
-      align-self: start;
-      margin-top: 0;
+      margin-top: $space-2;
     }
 
     // one tab at a time: what's selected, or a build list
@@ -1022,16 +1020,8 @@ $sidebar-width: 248px;
       }
 
       .sidebar-selection:not([hidden]) {
-        display: contents;
-      }
-
-      .selection-details {
-        grid-row: 1;
-        margin-top: $space-2;
-      }
-
-      .selection-commands {
-        grid-row: 2;
+        display: block;
+        grid-row: 1 / -1;
       }
     }
 
@@ -1117,13 +1107,8 @@ $sidebar-width: 248px;
     }
 
     .build-tabs {
-      position: sticky;
-      top: 0;
-      z-index: 2;
       grid-row: 1;
       grid-column: 1;
-      margin-top: $space-2;
-      box-shadow: 0 0 6px rgb(0 0 0 / 45%);
     }
 
     .build-tab {
@@ -1139,11 +1124,6 @@ $sidebar-width: 248px;
       top: 4px;
     }
 
-    .build-list {
-      grid-row: 2 / span 2;
-      grid-column: 1;
-      scroll-margin-top: 36px; // clear of the pinned tabs
-    }
 
     .build-list {
       display: grid;
@@ -1166,10 +1146,10 @@ $sidebar-width: 248px;
       max-width: calc(100% - 2 * #{$space-2});
     }
 
-    // smaller on phones, and every button fits, even six of them on a 320px phone
+    // smaller on phones: whole-pixel 44px buttons (fractional widths blurred the dividers), so six
+    // of them still fit on a 320px phone
     .touch-bar-seg {
-      flex: 0 1 44px;
-      min-width: 0;
+      width: 44px;
       height: 40px;
     }
 
@@ -1234,9 +1214,9 @@ $sidebar-width: 248px;
   }
 }
 
-// phones: group buttons stacked just above the smaller touch bar (40px buttons + 2px rims)
+// phones: no control-group buttons (Alex, 2026-11-26)
 @media (max-width: 760px) {
-  :root.touch-ui .view-game .group-bar {
-    margin-bottom: 44px + $space-1;
+  :root .view-game .group-bar {
+    display: none;
   }
 }

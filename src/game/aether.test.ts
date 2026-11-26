@@ -196,10 +196,10 @@ describe('Aether', () => {
     expect(errors).toEqual([]);
   });
 
-  it('comes first: an idle Worker fetches dropped Aether from well across the map, and only one goes', () => {
+  it('comes first: an idle Worker fetches dropped Aether from a way off, and only one goes', () => {
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard') as Ent;
     for (const e of G.ents) if (e.kind === 'unit' && e.team === 0) e.dead = true;
-    const carrier = addUnit('swordsman', 0, yard.x + 30 * TS, yard.y - 20 * TS);
+    const carrier = addUnit('swordsman', 0, yard.x + 15 * TS, yard.y - 10 * TS);
     carrier.ae = 20;
     dealDamage(carrier, 9999, null);
     expect(shards()).toHaveLength(1);

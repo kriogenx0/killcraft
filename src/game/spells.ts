@@ -107,6 +107,15 @@ export function applyElement(t: Ent, el: Element | undefined, src: Ent | null): 
 /** A ground vehicle so badly hurt it's on fire. */
 export const wrecked = (e: Ent): boolean => isVehicle(e) && !e.dead && e.hp < e.maxhp * WRECK_BURN_AT;
 
+/**
+ * Who a fire or poison counts against: whoever started it, unless that's a friend (fire spreads
+ * through packed troops friend or foe). Then nobody: no friendly kill, no bounty.
+ */
+const byFoe = (u: Ent, id: number | undefined): Ent | null => {
+  const by = valid(id ?? null);
+  return by && by.team !== u.team && allied(by.team, u.team) ? null : by;
+};
+
 /** Can flames jump to this unit? Soldiers and creatures on foot, not already burning, wet or frozen. */
 const catches = (e: Ent): boolean => living(e) && !isAir(e) && !e.dead && !burning(e) && !wet(e) && !frozen(e) && !e.wild?.down;
 
@@ -145,9 +154,9 @@ export function tickStatus(u: Ent, dt: number): void {
   if (G.visualOnly) return;
   if (b) {
     spread(u);
-    dealDamage(u, BURN_DPS * DOT_TICK * (sludged(u) ? 2 : 1), valid(u.burnBy ?? null), true);
+    dealDamage(u, BURN_DPS * DOT_TICK * (sludged(u) ? 2 : 1), byFoe(u, u.burnBy), true);
   }
-  if (p && !u.dead) dealDamage(u, POISON_DPS * DOT_TICK, valid(u.poisonBy ?? null), true);
+  if (p && !u.dead) dealDamage(u, POISON_DPS * DOT_TICK, byFoe(u, u.poisonBy), true);
 }
 
 // ---- casting ----
