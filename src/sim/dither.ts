@@ -18,8 +18,10 @@ import { mulberry32 } from '../util/math.ts';
 const WINDOW = 10, WALKED = 8, NET = 1.5;
 /** Seconds a Worker may stand in one spot without working before it counts as idle. */
 const STILL = 8;
+/** Tiles from the nearest drop-off a Worker gathering on its own shouldn't go past. */
+export const FAR = 36;
 
-interface Track { still: { t: number; x: number; y: number }; last: string; res: string; swaps: number[]; flips: number[]; idleT: number; carry: number; trail: { t: number; x: number; y: number; d: number; busy: boolean }[] }
+interface Track { still: { t: number; x: number; y: number }; last: string; res: string; swaps: number[]; flips: number[]; idleT: number; carry: number; trail: { t: number; x: number; y: number; d: number; busy: boolean }[]; far?: boolean }
 
 const jobOf = (u: Ent): string => (!u.order ? 'idle' : u.order.t === 'harvest' ? `${u.order.res ?? 'ore'}:${u.order.st}` : u.order.t);
 
@@ -85,6 +87,10 @@ export function watchWorkers(seed: number, seconds: number, chaos = false): stri
       else if (G.gameT - h.still.t > STILL) { say(u, `stood still ${STILL}s doing nothing`); h.still = { t: G.gameT + 1e9, x: u.x, y: u.y }; }
       // walking Aether home (Return Aether) counts as busy
       if (!u.order && !isDrawing(u) && !u.aeRun) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
+      // wandering a long way from every drop-off on its own (a player may send it anywhere)
+      const homes = G.ents.filter((b) => !b.dead && b.team === 0 && b.kind === 'bld' && b.done && ['yard', 'refinery', 'mill', 'camp'].includes(b.type));
+      const far = homes.length ? Math.min(...homes.map((b) => Math.hypot(b.x - u.x, b.y - u.y))) / TS : 0;
+      if (far > FAR && !h.far) { say(u, `went ${far.toFixed(0)} tiles from the nearest drop-off${u.order?.t === "harvest" && G.scrap[u.order.ty * MW + u.order.tx] ? " for salvage" : ""}`); h.far = true; } else if (far < FAR - 5) h.far = false;
       const p = h.trail[h.trail.length - 1];
       // busy: swinging a pick or hammer, loading or unloading, or called away to put up a new site
       const called = u.order?.t === 'heal' && u.order.sent;

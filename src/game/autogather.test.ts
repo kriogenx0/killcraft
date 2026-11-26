@@ -14,7 +14,7 @@ import { canPlace } from './building.ts';
 import { BUILDING } from '../data/building.ts';
 import { IDLE_GRACE, gatherSetting, jobOf, pickResource } from './autogather.ts';
 import { OIL_WELLS } from '../data/map.ts';
-import { dropSalvage } from './economy.ts';
+import { dropSalvage, oilLeft } from './economy.ts';
 import { mulberry32 } from '../util/math.ts';
 
 function run(seconds: number): void {
@@ -145,6 +145,17 @@ describe('idle Workers', () => {
     expect(w.order?.t === 'harvest' && w.order.src).toBe(d.id);
     expect(gatherSetting(w)).toBe('oil');
     expect(G.oil[0]).toBeGreaterThan(5000);
+  });
+
+  it('set to Oil, a Worker goes to the nearest Derrick that still has oil, past a dry one', () => {
+    const [wx, wy] = OIL_WELLS[0], [vx, vy] = OIL_WELLS[1];
+    const dry = addBuilding('derrick', 0, wx - 1, wy - 1, false), live = addBuilding('derrick', 0, vx - 1, vy - 1, false);
+    for (let y = dry.ty - 2; y < dry.ty + dry.h + 2; y++) for (let x = dry.tx - 2; x < dry.tx + dry.w + 2; x++) G.oilField[y * MW + x] = 0;
+    expect(oilLeft(dry)).toBe(0);
+    expect(oilLeft(live)).toBeGreaterThan(0);
+    const w = addUnit('worker', 0, dry.x + TS, dry.y + 2 * TS); // right by the dry one
+    applyCommand(0, { c: 'gather', ids: [w.id], res: 'oil' });
+    expect(w.order?.t === 'harvest' && w.order.src).toBe(live.id);
   });
 
   it("don't crowd a slow Oil Derrick: one Worker hauls from it, and never stands there holding oil", () => {
@@ -328,15 +339,15 @@ describe('idle Workers', () => {
       expect(w.order?.t === 'harvest' && w.order.res).toBe('wood');
     });
 
-    it('even out in the middle of the map, a long way from base', () => {
+    it('but not out in the middle of the map, a long way from base', () => {
       const ws = workers(2);
       G.credits[0] = 5000; G.wood[0] = 0;
       run(1);
       wreckAt(MW >> 1, MW >> 1);
       expect(Math.hypot(yard.tx - (MW >> 1), yard.ty - (MW >> 1))).toBeGreaterThan(36);
       let went = false;
-      for (let i = 0; i < 90 / STEP && !went; i++) { update(STEP); went = ws.some(onScrap); }
-      expect(went).toBe(true);
+      for (let i = 0; i < 60 / STEP && !went; i++) { update(STEP); went = ws.some(onScrap); }
+      expect(went).toBe(false);
     });
 
     it('but not while an enemy is standing over it', () => {
