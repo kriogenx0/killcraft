@@ -18,7 +18,7 @@ import { priceText } from './components/build_cell.ts';
 import { lowPower } from '../../game/entity.ts';
 import { oilLeft, oilRate, treesNear, storeMax } from '../../game/economy.ts';
 import { OIL_PER_DERRICK, OIL_TRICKLE } from '../../data/economy.ts';
-import { holderOf, waygateLinked } from '../../game/aether.ts';
+import { holderOf, waygateLinked, wantsHome } from '../../game/aether.ts';
 import { AETHER_RATE, SHRINE_RANGE, WARD_STONE_SIGHT } from '../../data/aether.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { barHtml } from '../../components/bar/bar.ts';
@@ -129,6 +129,15 @@ const GATHER_INFO: Record<GatherRes, { label: string; tip: string }> = {
   aether: { label: 'Aether', tip: 'Draw Aether at the deposit nearest your base, bank it, and go back for more' },
 };
 
+/** Return Aether, on by default: a unit carrying Aether takes it home before any other order. */
+function aetherCommand(s: Ent[]): Command {
+  const on = s.filter((u) => u.kind === 'unit').every((u) => !u.aeKeep);
+  return {
+    id: 'aether', label: 'Return Aether', hotkey: COMMAND_KEYS.aether, icon: ICON.aether, active: on,
+    tip: on ? 'On: a unit carrying Aether walks it straight home to bank, ignoring orders until it\'s banked. Turn off to keep it under your command' : 'Off: units carrying Aether take orders as usual. Turn on to have them walk it home first',
+  };
+}
+
 /** The Workers' gather setting: Auto, or one resource they stay on (Aether on its own button). */
 function gatherCommands(s: Ent[]): Command[] {
   const ws = s.filter((u) => u.type === 'worker');
@@ -167,6 +176,7 @@ export function commandList(): Command[] {
       ...STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
         .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) })),
       ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
+      aetherCommand(s),
       ...(s.some((u) => u.type === 'worker') ? gatherCommands(s) : []),
       ...(follow ? [follow] : []),
       ...(rally && s.some((u) => u.kind === 'unit' && !isHarvester(u)) ? [rally] : []),
@@ -217,6 +227,7 @@ export function runCommand(id: string): void {
   else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
+  else if (id === 'aether') { const us = s.filter((u) => u.kind === 'unit'); dispatch({ c: 'aether', ids: ids(us), on: !us.every((u) => !u.aeKeep) }); }
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
   else if (id === 'repair' && s[0]) dispatch({ c: 'repair', id: s[0].id });
   else if (id === 'recruit' && s[0]) dispatch({ c: 'recruit', id: s[0].id });
@@ -266,6 +277,7 @@ const HARVEST_STEP = { go: 'Heading for', gather: 'Gathering', ret: 'Bringing ho
 /** What a unit is doing right now. */
 export function unitAction(e: Ent): string {
   const o = e.order;
+  if (e.aeRun ?? wantsHome(e)) return 'Carrying Aether home';
   if (e.shot !== null && valid(e.shot)) return `Shooting at ${entName(e.shot)}`;
   if (!o) return 'Idle';
   if (o.t === 'move') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : 'Moving';

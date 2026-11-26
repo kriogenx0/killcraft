@@ -32,8 +32,10 @@ const KNEELING = 128;
 const STONE = 1 << 30;
 /** two bits above the flags: the stance of one of our own units (the HUD shows it) */
 const STANCE_SHIFT = 4;
-/** Aether a unit carries, in the bits above the flags (it glows, and drops it if it falls) */
+/** Aether a unit carries, in the 7 bits above the flags (it glows, and drops it if it falls) */
 const AE_SHIFT = 8;
+/** one of our own units has Return Aether switched off (the bit above its Aether) */
+const AE_KEEP = 1 << 15;
 /** spells and elements on a unit, one bit each above the Aether (game/spells.ts) */
 const STATUS_SHIFT = 16;
 const STATUS = ['burnT', 'poisonT', 'wetT', 'sludgeT', 'frozenT', 'lustT', 'curseT'] as const;
@@ -49,7 +51,7 @@ function statusBits(e: Ent): number {
 
 export function encodeEnt(e: Ent, own: boolean): EntRow {
   const stance = own && e.kind === 'unit' ? STANCES.indexOf(e.stance) << STANCE_SHIFT : 0;
-  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance | (e.kind === 'unit' ? Math.min(255, Math.ceil(e.ae ?? 0)) << AE_SHIFT : 0)
+  const flags = (e.moving ? MOVING : 0) | (e.done ? DONE : 0) | (e.repairing ? REPAIRING : 0) | (e.atkT > 0 ? FIRING : 0) | ((e.drawT ?? 0) > G.gameT ? DRAWING : 0) | (e.wild?.down ? KNEELING : 0) | stance | (e.kind === 'unit' ? Math.min(127, Math.ceil(e.ae ?? 0)) << AE_SHIFT : 0) | (own && e.aeKeep ? AE_KEEP : 0)
     | statusBits(e) | ((e.stoneT ?? 0) > G.gameT ? STONE : 0) | (own && maxMana(e) ? Math.round(clamp((e.mana ?? 0) / maxMana(e), 0, 1) * 127) << MANA_SHIFT : 0);
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
@@ -153,7 +155,8 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     }
     e.drawT = flags & DRAWING ? G.gameT + 0.4 : 0;
     if (e.kind === 'unit') {
-      e.ae = (flags >> AE_SHIFT) & 255;
+      e.ae = (flags >> AE_SHIFT) & 127;
+      e.aeKeep = flags & AE_KEEP ? true : undefined;
       const st = (flags >> STATUS_SHIFT) & 127;
       STATUS.forEach((k, i) => { e[k] = st & (1 << i) ? G.gameT + 0.6 : 0; });
       e.stoneT = flags & STONE ? G.gameT + 0.4 : 0;

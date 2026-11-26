@@ -92,13 +92,17 @@ function glowTexture(): THREE.CanvasTexture {
 }
 
 const glowPool: THREE.Sprite[] = [];
+/** a small spinning Aether crystal floating over each carrier's head, so carriers stand out in a crowd */
+const gemGeo = new THREE.OctahedronGeometry(1, 0).scale(0.6, 1, 0.6);
+const gemMat = new THREE.MeshBasicMaterial({ color: '#e2b8ff', transparent: true, opacity: 0.95, fog: false });
+const gemPool: THREE.Mesh[] = [];
 
 /** A soft violet halo round every visible unit carrying Aether, brighter the more it holds, and round dropped Aether. Call once per frame. */
 export function updateAetherGlows(): void {
   if (layer.parent !== S.scene) S.scene.add(layer);
   glowTex ??= glowTexture();
   const t = performance.now() / 1000;
-  let n = 0;
+  let n = 0, g = 0;
   for (const e of G.ents) {
     if (e.dead) continue;
     const carrying = e.kind === 'unit' && (e.ae ?? 0) > 0.5, dropped = e.type === 'shard';
@@ -115,8 +119,22 @@ export function updateAetherGlows(): void {
     const h = dropped ? 0.12 : Math.min(0.45, modelHeight(e) * 0.45);
     s.visible = true;
     s.position.set(e.x / TS, groundY(e.x, e.y) + h, e.y / TS);
-    s.scale.setScalar((dropped ? 0.55 : 0.5 + full * 0.25) * (0.95 + pulse * 0.1));
-    s.material.opacity = (dropped ? 0.55 : 0.22 + full * 0.18) * (0.85 + pulse * 0.15);
+    s.scale.setScalar((dropped ? 0.55 : 0.65 + full * 0.35) * (0.9 + pulse * 0.2));
+    s.material.opacity = (dropped ? 0.55 : 0.45 + full * 0.3) * (0.85 + pulse * 0.15);
+    if (!carrying) continue;
+    let m = gemPool[g];
+    if (!m) {
+      m = new THREE.Mesh(gemGeo, gemMat);
+      m.renderOrder = 4;
+      gemPool.push(m);
+      layer.add(m);
+    }
+    g++;
+    m.visible = true;
+    m.position.set(e.x / TS, groundY(e.x, e.y) + modelHeight(e) + 0.18 + Math.sin(t * 2.4 + e.id) * 0.04, e.y / TS);
+    m.rotation.y = t * 2 + e.id;
+    m.scale.setScalar(0.07 + full * 0.05);
   }
   for (let i = n; i < glowPool.length; i++) glowPool[i].visible = false;
+  for (let i = g; i < gemPool.length; i++) gemPool[i].visible = false;
 }

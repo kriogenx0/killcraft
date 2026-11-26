@@ -36,6 +36,10 @@ export const AETHER_RATE = 2;
 /** Aether one unit can carry. It counts once the unit brings it within AETHER_BANK_REACH tiles of its own Town Hall or Refinery, and is lost if the unit dies. */
 export const AETHER_CARRY = 40;
 export const AETHER_BANK_REACH = 3;
+/** Return Aether (on by default): a unit carrying at least this much walks it home, whatever it was told. */
+export const AETHER_RETURN_MIN = 1;
+/** A unit with Return Aether on that can't reach a drop-off gives up for this long (seconds) and takes orders again. */
+export const AETHER_RETURN_RETRY = 10;
 /** A unit holds a deposit from within this many tiles of it. */
 export const AETHER_REACH = 2.5;
 

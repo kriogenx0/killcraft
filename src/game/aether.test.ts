@@ -101,6 +101,7 @@ describe('Aether', () => {
   it('draws Aether only while one side holds a deposit, and runs dry, then slowly grows back', () => {
     const d = deposits()[0];
     const u = beside(d, 'swordsman', 0), v = beside(d, 'swordsman', 0); // a crowd draws no faster
+    u.aeKeep = v.aeKeep = true; // carried home by hand here
     run(10.5);
     const carried = () => (u.ae ?? 0) + (v.ae ?? 0);
     expect(carried()).toBeCloseTo(AETHER_RATE * 10, -1);

@@ -5,13 +5,13 @@ import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester,
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
-import { DIRS, adjTile, edgeDist, nearestFree, pathFor } from './path.ts';
+import { DIRS, adjTile, edgeDist, nearestFree, pathFor, pathTo } from './path.ts';
 import { approach, canStep, cruise, followPath, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
-import { shardFor } from './aether.ts';
-import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, SHARD_PULL } from '../data/aether.ts';
+import { shardFor, wantsHome } from './aether.ts';
+import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, AETHER_RETURN_RETRY, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
@@ -562,6 +562,58 @@ export function updUnit(u: Ent, dt: number): void {
   if (!u.moving && !u.dead && unitDef(u).jet && !frozen(u) && !stone(u)) cruise(u, dt);
 }
 
+/** The path and goal of a unit carrying Aether home (kept apart, so orders given meanwhile can't steer it), and when one that couldn't get there may try again. */
+const homeWay = new WeakMap<Ent, { path: Tile[] | null; goal: Tile | null }>();
+const homeRetry = new WeakMap<Ent, number>();
+
+/** Is this unit walking Aether home under Return Aether? A Worker sent to draw Aether fills up at its deposit first. */
+function carryingHome(u: Ent): boolean {
+  if (!wantsHome(u) || (homeRetry.get(u) ?? -1) > G.gameT) return false;
+  return !(u.type === 'worker' && aetherJobOf(u) && (u.ae ?? 0) < AETHER_CARRY - 0.5);
+}
+
+/**
+ * Return Aether: a unit carrying Aether walks it straight home to bank, ignoring orders (the last
+ * one waits, and it carries on with it once the Aether is banked). An armed unit shoots what it
+ * passes but doesn't stop. Returns true while it's doing that.
+ */
+function aetherHome(u: Ent, dt: number): boolean {
+  const home = carryingHome(u) ? bankAt(u, ['yard', 'refinery']) : null;
+  if (!home) {
+    if (u.aeRun) {
+      // banked (or switched off): back to its orders, with a fresh path
+      u.aeRun = false;
+      homeWay.delete(u);
+      u.shot = null;
+      u.scan = 0;
+      const o = u.order;
+      if (o?.t === 'move' && !o.sub) { u.goal = [o.gx, o.gy]; u.path = pathFor(u, o.gx, o.gy); } else { u.path = null; u.goal = null; }
+    }
+    return false;
+  }
+  const near = edgeDist(u, home) <= AETHER_BANK_REACH * TS * 0.8;
+  let way = homeWay.get(u);
+  if (!u.aeRun || !way) {
+    u.aeRun = true;
+    u.goal = null;
+    const path = near ? [] : pathTo(u, home) ?? [];
+    way = { path, goal: u.goal };
+    homeWay.set(u, way);
+  }
+  u.path = way.path;
+  u.goal = way.goal;
+  if (u.path?.length) followPath(u, dt);
+  way.path = u.path;
+  if (!u.path?.length && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) {
+    // no way home from here: take orders again for a while
+    homeRetry.set(u, G.gameT + AETHER_RETURN_RETRY);
+    return aetherHome(u, dt);
+  }
+  const d = unitDef(u);
+  if (d.weapon && !isHarvester(u) && !d.deploy) fireOnTheMove(u, dt);
+  return true;
+}
+
 function act(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
@@ -581,6 +633,7 @@ function act(u: Ent, dt: number): void {
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
   if (u.wild) { updWild(u, dt); return; } // guards its lair (data/creatures.ts)
   if (u.demon) { updDemon(u, dt); return; } // lurks by the Gate of Hell, or raids the leader (data/hell.ts)
+  if (aetherHome(u, dt)) return; // Return Aether: banking comes before orders
   const o = u.order;
   if (u.stance !== 'skirmish') u.shot = null;
   if (!o) {

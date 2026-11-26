@@ -6,7 +6,7 @@ import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import { layoutFor, WATER_LEVEL } from '../data/map.ts';
 import {
-  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, AETHER_DRY, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_SITES,
+  AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, AETHER_DRY, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_RETURN_MIN, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
@@ -145,6 +145,20 @@ export function bankAether(): void {
     u.ae = 0;
     if (!G.aetherFound[u.team]) { G.aetherFound[u.team] = true; say(u.team, 'Aether found! Hidden units revealed'); }
   }
+}
+
+/**
+ * Return Aether (on unless the player switched it off for this unit): should it walk the Aether it
+ * carries home now, ignoring its orders? Not while it's still filling up at a deposit its side holds
+ * (once on its way, it keeps going, so it doesn't dither at the edge of a deposit's reach).
+ */
+export function wantsHome(u: Ent): boolean {
+  if (u.kind !== 'unit' || u.team < 0 || u.aeKeep || (u.ae ?? 0) < AETHER_RETURN_MIN) return false;
+  if (!u.aeRun && (u.ae ?? 0) < AETHER_CARRY - 0.5) {
+    const r = AETHER_REACH * TS;
+    if (deposits().some((d) => Math.hypot(d.x - u.x, d.y - u.y) <= r && holderOf(d) === u.team)) return false;
+  }
+  return true;
 }
 
 /** Speed multiplier for a unit (hexed units crawl for a moment). */
