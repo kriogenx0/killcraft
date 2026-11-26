@@ -18,6 +18,8 @@ export type Command =
   | { c: 'patrol'; ids: number[]; tx: number; ty: number; form?: boolean }
   | { c: 'stance'; ids: number[]; stance: Stance }
   | { c: 'stop'; ids: number[] }
+  /** Return Aether on or off: on (the default), a unit carrying Aether walks it home before taking orders */
+  | { c: 'aether'; ids: number[]; on: boolean }
   | { c: 'tend'; ids: number[] }
   | { c: 'harvest'; ids: number[]; tx: number; ty: number }
   | { c: 'return'; ids: number[] }
@@ -60,6 +62,8 @@ export function parseCommand(raw: unknown): Command | null {
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number, ...(o.form === true ? { form: true } : {}) } : null;
     case 'stance':
       return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
+    case 'aether':
+      return isIds(o.ids) && typeof o.on === 'boolean' ? { c: 'aether', ids: o.ids, on: o.on } : null;
     case 'stop':
     case 'tend':
     case 'return':
@@ -111,8 +115,14 @@ function ownBuilding(team: number, id: number): Ent | null {
 export function applyCommand(team: number, cmd: Command): void {
   // any other order for a Worker ends "fix, then harvest"
   // a new order replaces the job a Worker meant to go back to (a change of stance doesn't)
-  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance') for (const u of ownUnits(team, cmd.ids)) { forgetResume(u); forgetAether(u); }
+  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance' && cmd.c !== 'aether') for (const u of ownUnits(team, cmd.ids)) { forgetResume(u); forgetAether(u); }
+  // units walking Aether home take the order once it's banked
+  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance' && cmd.c !== 'aether' && ownUnits(team, cmd.ids).some((u) => u.aeRun))
+    say(team, 'Carrying Aether home first. Turn off Return Aether to send them now');
   switch (cmd.c) {
+    case 'aether':
+      for (const u of ownUnits(team, cmd.ids)) u.aeKeep = cmd.on ? undefined : true;
+      break;
     case 'tend':
       // Workers fix everything damaged nearby (buildings, sites, wounded units), then go back to harvesting
       // the Fix, then harvest stance (sent by older clients as its own command)

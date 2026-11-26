@@ -150,6 +150,9 @@ export function refreshSidebar(): void {
     lastProducer = producer;
     if (producer) showTab(isUnitProducer(BUILDING[producer].produces) ? 'unit' : 'structure');
   }
+  // spectators can't build or train: no Buildings / Units tabs, just the radar and what's selected
+  const bar = structureList.closest('.sidebar'), watch = spectating();
+  if (bar && bar.classList.contains('sidebar--watch') !== watch) bar.classList.toggle('sidebar--watch', watch);
   // a new selection (other than a producer, which opens its build tab) opens the Selected tab;
   // selecting nothing goes back to the build tab
   const pane = structureList.closest('.sidebar')?.querySelector<HTMLElement>('.sidebar-selection');

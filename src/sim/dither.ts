@@ -83,7 +83,8 @@ export function watchWorkers(seed: number, seconds: number, chaos = false): stri
       const pump = u.order?.t === 'harvest' && u.order.res === 'oil' && !u.order.auto && u.order.st === 'gather';
       if (pump || u.atkT > 0 || isDrawing(u) || Math.abs(u.carry - h.carry) > 0.01 || Math.hypot(u.x - h.still.x, u.y - h.still.y) > TS / 2) h.still = { t: G.gameT, x: u.x, y: u.y };
       else if (G.gameT - h.still.t > STILL) { say(u, `stood still ${STILL}s doing nothing`); h.still = { t: G.gameT + 1e9, x: u.x, y: u.y }; }
-      if (!u.order && !isDrawing(u)) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
+      // walking Aether home (Return Aether) counts as busy
+      if (!u.order && !isDrawing(u) && !u.aeRun) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
       const p = h.trail[h.trail.length - 1];
       // busy: swinging a pick or hammer, loading or unloading, or called away to put up a new site
       const called = u.order?.t === 'heal' && u.order.sent;
