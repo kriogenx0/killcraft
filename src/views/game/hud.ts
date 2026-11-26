@@ -1,5 +1,5 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
-import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, unitDef, valid, type Ent, type Stance } from '../../game/state.ts';
+import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, reactOf, unitDef, valid, type Ent, type React, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
 import { extraHall, scrapRefund } from '../../game/building.ts';
@@ -27,7 +27,7 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandsHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, REACT_KEYS, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
 import { V, ownSelected, spectating, toggleFormation } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, shielded, sludged, wet } from '../../game/spells.ts';
@@ -77,9 +77,26 @@ export function setSelection(list: Ent[]): void {
 const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
   engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on' },
   skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping (default)' },
-  passive: { label: 'Don\'t attack', tip: 'Hold fire and run away from enemies. Workers just keep harvesting' },
+  passive: { label: 'Don\'t attack', tip: 'Hold fire. Set to Evade when attacked (below), it also keeps away from enemies that come near. Workers just keep harvesting' },
   tend: { label: 'Fix & Harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
+
+/** What a unit does when it's attacked: a second pick-one bar under the attack modes, in Alex's order. */
+const REACT_INFO: Record<React, { label: string; key: string; tip: string }> = {
+  evade: { label: 'Evade', key: REACT_KEYS.evade, tip: 'When attacked, run away from the attacker. Orders you gave come first' },
+  pursue: { label: 'Pursue', key: REACT_KEYS.pursue, tip: 'When attacked, go after the attacker and fight it (default for fighters)' },
+  hold: { label: 'Stay still', key: REACT_KEYS.hold, tip: 'When attacked, stay put and fire back only if it\'s in range. Workers, Harvesters and Medics carry on working (their default)' },
+};
+const REACT_ORDER: React[] = ['evade', 'pursue', 'hold'];
+const REACT_GROUP = 'When attacked';
+
+/** The When attacked bar for the selected units: Pursue only if one of them can fight. */
+function reactCommands(s: Ent[]): Command[] {
+  const us = s.filter((u) => u.kind === 'unit'), fighters = us.some((u) => unitDef(u).weapon && !isHarvester(u));
+  return REACT_ORDER.filter((r) => r !== 'pursue' || fighters).map((r): Command => ({
+    id: `react:${r}`, label: REACT_INFO[r].label, hotkey: REACT_INFO[r].key, icon: ICON[`react:${r}`], tip: REACT_INFO[r].tip, group: REACT_GROUP, active: us.every((u) => reactOf(u) === r),
+  }));
+}
 
 /** caption over the stance buttons, which are drawn joined as one pick-one bar */
 const STANCE_GROUP = 'Attack mode';
@@ -175,13 +192,13 @@ export function commandList(): Command[] {
       ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon && !isHarvester(u)) ? [{ id: 'attack', label: 'Attack', hotkey: COMMAND_KEYS.attack, icon: ICON.attack, tip: 'Pick an enemy unit or building (a wall too) for your fighters to attack and stay on until it falls' }] : []),
       ...(s.some((u) => u.kind === 'unit' && (unitDef(u).weapon || u.type === 'medic')) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way (Medics heal the wounded they pass)' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
-      // units that can't attack (Harvesters, Medics) have no attack modes: just Evade attacks, on or off
+      // units that can't attack (Harvesters, Medics) have no attack modes, only what to do when attacked
       ...(s.every(unarmed)
-        ? [{ id: 'evade', label: 'Evade attacks', hotkey: COMMAND_KEYS.passive, icon: ICON.passive, active: s.every((u) => u.stance === 'passive'),
-          tip: s.every(isHarvester) ? 'Keep out of trouble: a Harvester carries on harvesting, and you get told when it\'s hit' : 'Run away from enemies that come near, then carry on' }]
+        ? []
         // Fix, then harvest is for Workers only (and is theirs by default)
         : STANCE_ORDER.filter((st) => st !== 'tend' || s.some((u) => u.type === 'worker'))
           .map((st): Command => ({ id: st, label: STANCE_INFO[st].label, hotkey: COMMAND_KEYS[st], icon: ICON[st], tip: STANCE_INFO[st].tip, group: STANCE_GROUP, active: s.filter((u) => st !== 'tend' || u.type === 'worker').every((u) => u.stance === st) }))),
+      ...reactCommands(s),
       // a Harvester's one job, a button to send it back to it
       ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvest, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
       ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
@@ -236,7 +253,7 @@ export function runCommand(id: string): void {
   else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'rally') V.mode = { t: id };
   else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (id === 'harvest') dispatch({ c: 'gather', ids: ids(s.filter(isHarvester)), res: 'ore' });
-  else if (id === 'evade') { const us = s.filter((u) => u.kind === 'unit'), on = us.every((u) => u.stance === 'passive'); dispatch({ c: 'stance', ids: ids(us), stance: on ? 'skirmish' : 'passive' }); }
+  else if (id.startsWith('react:')) dispatch({ c: 'react', ids: ids(s.filter((u) => u.kind === 'unit')), react: id.slice(6) as React });
   else if (isStance(id)) dispatch({ c: 'stance', ids: ids(s.filter((u) => u.kind === 'unit')), stance: id });
   else if (id === 'aether') { const us = s.filter((u) => u.kind === 'unit'); dispatch({ c: 'aether', ids: ids(us), on: !us.every((u) => !u.aeKeep) }); }
   else if (id === 'stop') dispatch({ c: 'stop', ids: ids(s.filter((u) => u.kind === 'unit')) });
@@ -348,7 +365,7 @@ function unitDetails(e: Ent): string {
     ['Cost', costText(e.type)],
   ];
   if (d.weapon) rows.push(['DPS', dpsRow(d.weapon, weaponFactor(e)), true]);
-  if (insight(e)) rows.push(['Doing', unarmed(e) ? `${unitAction(e)}${e.stance === 'passive' ? ' · Evade attacks' : ''}` : `${unitAction(e)} · ${STANCE_INFO[e.stance].label}`, true]);
+  if (insight(e)) rows.push(['Doing', `${unitAction(e)}${unarmed(e) ? '' : ` · ${STANCE_INFO[e.stance].label}`} · ${REACT_INFO[reactOf(e)].label} when attacked`, true]);
   if (isHarvester(e)) rows.push(['Load', `${CARGO[e.cargo ?? 'ore']} ${Math.round(e.carry)} / ${loadOf(e)}`, true]);
   if (e.loot) rows.push(['Bounty', `${Math.round(e.loot)} ore: bring it near your Town Hall or a Refinery`, true]);
   if (d.weapon && WEAPON[d.weapon].element) { const el = WEAPON[d.weapon].element!; rows.push(['Element', `${ELEMENT_NAME[el]}: ${ELEMENT_DESC[el]}`, true]); }

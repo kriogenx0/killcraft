@@ -32,6 +32,10 @@ export const COMMAND_GLYPH: Record<string, string> = {
   harvest: svg('<path d="M3 9Q11 1 19 6"/><path d="M11.5 4.2L6 21"/><path d="M18 12.5l3.5 4-3.5 5-3.5-5z"/>'),
   // Return Aether: a small Aether star carried home along a curved arrow
   aether: svg('<path d="M15 2.5l1.3 3.2 3.2 1.3-3.2 1.3L15 11.5l-1.3-3.2-3.2-1.3 3.2-1.3z"/><path d="M11 13.5c-4 .5-6.5 2.5-7 6"/><path d="M3 15.5l1 4 4-1.5"/><path d="M14 21v-4.5l3.5-2.5 3.5 2.5V21z"/>'),
+  // when attacked: run off (a figure's arrow bending away from a hit), go after it (double chevron), stand firm (feet planted on a line)
+  'react:evade': svg('<path d="M4 6l5 5"/><path d="M4 11V6h5"/><path d="M20 18a8 8 0 0 0-8-8"/><path d="M17 21l3-3-3-3"/>'),
+  'react:pursue': svg('<path d="M4 6l6 6-6 6M12 6l6 6-6 6"/>'),
+  'react:hold': svg('<path d="M4 20h16"/><path d="M12 3v13"/><path d="M8 12l4 4 4-4"/>'),
   rally: svg('<path d="M6 21V3"/><path d="M6 4l13 4.5L6 13"/><path d="M3 21h7"/>'),
   follow: svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
   cancel: svg('<path d="M6 6l12 12M18 6L6 18"/>'),

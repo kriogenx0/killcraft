@@ -1,6 +1,6 @@
 // Compact per-team snapshots of the world. The server encodes what one team can see; the online
 // client decodes it into its own copy of the world, which the normal renderer then draws.
-import { G, STANCES, allied, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
+import { G, REACTS, STANCES, allied, reactOf, tileOf, valid, type Ent, type EntType } from '../game/state.ts';
 import { MW, TS } from '../game/const.ts';
 import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -21,7 +21,7 @@ export const TYPES: EntType[] = [...UNIT_TYPES, 'yard', 'power', 'refinery', 'ba
   'shrine', 'wardstone', 'waygate', 'shard', 'camp'];
 const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 
-/** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY, building age, upgrade*100 (-1: none)] */
+/** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY, building age, upgrade*100 (-1: none) or for our own units the REACTS index] */
 export type EntRow = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 /** fire: shooter, target, weapon · died: id · say: message · alert: x, y */
 export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number];
@@ -57,7 +57,7 @@ export function encodeEnt(e: Ent, own: boolean): EntRow {
     | statusBits(e) | ((e.stoneT ?? 0) > G.gameT ? STONE : 0) | (own && maxMana(e) ? Math.round(clamp((e.mana ?? 0) / maxMana(e), 0, 1) * MANA_MAX) << MANA_SHIFT : 0);
   const rally = own && e.rally ? e.rally : { x: -1, y: -1 };
   return [e.id, TYPES.indexOf(e.type), e.team, Math.round(e.x), Math.round(e.y), Math.ceil(e.hp), Math.round(e.face * 100), Math.round(e.tface * 100),
-    Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y), e.lvl ?? 0, own && e.upT != null ? Math.floor(e.upT * 100) : -1];
+    Math.round(e.carry), flags, Math.round(e.prog * 100), Math.round(rally.x), Math.round(rally.y), e.lvl ?? 0, own && e.upT != null ? Math.floor(e.upT * 100) : own && e.kind === 'unit' ? REACTS.indexOf(reactOf(e)) : -1];
 }
 
 /** Is this entity something the team can currently see (or has seen, for buildings)? */
@@ -159,6 +159,8 @@ export function applySnapshot(rows: EntRow[], events: FxEvent[], onEvent: (ev: F
     if (e.kind === 'unit') {
       e.ae = (flags >> AE_SHIFT) & 127;
       e.aeKeep = flags & AE_KEEP ? true : undefined;
+      // one of ours: what it does when attacked (the last column, a building's upgrade progress)
+      e.react = up != null && up >= 0 ? REACTS[up] : undefined;
       const st = (flags >> STATUS_SHIFT) & 255;
       STATUS.forEach((k, i) => { e[k] = st & (1 << i) ? G.gameT + 0.6 : 0; });
       e.shieldHp = e.shieldT ? SHIELD_HP : 0; // the bubble shows; only the server knows what's left of it

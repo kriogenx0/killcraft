@@ -497,6 +497,8 @@ function onKey(ev: KeyboardEvent): void {
   if (k === 'f' && (ev.shiftKey || spectating())) { toggleFollow(); refreshCommands(true); return; }
   if (k === 'r' && ev.shiftKey) { if (!spectating()) startRally(); return; }
   if (k === 'm' && ev.shiftKey) { if (ownSelected().filter((e) => e.kind === 'unit').length > 1) { toggleFormation(); refreshCommands(true); } return; }
+  // Shift with a letter: the card's Shift commands, such as what to do when attacked
+  if (ev.shiftKey && /^[a-z]$/.test(k) && runHotkey(`shift+${k}`)) { ev.preventDefault(); refreshCommands(true); return; }
   const hk = normalizeKey(ev.key);
   // the command card first, so a unit's M, X, G, F and V beat the Town Hall's letters
   if (runHotkey(hk) || productionHotkey(hk)) { ev.preventDefault(); refreshCommands(true); }

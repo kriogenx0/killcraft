@@ -28,6 +28,25 @@ export type Stance = (typeof STANCES)[number];
  * The stance a new unit starts on: Workers fix, then harvest; a person's troops move & attack
  * (Alex, 2026-11-24); the computer's troops engage, which its attacks and wall-breaching rely on.
  */
+/**
+ * What a unit does when it's attacked (Alex, 2026-11-26). pursue: go after the attacker and fight it ·
+ * hold: stay put, firing back only at what's in range (gatherers carry on working) · evade: run away
+ * from the attacker.
+ */
+export const REACTS = ['pursue', 'hold', 'evade'] as const;
+export type React = (typeof REACTS)[number];
+
+/**
+ * A unit's "when attacked" setting. Unset, fighters pursue and Workers, Harvesters and Medics hold
+ * (carry on with their work), for people and the computer alike; a unit left on the old "Don't
+ * attack" or "Evade attacks" (passive) evades, as it always has.
+ */
+export function reactOf(u: Ent): React {
+  if (u.react) return u.react;
+  if (u.stance === 'passive') return 'evade';
+  return u.kind === 'unit' && unitDef(u).weapon && u.type !== 'worker' && !unitDef(u).haul ? 'pursue' : 'hold';
+}
+
 export const defaultStance = (type: string, team: number): Stance => (type === 'worker' ? 'tend' : G.human[team] ? 'skirmish' : 'engage');
 
 /** A move to a tile; `sub` is the enemy an engaging unit has stopped to fight on the way. */
@@ -36,7 +55,7 @@ export const defaultStance = (type: string, team: number): Stance => (type === '
  * `pace`: marching in formation, the group's slowest speed (tiles/s), which no one with the pack goes
  * faster than; `fid` names the formation, so a straggler behind the pack can run to catch up.
  */
-export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number }
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number; /** running away (Evade): it stops for nothing */ flee?: boolean }
 /** pick: the target the player chose, while the unit fights off something that hit it on the way; it goes back to it after. */
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number; pick?: number }
 /** What a unit is carrying home. */
@@ -116,6 +135,8 @@ export interface Ent extends Target {
   moving: boolean;
   atkT: number;
   stance: Stance;
+  /** when attacked: see REACTS and reactOf (unset: the unit's default) */
+  react?: React;
   /** seconds a gun that must dig in (UnitDef.deploy) has stood still */
   setT?: number;
   /** the enemy a skirmishing unit is shooting at without stopping */

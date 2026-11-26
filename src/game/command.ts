@@ -1,11 +1,11 @@
 // Player commands. Every player action goes through here, whether applied locally (solo) or
 // received from a network client (online), so the server can validate everything a client asks for.
-import { G, STANCES, allied, isHarvester, say, targetable, unitDef, valid, type Ent, type Stance } from './state.ts';
+import { G, REACTS, STANCES, allied, isHarvester, say, targetable, unitDef, valid, type Ent, type React, type Stance } from './state.ts';
 import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderAttack, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setStance } from './order.ts';
+import { groupMove, orderAttack, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setReact, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
@@ -17,6 +17,7 @@ export type Command =
   | { c: 'move'; ids: number[]; tx: number; ty: number; form?: boolean }
   | { c: 'patrol'; ids: number[]; tx: number; ty: number; form?: boolean }
   | { c: 'stance'; ids: number[]; stance: Stance }
+  | { c: 'react'; ids: number[]; react: React }
   | { c: 'stop'; ids: number[] }
   /** Return Aether on or off: on (the default), a unit carrying Aether walks it home before taking orders */
   | { c: 'aether'; ids: number[]; on: boolean }
@@ -62,6 +63,8 @@ export function parseCommand(raw: unknown): Command | null {
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: o.c, ids: o.ids, tx: o.tx as number, ty: o.ty as number, ...(o.form === true ? { form: true } : {}) } : null;
     case 'stance':
       return isIds(o.ids) && (STANCES as readonly unknown[]).includes(o.stance) ? { c: 'stance', ids: o.ids, stance: o.stance as Stance } : null;
+    case 'react':
+      return isIds(o.ids) && (REACTS as readonly unknown[]).includes(o.react) ? { c: 'react', ids: o.ids, react: o.react as React } : null;
     case 'aether':
       return isIds(o.ids) && typeof o.on === 'boolean' ? { c: 'aether', ids: o.ids, on: o.on } : null;
     case 'stop':
@@ -137,6 +140,9 @@ export function applyCommand(team: number, cmd: Command): void {
       break;
     case 'stance':
       for (const u of ownUnits(team, cmd.ids)) setStance(u, cmd.stance);
+      break;
+    case 'react':
+      for (const u of ownUnits(team, cmd.ids)) setReact(u, cmd.react);
       break;
     case 'stop':
       ownUnits(team, cmd.ids).forEach(orderStop);
