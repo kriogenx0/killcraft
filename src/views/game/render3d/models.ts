@@ -205,7 +205,7 @@ function rifleman(team: number): Model {
   return m;
 }
 
-/** World War: a machine gunner in a peaked cap with an ammo belt, a belt-fed gun and its bipod. */
+/** Industrial: a machine gunner in a peaked cap with an ammo belt, a belt-fed gun and its bipod. */
 function gunner(team: number): Model {
   const m = soldier({ torso: M.khaki(), legs: M.olive(), arms: M.khaki(), boots: M.leather() });
   m.root.add(mesh(shell(0.295, 0.39, 0.008), teamMat(team))); // tunic front
@@ -698,7 +698,7 @@ function artillery(team: number): Model {
   return { root, parts, height: 0.55 };
 }
 
-/** Medieval and World War: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
+/** Medieval and Industrial: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
 function worker(team: number): Model {
   const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
   m.root.add(mesh(shell(0.24, 0.3, 0.008), teamMat(team))); // sash
@@ -1298,7 +1298,7 @@ function hospital(m: Model): Model {
 }
 
 /**
- * Armory, World War and Modern: an arsenal. A flat-roofed, windowless magazine with a stepped
+ * Armory, Industrial and Modern: an arsenal. A flat-roofed, windowless magazine with a stepped
  * parapet, a tall square chimney from its foundry (the `flue0` part smokes), a roller door under the
  * team's crossed-swords crest, and a yard of shell pyramids, ammunition crates and a gun barrel on
  * trestles. Squared off and chimneyed, so it never reads as the Barracks' round hut.
@@ -1383,7 +1383,7 @@ function hallFlag(root: THREE.Object3D, parts: Parts, team: number, x: number, y
 }
 
 /**
- * The Town Hall in the World War age: a brick civic hall with a columned stone porch and a clock
+ * The Town Hall in the Industrial age: a brick civic hall with a columned stone porch and a clock
  * tower. (The Medieval hall is a timber longhouse inside a palisade: see medieval.ts.)
  */
 function townHallBrick(team: number): Model {
@@ -1497,7 +1497,7 @@ function industrial(m: Model): Model {
 
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
- * 0 wood and thatch (Medieval), 2 brick and iron (World War), 3 concrete and steel (Modern).
+ * 0 wood and thatch (Medieval), 2 brick and iron (Industrial), 3 concrete and steel (Modern).
  * The Watchtower, Lumber Mill and Mining Camp grow into dressed stone (look 1) and stop there; the Oil Derrick,
  * Engine Works and Flak Cannon are brick and iron until the Modern age, even in a Medieval town.
  */

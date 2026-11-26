@@ -30,8 +30,8 @@ export interface BldDef {
   /** power produced (positive) or used (negative) */
   power: number;
   sight: number;
-  /** finishing this structure takes its side into this age (see data/era.ts) */
-  advances?: number;
+  /** this structure lets its side research this age at the Town Hall (see data/era.ts); one per side, and none after that age */
+  opens?: number;
   /** buildings that must exist before this one can be built */
   requires: BldType[];
   /** what this building produces, if anything */
@@ -62,13 +62,13 @@ export const BUILDING: Record<BldType, BldDef> = {
   tower: { name: 'Watchtower', size: 1, top: 44, hp: 420, cost: 400, wood: 150, t: 9, era: 0, power: -10, sight: 7, requires: ['barracks'], weapon: 'ballista', buildable: true, desc: 'Stone tower with a ballista on top. Strong against infantry and cavalry.' },
   turret: { name: 'Gun Turret', size: 1, top: 12, hp: 450, cost: 700, t: 10, era: 1, power: -20, sight: 7, requires: ['barracks'], weapon: 'turretcannon', buildable: true, desc: 'Defensive cannon. Strong against vehicles.' },
   derrick: { name: 'Oil Derrick', size: 2, top: 40, hp: 500, cost: 800, t: 16, era: 0, power: -30, sight: 4, requires: ['refinery'], buildable: true, desc: 'Pumps oil for tanks, jeeps and rockets. Build it on an oil well (the dark pools); wells run dry and never refill.' },
-  works: { name: 'Engine Works', size: 2, top: 40, hp: 700, cost: 1000, wood: 150, t: 35, era: 0, advances: 1, power: -20, sight: 5, requires: ['derrick'], buildable: true, desc: 'Turns your oil into engines and gunpowder. Finishing it takes your side into the World War age. Needs an Oil Derrick.' },
-  // walls: one-tile segments placed by dragging a line: timber and stone in the Medieval age, concrete from WWI
+  works: { name: 'Engine Works', size: 2, top: 40, hp: 700, cost: 1000, wood: 150, t: 35, era: 0, opens: 1, power: -20, sight: 5, requires: ['derrick'], buildable: true, desc: 'Turns your oil into engines and gunpowder. Lets the Town Hall research the Industrial age. Needs an Oil Derrick.' },
+  // walls: one-tile segments placed by dragging a line: timber and stone in the Medieval age, concrete from the Industrial age
   palisade: { name: 'Palisade', size: 1, top: 26, hp: 350, cost: 10, wood: 30, t: 2, era: 0, power: 0, sight: 1, requires: [], wall: true, buildable: true, desc: 'Sharpened log wall. Blocks the way until it is cut down. Drag to lay a line.' },
   stonewall: { name: 'Stone Wall', size: 1, top: 30, hp: 1000, cost: 60, t: 3, era: 0, power: 0, sight: 1, requires: [], wall: true, buildable: true, desc: 'Thick masonry wall. Holds off infantry; catapults and cannons break it. Drag to lay a line.' },
   concretewall: { name: 'Concrete Wall', size: 1, top: 28, hp: 1800, cost: 90, t: 3, era: 1, power: 0, sight: 1, requires: [], wall: true, buildable: true, desc: 'Reinforced concrete barrier. The toughest wall. Drag to lay a line.' },
-  // defenses by role: Watchtower (Medieval, infantry), Gun Turret (WWI, vehicles), Pillbox (WWI, infantry),
-  // Big Bertha (WWI, long-range siege), Missile Turret (Modern, armor); anti-air comes with aircraft
+  // defenses by role: Watchtower (Medieval, infantry), Gun Turret (Industrial, vehicles), Pillbox (Industrial, infantry),
+  // Big Bertha (Industrial, long-range siege), Missile Turret (Modern, armor); anti-air comes with aircraft
   pillbox: { name: 'Pillbox', size: 1, top: 14, hp: 650, cost: 550, wood: 50, t: 11, era: 1, power: -10, sight: 7, requires: ['barracks'], weapon: 'pillboxmg', buildable: true, desc: 'Concrete bunker with a heavy machine gun. Shreds infantry; weak against tanks.' },
   atturret: { name: 'Missile Turret', size: 1, top: 18, hp: 550, cost: 900, oil: 150, t: 14, era: LAST_ERA, power: -30, sight: 8, requires: ['factory'], weapon: 'atmissile', buildable: true, desc: 'Guided anti-tank missiles with a long reach. Cracks heavy armor; poor against infantry.' },
   bertha: { name: 'Big Bertha', size: 2, top: 40, hp: 1100, cost: 2100, wood: 100, t: 30, era: 1, power: -40, sight: 10, requires: ['factory'], weapon: 'bertha', buildable: true, desc: 'Huge siege howitzer that fires across a third of the map at anything your side can see, and its spotters see far. Shells take seconds to land, so moving targets can dodge. Can\'t hit anything right next to it.' },

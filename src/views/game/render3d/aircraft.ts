@@ -32,7 +32,7 @@ export function drone(team: number): Model {
   return { root, parts, height: 0.2 };
 }
 
-/** World War: a silk envelope in team stripes over a wicker basket, with a burner and bombs. */
+/** Industrial: a silk envelope in team stripes over a wicker basket, with a burner and bombs. */
 export function balloon(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team, 'm', 0), silk = M.cloth();
@@ -69,7 +69,7 @@ export function balloon(team: number): Model {
   return { root, parts, height: 1.2 };
 }
 
-/** World War: a wood-and-canvas biplane with a radial engine and a gun over the top wing. */
+/** Industrial: a wood-and-canvas biplane with a radial engine and a gun over the top wing. */
 export function biplane(team: number): Model {
   const root = new THREE.Group(), parts: Parts = {};
   const tm = teamMat(team), td = teamMat(team, 'd'), canvas = mat('#d8cfae', { rough: 0.95 });

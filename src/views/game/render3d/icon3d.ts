@@ -13,7 +13,7 @@ const W = 256, H = 192;
 /** Where the model goes, as fractions of the picture: clear of the cost (top) and the name (bottom). */
 const FIT = { x0: 0.07, x1: 0.93, y0: 0.2, y1: 0.8 };
 
-/** Backdrop per age: Medieval torchlit earth, World War olive drab, Modern steel blue. */
+/** Backdrop per age: Medieval torchlit earth, Industrial olive drab, Modern steel blue. */
 const BACKDROP: Array<[string, string]> = [
   ['#5a4628', '#16110a'],
   ['#454a30', '#11130c'],

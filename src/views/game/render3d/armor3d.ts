@@ -2,7 +2,7 @@
 // harvesters) always bristle with spikes; every other foot soldier grows them from the first armour
 // upgrade (Workers and Medics wear neither spikes nor armour). Each upgrade makes every spike
 // longer and adds more, in the style of the unit's age:
-// round iron spikes (Medieval), riveted steel ones and a spiked helmet (World War), and squat
+// round iron spikes (Medieval), riveted steel ones and a spiked helmet (Industrial), and squat
 // faceted black blades (Modern). Each Armory armour upgrade also bolts on another visible
 // layer: infantry get pauldrons, then breast and back plates, then tassets and a collar; knights'
 // horses get a chest plate, then flank plates, then a rump plate and a horned helm; vehicles get
@@ -24,7 +24,7 @@ const up = new THREE.Vector3(0, 1, 0);
 interface SpikeStyle { grow: number; sides: number; fat: number; m: () => Mat }
 const ERA_SPIKE: SpikeStyle[] = [
   { grow: 1, sides: 12, fat: 1, m: () => M.darkSteel() }, // Medieval: forged iron spikes
-  { grow: 1, sides: 8, fat: 1.15, m: () => M.iron() }, // World War: riveted steel
+  { grow: 1, sides: 8, fat: 1.15, m: () => M.iron() }, // Industrial: riveted steel
   { grow: 1, sides: 4, fat: 1.35, m: () => M.gun() }, // Modern: squat faceted blades
 ];
 let style: SpikeStyle = ERA_SPIKE[0];

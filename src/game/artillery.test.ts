@@ -1,4 +1,4 @@
-// The Artillery Tank: a World War self-propelled howitzer that outranges defenses, must dig in to
+// The Artillery Tank: a Industrial self-propelled howitzer that outranges defenses, must dig in to
 // fire, and can't shell anything right beside it.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('the Artillery Tank', () => {
-  it('comes from the War Factory in the World War age', () => {
+  it('comes from the War Factory in the Industrial age', () => {
     addBuilding('factory', 0, 20, 20, false);
     G.era[0] = 0;
     expect(available(0, 'vehicle')).not.toContain('artillery');

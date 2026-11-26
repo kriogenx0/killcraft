@@ -50,7 +50,7 @@ describe('Armory upgrades', () => {
     expect(G.heal[0]).toBe(1);
     run(30);
     expect(G.upg[0].infArmor).toBe(1);
-    // the next level waits for the World War age
+    // the next level waits for the Industrial age
     expect(G.era[0]).toBe(0);
     expect(available(0, 'armory')).toEqual(['vehWeapon1', 'vehArmor1']);
     G.era[0] = 1;

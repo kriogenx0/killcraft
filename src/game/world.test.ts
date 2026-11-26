@@ -120,7 +120,7 @@ describe('production', () => {
     expect(enqueue(0, 'rifleman')).toBe(false);
   });
 
-  it('finds oil, builds the Engine Works to reach World War, and pays oil for Modern', () => {
+  it('finds oil, builds the Engine Works to research Industrial, and pays oil for Modern', () => {
     addBuilding('power', 0, 10, 82, false);
     addBuilding('barracks', 0, 13, 82, false);
     addBuilding('refinery', 0, 6, 78, false);
@@ -135,6 +135,14 @@ describe('production', () => {
     // idle Workers nearby take the site up by themselves
     run(BUILDING.works.t + 10);
     expect(works.done).toBe(true);
+    // the Engine Works only opens the research: the age itself is researched at the Town Hall
+    expect(G.era[0]).toBe(0);
+    expect(available(0, 'infantry')).not.toContain('rifleman');
+    expect(available(0, 'tech')).toContain('age1');
+    expect(available(0, 'tech')).not.toContain('age2');
+    G.credits[0] = 5000; G.wood[0] = 5000;
+    expect(enqueue(0, 'age1')).toBe(true);
+    run(TECH.age1.t + 5);
     expect(G.era[0]).toBe(1);
     expect(available(0, 'structure')).not.toContain('works');
     expect(available(0, 'infantry')).toContain('rifleman');
@@ -169,7 +177,7 @@ describe('production', () => {
     G.credits[0] = 5000;
     expect(enqueue(0, 'heal1')).toBe(false); // needs a Hospital
     addBuilding('hospital', 0, 16, 50, false);
-    expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and World War
+    expect(enqueue(0, 'heal2')).toBe(false); // needs the first level, and Industrial
     expect(enqueue(0, 'heal1')).toBe(true);
     expect(enqueue(0, 'heal1')).toBe(false); // one research at a time
     run(30);

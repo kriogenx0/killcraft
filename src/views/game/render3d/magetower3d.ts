@@ -12,7 +12,7 @@ const glow = () => mat('#d0b8ff', { rough: 0.4, emissive: '#8a50ff', emissiveInt
 
 /**
  * look 0: rubble stone and timber (Medieval); look 1: dressed stone; look 3: concrete, steel and
- * glass (Modern). World War is look 3 run through `industrial()` in models.ts (brick and iron).
+ * glass (Modern). Industrial is look 3 run through `industrial()` in models.ts (brick and iron).
  */
 export function mageTower(team: number, lk: 0 | 1 | 3): Model {
   const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team), modern = lk === 3;

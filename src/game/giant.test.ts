@@ -34,7 +34,7 @@ describe('the Titan', () => {
     }
   });
 
-  it('needs Aether and the World War age, and only one at a time', () => {
+  it('needs Aether and the Industrial age, and only one at a time', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 12, 46, false);
     G.era[0] = 1;

@@ -1,6 +1,6 @@
 // Ages of technology. Every side starts in the Medieval age. Oil is the way forward: an Oil Derrick
-// on a well lets a side build the Engine Works, which takes it into the World War age, and the
-// Modern age is researched at the Town Hall for oil alone. Each age unlocks newer units and
+// on a well lets a side build the Engine Works, which lets it research the Industrial age at the
+// Town Hall, and the Modern age is then researched there for oil alone. Each age unlocks newer units and
 // structures, and older ones stay available.
 // The Hospital researches faster healing for organic units, and the Armory weapon and armor upgrades.
 import type { BldType } from './building.ts';
@@ -12,14 +12,14 @@ export interface EraDef {
 
 export const ERA: EraDef[] = [
   { name: 'Medieval', desc: 'Swords, crossbows, knights and catapults.' },
-  { name: 'World War', desc: 'Riflemen, Machine Gunners, Scout Jeeps, Battle Tanks, the Gun Turret and Flak Cannon, and War Balloons and Biplanes from the Airfield.' },
+  { name: 'Industrial', desc: 'Riflemen, Machine Gunners, Scout Jeeps, Battle Tanks, the Gun Turret and Flak Cannon, and War Balloons and Biplanes from the Airfield.' },
   { name: 'Modern', desc: 'Harvesters take over the ore from Workers. Rocket Soldiers, Heavy Tanks, Attack Helicopters and Combat Drones.' },
 ];
 
 export const START_ERA = 0;
 export const LAST_ERA = ERA.length - 1;
 
-export type TechType = 'age2' | 'heal1' | 'heal2' | 'heal3' | 'mech' | 'ward'
+export type TechType = 'age1' | 'age2' | 'heal1' | 'heal2' | 'heal3' | 'mech' | 'ward'
   | 'infWeapon1' | 'infWeapon2' | 'infWeapon3' | 'infArmor1' | 'infArmor2' | 'infArmor3'
   | 'vehWeapon1' | 'vehWeapon2' | 'vehWeapon3' | 'vehArmor1' | 'vehArmor2' | 'vehArmor3';
 
@@ -77,6 +77,7 @@ export const HOSPITAL_HEAL = 1.25;
 const fullIn = (lvl: number) => `${Math.round(1 / HEAL_RATE[lvl])}s`;
 
 export const TECH: Record<TechType, TechDef> = {
+  age1: { name: 'Industrial Age', era: 0, age: 1, cost: 400, wood: 100, t: 30, requires: ['works'], desc: `Advance to the Industrial age. Needs the Engine Works. Unlocks ${ERA[1].desc}` },
   age2: { name: 'Modern Age', era: 1, age: 2, cost: 0, oil: 800, t: 60, requires: [], desc: `Advance to the Modern age. Paid for in oil alone. Unlocks ${ERA[2].desc}` },
   heal1: { name: 'Field Dressing', era: 0, heal: 1, at: 'hospital', cost: 400, t: 25, requires: ['hospital'], desc: `Infantry and knights heal twice as fast (full health in ${fullIn(1)}).` },
   heal2: { name: 'Surgeons', era: 1, heal: 2, at: 'hospital', cost: 800, t: 35, requires: ['hospital'], desc: `Infantry and knights heal twice as fast again (full health in ${fullIn(2)}).` },

@@ -4,7 +4,7 @@
 import { WEAPON, type WeaponType } from '../data/weapon.ts';
 import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
 import { G, oreLoadOf, allied, bldDef, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
-import { TECH, isTechType } from '../data/era.ts';
+import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
 import { BUILDING, EXPAND_GAP, isExpansion, isWall, type BldType } from '../data/building.ts';
@@ -175,8 +175,8 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
     if (BUILDING[t].era > G.era[team]) continue;
-    // the Engine Works only matters until it has done its job
-    const to = BUILDING[t].advances;
+    // the Engine Works only matters until its age is researched
+    const to = BUILDING[t].opens;
     if (to != null && G.era[team] >= to) continue;
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) {
@@ -199,7 +199,7 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   return defense(team, can);
 }
 
-/** Aether to keep for a Star Shrine: one per side once it has reached the World War age and has a Barracks. */
+/** Aether to keep for a Star Shrine: one per side once it has reached the Industrial age and has a Barracks. */
 function shrineAether(team: number): number {
   if (G.era[team] < 1 || countOf(team, 'shrine') > 0 || !hasBuilding(team, 'barracks') || !available(team, 'structure').includes('shrine')) return 0;
   return BUILDING.shrine.aether ?? 0;
@@ -509,9 +509,24 @@ const workerKeep = (): number => costOf('worker');
 /** Can the computer pay for this and still have a Worker's price left? */
 const affordKeeping = (team: number, t: Parameters<typeof canAfford>[1]): boolean => canAfford(team, t) && G.credits[team] - costOf(t) >= workerKeep();
 
+/**
+ * The Industrial age, once the Engine Works stands and nothing is being researched at the Town Hall:
+ * it comes before the rest of the build plan, the way building the Engine Works used to take the side there.
+ */
+function firstAge(team: number): TechType | null {
+  if (G.era[team] !== 0 || G.prod[team].tech.length) return null;
+  return available(team, 'tech').filter(isTechType).find((t) => TECH[t].age === 1) ?? null;
+}
+
 function construction(team: number): void {
   // a wall line is many small sites: it doesn't hold up the rest of the base
   ais[team].reserveWood = 0;
+  const age = firstAge(team);
+  // save for the Industrial age rather than start more buildings (power and raid defenses still go up)
+  if (age && !affordKeeping(team, age)) {
+    const t = nextStructure(team, true);
+    if (!t || (t !== 'power' && !BUILDING[t].weapon)) { ais[team].reserve = costOf(age); ais[team].reserveWood = priceOf(age).wood; aiNote(team, `saving for ${named(age)} (${shortOf(team, age)})`, `save ${age}`); return; }
+  }
   const sites = sitesOf(team), walling = sites.some((e) => isWall(e.type));
   if (sites.filter((e) => !isWall(e.type)).length >= maxSites(team)) { ais[team].reserve = 0; return; }
   const t = nextStructure(team, walling);
@@ -551,7 +566,7 @@ function research(team: number): void {
   if (G.prod[team].tech.length) return;
   const can = available(team, 'tech').filter(isTechType);
   const age = can.find((t) => TECH[t].age != null);
-  if (age && credits > costOf(age) + 200 && canAfford(team, age)) { enqueue(team, age); aiNote(team, `researching ${named(age)}`); return; }
+  if (age && (age === firstAge(team) ? affordKeeping(team, age) : credits > costOf(age) + 200 && canAfford(team, age))) { enqueue(team, age); aiNote(team, `researching ${named(age)}`); return; }
   const ward = can.find((t) => TECH[t].ward);
   // the Ward is a luxury: only once past the first age, with the bank to spare
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
@@ -748,7 +763,7 @@ function training(team: number): void {
     !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = (credits > 2500 ? L.queue + 2 : L.queue) + Math.max(0, barracks - 1) + (alarm ? 1 : 0);
-  // an idle War Factory in the World War age or later: save up for a vehicle instead of spending every
+  // an idle War Factory in the Industrial age or later: save up for a vehicle instead of spending every
   // last coin on cheap infantry
   const big = ais[team].big, forVehicle = !alarm && hasBuilding(team, 'factory') && !prod.vehicle.length && G.era[team] >= 1 && credits < (big ? costOf(big) : 900);
   if (!saving && !full && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {

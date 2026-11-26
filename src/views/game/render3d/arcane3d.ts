@@ -108,7 +108,7 @@ function mage(team: number): Model {
   return { ...m, height: 0.78 };
 }
 
-/** World War: a storm caller in a greatcoat and brass goggles, carrying a copper lightning rod. */
+/** Industrial: a storm caller in a greatcoat and brass goggles, carrying a copper lightning rod. */
 function stormcaller(team: number): Model {
   const m = caster({ robe: C.coat(), trim: teamMat(team) });
   const R = m.root;
@@ -172,7 +172,7 @@ function tidecaller(team: number): Model {
   return { ...m, height: 0.78 };
 }
 
-/** World War: a plague witch in ragged greens and a gas mask, swinging a smoking censer of poison. */
+/** Industrial: a plague witch in ragged greens and a gas mask, swinging a smoking censer of poison. */
 function plaguewitch(team: number): Model {
   const m = caster({ robe: C.rag(), trim: teamMat(team, 'd') });
   const R = m.root;

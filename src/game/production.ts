@@ -63,9 +63,9 @@ export function timeText(t: Buildable): string {
 export const nameOf = (t: Buildable): string => defOf(t).name;
 export const descOf = (t: Buildable): string => defOf(t).desc;
 
-/** A structure that advances the age is built once: not after its age, and not while one stands or rises. */
+/** A structure that opens the next age is built once: not after its age, and not while one stands or rises. */
 const spentAdvance = (team: number, t: BldType): boolean => {
-  const to = BUILDING[t].advances;
+  const to = BUILDING[t].opens;
   return to != null && (eraOf(team) >= to || countOf(team, t) > 0);
 };
 

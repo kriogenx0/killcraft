@@ -9,7 +9,7 @@ import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
-import { hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
+import { hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemsForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
 import { techLevel } from '../../data/era.ts';
@@ -101,8 +101,8 @@ export function productionHotkey(key: string): boolean {
     const g = groupForKey(b, key);
     if (g) { V.keyGroup = g; return true; }
   }
-  const type = itemForKey(b, key, group);
-  if (type && available(V.team, lineOf(type)).includes(type)) {
+  const type = itemsForKey(b, key, group).find((t) => available(V.team, lineOf(t)).includes(t));
+  if (type) {
     activate(type);
     V.keyGroup = null;
     return true;

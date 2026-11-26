@@ -6,7 +6,8 @@
 // A building with more items than free letters (the yard) sorts some into groups: walls, defenses,
 // expansions and Aether structures each sit behind one key, and their items are keyed again inside the group.
 // So with the yard selected, L then S lays a Stone Wall. The Barracks does the same for creatures of
-// myth and spellcasters. A def can name its own group with `group`.
+// myth and spellcasters. A def can name its own group with `group`. The age researches share one key:
+// only the next age is ever on offer.
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
 import { BUILDING, BLD_TYPES, isWall, type BldType } from '../../data/building.ts';
 import { TECH, TECH_TYPES } from '../../data/era.ts';
@@ -41,9 +42,12 @@ export function groupOfType(t: string): string | undefined {
 
 function itemsOn(line: ProductionLine): Keyed[] {
   if (line === 'structure') return BLD_TYPES.filter((t) => BUILDING[t].buildable).map((t) => ({ id: t, name: BUILDING[t].name, key: BUILDING[t].key }));
-  if (line === 'tech' || line === 'hospital' || line === 'armory') return TECH_TYPES.filter((t) => (TECH[t].at ?? 'tech') === line).map((t) => ({ id: t, name: TECH[t].name, key: TECH[t].key }));
+  if (line === 'tech' || line === 'hospital' || line === 'armory') return TECH_TYPES.filter((t) => (TECH[t].at ?? 'tech') === line && (TECH[t].age == null || t === AGES[0])).map((t) => ({ id: t, name: TECH[t].name, key: TECH[t].key }));
   return UNIT_TYPES.filter((t) => UNIT[t].producer === line && !UNIT[t].hatched && !UNIT[t].demon).map((t) => ({ id: t, name: UNIT[t].name, key: UNIT[t].key }));
 }
+
+/** The age researches, in order: they take turns on one key (the first one's). */
+const AGES = TECH_TYPES.filter((t) => TECH[t].age != null);
 
 export interface KeyMap {
   /** item → its key at the top level, or inside its group */
@@ -66,6 +70,8 @@ export function keyMap(items: readonly Keyed[]): KeyMap {
   const groups = assignKeys(names.map((n) => ({ id: n, name: n, key: GROUP_KEYS[n] })), BLD_KEYS);
   const out = assignKeys(items.filter((i) => !groupOfType(i.id)), [...BLD_KEYS, ...groups.values()]) as Map<Buildable, string>;
   for (const g of names) for (const [t, k] of assignKeys(items.filter((i) => groupOfType(i.id) === g), BLD_KEYS)) out.set(t as Buildable, k);
+  const age = out.get(AGES[0]);
+  if (age) for (const t of AGES.slice(1)) out.set(t, age);
   return { items: out, groups };
 }
 
@@ -97,11 +103,13 @@ export function groupForKey(b: BldType, key: string): string | undefined {
   return undefined;
 }
 
-/** The item a key builds while a building of type `b` is selected, at the top level or inside `group`. */
-export function itemForKey(b: BldType, key: string, group?: string | null): Buildable | undefined {
-  for (const [t, k] of PRODUCTION_KEYS.get(b)?.items ?? []) if (k.toLowerCase() === key && groupOfType(t) === (group ?? undefined)) return t;
-  return undefined;
+/** The items a key builds while a building of type `b` is selected, at the top level or inside `group` (several only for the ages). */
+export function itemsForKey(b: BldType, key: string, group?: string | null): Buildable[] {
+  return [...(PRODUCTION_KEYS.get(b)?.items ?? [])].filter(([t, k]) => k.toLowerCase() === key && groupOfType(t) === (group ?? undefined)).map(([t]) => t);
 }
+
+/** The item a key builds while a building of type `b` is selected (the first, for the shared age key). */
+export const itemForKey = (b: BldType, key: string, group?: string | null): Buildable | undefined => itemsForKey(b, key, group)[0];
 
 /**
  * Whose production keys are live. A selected producing building's; otherwise, when no building of

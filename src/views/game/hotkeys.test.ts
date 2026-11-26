@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING, BLD_TYPES } from '../../data/building.ts';
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
-import { TECH_TYPES } from '../../data/era.ts';
+import { TECH, TECH_TYPES, isTechType } from '../../data/era.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, GLOBAL_KEYS, RESERVED_KEYS, ROTATE_KEYS, SCROLL_KEYS, assignKeys, keyLabel, normalizeKey } from './keyboard.ts';
-import { PRODUCTION_KEYS, hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, producerOfType } from './hotkeys.ts';
+import { PRODUCTION_KEYS, hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, itemsForKey, producerOfType } from './hotkeys.ts';
 
 describe('hotkeys', () => {
+  it('puts every age research on the same key, one at a time', () => {
+    expect(hotkeyOf('age1')).toMatch(/^[A-Z]$/);
+    expect(hotkeyOf('age2')).toBe(hotkeyOf('age1'));
+    expect(itemsForKey('yard', hotkeyOf('age1').toLowerCase())).toEqual(['age1', 'age2']);
+  });
+
   it('gives every structure, unit and research a key', () => {
     for (const t of [...BLD_TYPES.filter((b) => BUILDING[b].buildable), ...UNIT_TYPES.filter((u) => !UNIT[u].hatched && !UNIT[u].demon), ...TECH_TYPES]) {
       expect(hotkeyOf(t), t).toMatch(groupOfType(t) ? /^[A-Z] [A-Z]$/ : /^[A-Z]$/);
@@ -19,6 +25,7 @@ describe('hotkeys', () => {
       // what one key press can mean: the top level holds ungrouped items and the group keys
       const menus = new Map<string, string[]>([['', [...m.groups.values()]]]);
       for (const [t, k] of m.items) {
+        if (isTechType(t) && TECH[t].age != null && t !== 'age1') continue; // the ages share a key: one is on offer at a time
         const g = groupOfType(t) ?? '';
         menus.set(g, [...(menus.get(g) ?? []), k]);
       }

@@ -328,7 +328,7 @@ describe('Aether', () => {
     expect(available(0, 'structure')).not.toContain('shrine');
     G.aetherFound[0] = true;
     expect(available(0, 'structure')).toEqual(expect.arrayContaining(['shrine', 'wardstone']));
-    expect(available(0, 'structure')).not.toContain('waygate'); // World War
+    expect(available(0, 'structure')).not.toContain('waygate'); // Industrial
     G.era[0] = 1;
     expect(available(0, 'structure')).toContain('waygate');
     addBuilding('waygate', 0, 10, 40, false);

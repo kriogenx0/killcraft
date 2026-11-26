@@ -5,7 +5,7 @@ import { MW, MH, TS, GRASS } from './const.ts';
 import { oilNear } from './economy.ts';
 import { DERRICK_REACH } from '../data/economy.ts';
 import { BUILDING, BUILD_RADIUS, EXPAND_GAP, REPAIR_RATE, REPAIR_SHARE, SCRAP_SHARE, WALL_LINE_MAX, WALL_RADIUS, isExpansion, isWall, type BldType } from '../data/building.ts';
-import { ERA, LAST_ERA } from '../data/era.ts';
+import { ERA } from '../data/era.ts';
 import { UNIT } from '../data/unit.ts';
 import { addBuilding, addUnit, kill, lowPower } from './entity.ts';
 import { updRefit } from './refit.ts';
@@ -40,11 +40,8 @@ function completed(b: Ent): void {
   if (!G.visualOnly) say(b.team, `${bldDef(b).name} complete`);
   if (!G.visualOnly) joinRally(b);
   noteBuilt(b);
-  const to = bldDef(b).advances;
-  if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) {
-    G.era[b.team] = Math.min(LAST_ERA, to);
-    say(b.team, `${ERA[G.era[b.team]].name} age reached`);
-  }
+  const to = bldDef(b).opens;
+  if (to != null && !G.visualOnly && (G.era[b.team] ?? 0) < to) say(b.team, `${ERA[to].name} age can be researched at the Town Hall`);
   if (b.type !== 'refinery') return;
   // every refinery comes with two Workers, or a Harvester in the Modern age
   const modern = (G.era[b.team] ?? 0) >= UNIT.harvester.era;

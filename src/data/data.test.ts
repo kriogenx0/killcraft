@@ -34,12 +34,12 @@ describe('static data', () => {
     expect(BUILDING.power.power).toBeGreaterThan(-(BUILDING.refinery.power + BUILDING.barracks.power));
   });
 
-  it('reaches every age one step at a time, by a structure or research, and unlocks something in each', () => {
+  it('reaches every age one step at a time, by research, and unlocks something in each', () => {
     const ages = TECH_TYPES.filter((t) => TECH[t].age != null);
-    const reached = [...ages.map((t) => TECH[t].age), ...BLD_TYPES.map((b) => BUILDING[b].advances).filter((a) => a != null)];
+    const reached = ages.map((t) => TECH[t].age);
     expect(reached.sort()).toEqual(ERA.map((_, i) => i).slice(1));
     for (const t of ages) expect(TECH[t].era).toBe((TECH[t].age ?? 0) - 1);
-    for (const b of BLD_TYPES) if (BUILDING[b].advances != null) expect(BUILDING[b].era).toBe((BUILDING[b].advances ?? 0) - 1);
+    for (const b of BLD_TYPES) if (BUILDING[b].opens != null) expect(BUILDING[b].era).toBe((BUILDING[b].opens ?? 0) - 1);
     for (const t of TECH_TYPES) for (const r of TECH[t].requires) expect(BUILDING[r]).toBeDefined();
     for (let era = 0; era < ERA.length; era++)
       expect(UNIT_TYPES.some((u) => UNIT[u].era === era) || BLD_TYPES.some((b) => BUILDING[b].era === era)).toBe(true);
@@ -67,11 +67,12 @@ describe('static data', () => {
     expect(UNIT.worker.haul ?? 0).toBeLessThan(UNIT.harvester.haul ?? 0);
   });
 
-  it('finds oil in the Medieval age, and needs it for World War and Modern', () => {
+  it('finds oil in the Medieval age, and needs it for Industrial and Modern', () => {
     expect(BUILDING.derrick.era).toBe(0);
     expect(BUILDING.derrick.oil ?? 0).toBe(0);
     expect(BUILDING.works.requires).toContain('derrick');
-    expect(BUILDING.works.advances).toBe(1);
+    expect(BUILDING.works.opens).toBe(1);
+    expect(TECH.age1.requires).toContain('works');
     expect(TECH.age2.oil ?? 0).toBeGreaterThan(0);
     expect(TECH.age2.cost).toBe(0);
     expect(TECH.age2.wood ?? 0).toBe(0);
