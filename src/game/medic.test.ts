@@ -88,3 +88,13 @@ describe('medics', () => {
     expect(m.order?.t === 'move' && m.order.sub).toBe(mine.id);
   });
 });
+
+describe('medic sight', () => {
+  it('spots a wounded unit 7 tiles away', () => {
+    const p = setup();
+    const m = addUnit('medic', 0, p.x, p.y), s = addUnit('swordsman', 0, p.x + 7 * TS, p.y);
+    s.hp = 20;
+    run(1);
+    expect(m.order?.t === 'heal' && m.order.tgt).toBe(s.id);
+  });
+});
