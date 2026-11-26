@@ -157,6 +157,11 @@ export interface Ent extends Target {
   sludgeT?: number;
   frozenT?: number;
   lustT?: number;
+  /** the Shield spell: a bubble that soaks up hits until shieldT, or until shieldHp runs out */
+  shieldT?: number;
+  shieldHp?: number;
+  /** when it last took a direct hit (game time), so a caster can see who's under fire */
+  hitT?: number;
   /** the Slow spell: reloads take longer too (slowT covers the walking) */
   curseT?: number;
   /** who set it burning or poisoned it, for the kill */

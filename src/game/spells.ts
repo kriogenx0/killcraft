@@ -1,6 +1,7 @@
 // Mana and spells, and the lasting effects of elemental weapons. Tuning lives in data/spells.ts.
 //
 // Spellcasters regain mana on their own and cast by themselves: Bloodlust on a friend in a fight,
+// Shield on a friend taking hits,
 // Slow and Freeze on an enemy, Douse on a friend that's burning or poisoned. Elements stick to what
 // they hit: fire burns, poison eats at living things, sludge slows and makes fire worse, water puts
 // out fire and poison and washes off sludge but leaves its target wet, and lightning punishes wet.
@@ -14,7 +15,7 @@ import { UNIT } from '../data/unit.ts';
 import { WEAPON } from '../data/weapon.ts';
 import {
   BURN_DPS, BURN_REACH, BURN_SPREAD, BURN_TIME, DOT_TICK, WRECK_BURN_AT, FREEZE_HP, FREEZE_WORTH, LUST_ATTACK, LUST_SPEED, MANA_REGEN, MANA_START, POISON_DPS, POISON_TIME,
-  SLOW_ATTACK, SLUDGE_FIRE, SLUDGE_RELOAD, WATER_VS_FIRE, SLUDGE_SPEED, SLUDGE_TIME, SPELL, WET_SHOCK, WET_TIME, type Element, type SpellType,
+  SHIELD_HP, SLOW_ATTACK, SLUDGE_FIRE, SLUDGE_RELOAD, WATER_VS_FIRE, SLUDGE_SPEED, SLUDGE_TIME, SPELL, WET_SHOCK, WET_TIME, type Element, type SpellType,
 } from '../data/spells.ts';
 
 const on = (t: number | undefined): boolean => (t ?? 0) > G.gameT;
@@ -26,6 +27,23 @@ export const sludged = (e: Ent): boolean => on(e.sludgeT);
 export const frozen = (e: Ent): boolean => on(e.frozenT);
 export const lusting = (e: Ent): boolean => on(e.lustT);
 export const cursed = (e: Ent): boolean => on(e.curseT);
+export const shielded = (e: Ent): boolean => on(e.shieldT) && (e.shieldHp ?? 0) > 0;
+
+/**
+ * A Shield soaks up a hit before it reaches the unit: returns the damage left over. The bubble bursts
+ * when it has taken all it can. Burning and poison (dot) slip past it.
+ */
+export function soakShield(t: Ent, dmg: number): number {
+  if (!shielded(t)) return dmg;
+  const soak = Math.min(t.shieldHp ?? 0, dmg);
+  t.shieldHp = (t.shieldHp ?? 0) - soak;
+  const z = altOf(t);
+  if (t.shieldHp <= 0) {
+    t.shieldT = 0;
+    burst('spark', t.x, t.y - 8, 14, 60, 160, SPELL.shield.col, z); // it bursts
+  } else part('flash', t.x + (Math.random() - 0.5) * 8, t.y - 8, { max: 0.15, size: 12, z: z + 6, col: SPELL.shield.col });
+  return dmg - soak;
+}
 
 /** Poison only harms living things: soldiers, riders and creatures, not vehicles, machines or cyborgs. */
 export const living = (e: Ent): boolean => e.kind === 'unit' && (unitDef(e).cls === 'infantry' || !!unitDef(e).beast);
@@ -142,6 +160,12 @@ const ready = (u: Ent, s: SpellType): boolean => (u.spellCd?.[s] ?? 0) <= G.game
 /** Is this unit in a fight right now? (Shooting, swinging, or chasing something down.) */
 const fighting = (e: Ent): boolean => e.atkT > 0 || e.order?.t === 'attack' || !!e.shot || !!(e.order?.t === 'move' && e.order.sub);
 
+/** Was this unit hit in the last few seconds? */
+const underFire = (e: Ent): boolean => (e.hitT ?? -99) > G.gameT - 3;
+
+/** Good spells go on our own troops first, then on a teammate's. */
+const OWN_FIRST = 100000;
+
 const priceOf = (e: Ent): number => unitDef(e).cost + (unitDef(e).oil ?? 0) * 2 + (unitDef(e).aether ?? 0) * 5;
 
 /** The best target for a spell within its range, or null. */
@@ -151,16 +175,21 @@ function spellTarget(u: Ent, s: SpellType): Ent | null {
   for (const e of G.ents) {
     if (e.dead || e.kind !== 'unit' || Math.hypot(e.x - u.x, e.y - u.y) > r) continue;
     if (d.on === 'ally') {
-      if (e.team !== u.team || e.wild) continue;
+      if (!allied(e.team, u.team) || e.wild || e.team < 0) continue;
       let score: number;
       if (s === 'douse') {
         if (!burning(e) && !poisoned(e)) continue;
         score = 1 - e.hp / e.maxhp;
+      } else if (s === 'shield') {
+        // a friend taking hits, not already in a bubble: the dearest and the most hurt first
+        if (shielded(e) || frozen(e) || !underFire(e)) continue;
+        score = priceOf(e) + (1 - e.hp / e.maxhp) * 600;
       } else {
         // Bloodlust: an armed friend that's fighting and not already raging
         if (lusting(e) || frozen(e) || !unitDef(e).weapon || !fighting(e)) continue;
         score = priceOf(e);
       }
+      if (e.team === u.team) score += OWN_FIRST;
       if (score > bs) { bs = score; best = e; }
     } else {
       if (allied(e.team, u.team) || !fair(e) || kneeling(e) || cloakedFrom(e, u.team) || frozen(e)) continue;
@@ -196,6 +225,7 @@ export function cast(u: Ent, s: SpellType, t: Ent): void {
       t.moving = false;
       t.path = null;
       break;
+    case 'shield': t.shieldT = now + d.dur; t.shieldHp = SHIELD_HP; break;
     case 'douse': t.burnT = t.poisonT = 0; t.wetT = now + WET_TIME / 2; break;
   }
 }

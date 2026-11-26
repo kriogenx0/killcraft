@@ -1,12 +1,13 @@
 // How spells and elements show on a unit (game/spells.ts): a coloured glow over its model, a block
-// of ice around it while frozen, frost crystals and falling snow while slowed, a red throbbing rage
-// while bloodlusted, and fumes, drips or sparks rising off it.
+// of ice around it while frozen, a golden bubble while Shielded, frost crystals and falling snow
+// while slowed, a red throbbing rage while bloodlusted, and fumes, drips or sparks rising off it.
 import * as THREE from 'three';
-import { altOf, G, type Ent } from '../../../game/state.ts';
+import { G, altOf, type Ent } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
 import { part } from '../../../game/fx.ts';
-import { burning, frozen, lusting, cursed, poisoned, sludged, wet } from '../../../game/spells.ts';
+import { burning, frozen, lusting, cursed, poisoned, shielded, sludged, wet } from '../../../game/spells.ts';
 import { UNIT, type UnitType } from '../../../data/unit.ts';
+import { SHIELD_HP } from '../../../data/spells.ts';
 import type { Model } from './model_kit.ts';
 
 const COL = {
@@ -131,6 +132,42 @@ function toggle(m: Model, key: string, on: boolean, make: () => THREE.Object3D):
   else if (!on && cur) { m.root.remove(cur); m.root.userData[key] = undefined; }
 }
 
+// the Shield spell: a golden bubble, a soft see-through skin with a brighter lattice of facets over it
+const bubbleGeo = new THREE.IcosahedronGeometry(1, 2);
+const bubbleMat = new THREE.MeshStandardMaterial({ color: '#ffe9a0', roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.22, emissive: '#ffc840', emissiveIntensity: 0.6, depthWrite: false, side: THREE.DoubleSide });
+const latticeMat = new THREE.MeshBasicMaterial({ color: '#ffe070', wireframe: true, transparent: true, opacity: 0.55, depthWrite: false });
+
+function shieldBubble(m: Model, e: Ent): void {
+  let b = m.root.userData.shield as THREE.Group | undefined;
+  const on = shielded(e);
+  if (on && !b) {
+    b = new THREE.Group();
+    const skin = new THREE.Mesh(bubbleGeo, bubbleMat), net = new THREE.Mesh(bubbleGeo, latticeMat.clone());
+    net.scale.setScalar(1.01);
+    b.add(skin, net);
+    const r = (UNIT[e.type as UnitType]?.radius ?? 8) / 32, h = m.height || 0.8;
+    const size = Math.max(r * 1.3 + 0.08, h * 0.5);
+    b.scale.set(size, h * 0.55 + 0.06, size);
+    b.position.y = h * 0.45;
+    b.renderOrder = 4;
+    b.userData.net = net;
+    m.root.add(b);
+    m.root.userData.shield = b;
+  } else if (!on && b) {
+    m.root.remove(b);
+    ((b.userData.net as THREE.Mesh).material as THREE.Material).dispose();
+    m.root.userData.shield = undefined;
+  }
+  if (!b || !on) return;
+  // it shimmers and turns slowly, and thins out as it soaks up hits
+  const t = performance.now() / 1000 + e.id, left = Math.min(1, (e.shieldHp ?? SHIELD_HP) / SHIELD_HP);
+  const net = b.userData.net as THREE.Mesh;
+  (net.material as THREE.MeshBasicMaterial).opacity = (0.18 + left * 0.27) * (0.85 + Math.sin(t * 5) * 0.15);
+  b.rotation.y = t * 0.6;
+  // a flicker in its last second
+  b.visible = (e.shieldT ?? 0) - G.gameT > 1 || Math.sin(t * 30) > -0.3;
+}
+
 /** Particles a second for each effect. */
 const RATE = { poisoned: 6, sludge: 4, wet: 3, lust: 5, frozen: 2 };
 
@@ -153,6 +190,7 @@ export function statusFx(m: Model, e: Ent, dt: number): void {
     m.root.remove(ice);
     m.root.userData.ice = undefined;
   }
+  shieldBubble(m, e);
   const sl = slowed(e) && !fz;
   toggle(m, 'frost', sl, () => frostShards(e, m));
   if (sl) snowfall(m.root.userData.frost as THREE.Object3D, performance.now() / 1000);
