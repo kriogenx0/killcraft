@@ -195,7 +195,16 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   initTouchBar(root);
   initGroupBar(root);
 
+  // phones: the radar floats over the map, so it lives outside the scrolling bottom panel (a fixed
+  // element inside a scroller isn't drawn reliably on iOS); on wide screens it heads the sidebar
+  const placeRadar = () => {
+    const float = matchMedia('(max-width: 760px)').matches;
+    if (float && minimap.parentElement !== root) root.insertBefore(minimap, sidebar);
+    else if (!float && minimap.parentElement !== sidebar) sidebar.prepend(minimap);
+    minimap.classList.toggle('sidebar-minimap--float', float);
+  };
   const resize = () => {
+    placeRadar();
     V.vw = window.innerWidth;
     V.vh = window.innerHeight;
     V.topH = topbar.offsetHeight;

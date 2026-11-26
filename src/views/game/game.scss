@@ -909,9 +909,11 @@ $sidebar-width: 248px;
       display: none;
     }
 
-    // clear of the radar floating in the top-right corner
+    // centred across the screen, under the radar floating in the top-right corner
     .game-message {
-      right: 112px + 2 * $space-2;
+      top: calc(48px + #{2 * $space-2} + clamp(64px, 20vw, 84px));
+      right: $space-2;
+      left: $space-2;
     }
 
     .army-bar {
@@ -953,33 +955,35 @@ $sidebar-width: 248px;
       // the radar sits pinned on the left; beside it the tabs (Selected, Buildings, Units) and the
       // chosen tab's contents, which scroll under the pinned tabs
       grid-auto-rows: max-content;
-      grid-template-columns: 0 minmax(0, 1fr);
-      column-gap: 0;
+      grid-template-columns: minmax(0, 1fr);
       gap: $space-2;
       align-content: start;
       width: auto;
-      height: min(40vh, 320px);
+      height: min(30vh, 240px);
       overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
       // no top padding: the pinned tabs sit flush with the edge so nothing scrolls past above them
-      padding: 0 $gutter $space-2;
+      // the same 8px edge as the touch bar and the floating radar
+      padding: 0 $space-2 $space-2;
+      scrollbar-width: none;
       border-top-width: 3px;
       border-left-width: 0;
     }
 
     // the radar floats over the top-right corner of the map, so the panel's full width is for the tabs
-    .sidebar-minimap {
-      position: fixed;
+    // (game_view moves it out of the panel, beside it)
+    .sidebar-minimap--float {
+      position: absolute;
       top: 48px + $space-2;
       right: $space-2;
       z-index: 6;
-      width: clamp(88px, 28vw, 112px);
+      width: clamp(64px, 20vw, 84px);
       border-width: 2px;
       box-shadow: 0 2px 8px rgb(0 0 0 / 55%);
     }
 
-    .army-bar:not([hidden]) ~ .sidebar .sidebar-minimap {
+    .army-bar:not([hidden]) ~ .sidebar-minimap--float {
       top: 48px + 18px + 2 * $space-2;
     }
 
@@ -990,7 +994,7 @@ $sidebar-width: 248px;
 
     .selection-details {
       grid-row: 2;
-      grid-column: 2;
+      grid-column: 1;
       min-width: 0;
       padding: $space-1 $space-2;
       background: var(--color-inset);
@@ -999,7 +1003,7 @@ $sidebar-width: 248px;
 
     .selection-commands {
       grid-row: 3;
-      grid-column: 2;
+      grid-column: 1;
       align-self: start;
       margin-top: 0;
     }
@@ -1042,7 +1046,7 @@ $sidebar-width: 248px;
 
     .sidebar--sel:has(.sidebar-selection[hidden])::after {
       grid-row: 2;
-      grid-column: 2;
+      grid-column: 1;
       padding: $space-2;
       font-size: $font-sm;
       color: var(--color-text-muted);
@@ -1067,10 +1071,10 @@ $sidebar-width: 248px;
       background-size: 28px;
     }
 
-    // tall enough for the icon above a two-line label ("Stop & attack") without overlap
+    // compact, but tall enough for the icon above a two-line label ("Stop & attack") without overlap
     .selection-commands {
-      grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
-      grid-auto-rows: minmax(58px, auto);
+      grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
+      grid-auto-rows: minmax(50px, auto);
       // a 4-way choice (attack mode, gather) takes four columns and single buttons fill in beside it
       grid-auto-flow: row dense;
 
@@ -1079,11 +1083,20 @@ $sidebar-width: 248px;
       }
 
       .command-group-bar {
-        min-height: 58px;
+        min-height: 50px;
       }
 
       .command-button {
-        background-size: 24px;
+        padding-bottom: 2px;
+        font-size: 10px;
+        background-size: 18px;
+        background-position-y: 3px;
+
+        .command-button-glyph {
+          top: 3px;
+          width: 18px;
+          height: 18px;
+        }
       }
     }
 
@@ -1108,7 +1121,7 @@ $sidebar-width: 248px;
       top: 0;
       z-index: 2;
       grid-row: 1;
-      grid-column: 2;
+      grid-column: 1;
       margin-top: $space-2;
       box-shadow: 0 0 6px rgb(0 0 0 / 45%);
     }
@@ -1128,7 +1141,7 @@ $sidebar-width: 248px;
 
     .build-list {
       grid-row: 2 / span 2;
-      grid-column: 2;
+      grid-column: 1;
       scroll-margin-top: 36px; // clear of the pinned tabs
     }
 
@@ -1148,19 +1161,25 @@ $sidebar-width: 248px;
     }
 
     .touch-bar {
-      bottom: calc(min(40vh, 320px) + #{$space-2});
+      bottom: calc(min(30vh, 240px) + #{$space-2});
       left: $space-2;
       max-width: calc(100% - 2 * #{$space-2});
     }
 
-    // every button fits, even six of them on a 320px phone (Clear was cut off at the right)
+    // smaller on phones, and every button fits, even six of them on a 320px phone
     .touch-bar-seg {
-      flex: 0 1 52px;
+      flex: 0 1 44px;
       min-width: 0;
+      height: 40px;
+    }
+
+    .touch-bar .touch-bar-icon {
+      width: 20px;
+      height: 20px;
     }
 
     .group-bar {
-      bottom: calc(min(40vh, 320px) + #{$space-2});
+      bottom: calc(min(30vh, 240px) + #{$space-2});
       left: $space-2;
     }
   }
@@ -1212,5 +1231,12 @@ $sidebar-width: 248px;
     .game-offline {
       font-size: $font-xs;
     }
+  }
+}
+
+// phones: group buttons stacked just above the smaller touch bar (40px buttons + 2px rims)
+@media (max-width: 760px) {
+  :root.touch-ui .view-game .group-bar {
+    margin-bottom: 44px + $space-1;
   }
 }
