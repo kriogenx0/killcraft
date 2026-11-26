@@ -10,7 +10,7 @@ import { V, spectating } from '../view_state.ts';
 import { slopeAt, surfaceY } from './heights.ts';
 
 const MAX = 1024;
-const OWN = new THREE.Color('#4f4'), ALLY = new THREE.Color('#4cf'), ENEMY = new THREE.Color('#f44'), NEUTRAL = new THREE.Color('#ee5');
+const OWN = new THREE.Color('#3d3'), ALLY = new THREE.Color('#4cf'), ENEMY = new THREE.Color('#f44'), NEUTRAL = new THREE.Color('#ee5');
 
 /** a faint fill that brightens toward a soft rim, white so each instance's color tints it */
 function discTexture(): THREE.Texture {
@@ -19,7 +19,7 @@ function discTexture(): THREE.Texture {
   const g = c.getContext('2d')!, grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, 'rgba(255,255,255,.22)');
   grad.addColorStop(0.62, 'rgba(255,255,255,.3)');
-  grad.addColorStop(0.82, 'rgba(255,255,255,.85)');
+  grad.addColorStop(0.82, 'rgba(255,255,255,.7)');
   grad.addColorStop(0.92, 'rgba(255,255,255,.6)');
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
@@ -35,7 +35,7 @@ const pos = new THREE.Vector3(), scl = new THREE.Vector3(), col = new THREE.Colo
 
 /** Build the disc batch and add it to `parent` (call again after the scene is cleared). */
 export function makeTeamDiscs(parent: THREE.Object3D): void {
-  const mat = new THREE.MeshBasicMaterial({ map: discTexture(), transparent: true, opacity: 0.75, depthWrite: false, fog: false });
+  const mat = new THREE.MeshBasicMaterial({ map: discTexture(), transparent: true, opacity: 0.55, depthWrite: false, fog: false });
   // drawn over the ground and the fog layer, under the selection rings
   discs = new THREE.InstancedMesh(new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2), mat, MAX);
   discs.renderOrder = 2.6;
@@ -57,6 +57,8 @@ export function updateTeamDiscs(units: readonly Ent[]): void {
   let i = 0;
   for (const e of units) {
     if (i >= MAX) break;
+    // Workers and Harvesters never fight, and a base full of them shouldn't glow (Alex, 2026-11-26)
+    if (UNIT[e.type as UnitType].haul) continue;
     const x = e.x / TS, z = e.y / TS, r = UNIT[e.type as UnitType].radius / TS * 1.3 + 0.12;
     // lie along the slope so it neither floats nor sinks into a hillside
     const [sx, sz] = slopeAt(x, z);
