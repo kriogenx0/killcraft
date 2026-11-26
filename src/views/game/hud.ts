@@ -311,8 +311,10 @@ function unitDetails(e: Ent): string {
   const s = d.cls === 'infantry' ? 'inf' : 'veh', wl = upgradeOf(e.team, `${s}Weapon`), al = upgradeOf(e.team, `${s}Armor`), hl = healOf(e.team);
   // organic units heal slowly on their own: show how fast for troops we can see into
   const heal = isOrganic(e) && insight(e) ? `${Math.round(e.maxhp * healRate(e.team) * 60)}/min${lvlTag(hl)}` : '';
+  // a creature beaten down shows no health until it rises again (Alex, 2026-11-26)
+  const down = !!e.wild?.down;
   const rows: Row[] = [
-    ['HP', hpText(e)],
+    ['HP', down ? 'Fallen: stand beside it to capture it before it rises' : hpText(e), down],
     ['Armor', `${ARMOR_NAME[d.armor]}${ab ? ` −${ab}%` : ''}${lvlTag(al)}`],
     ['Damage', w ? `${w.dmg}${wb ? ` +${wb}%` : ''}${lvlTag(wl)}` : 'Unarmed'],
     ['Range', w ? String(w.range) : ''],
@@ -334,7 +336,7 @@ function unitDetails(e: Ent): string {
   const fx = effectsOf(e);
   if (fx) rows.push(['Effects', fx, true]);
   if (e.ae) rows.push(['Aether', `${Math.round(e.ae)}: bring it near your Town Hall or a Refinery`, true]);
-  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
+  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${down ? '' : barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}`;
 }
 
 /** The spells and elements on a unit right now, e.g. "Burning · Wet". */
@@ -405,7 +407,7 @@ export function productionDetails(e: Ent): string {
 
 function detailsMarkup(s: Ent[]): string {
   if (s.length > 1)
-    return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
+    return `<h3>${s.length} units</h3><div class="hud-chips">${s.slice(0, 24).map((e, i) => chipHtml({ icon: ICON[e.type], label: UNIT[e.type as UnitType]?.name ?? 'Unit', health: e.wild?.down ? undefined : e.hp / e.maxhp, data: ['pick', i] })).join('')}</div>`;
   const e = s[0];
   if (!e) return '';
   if (e.kind === 'unit') return unitDetails(e);
