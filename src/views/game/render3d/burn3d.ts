@@ -235,6 +235,7 @@ const FLIGHT: Partial<Record<string, Flight>> = {
   dragonfire: { size: 0.62, dens: 70, smoke: 3, spread: 1.2, gout: true },
   chimerafire: { size: 0.38, dens: 60, smoke: 1, spread: 0.8, gout: true },
   phoenixfire: { size: 0.34, dens: 55, smoke: 0.5, spread: 0.6, gout: true },
+  flamethrower: { size: 0.2, dens: 90, smoke: 1.5, spread: 0.5, gout: true },
   impfire: { size: 0.22, dens: 30, smoke: 0.5, spread: 0.2, gout: false },
   drakefire: { size: 0.45, dens: 60, smoke: 2, spread: 0.9, gout: true },
 };

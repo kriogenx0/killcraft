@@ -170,10 +170,10 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   // walls are cheap and go up alongside the build plan, not after it: a stretch for each defensive structure
   const wall = walling ? null : wallWanted(team, can);
   if (wall) return wall;
-  // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine once past the first
+  // Aether: a Ward Stone once the enemy fields cloaked units (Phantom Jeeps, Spies), and a Star Shrine once past the first
   // age (troops leave the Aether for it, see shrineAether); these jump the build plan
   const aether = G.aether[team] ?? 0;
-  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.type === 'phantom')) return 'wardstone';
+  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && !!unitDef(e).cloak)) return 'wardstone';
   if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
   // islands (campaign): nothing reaches the enemy but aircraft, so an Airfield as soon as there can be one
   if (G.islands && can.includes('airfield') && countOf(team, 'airfield') < 1) {
@@ -796,7 +796,7 @@ function training(team: number): void {
   if (!saving && !groundFull && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
-    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['guardian', credits > 800 ? 1.5 : 0], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0], ['tidecaller', 1.2], ['plaguewitch', 1.2], ['sludgewarlock', credits > 900 ? 1 : 0],
+    const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['guardian', credits > 800 ? 1.5 : 0], ['crossbowman', 2], ['flamer', 1.5], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0], ['tidecaller', 1.2], ['plaguewitch', 1.2], ['sludgewarlock', credits > 900 ? 1 : 0],
       ['centaur', 2], ['minotaur', 1.5], ['cyclops', credits > 900 ? 1.5 : 0], ['hydra', credits > 900 ? 1.5 : 0], ['cerberus', 1.5], ['giant', credits > 4200 ? 1 : 0], ['mystery', credits > 1200 ? 0.6 : 0],
       ['medusa', 1.5], ['nemean', 1.5], ['sphinx', 1], ['chimera', 1.5], ['satyr', countOf(team, 'satyr') * 8 < foot ? 1.5 : 0]]);
     if (t) enqueue(team, t);

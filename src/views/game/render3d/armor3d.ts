@@ -202,7 +202,7 @@ export function armorKit(type: UnitType, team: number, level: number): ArmorKit 
     style.grow = 1 + SPIKE_GROW * level;
     switch (look) {
       case 'swordsman': pieces = soldier(level, true); break;
-      case 'rifleman': case 'gunner': case 'rocket': pieces = soldier(level, false, 0.565); break;
+      case 'rifleman': case 'gunner': case 'rocket': case 'flamer': pieces = soldier(level, false, 0.565); break;
       case 'crossbowman': pieces = soldier(level, false); break;
       case 'knight': pieces = knight(level); break;
       case 'tank': case 'heavy': ({ hull: pieces, turret } = tank(level, team)); scale = look === 'heavy' ? 1.22 : 1; break;

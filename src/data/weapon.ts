@@ -1,7 +1,7 @@
 import type { Element } from './spells.ts';
 /** 'air' is anything flying: only weapons with an `air` multiplier above zero can hit it */
 export type ArmorClass = 'none' | 'light' | 'heavy' | 'building' | 'air';
-export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'greataxe' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
+export type WeaponType = 'rifle' | 'mg' | 'rocket' | 'cannon' | 'heavycannon' | 'turretcannon' | 'sword' | 'greataxe' | 'flamethrower' | 'lance' | 'crossbow' | 'catapult' | 'ballista'
   | 'bomb' | 'planegun' | 'missile' | 'flak' | 'aam' | 'jetbomb' | 'carriergun' | 'hornetgun'
   | 'wraithlance' | 'hexrifle' | 'starbeam' | 'lmg' | 'dronegun' | 'pillboxmg' | 'atmissile' | 'bertha' | 'howitzer'
   | 'fireball' | 'lightning' | 'meteor' | 'tidal' | 'plague' | 'tar' | 'minigun' | 'railgun' | 'quake'
@@ -70,6 +70,9 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   sword: { dmg: 18, range: 0.6, cd: 1.0, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.7, heavy: 0.35, building: 0.5, air: 0 } },
   // the Guardian's giant axe: a slow, wide chop that can catch two foes in one swing
   greataxe: { dmg: 30, range: 0.9, cd: 1.8, proj: 'melee', speed: 0, splash: 0, swing: 0.7, sweep: 0.9, heads: 2, vs: { none: 1, light: 1, heavy: 0.5, building: 1.0, air: 0 } },
+  // the Flamethrower's hose: a short jet of burning oil that washes over whatever stands near its target
+  // and sets it all alight. Armor keeps the worst of it off, and it can't reach up at flyers.
+  flamethrower: { element: 'fire', dmg: 11, range: 2, cd: 0.6, proj: 'orb', speed: 340, splash: 14, vs: { none: 1.2, light: 1, heavy: 0.45, building: 1.2, air: 0 } },
   lance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 1, heavy: 0.45, building: 0.4, air: 0 } },
   crossbow: { dmg: 20, range: 4.5, cd: 1.6, proj: 'bolt', speed: 520, splash: 0, vs: { none: 1, light: 1.4, heavy: 0.35, building: 0.3, air: 1.2 } },
   ballista: { dmg: 20, range: 5.5, cd: 1.5, proj: 'bolt', speed: 560, splash: 0, vs: { none: 1, light: 1, heavy: 0.35, building: 0.3, air: 0.8 } },

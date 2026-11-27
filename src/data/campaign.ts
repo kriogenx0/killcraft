@@ -28,7 +28,7 @@ export const UNLOCKS: Thing[][] = [
   // 3: healing and siege
   ['hospital', 'medic', 'heal1', 'guardian', 'factory', 'catapult', 'vehWeapon1', 'vehArmor1'],
   // 4: oil and engines; the Industrial age (Alex: all about finding oil)
-  ['derrick', 'works', 'age1', 'rifleman', 'gunner', 'jeep', 'tank', 'turret', 'pillbox', 'concretewall', 'heal2', 'mech', 'infWeapon2', 'infArmor2', 'vehWeapon2', 'vehArmor2'],
+  ['derrick', 'works', 'age1', 'rifleman', 'gunner', 'flamer', 'jeep', 'tank', 'turret', 'pillbox', 'concretewall', 'heal2', 'mech', 'infWeapon2', 'infArmor2', 'vehWeapon2', 'vehArmor2'],
   // 5: air power (Alex: islands, airplanes)
   ['airfield', 'balloon', 'biplane', 'flak'],
   // 6: big guns
@@ -43,8 +43,8 @@ export const UNLOCKS: Thing[][] = [
     'fighter', 'striker', 'carrier', 'juggernaut'],
   // 10: creatures only, on both sides (Alex): the Mystery Egg, which hatches them
   ['mystery'],
-  // 11: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
-  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'titan'],
+  // 11: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things"); the Spy, with the Ward Stone that finds it
+  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'titan', 'spy'],
   // 12: everything is open (Alex: "2v2 hard")
   [],
 ];
