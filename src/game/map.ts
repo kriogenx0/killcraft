@@ -88,7 +88,10 @@ function riverCourse(rnd: () => number): { pts: [number, number][]; fords: numbe
 /** Fill the terrain for one seed. Returns false if any base can't reach the others. */
 function genMap(seed: number): boolean {
   const { terr, ore, oilField, treeWood, elev } = G;
-  const { yards, ore: sources, oil, forests } = layoutFor(G.teams, G.small);
+  const { yards, ore: allSources, oil: layoutOil, forests } = layoutFor(G.teams, G.small);
+  const oil = G.oilWells ?? layoutOil;
+  // islands: no ore field in the middle, where the sea between them runs
+  const sources = G.islands ? allSources.filter(([x, y]) => Math.abs(x - y) > 10) : allSources;
   const lean = smallSize(G.small) > 0 && smallSize(G.small) < SPARSE;
   const rnd = mulberry32(seed);
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
@@ -120,6 +123,11 @@ function genMap(seed: number): boolean {
         const [lo, hi] = smallBounds(smallSize(G.small));
         const out = Math.max(lo - x, x - hi, lo - y, y - hi) + (t2(u, v) - 0.5) * 6;
         w = Math.max(w, out > 0 ? 1.2 : out > -1.5 ? 0.7 : 0);
+      }
+      if (G.islands) {
+        // a sound along the diagonal between the two bases: deep all the way, so only aircraft cross
+        const d = Math.abs(x - y) - 5 + (w2(u, v) - 0.5) * 4;
+        w = Math.max(w, d < 0 ? 1.2 : d < 1.5 ? 0.7 : w);
       }
       wet[i] = w;
       terr[i] = w >= 1 ? WATER : w >= 0.5 ? SHALLOW : GRASS;
@@ -185,7 +193,8 @@ function genMap(seed: number): boolean {
   }
   shapeHeights(flats);
   for (let i = 0; i < MW * MH; i++) treeWood[i] = terr[i] === TREE ? TREE_WOOD : 0;
-  return yards.every((y) => connected(yards[0], y));
+  // islands are meant to be cut off; elsewhere every base must reach the others on foot
+  return G.islands ? !connected(yards[0], yards[1]) : yards.every((y) => connected(yards[0], y));
 }
 
 /**

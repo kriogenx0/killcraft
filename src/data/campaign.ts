@@ -1,6 +1,6 @@
-// The campaign (Alex, 2026-11-27): nine solo missions against the computer, starting super simple.
+// The campaign (Alex, 2026-11-27): ten solo missions against the computer, starting super simple.
 // Missions 1-3 are against Easy computers in the Medieval age with no magic and no oil; the
-// Industrial age opens on mission 4 and the Modern age on mission 7 (and 8 and 9 are Modern too).
+// Industrial age opens on mission 4, magic on mission 7, the Modern age on mission 8, and Aether, creatures and storms on mission 9.
 // Each mission unlocks more to build (UNLOCKS): everything a later mission unlocks is banned for
 // every side until then. Some missions are on a winter map (snow). Winning a mission unlocks the
 // next one; progress is kept in this browser.
@@ -8,6 +8,8 @@ import { DEFAULT_SETUP, type GameSetup } from './setup.ts';
 import { ERA, TECH, TECH_TYPES, type TechType } from './era.ts';
 import { UNIT, UNIT_TYPES, type UnitType } from './unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from './building.ts';
+import { smallBounds } from './map.ts';
+import type { Tile } from '../game/state.ts';
 
 type Thing = BldType | UnitType | TechType;
 
@@ -23,18 +25,22 @@ export const UNLOCKS: Thing[][] = [
   ['tower', 'stonewall', 'knight', 'armory', 'infWeapon1', 'infArmor1'],
   // 3: healing and siege
   ['hospital', 'medic', 'heal1', 'guardian', 'factory', 'catapult', 'vehWeapon1', 'vehArmor1'],
-  // 4: oil, engines and magic; the Industrial age
-  ['derrick', 'works', 'age1', 'magetower', 'mage', 'tidecaller', 'rifleman', 'gunner', 'jeep', 'tank', 'turret', 'pillbox', 'concretewall', 'heal2', 'mech', 'infWeapon2', 'infArmor2', 'vehWeapon2', 'vehArmor2'],
-  // 5: air power, big guns and Aether
-  ['airfield', 'balloon', 'biplane', 'flak', 'stormcaller', 'plaguewitch'],
+  // 4: oil and engines; the Industrial age (Alex: all about finding oil)
+  ['derrick', 'works', 'age1', 'rifleman', 'gunner', 'jeep', 'tank', 'turret', 'pillbox', 'concretewall', 'heal2', 'mech', 'infWeapon2', 'infArmor2', 'vehWeapon2', 'vehArmor2'],
+  // 5: air power (Alex: islands, airplanes)
+  ['airfield', 'balloon', 'biplane', 'flak'],
   // 6: big guns
   ['artillery', 'bertha'],
-  // 7: the Modern age
-  ['age2', 'harvester', 'rocket', 'heavy', 'helicopter', 'drone', 'atturret', 'archmage', 'sludgewarlock', 'heal3', 'infWeapon3', 'infArmor3', 'vehWeapon3', 'vehArmor3'],
-  // 8: jets and cyborgs, and Aether (Alex: no Aether until mission 8): its buildings, units and the Titan
-  ['fighter', 'striker', 'juggernaut', 'shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'mystery'],
-  // 9: the biggest of all
-  ['titan'],
+  // 7: magic (Alex: "Discover magic": the Mage Tower and the spellcasters of the first two ages)
+  ['magetower', 'mage', 'tidecaller', 'stormcaller', 'plaguewitch'],
+  // 8: the Modern age (Alex: "introduction to Modern. Expand to more things"): Modern troops, aircraft,
+  // jets and cyborgs, the Modern casters
+  ['age2', 'harvester', 'rocket', 'heavy', 'helicopter', 'drone', 'atturret', 'archmage', 'sludgewarlock', 'heal3', 'infWeapon3', 'infArmor3', 'vehWeapon3', 'vehArmor3',
+    'fighter', 'striker', 'juggernaut'],
+  // 9: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
+  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'mystery', 'titan'],
+  // 10: everything is open (Alex: "2v2 hard")
+  [],
 ];
 
 /** Everything the unlock schedule covers: every building, regular unit and research. */
@@ -61,12 +67,19 @@ export interface Mission {
   wild?: boolean;
   /** no enemy town: the enemy is just these units, in small groups across the map */
   scatter?: UnitType[];
+  /** the only oil wells on the map (instead of one by each base) */
+  oil?: Tile[];
+  /** each side on its own island: only aircraft cross */
+  islands?: boolean;
+  /** no towns: the player starts with just this army (no Workers, no buildings) */
+  army?: UnitType[];
   /** the game it plays (fixed map, so a mission is the same each time) */
   setup: GameSetup;
 }
 
 // every mission uses the Regrow fog of war (Alex, 2026-11-27)
 const game = (s: Partial<GameSetup>): GameSetup => ({ ...DEFAULT_SETUP, seats: [...DEFAULT_SETUP.seats], speed: 1, ...s, fog: 'regrow' });
+const rep = <T extends UnitType>(t: T, n: number): UnitType[] => Array.from({ length: n }, () => t);
 const vs = (level: GameSetup['seats'][number]): GameSetup['seats'] => [level, level, level, level];
 
 export const MISSIONS: Mission[] = [
@@ -87,47 +100,63 @@ export const MISSIONS: Mission[] = [
     setup: game({ mode: '2v2', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 3303 }),
   },
   {
-    id: 'engines', name: 'Engines', maxEra: 1,
-    brief: 'The Industrial age opens: build an Oil Derrick and the Engine Works, then research it at the Town Hall. One Easy computer.',
+    // Alex: "Level 4 all about finding oil. One oil patch. Small map."
+    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oil: [[smallBounds(60)[0] + 6, smallBounds(60)[0] + 6]],
+    brief: 'There is just one oil patch on this small map, somewhere out in the fog. Find it and hold it: oil builds the Engine Works that opens the Industrial age. One Easy computer is looking too.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 4404 }),
   },
   {
-    id: 'thin-pickings', name: 'Thin Pickings', maxEra: 1, snow: true,
-    brief: 'A hard winter: half the usual ore and wood. Every Worker counts.',
-    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'workers', seed: 5505 }),
+    // Alex: "Level 5 airplanes. Small map. Each player is on an island. Player can build air plane hanger"
+    id: 'thin-pickings', name: 'Frozen Isles', maxEra: 1, snow: true, small: 64, islands: true,
+    brief: 'You and an Easy computer each hold an island, with icy sea between. Only aircraft can cross: reach the Industrial age, build an Airfield and take the war to them by air.',
+    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 5505 }),
   },
   {
-    id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1,
-    brief: 'A Normal computer that builds faster and attacks sooner. Get your tanks rolling.',
+    // Alex: "Start with 20 army units. No workers. No buildings and enemy has no buildings. Enemy just
+    // has random units around. Still more difficult"
+    id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1, small: 68,
+    army: [...rep('rifleman', 8), ...rep('gunner', 4), ...rep('tank', 4), ...rep('jeep', 2), ...rep('artillery', 2)],
+    scatter: [...rep('rifleman', 10), ...rep('gunner', 6), ...rep('tank', 5), ...rep('jeep', 3), ...rep('artillery', 2)],
+    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, more of them than you. Pick your fights and wipe them out.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6606 }),
   },
   {
-    id: 'modern-war', name: 'Modern War', maxEra: 2,
-    brief: 'The Modern age opens. You and an ally against two Normal computers.',
+    // Alex: "Mission 7. Discover magic. Can now build magic units and build the magic tower"
+    id: 'modern-war', name: 'Discover Magic', maxEra: 1,
+    brief: 'Magic is found: build a Mage Tower and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and an ally against two Normal computers.',
     setup: game({ mode: '2v2', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 7707 }),
   },
   {
-    id: 'frozen-front', name: 'Frozen Front', maxEra: 2, snow: true, wild: true,
-    brief: 'Four sides on a frozen map, everyone for themselves, against three Normal computers. Aether and wild creatures appear for the first time.',
-    setup: game({ mode: 'ffa', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 8808 }),
+    // Alex: "Mission 8 - introduction to Modern. Expand to more things. 1v1 Normal difficulty"
+    id: 'frozen-front', name: 'Frozen Front', maxEra: 2, snow: true,
+    brief: 'The Modern age opens, with jets, helicopters, cyborgs and more. One Normal computer on a frozen map.',
+    setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 8808 }),
   },
   {
-    id: 'last-stand', name: 'Last Stand', maxEra: 2, wild: true,
-    brief: 'One Hard computer and everything unlocked. Win this and the campaign is yours.',
-    setup: game({ mode: '1v1', seats: vs('hard'), resources: 'standard', army: 'workers', seed: 9909 }),
+    // Alex: "Mission 9 - introduction to aether, creatures, weather, all the other things"
+    id: 'last-stand', name: 'Wonders', maxEra: 2, wild: true,
+    brief: 'Aether, wild creatures to capture and storms appear for the first time, and everything is unlocked. One Normal computer.',
+    setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 9909 }),
+  },
+  {
+    // Alex: "Mission 10 - 2v2 hard"
+    id: 'last-stand-2v2', name: 'Last Stand', maxEra: 2, wild: true,
+    brief: 'You and a computer ally against two Hard computers, with everything in play. Win this and the campaign is yours.',
+    setup: game({ mode: '2v2', seats: vs('hard'), resources: 'standard', army: 'workers', seed: 10010 }),
   },
 ];
 
 // Weather (Alex, 2026-11-27: "no weather besides rain until level 8"): passing rain only on missions
-// 1-7 (a snow map's falling snow is its weather, so no rain there), and storms from mission 8.
-MISSIONS.forEach((m, i) => { m.setup.weather = i >= 7 ? 'storms' : m.snow ? 'off' : 'rain'; });
+// 1-8 (a snow map's falling snow is its weather, so no rain there), and storms from mission 9 (Alex).
+MISSIONS.forEach((m, i) => { m.setup.weather = i >= 8 ? 'storms' : m.snow ? 'off' : 'rain'; });
 
 /**
  * The world options a mission plays with (initWorld's StartOptions). Missions before 8 have no Aether
  * and no creature lairs (`wild` is left out on them, so it must be read as false here, not defaulted).
  */
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, oilWells: m.oil ?? null, islands: !!m.islands,
+  ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });
 

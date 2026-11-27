@@ -142,15 +142,15 @@ describe('mission 1', () => {
 });
 
 describe('Aether and creatures', () => {
-  it('stay out of the campaign until mission 8 (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 7));
-    for (const m of MISSIONS.slice(0, 7)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
+  it('stay out of the campaign until mission 9 (Alex)', () => {
+    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 8));
+    for (const m of MISSIONS.slice(0, 8)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
     // each mission as the game starts it
     MISSIONS.forEach((m, i) => {
       initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
       expect(G.hell.gate, m.id).toBe(false);
-      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 7);
-      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 7);
+      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 8);
+      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 8);
     });
     initWorld(2202, 2, { wild: false, gate: false, aether: false });
     expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
@@ -211,7 +211,7 @@ describe('locked campaign maps', () => {
 
 describe('campaign progress', () => {
   it('has only rain for weather until mission 8, and none on a snow map (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 7 ? 'storms' : m.snow ? 'off' : 'rain'));
+    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 8 ? 'storms' : m.snow ? 'off' : 'rain'));
   });
 
   it('every mission uses the Regrow fog of war (Alex)', () => {
@@ -225,15 +225,15 @@ describe('campaign progress', () => {
     expect(new Set(MISSIONS.map((m) => m.id)).size).toBe(MISSIONS.length);
   });
 
-  it('opens the Industrial age on mission 4 and the Modern age on mission 7 (Alex)', () => {
-    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 2, 2, 2]);
+  it('opens the Industrial age on mission 4 and the Modern age on mission 8 (Alex)', () => {
+    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 2, 2, 2]);
   });
 
   it('unlocks every building, unit and research exactly once, never before its age (Alex: each level unlocks more)', () => {
     const all = UNLOCKS.flat();
     expect([...all].sort()).toEqual([...SCHEDULED].sort());
     UNLOCKS.forEach((list, i) => {
-      expect(list.length).toBeGreaterThan(0);
+      if (i < UNLOCKS.length - 1) expect(list.length).toBeGreaterThan(0);
       for (const t of list) {
         const era = t in BUILDING ? BUILDING[t as keyof typeof BUILDING].era : t in UNIT ? UNIT[t as keyof typeof UNIT].era : TECH[t as keyof typeof TECH].era;
         expect(era, t).toBeLessThanOrEqual(MISSIONS[i].maxEra);

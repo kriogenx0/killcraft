@@ -429,6 +429,10 @@ export const G = {
   snow: false,
   /** a small map: only a square this many tiles across in the middle of the grid is land (0: the full map; data/map.ts smallLayout) */
   small: 0 as number | boolean,
+  /** the map's oil wells when a campaign mission sets them (else the layout's) */
+  oilWells: null as Tile[] | null,
+  /** each side on its own island, with sea between (campaign mission 5): only aircraft cross */
+  islands: false,
   /** creature lairs and the Gate of Hell are on the map (false in campaign missions; eggs then hatch no creatures) */
   wild: true,
   /** units, buildings and research nobody may use in this game (a campaign mission's rules) */
