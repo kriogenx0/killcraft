@@ -407,6 +407,24 @@ function striker(g: G2, T: TeamColors, p: UnitPose): void {
   g.restore();
 }
 
+/** A Sky Carrier from above: long straight wings with four engines, a fat body with its deck, and a twin tail. */
+function carrierArt(g: G2, T: TeamColors, p: UnitPose): void {
+  g.save();
+  g.translate(0, -6);
+  g.rotate(p.f);
+  panel(g, -2, -17, 6, 34, 1, '#9aa2aa', '#5d656e'); // wings
+  g.fillStyle = T.m;
+  for (const y of [-17, 14]) g.fillRect(-2, y, 6, 3);
+  for (const y of [-12, -6, 6, 12]) { blob(g, 4, y, 2.6, 1.4, '#5d656e'); oline(g, 6.5, y - 2.5, 6.5, y + 2.5, 1, '#222'); }
+  panel(g, -16, -7, 3, 14, 1, '#9aa2aa', '#5d656e'); // tailplane
+  for (const y of [-7, 5]) { g.fillStyle = T.m; g.fillRect(-17, y, 4, 2); }
+  blob(g, -2, 0, 15, 4, shade(g, -2, 0, 15, '#b4bcc4', '#5d656e'));
+  panel(g, -10, -2, 14, 4, 1, '#5d656e', '#3a4048'); // flight deck
+  for (const x of [-7, 0]) blob(g, x, 0, 2.2, 1.2, T.m);
+  blob(g, 11, 0, 2.2, 1.6, '#9ec4d8');
+  g.restore();
+}
+
 /** An attack helicopter from above: body, tail boom and a rotor disc. */
 function helicopter(g: G2, T: TeamColors, p: UnitPose): void {
   g.save();
@@ -456,6 +474,8 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'drone': drone(g, T, p); break;
     case 'fighter': jet(g, T, p, false); break;
     case 'striker': striker(g, T, p); break;
+    case 'carrier': carrierArt(g, T, p); break;
+    case 'hornet': g.scale(0.6, 0.6); jet(g, T, p, false); break;
     default: tank(g, T, p, type === 'heavy');
   }
   if (look) {

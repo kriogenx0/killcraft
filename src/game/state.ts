@@ -207,6 +207,14 @@ export interface Ent extends Target {
   bee?: { q: number; until: number };
   /** a Bee Queen: game time she can next call up her swarm */
   swarmT?: number;
+  /** a Hornet: the id of the Sky Carrier it flies from (game/carrier.ts) */
+  wing?: number;
+  /** a Sky Carrier: Hornets aboard (unset: a full hangar), seconds spent rebuilding the next lost one, and when the next may take off */
+  hangar?: number;
+  rebuildT?: number;
+  launchT?: number;
+  /** a Sky Carrier: the nearest foe its lookout saw within reach */
+  spot?: number | null;
   /** the computer is moving it out of a storm's way until this game time (game/weather.ts) */
   dodgeT?: number;
 }
@@ -510,6 +518,8 @@ export const allied = (a: number, b: number): boolean => a === b || (a >= 0 && b
  * Neutral things (ore, Aether, cows) aren't.
  */
 export const fair = (e: Ent): boolean => e.team >= 0 || !!e.wild || !!e.demon || !!e.bee;
+/** Flown or called up by another unit (a Queen's Bee, a Carrier's Hornet): it follows that unit, takes no orders and isn't counted as a unit of its own. */
+export const escort = (e: Ent): boolean => !!e.bee || e.wing != null;
 /** Is this demon out to fight `team`: raiding it, or come to rescue one of its enemies? Other demons leave the side be. */
 export const demonAfter = (e: Ent, team: number): boolean => {
   const d = e.demon;

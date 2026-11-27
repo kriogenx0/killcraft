@@ -13,7 +13,7 @@ import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
 import { infirmary, medievalBuilding, smithy } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
-import { airfield, balloon, biplane, drone, fighter, flak, helicopter, striker } from './aircraft.ts';
+import { airfield, balloon, biplane, carrier, drone, fighter, flak, helicopter, hornet, striker } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
 import { demonModel } from './demons3d.ts';
 import { arcaneModel } from './arcane3d.ts';
@@ -916,6 +916,8 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'drone': return drone(team);
     case 'fighter': return fighter(team);
     case 'striker': return striker(team);
+    case 'carrier': return carrier(team);
+    case 'hornet': return hornet(team);
     default: return rifleman(team);
   }
 }
