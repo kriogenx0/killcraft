@@ -1,4 +1,4 @@
-// The Mage Tower, where a side's spellcasters learn their craft. Every age it is a tall round tower
+// The Arcane Academy, where a side's spellcasters learn their craft. Every age it is a tall round tower
 // under a steep violet roof with a glowing crystal turning over its peak (the `rune` part), so it
 // reads as magic at a glance and never as the square Watchtower.
 import * as THREE from 'three';
