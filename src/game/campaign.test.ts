@@ -123,8 +123,11 @@ describe('campaign maps', () => {
 describe('mission 1', () => {
   it('is a small island with few resources and no enemy town, only scattered soldiers (Alex)', () => {
     const m = MISSIONS[0];
-    initWorld(m.setup.seed ?? 1, 2, { maxEra: m.maxEra, ban: bannedIn(m), wild: false, small: 52, scatter: m.scatter, units: ['worker', 'worker'] });
+    initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
     expect(G.small).toBe(52);
+    // no buildings for the player either: just some beginning units (Alex)
+    expect(G.ents.filter((e) => e.team === 0 && e.kind === 'bld')).toEqual([]);
+    expect(G.ents.filter((e) => e.team === 0 && e.kind === 'unit').map((e) => e.type).sort()).toEqual([...m.army!].sort());
     expect(G.ents.filter((e) => e.team === 1 && e.kind === 'bld')).toEqual([]);
     const foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
     expect(foes.length).toBe(m.scatter!.length);

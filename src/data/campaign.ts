@@ -108,8 +108,10 @@ const vs = (level: GameSetup['seats'][number]): GameSetup['seats'] => [level, le
 export const MISSIONS: Mission[] = [
   {
     id: 'first-camp', name: 'First Camp', maxEra: 0, small: 52,
+    // Alex: "First camp should not have buildings. Just some beginning units"
+    army: [...rep('swordsman', 5), ...rep('crossbowman', 3)],
     scatter: ['swordsman', 'swordsman', 'crossbowman', 'swordsman', 'crossbowman', 'swordsman', 'swordsman', 'crossbowman'],
-    brief: 'A small island with little ore and wood. No enemy town yet: hunt down the enemy soldiers camped across it.',
+    brief: 'No town to look after yet: just a band of Footmen and Crossbowmen on a small island. Enemy soldiers are camped across it. Hunt them all down.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'squad', seed: 1101 }),
   },
   {
@@ -263,7 +265,11 @@ export const missionWorld = (m: Mission) => ({
 export const bannedIn = (m: Mission): string[] => UNLOCKS.slice(MISSIONS.indexOf(m) + 1).flat();
 
 /** The names of what a mission unlocks, for the mission list ("Knight, Watchtower, ...") */
-export const newIn = (m: Mission): string[] => (UNLOCKS[MISSIONS.indexOf(m)] ?? []).filter((t) => !TECH_TYPES.includes(t as TechType) || TECH[t as TechType].age != null).map(nameOf);
+export const newIn = (m: Mission): string[] => (UNLOCKS[MISSIONS.indexOf(m)] ?? [])
+  .filter((t) => !TECH_TYPES.includes(t as TechType) || TECH[t as TechType].age != null)
+  // a mission with just an army and no town: only the troops it has are new to see there
+  .filter((t) => !m.army || m.army.includes(t as UnitType))
+  .map(nameOf);
 
 /** "Medieval age only", "Up to the Industrial age" */
 export const ageLimit = (m: Mission): string => (m.maxEra <= 0 ? `${ERA[0].name} age only` : m.maxEra >= ERA.length - 1 ? 'Every age' : `Up to the ${ERA[m.maxEra].name} age`);
