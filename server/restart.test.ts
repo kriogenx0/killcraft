@@ -77,4 +77,35 @@ describe('a deploy in the middle of a match', () => {
     await stranger.next('nogame');
     for (const c of [a, b, back, stranger]) c.ws.close();
   }, 30_000);
+
+  it('pauses a match to disk when every player leaves, and the first one back picks it up', async () => {
+    const parked = await mkdtemp(join(tmpdir(), 'killcraft-parked-'));
+    const srv = await startServer({ port: 0, staticDir: '/nonexistent', matchDir: parked, abandonAfter: 1000 });
+    servers.push(srv);
+    try {
+      const a = await connect(srv.port, 'Alice'), b = await connect(srv.port, 'Bob');
+      await a.next('welcome');
+      a.ws.send(JSON.stringify({ k: 'quick' }));
+      await a.next('lobby', (m) => m.k === 'lobby' && m.waiting === 'quick');
+      b.ws.send(JSON.stringify({ k: 'quick' }));
+      const start = await a.next('start');
+      if (start.k !== 'start') throw new Error('expected start');
+      const before = (await a.next('snap', (m) => m.k === 'snap' && m.t >= 1)) as SnapMsg;
+      a.ws.close(); b.ws.close();
+      // everyone is gone: after a moment the match leaves memory for the disk instead of ending
+      await new Promise((r) => setTimeout(r, 2500));
+      expect(srv.matches()).toBe(0);
+      expect(await readdir(parked)).toEqual([`${start.game}.match`]);
+
+      const back = await connect(srv.port, 'Alice');
+      await back.next('welcome');
+      back.ws.send(JSON.stringify({ k: 'rejoin', game: start.game, key: start.key }));
+      expect(await back.next('start')).toMatchObject({ k: 'start', team: start.team, game: start.game, resumed: true, opponent: 'Bob' });
+      const after = (await back.next('snap')) as SnapMsg;
+      expect(after.t).toBeGreaterThanOrEqual(before.t);
+      expect(srv.matches()).toBe(1);
+      expect(await readdir(parked)).toEqual([]);
+      back.ws.close();
+    } finally { await rm(parked, { recursive: true, force: true }); }
+  }, 30_000);
 });
