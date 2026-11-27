@@ -226,9 +226,9 @@ describe('mission layouts', () => {
   });
 });
 
-describe('early raids (Alex: missions 3 and 5)', () => {
-  it('missions 3 and 5 give the enemy raiders and raid early; the others do not', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe(i === 2 || i === 4));
+describe('early raids (Alex: missions 3, 4 and 5)', () => {
+  it('missions 3 to 5 give the enemy raiders and raid early; the others do not', () => {
+    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe(i >= 2 && i <= 4));
     const m = MISSIONS[4];
     G.headless = true;
     initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
