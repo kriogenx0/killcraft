@@ -23,8 +23,8 @@ export interface MatchEvents {
 const MAX_MATCHES = 40;
 /**
  * A player who loses their connection (or refreshes the page) doesn't lose the match: the computer plays
- * their side until they come back with their key. Only when nobody at all is connected does the match
- * wind down, after this long, so an abandoned match doesn't hold a thread forever.
+ * their side until they come back with their key. When nobody at all has been connected for this long,
+ * the match is paused: written to disk and its thread let go, until someone comes back (see KEEP_SAVED).
  */
 export const ABANDON_AFTER = 2 * 60_000;
 
@@ -48,7 +48,7 @@ interface Match {
   away: boolean[];
   /** teams whose player surrendered */
   resigned: Set<number>;
-  /** running while both players are away: ends the abandoned match */
+  /** running while every player is away: pauses the match to disk (or ends it) */
   abandon: NodeJS.Timeout | null;
   over: boolean;
   /** when it started (ms) */
@@ -62,11 +62,11 @@ interface Match {
 }
 
 /**
- * A deploy restarts the server. Running matches are written to disk as it shuts down, and the new
- * server picks each one up when a player comes back with their key. A saved match nobody returns to
- * within this long is thrown away.
+ * Matches written to disk (paused because everyone left, or saved as a deploy restarted the server) are
+ * picked up when a player comes back with their key. A saved match nobody returns to within a day is
+ * thrown away.
  */
-export const KEEP_SAVED = 15 * 60_000;
+export const KEEP_SAVED = 24 * 60 * 60_000;
 /** How long a match's thread gets to hand over its state at shutdown. */
 const SAVE_WAIT = 3000;
 const SAVED_EXT = '.match';
@@ -171,20 +171,54 @@ export class MatchService {
     if (!dir) return 0;
     await mkdir(dir, { recursive: true });
     const running = [...this.matches.values()].filter((m) => !m.over);
-    const saved = await Promise.all(running.map(async (m) => {
-      const world = await new Promise<SavedWorld | null>((done) => {
-        const timer = setTimeout(() => done(null), SAVE_WAIT);
-        const on = (msg: WorkerOut) => { if (msg?.k === 'saved') { clearTimeout(timer); m.worker.off('message', on); done(msg.world); } };
-        m.worker.on('message', on);
-        m.worker.postMessage({ k: 'save' } satisfies WorkerIn);
-      });
-      if (!world) return false;
-      const file: SavedMatch = { id: m.id, seed: m.seed, keys: m.keys, names: m.names, setup: m.setup, started: m.started, savedAt: Date.now(), world };
-      try { await writeFile(join(dir, m.id + SAVED_EXT), serialize(file)); return true; } catch (err) { console.error(`could not save match ${m.id}`, err); return false; }
-    }));
+    const saved = await Promise.all(running.map((m) => this.save(m, dir)));
     const n = saved.filter(Boolean).length;
     console.info(`saved ${n} of ${running.length} running matches for the next server`);
     return n;
+  }
+
+  /** Ask a match's thread for its world and write it to disk. */
+  private async save(m: Match, dir: string): Promise<boolean> {
+    const world = await new Promise<SavedWorld | null>((done) => {
+      const timer = setTimeout(() => done(null), SAVE_WAIT);
+      const on = (msg: WorkerOut) => { if (msg?.k === 'saved') { clearTimeout(timer); m.worker.off('message', on); done(msg.world); } };
+      m.worker.on('message', on);
+      m.worker.postMessage({ k: 'save' } satisfies WorkerIn);
+    });
+    if (!world) return false;
+    const file: SavedMatch = { id: m.id, seed: m.seed, keys: m.keys, names: m.names, setup: m.setup, started: m.started, savedAt: Date.now(), world };
+    try { await mkdir(dir, { recursive: true }); await writeFile(join(dir, m.id + SAVED_EXT), serialize(file)); return true; } catch (err) { console.error(`could not save match ${m.id}`, err); return false; }
+  }
+
+  /** Nobody is connected: start the clock that pauses the match (or ends it, with nowhere to keep it). */
+  private idle(m: Match, why: string): void {
+    m.abandon ??= setTimeout(() => { void this.park(m, why); }, this.abandonAfter);
+  }
+
+  /**
+   * Everyone has been away a while: write the match to disk and let its thread go. The first player back
+   * with their key picks it up where it stopped, any time within KEEP_SAVED. Without a place to keep it,
+   * the match ends as it used to.
+   */
+  private async park(m: Match, why: string): Promise<void> {
+    m.abandon = null;
+    if (m.over || this.present(m).length) return;
+    const dir = this.dataDir;
+    if (!dir || !m.keys.some(Boolean) || !(await this.save(m, dir))) { this.end(m, -1, 'left', [why]); return; }
+    if (m.over) return;
+    if (this.present(m).length) { await rm(join(dir, m.id + SAVED_EXT), { force: true }); return; } // someone came back while it saved
+    m.over = true;
+    void m.worker.terminate();
+    this.matches.delete(m.id);
+    for (const p of m.players) if (p && this.byPlayer.get(p.id) === m) this.byPlayer.delete(p.id);
+    for (const w of m.watchers) {
+      this.byWatcher.delete(w);
+      this.events.send(w, { k: 'end', winner: -1, reason: 'left', detail: ['Every player stepped away, so the game is paused until one of them is back.'], stats: m.stats });
+      this.events.finished(w);
+    }
+    m.watchers.clear();
+    console.info(`match ${m.id} paused after ${Math.round((Date.now() - m.started) / 1000)}s: every player is away`);
+    void this.pruneSaved();
   }
 
   /** Pick up a match the last server saved, if there is one (it starts with the computer playing both sides). */
@@ -203,8 +237,8 @@ export class MatchService {
     const setup = s.setup ?? ONE_V_ONE;
     const m = this.run(s.id, s.keys.map((k, t) => (k ? placeholder(s.names[t]) : null)), s.names, setup, s.seed, s.keys, s.started, s.world);
     m.keys.forEach((k, team) => { if (!k) return; m.away[team] = true; m.worker.postMessage({ k: 'ai', team, on: true } satisfies WorkerIn); });
-    m.abandon = setTimeout(() => this.end(m, -1, 'left', ['Every player was away too long.']), this.abandonAfter);
-    console.info(`match ${s.id} picked up after a restart`);
+    this.idle(m, 'Every player was away too long.');
+    console.info(`match ${s.id} picked up from disk`);
     return m;
   }
 
@@ -227,7 +261,7 @@ export class MatchService {
     this.byPlayer.delete(playerId);
     m.away[team] = true;
     m.worker.postMessage({ k: 'ai', team, on: true } satisfies WorkerIn);
-    if (this.present(m).length === 0) m.abandon ??= setTimeout(() => this.end(m, -1, 'left', [m.players.filter(Boolean).length > 2 ? 'Every player was away too long.' : 'Both players were away too long.']), this.abandonAfter);
+    if (this.present(m).length === 0) this.idle(m, m.players.filter(Boolean).length > 2 ? 'Every player was away too long.' : 'Both players were away too long.');
     else for (const p of this.present(m)) this.events.send(p.id, { k: 'notice', msg: `${name} lost connection. The computer is playing for them until they're back.` });
     return true;
   }
