@@ -16,14 +16,14 @@ const S = 0.55;
 const ARC_R = 9, BAND = 0.48;
 
 /** The arc is soft and see-through (the mane and tail keep the solid colours). */
-const SOFT = RAINBOW.map((m) => Object.assign(m.clone(), { transparent: true, opacity: 0.15, depthWrite: false }));
+const SOFT = RAINBOW.map((m) => Object.assign(m.clone(), { transparent: true, opacity: 0.1, depthWrite: false }));
 
 const group = new THREE.Group();
 const shown: { model: Model; arc: THREE.Group }[] = [];
 
 function rainbow(): THREE.Group {
   const g = new THREE.Group();
-  SOFT.forEach((m, i) => g.add(mesh(torus(ARC_R - i * BAND * 1.6, BAND, Math.PI, 12, 128), m)));
+  SOFT.forEach((m, i) => g.add(mesh(torus(ARC_R - i * BAND * 2.8, BAND, Math.PI, 12, 128), m)));
   g.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = false; });
   return g;
 }
