@@ -169,7 +169,7 @@ function genMap(seed: number): boolean {
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
       const i = y * MW + x, u = x / MW, v = y / MH, tn = (t1(u, v) + t2(u, v) * 0.6) / 1.6;
-      if (terr[i] === GRASS && tn > (lean ? 0.7 : 0.62) && rnd() < (lean ? 0.5 : 0.8)) terr[i] = TREE;
+      if (!G.oneWood && terr[i] === GRASS && tn > (lean ? 0.7 : 0.62) && rnd() < (lean ? 0.5 : 0.8)) terr[i] = TREE;
     }
   for (const [cx, cy, r] of forests) eachInDisk(cx, cy, r, (i) => { if (terr[i] === GRASS && rnd() < 0.85) terr[i] = TREE; });
   const flats: [number, number, number][] = [];

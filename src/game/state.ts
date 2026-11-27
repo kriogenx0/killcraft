@@ -440,6 +440,8 @@ export const G = {
   raids: false,
   /** a mission's scattered enemy camps come to each other's help: tiles a camp unit hears a fight from (0: they hold their ground; ai.ts campAlarm) */
   camps: 0,
+  /** the map's only wood is the layout's grove: no trees scattered over the land (campaign, The Last Grove) */
+  oneWood: false,
   /** a campaign mission's extra goals for the player (side 0), beside destroying the enemy, and those met so far */
   goals: [] as Goal[],
   goalsDone: [] as Goal[],

@@ -3,7 +3,7 @@
 // Industrial Age research, and the computer doesn't save up for them.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
-import { STEP, TS } from './const.ts';
+import { MW, STEP, TREE, TS } from './const.ts';
 import { ais, campAlarm, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { SHALLOW, WATER } from './const.ts';
@@ -144,14 +144,14 @@ describe('mission 1', () => {
 
 describe('Aether and creatures', () => {
   it('stay out of the campaign until mission 9 (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 8));
+    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 9));
     for (const m of MISSIONS.slice(0, 8)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
     // each mission as the game starts it
     MISSIONS.forEach((m, i) => {
       initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
       expect(G.hell.gate, m.id).toBe(false);
-      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 8);
-      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 8);
+      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 9);
+      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 9);
     });
     initWorld(2202, 2, { wild: false, gate: false, aether: false });
     expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
@@ -228,7 +228,7 @@ describe('mission layouts', () => {
 
 describe('early raids (Alex: missions 3, 4, 5 and 7)', () => {
   it('missions 3, 4, 5 and 7 give the enemy raiders and raid early; the others do not', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe([2, 3, 4, 6].includes(i)));
+    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe([2, 3, 4, 7].includes(i)));
     const m = MISSIONS[4];
     G.headless = true;
     initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
@@ -260,6 +260,20 @@ describe('mission 6 camps (Alex: too easy)', () => {
   });
 });
 
+describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () => {
+  it('has trees only in one small grove in the middle', () => {
+    const m = MISSIONS.find((x) => x.oneWood)!;
+    expect(MISSIONS.indexOf(m)).toBe(6);
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m), locked: JSON.parse(readFileSync(`public/campaign/${m.id}.json`, 'utf8')) as LockedMap });
+    const [[cx, cy]] = G.layout!.forests, trees: number[] = [];
+    G.terr.forEach((v, i) => { if (v === TREE) trees.push(i); });
+    expect(trees.length).toBeGreaterThan(5);
+    expect(trees.length).toBeLessThan(40);
+    for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
+  });
+});
+
 describe('Black Gold goals', () => {
   it('is not won until an Oil Derrick stands and the Town Hall is Industrial, even with the enemy destroyed (Alex)', () => {
     const m = MISSIONS.find((x) => x.goals?.includes('derrick'))!;
@@ -283,7 +297,7 @@ describe('Black Gold goals', () => {
 
 describe('campaign progress', () => {
   it('has only rain for weather until mission 8, and none on a snow map (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 8 ? 'storms' : m.snow ? 'off' : 'rain'));
+    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 9 ? 'storms' : m.snow ? 'off' : 'rain'));
   });
 
   it('every mission uses the Regrow fog of war (Alex)', () => {
@@ -297,8 +311,8 @@ describe('campaign progress', () => {
     expect(new Set(MISSIONS.map((m) => m.id)).size).toBe(MISSIONS.length);
   });
 
-  it('opens the Industrial age on mission 4 and the Modern age on mission 8 (Alex)', () => {
-    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 2, 2, 2]);
+  it('opens the Industrial age on mission 4 and the Modern age on mission 9 (Alex)', () => {
+    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2]);
   });
 
   it('unlocks every building, unit and research exactly once, never before its age (Alex: each level unlocks more)', () => {

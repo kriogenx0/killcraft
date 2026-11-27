@@ -69,6 +69,8 @@ export interface StartOptions {
   raiders?: readonly UnitType[];
   /** scattered enemy troops come to help from this many tiles away (G.camps) */
   camps?: number;
+  /** no wood but the layout's forests (G.oneWood) */
+  oneWood?: boolean;
   /**
    * Enemy sides get no town: just these units, in small groups across the map (campaign mission 1,
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
@@ -88,7 +90,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, camps: start.camps ?? 0, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, camps: start.camps ?? 0, oneWood: !!start.oneWood, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
