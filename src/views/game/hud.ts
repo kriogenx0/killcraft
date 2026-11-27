@@ -29,7 +29,7 @@ import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/ref
 import { commandsHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, REACT_KEYS, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
-import { V, ownSelected, spectating, toggleFormation } from './view_state.ts';
+import { V, canToggleFormation, ownSelected, spectating, toggleFormation } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, shielded, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
@@ -132,7 +132,7 @@ function followCommand(): Command | null {
 /** Keep formation: a group of units moves together, at its slowest unit's pace, and keeps its shape. */
 function formationCommand(): Command {
   const on = V.formation;
-  return { id: 'formation', label: 'Formation', hotkey: FORMATION_KEY, icon: ICON.formation, active: on, tip: on ? 'On: groups move together at the slowest unit\'s pace and keep their shape. Turn off to let everyone go at full speed' : 'Move groups in formation: together at the slowest unit\'s pace, keeping their shape, so they arrive at once' };
+  return { id: 'formation', label: on ? 'Formation on' : 'Formation off', hotkey: FORMATION_KEY, icon: ICON.formation, active: on, tip: on ? 'On: groups move together at the slowest unit\'s pace and keep their shape. Turn off to let everyone go at full speed' : 'Move groups in formation: together at the slowest unit\'s pace, keeping their shape, so they arrive at once' };
 }
 
 /** Rally point: new troops from every producer head to one spot. Troops already out stay put. */
@@ -186,7 +186,8 @@ export function commandList(): Command[] {
   // (Rally point stays on your units' and buildings' buttons, Shift+R and the touch bar, not here)
   if (!first) return follow ? [follow] : [];
   if (V.keyGroup) return [{ id: 'back', label: 'Back', hotkey: 'Escape', icon: ICON.cancel, tip: `Close ${V.keyGroup}` }];
-  if (first.kind === 'unit')
+  // a unit among the picks (even with a building picked first) gets the unit card
+  if (first.kind === 'unit' || s.some((u) => u.kind === 'unit'))
     return [
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon && !isHarvester(u)) ? [{ id: 'attack', label: 'Attack', hotkey: COMMAND_KEYS.attack, icon: ICON.attack, tip: 'Pick an enemy unit or building (a wall too) for your fighters to attack and stay on until it falls' }] : []),
@@ -201,7 +202,8 @@ export function commandList(): Command[] {
       ...reactCommands(s),
       // a Harvester's one job, a button to send it back to it
       ...(s.some(isHarvester) ? [{ id: 'harvest', label: 'Harvest', hotkey: COMMAND_KEYS['gather:ore'], icon: ICON.harvest, tip: 'Go and dig ore: the ore nearest your base first, bringing it to the nearest Refinery or Town Hall' }] : []),
-      ...(s.filter((u) => u.kind === 'unit').length > 1 ? [formationCommand()] : []),
+      // on whenever a group is picked, and while it's on with any unit picked, so it can always be turned off
+      ...(canToggleFormation() ? [formationCommand()] : []),
       aetherCommand(s),
       ...(s.some((u) => u.type === 'worker') ? gatherCommands(s) : []),
       ...(follow ? [follow] : []),
@@ -553,10 +555,35 @@ export function refreshHud(): void {
   if (pane && pane.hidden !== empty) pane.hidden = empty;
 }
 
+/** How far (px) a finger may wander during a tap on a command button and still count as a tap. */
+const TAP_SLOP = 16;
+
 export function initHud(e: HudEls): void {
   els = e;
   resourceBoxes = [e.credits, e.wood, e.oil, e.aether, e.power, e.units].map((v) => v.parentElement).filter((b): b is HTMLElement => !!b);
+  // A tap runs the button it started on, decided at touch-down and done at lift-off. Not 'click':
+  // a phone drops the click when the finger moves a little, and this card re-renders as the
+  // selection changes, which replaces the button under the finger and loses the click too.
+  // A finger that slides off to scroll the panel cancels it. Keyboard (Enter/Space) still clicks.
+  let press: { id: string; x: number; y: number; pid: number } | null = null;
+  els.commands.addEventListener('pointerdown', (ev) => {
+    if (ev.button !== 0) return;
+    const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
+    const c = b && commands[Number(b.dataset.index)];
+    press = c && !b.disabled ? { id: c.id, x: ev.clientX, y: ev.clientY, pid: ev.pointerId } : null;
+    // keep the tap off the map behind the panel
+    if (press) ev.stopPropagation();
+  });
+  addEventListener('pointerup', (ev) => {
+    const p = press;
+    press = null;
+    if (!p || ev.pointerId !== p.pid || Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > TAP_SLOP) return;
+    // the button may have been redrawn since touch-down: run it if the card still offers it
+    if (commands.some((c) => c.id === p.id && !c.disabled)) runCommand(p.id);
+  });
+  addEventListener('pointercancel', () => { press = null; });
   els.commands.addEventListener('click', (ev) => {
+    if (ev.detail !== 0) return; // pointer taps were handled at lift-off
     const b = (ev.target as HTMLElement).closest<HTMLButtonElement>('button');
     const c = b && commands[Number(b.dataset.index)];
     if (c && !b.disabled) runCommand(c.id);

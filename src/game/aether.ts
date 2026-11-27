@@ -5,20 +5,20 @@ import { BUILDING, type BldType } from '../data/building.ts';
 import { noteGathered } from './stats.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { layoutFor, WATER_LEVEL } from '../data/map.ts';
+import { WATER_LEVEL } from '../data/map.ts';
 import {
   AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, AETHER_DRY, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_RETURN_MIN, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_ENEMY_BASE, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
 import { bankAt } from './haul.ts';
 import { edgeDist } from './path.ts';
-import { eachInDisk, nearPortal, setBlk } from './map.ts';
+import { eachInDisk, mapLayout, nearPortal, setBlk } from './map.ts';
 
 const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
 /** Ground tiles reachable on foot from the first base. */
 function reachable(): Uint8Array {
-  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams, G.small).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
+  const seen = new Uint8Array(MW * MH), [ax, ay] = mapLayout().yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;

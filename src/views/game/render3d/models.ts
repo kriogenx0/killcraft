@@ -11,7 +11,7 @@ import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
 import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { medievalBuilding, smithy } from './medieval.ts';
+import { infirmary, medievalBuilding, smithy } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, fighter, flak, helicopter, striker } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
@@ -698,26 +698,63 @@ function artillery(team: number): Model {
   return { root, parts, height: 0.55 };
 }
 
-/** Medieval and Industrial: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
+/**
+ * A Worker in a work shirt with rolled sleeves, team-coloured overalls and a hard hat with a lamp,
+ * a tool belt with a hammer, a short beard, a pick, and a basket on the back that fills with ore.
+ */
 function worker(team: number): Model {
-  const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
-  m.root.add(mesh(shell(0.24, 0.3, 0.008), teamMat(team))); // sash
-  m.root.add(mesh(turned([[0, 0], [0.074, 0], [0.074, 0.028], [0.06, 0.055], [0.032, 0.07], [0, 0.073]], 9), mat('#6a5a40'), -0.01, 0.475, 0)); // hood
-  // wicker basket on the back, heaped with ore as it fills
-  m.root.add(mesh(turned([[0, 0], [0.055, 0], [0.07, 0.14], [0.064, 0.14], [0, 0.1]], 8), M.wattle(), -0.1, 0.29, 0));
-  const heap = mesh(gem(0.05, 1, 1, 1, 1), M.ore(), -0.1, 0.43, 0);
+  const shirt = mat('#cdb890', { rough: 0.95 }), glove = mat('#8e6438', { rough: 0.9 }), boot = mat('#4a3020', { rough: 0.85 });
+  const tm = teamMat(team), td = teamMat(team, 'd');
+  const m = soldier({ torso: shirt, legs: td, arms: M.skin(), boots: boot, hands: glove });
+  const r = m.root;
+  // overalls: team-coloured trousers up to the waist and a bib on the chest, held by two straps
+  r.add(mesh(shell(0.19, 0.27, 0.007), td));
+  r.add(rot(mesh(slab([[-0.052, 0], [0.052, 0], [0.048, 0.1], [-0.048, 0.1]], 0.012, 0.003), td, chest(0.31, 0.004), 0.265, 0), 0, -Math.PI / 2, 0)); // bib
+  r.add(mesh(box(0.006, 0.03, 0.04), tm, chest(0.34, 0.012), 0.33, 0.016)); // bib pocket
+  for (const z of [-0.042, 0.042]) {
+    r.add(rod([chest(0.36, 0.006), 0.36, z], [0.0, 0.415, z * 1.45], 0.007, td, 4)); // straps over the shoulders
+    r.add(rod([0.0, 0.415, z * 1.45], [-chest(0.33, 0.006), 0.27, z * 0.5], 0.007, td, 4));
+    r.add(mesh(gem(0.009), M.brass(), chest(0.36, 0.01), 0.36, z)); // strap buttons
+  }
+  // tool belt: a wide leather belt slung low, a buckle, pouches on both hips and a hammer
+  r.add(mesh(shell(0.205, 0.235, 0.016), M.leather()));
+  r.add(mesh(box(0.008, 0.026, 0.032), M.brass(), chest(0.22, 0.02), 0.22, 0));
+  for (const side of [-1, 1]) {
+    r.add(mesh(loft([[0.14, 0.05, 0.03], [0.21, 0.056, 0.036], [0.225, 0.05, 0.034]], 6, 2.4), M.leather(), 0.03, 0, side * 0.094)); // pouch
+    r.add(mesh(box(0.054, 0.014, 0.008), mat('#4a2c14'), 0.03, 0.205, side * 0.112)); // its flap
+  }
+  r.add(mesh(box(0.012, 0.12, 0.012), M.wood(), -0.03, 0.17, 0.118)); // hammer handle
+  r.add(mesh(box(0.06, 0.024, 0.024), M.iron(), -0.03, 0.235, 0.118)); // hammer head
+  // rolled sleeves: the shirt covers the upper arm, then a cuff
+  for (const k of ['armL', 'armR']) {
+    m.parts[k].add(mesh(taper(0.085, 0.066, 0.06, 6), shirt));
+    m.parts[k].add(mesh(loft([[-0.096, 0.064, 0.064], [-0.078, 0.07, 0.07]], 6), shirt));
+    m.parts[k].add(mesh(gem(0.034, 1.1, 0.7, 1.1), glove, 0, -0.165, 0)); // glove cuff
+  }
+  // a short beard and sideburns
+  r.add(mesh(loft([[0.43, 0.06, 0.06], [0.45, 0.098, 0.1], [0.47, 0.096, 0.104]], 8), M.hair(), 0.012, 0, 0));
+  r.add(mesh(box(0.012, 0.01, 0.05), M.hair(), 0.058, 0.468, 0)); // moustache
+  // hard hat in team colour: a dome, a brim all round, a ridge over the crown and a lamp on the front
+  r.add(mesh(turned([[0, 0], [0.098, 0], [0.098, 0.008], [0.076, 0.016], [0.074, 0.045], [0.06, 0.07], [0.034, 0.084], [0, 0.088]], 10), tm, -0.004, 0.488, 0));
+  r.add(mesh(slab([[-0.07, 0.04], [-0.05, 0.07], [0, 0.088], [0.05, 0.07], [0.07, 0.04], [0.07, 0.05], [0.05, 0.078], [0, 0.098], [-0.05, 0.078], [-0.07, 0.05]], 0.022, 0.003), td, -0.004, 0.488, 0)); // ridge
+  r.add(mesh(box(0.024, 0.03, 0.03), M.brass(), 0.078, 0.52, 0)); // lamp
+  r.add(along(mesh(cyl(0.012, 0.012, 0.006, 8), M.lamp(), 0.092, 0.52, 0)));
+  // wicker basket on the back with leather straps, heaped with ore as it fills
+  r.add(mesh(turned([[0, 0], [0.055, 0], [0.07, 0.14], [0.064, 0.14], [0, 0.1]], 8), M.wattle(), -0.11, 0.29, 0));
+  r.add(mesh(turned([[0.07, 0.13], [0.075, 0.13], [0.075, 0.145], [0.068, 0.145]], 8), M.leather(), -0.11, 0.29, 0)); // rim
+  for (const z of [-0.05, 0.05]) r.add(rod([-0.06, 0.41, z], [-0.08, 0.31, z], 0.007, M.leather(), 4));
+  const heap = mesh(gem(0.05, 1, 1, 1, 1), M.ore(), -0.11, 0.43, 0);
   m.parts.heap = heap;
-  m.root.add(heap);
+  r.add(heap);
   // a pick held in the right fist: the haft runs through the hand (gripped near its butt) and
   // the iron head sits across its far end, so it moves with the arm when it swings
   m.parts.armR.rotation.z = 1.0;
-  // the striking side (-y, it leads the downswing) tapers to a long point; the back is a short flat blade
+  // the striking side (-y, it leads the downswing) curves to a long point; the back is a flat chisel
   const pick = group(0, -0.175, 0,
-    mesh(box(0.3, 0.02, 0.02), M.wood(), 0.09, 0, 0),
-    mesh(box(0.034, 0.04, 0.028), M.iron(), 0.235, 0, 0), // eye round the haft
-    rot(mesh(cone(0.016, 0.13, 6), M.iron(), 0.235, -0.085, 0), Math.PI, 0, 0), // the point
-    mesh(box(0.024, 0.05, 0.016), M.iron(), 0.235, 0.045, 0),
-    mesh(box(0.05, 0.018, 0.012), M.steel(), 0.235, 0.075, 0)); // the blade's edge
+    mesh(loftX([[-0.07, 0.026, 0.026], [-0.055, 0.03, 0.03], [-0.04, 0.022, 0.022], [0.25, 0.02, 0.02]], 6), M.wood()), // haft
+    mesh(loftX([[0.214, 0.03, 0.03], [0.258, 0.03, 0.03]], 6), M.iron()), // eye round the haft
+    mesh(slab([[0.2, -0.15], [0.226, -0.07], [0.25, -0.02], [0.25, 0.02], [0.238, 0.06], [0.234, 0.1], [0.208, 0.1], [0.214, 0.06], [0.222, 0.02], [0.222, -0.02], [0.212, -0.07]], 0.022, 0.004), M.iron()),
+    mesh(box(0.028, 0.008, 0.026), M.steel(), 0.221, 0.1, 0)); // the chisel's bright edge
   m.parts.gun = pick;
   m.parts.armR.add(pick);
   return m;
@@ -1039,6 +1076,70 @@ function powerPlant(team: number): Model {
   for (let i = 0; i < 6; i++) root.add(mesh(cyl(0.01, 0.01, 0.2, 4), M.steel(), -0.85 + i * 0.12, 0.15, 0.9));
   root.add(mesh(box(0.62, 0.006, 0.006), M.steel(), -0.55, 0.24, 0.9));
   return { root, parts, height: 1.45 };
+}
+
+/**
+ * Power Plant, Modern: a solar and wind farm. Rows of tilted blue solar panels, a white wind turbine
+ * whose blades turn (the `sails` part), a glass-fronted control centre, a bank of battery containers
+ * and a substation. No smoke, no cooling towers: nothing like the Industrial coal plant.
+ */
+function solarPlant(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  const cell = mat('#1c3368', { rough: 0.2, metal: 0.6 }), frame = M.steel();
+  // three rows of solar panels on steel legs, tilted to the sun
+  for (const z of [0.12, 0.44, 0.76]) {
+    for (const x of [-0.6, -0.08, 0.44]) {
+      root.add(rot(group(x + 0.2, 0.2, z,
+        mesh(box(0.48, 0.025, 0.24), frame, 0, 0, 0),
+        mesh(box(0.46, 0.03, 0.22), cell, 0, 0.003, 0),
+        mesh(box(0.006, 0.034, 0.22), frame, -0.115, 0.004, 0),
+        mesh(box(0.006, 0.034, 0.22), frame, 0, 0.004, 0),
+        mesh(box(0.006, 0.034, 0.22), frame, 0.115, 0.004, 0),
+        mesh(box(0.46, 0.034, 0.006), frame, 0, 0.004, 0)), 0.45, 0, 0));
+      for (const dx of [-0.15, 0.15]) root.add(mesh(box(0.02, 0.17, 0.02), M.darkSteel(), x + 0.2 + dx, 0.12, z - 0.04));
+    }
+  }
+  // the wind turbine: a tall white tapered mast, a nacelle with a team band, three turning blades
+  const tx = -0.62, tz = -0.6, hub = 1.38;
+  root.add(mesh(cyl(0.1, 0.13, 0.08, 12), M.lightConcrete(), tx, 0.1, tz));
+  root.add(mesh(cyl(0.035, 0.065, hub - 0.1, 10), M.white(), tx, 0.1 + (hub - 0.1) / 2, tz));
+  root.add(mesh(box(0.12, 0.12, 0.28), M.white(), tx, hub, tz - 0.06));
+  root.add(mesh(box(0.125, 0.03, 0.285), tm, tx, hub - 0.03, tz - 0.06));
+  const rotor = new THREE.Group();
+  rotor.position.set(tx, hub, tz + 0.1);
+  rotor.add(rot(mesh(cone(0.05, 0.1, 10), M.white(), 0, 0, 0.03), Math.PI / 2, 0, 0));
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const blade = mesh(box(0.06, 0.52, 0.015), M.white(), 0, 0.28, 0);
+    const arm = new THREE.Group();
+    arm.rotation.z = a;
+    arm.add(blade);
+    arm.add(mesh(box(0.062, 0.06, 0.017), tm, 0, 0.5, 0)); // team-coloured tips
+    rotor.add(arm);
+  }
+  root.add(rotor);
+  parts.sails = rotor;
+  // the control centre: white walls, a glass front, a team band and a rooftop dish
+  const cx = 0.35, cz = -0.5;
+  root.add(mesh(box(0.86, 0.4, 0.5), M.white(), cx, 0.26, cz));
+  root.add(mesh(box(0.82, 0.3, 0.02), M.glass(), cx, 0.25, cz + 0.255));
+  for (let i = 0; i < 5; i++) root.add(mesh(box(0.015, 0.32, 0.025), M.steel(), cx - 0.4 + i * 0.2, 0.25, cz + 0.26));
+  root.add(mesh(box(0.9, 0.05, 0.54), tm, cx, 0.48, cz));
+  root.add(mesh(box(0.88, 0.02, 0.52), M.metalRoof(), cx, 0.515, cz));
+  root.add(mesh(box(0.2, 0.06, 0.14), M.steel(), cx + 0.2, 0.555, cz - 0.08));
+  // battery containers along the back, green charge lights on each
+  const charge = mat('#5cff8a', { emissive: '#3dff6a', emissiveIntensity: 1.2 });
+  for (const x of [-0.25, 0.05]) {
+    root.add(mesh(box(0.26, 0.2, 0.14), M.lightConcrete(), x, 0.16, -0.86));
+    root.add(mesh(box(0.265, 0.03, 0.145), tm, x, 0.2, -0.86));
+    root.add(mesh(box(0.03, 0.03, 0.01), charge, x + 0.08, 0.13, -0.785));
+  }
+  // substation: transformer and insulators
+  root.add(mesh(box(0.18, 0.18, 0.16), M.darkSteel(), 0.82, 0.15, -0.84));
+  for (const x of [0.77, 0.82, 0.87]) for (let j = 0; j < 3; j++) root.add(mesh(cyl(0.014, 0.014, 0.02, 8), mat('#6a8a6a', { rough: 0.3 }), x, 0.26 + j * 0.025, -0.84));
+  return { root, parts, height: 1.8 };
 }
 
 function refinery(team: number): Model {
@@ -1524,13 +1625,12 @@ export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length
   if (type === 'armory') return cached(`b:${type}:${team}:${lk}`, () => (lk <= 1 ? smithy(team, lk === 1) : lk === 2 ? industrial(arsenal(team)) : arsenal(team)));
   if (type === 'magetower') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(mageTower(team, 3)) : mageTower(team, lk)));
   if (type === 'hospital') {
-    // a barracks-sized building told apart by the red cross out front
-    const base = () => (lk === 0 ? medievalBuilding('barracks', team, 'wood')
-      : lk === 1 ? medievalBuilding('barracks', team, 'stone')
-        : lk === 2 ? industrial(makeBuilding('barracks', team))
-          : makeBuilding('barracks', team));
-    return cached(`b:${type}:${team}:${lk}`, () => hospital(base()));
+    // Medieval: its own infirmary chapel; later ages: a barracks-sized ward told apart by the red cross out front
+    if (lk <= 1) return cached(`b:${type}:${team}:${lk}`, () => infirmary(team, lk === 1));
+    return cached(`b:${type}:${team}:${lk}`, () => hospital(lk === 2 ? industrial(makeBuilding('barracks', team)) : makeBuilding('barracks', team)));
   }
+  // the Modern Power Plant is solar and wind, not the Industrial coal plant's cooling towers in concrete
+  if (type === 'power' && lk === 3) return cached(`b:${type}:${team}:${lk}`, () => solarPlant(team));
   // the Town Hall is its own building in each age, not the Town Hall's block made over
   if (type === 'yard' && lk >= 2) return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? townHallBrick(team) : townHallModern(team)));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));

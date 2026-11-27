@@ -311,6 +311,27 @@ $sidebar-width: 248px;
     margin-top: 20px;
   }
 
+  // a campaign mission's goals, top-left of the map, ticked off as they're met
+  .game-goals {
+    position: absolute;
+    top: 48px;
+    left: $gutter;
+    z-index: 5;
+    padding: 6px 10px;
+    margin: 0;
+    font-size: $font-sm;
+    color: #f0e2b0;
+    list-style: none;
+    pointer-events: none;
+    background: rgb(0 0 0 / 55%);
+    border: 1px solid rgb(176 138 64 / 50%);
+    border-radius: $radius;
+  }
+
+  .game-goal--done {
+    color: #9fdc7a;
+  }
+
   .game-message {
     position: absolute;
     top: 48px;

@@ -35,6 +35,12 @@ export function toggleFormation(): void {
   try { localStorage.setItem(FORMATION_KEY, V.formation ? '1' : '0'); } catch { /* private mode: it just isn't remembered */ }
 }
 
+/** Whether the Formation button is offered: a group is picked, or it's on and any unit is picked (to turn it off). */
+export function canToggleFormation(): boolean {
+  const n = selectedUnits().length;
+  return n > 1 || (V.formation && n > 0);
+}
+
 /** The formation flag for a move order to these units (only a group can keep formation). */
 export const inFormation = (us: readonly Ent[]): { form?: true } => (V.formation && us.length > 1 ? { form: true } : {});
 

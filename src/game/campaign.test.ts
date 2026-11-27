@@ -14,7 +14,8 @@ import { available } from './production.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import type { LockedMap } from './map_lock.ts';
 import { matchOf } from '../data/setup.ts';
-import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionWorld, unlocked } from '../data/campaign.ts';
+import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionLayout, missionWorld, unlocked } from '../data/campaign.ts';
+import { START_YARDS } from '../data/map.ts';
 import { BUILDING } from '../data/building.ts';
 import { UNIT } from '../data/unit.ts';
 import { TECH } from '../data/era.ts';
@@ -207,6 +208,43 @@ describe('locked campaign maps', () => {
       expect(G.seed, m.id).toBe(locked.seed);
     }
   }, 60_000);
+});
+
+describe('mission layouts', () => {
+  it('put the Town Halls at spots of their own, the same every time (Alex)', () => {
+    for (const m of MISSIONS) {
+      const a = missionLayout(m), b = missionLayout(m);
+      expect(b, m.id).toEqual(a);
+      expect(a.yards.map(String), m.id).not.toEqual(START_YARDS.slice(0, a.yards.length).map(String));
+    }
+    // islands: each base on its own side of the sound
+    const isl = missionLayout(MISSIONS.find((m) => m.islands)!);
+    expect(isl.yards[0][1] - isl.yards[0][0]).toBeGreaterThan(14);
+    expect(isl.yards[1][0] - isl.yards[1][1]).toBeGreaterThan(14);
+    // one oil patch on Black Gold
+    expect(missionLayout(MISSIONS.find((m) => m.oneOil)!).oil.length).toBe(1);
+  });
+});
+
+describe('Black Gold goals', () => {
+  it('is not won until an Oil Derrick stands and the Town Hall is Industrial, even with the enemy destroyed (Alex)', () => {
+    const m = MISSIONS.find((x) => x.goals?.includes('derrick'))!;
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
+    for (const e of G.ents.filter((x) => x.team === 1)) { e.hp = 0; kill(e); }
+    for (let k = 0; k < 15 / STEP && !G.over; k++) update(STEP);
+    expect(G.over).toBe(false);
+    const [ox, oy] = G.layout!.oil[0];
+    addBuilding('derrick', 0, ox - 1, oy - 1, false);
+    for (let k = 0; k < 5 / STEP && !G.over; k++) update(STEP);
+    expect(G.goalsDone).toContain('derrick');
+    expect(G.over).toBe(false);
+    G.era[0] = 1;
+    for (let k = 0; k < 5 / STEP && !G.over; k++) update(STEP);
+    expect(G.goalsDone).toContain('industrial');
+    expect(G.over).toBe(true);
+    expect(G.winner).toBe(0);
+  });
 });
 
 describe('campaign progress', () => {

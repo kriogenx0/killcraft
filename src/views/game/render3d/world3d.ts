@@ -6,7 +6,7 @@ import { MW, MH } from '../../../game/const.ts';
 import { buildHeights, heightAt, heights, VH, VW, WATER_LEVEL } from './heights.ts';
 import { ORE_TILE_MAX } from '../../../data/ore.ts';
 import { OIL_TILE_MAX } from '../../../data/economy.ts';
-import { layoutFor } from '../../../data/map.ts';
+import { mapLayout } from '../../../game/map.ts';
 import { hash, mulberry32 } from '../../../util/math.ts';
 import { ctx2d, mkCanvas } from '../../../util/canvas.ts';
 import { terrain } from '../render/terrain.ts';
@@ -220,7 +220,7 @@ export function refreshOre(): void {
   if (!oil) return;
   // one dark pool at the heart of each well, shrinking as it's drained
   let k = 0;
-  for (const [wx, wy] of G.oilWells ?? layoutFor(G.teams, G.small).oil) {
+  for (const [wx, wy] of mapLayout().oil) {
     if (!G.vis[wy * MW + wx]) continue;
     let left = 0, n = 0;
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const i = (wy + dy) * MW + wx + dx; if (i >= 0 && i < MW * MH) { left += G.oilField[i]; n++; } }
