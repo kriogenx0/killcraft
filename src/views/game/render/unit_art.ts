@@ -72,6 +72,10 @@ function infantry(g: G2, type: UnitType, T: TeamColors, p: UnitPose): void {
       // heavy gun with a cooling jacket
       oline(g, hx - cs * recoil, hy - sn * recoil, hx + cs * (12 - recoil), hy + sn * (10 - recoil), 2.8, '#3a3e38');
       blob(g, hx + cs * 2, hy + sn * 2 + 2, 2, 1.6, '#4e5430');
+    } else if (type === 'flamer') {
+      // wand with a glowing nozzle
+      oline(g, hx - cs * recoil, hy - sn * recoil, hx + cs * (10 - recoil), hy + sn * (8 - recoil), 2, '#3a3e38');
+      blob(g, hx + cs * (10 - recoil), hy + sn * (8 - recoil), 1.4, 1.4, '#ff8a30');
     } else if (type === 'rocket') {
       // launcher on the shoulder
       oline(g, hx - cs * (5 + recoil), hy - 3 - sn * 5, hx + cs * (9 - recoil), hy - 3 + sn * 7, 3.4, '#5a6232');
@@ -80,6 +84,7 @@ function infantry(g: G2, type: UnitType, T: TeamColors, p: UnitPose): void {
   };
   if (back) gun();
   if (type === 'rocket') blob(g, -cs * 4, by - 1 - sn * 2, 3.5, 4, '#4e5430'); // backpack
+  if (type === 'flamer') blob(g, -cs * 4, by - 1 - sn * 2, 4, 4.5, '#8c2a1c'); // fuel tanks
   blob(g, 0, by, 5, 6, shade(g, 0, by, 6, UNIFORM[0], UNIFORM[1]));
   g.fillStyle = T.m;
   g.fillRect(-4, by - 2, 8, 3.2);
@@ -221,6 +226,19 @@ function medic(g: G2, T: TeamColors, p: UnitPose): void {
   blob(g, 0, by - 8, 3.6, 3.6, SKIN);
   g.beginPath(); g.arc(0, by - 8.6, 4.2, Math.PI, TAU); g.fillStyle = T.m; g.fill();
   g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 0.8; g.stroke();
+}
+
+function spy(g: G2, T: TeamColors, p: UnitPose): void {
+  const by = feet(g, p, '#1c1c1c');
+  // radio pack and its aerial
+  blob(g, -Math.cos(p.f) * 3.5, by - 1, 2.8, 3, '#2a2d30');
+  g.strokeStyle = '#2a2d30'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(-Math.cos(p.f) * 3.5, by - 3); g.lineTo(-Math.cos(p.f) * 4.5 - 1, by - 16); g.stroke();
+  blob(g, 0, by, 5, 6, shade(g, 0, by, 6, '#4a5054', '#22262a'));
+  g.fillStyle = T.d; g.fillRect(-5, by + 2, 10, 1.6); // team belt
+  blob(g, 0, by - 8, 4, 4, '#2b3033'); // hood
+  // goggles glowing green, facing the way it looks
+  const cs = Math.cos(p.f), sn = Math.sin(p.f);
+  if (sn > -0.3) { g.fillStyle = '#5aff80'; for (const s of [-1, 1]) { g.beginPath(); g.arc(cs * 1.6 + s * 1.5, by - 8.2 + sn * 0.8, 1.1, 0, TAU); g.fill(); } }
 }
 
 function swordsman(g: G2, T: TeamColors, p: UnitPose): void {
@@ -439,12 +457,13 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     g.fillRect(-26, -30, 52, 44);
   }
   switch (look ?? type) {
-    case 'rifleman': case 'gunner': case 'rocket': infantry(g, look ?? type, T, p); break;
+    case 'rifleman': case 'gunner': case 'rocket': case 'flamer': infantry(g, look ?? type, T, p); break;
     case 'swordsman': swordsman(g, T, p); break;
     case 'guardian': g.scale(1.6, 1.6); swordsman(g, T, p); break; // a Footman's outline, much bigger
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
     case 'medic': medic(g, T, p); break;
+    case 'spy': spy(g, T, p); break;
     case 'catapult': catapult(g, T, p); break;
     case 'artillery': artillery(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;

@@ -2,13 +2,13 @@ import type { ArmorClass, WeaponType } from './weapon.ts';
 import type { BldType } from './building.ts';
 import type { SpellType } from './spells.ts';
 
-export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'artillery' | 'harvester' | 'worker' | 'guardian'
+export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbowman' | 'knight' | 'jeep' | 'tank' | 'heavy' | 'catapult' | 'artillery' | 'harvester' | 'worker' | 'guardian' | 'flamer'
   | 'balloon' | 'biplane' | 'helicopter' | 'drone' | 'fighter' | 'striker' | 'medic'
   | 'wraith' | 'hexblade' | 'phantom' | 'starfall'
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
   | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'beequeen' | 'bee'
-  | 'mystery' | 'chicken'
+  | 'mystery' | 'chicken' | 'spy'
   | 'imp' | 'fiend' | 'archfiend' | 'drake';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
@@ -36,6 +36,8 @@ export interface UnitDef {
   aether?: number;
   /** stays unseen by enemies until it fires or an enemy comes close (see CLOAK_* in data/aether.ts) */
   cloak?: boolean;
+  /** a cloaked unit that only shows to enemies this close, in tiles, instead of CLOAK_DETECT (the Spy) */
+  spot?: number;
   /**
    * a creature of Greek myth (data/creatures.ts). Wild ones guard lairs on the map; a side can only
    * train a kind once it has captured one.
@@ -145,6 +147,11 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // Barracks unit (no Aether), far smaller than the Titan. It holds the line: arrows and bullets
   // barely mark it, and its giant axe chops through two foes at a swing. Rockets, cannons and spells bring it down.
   guardian: { name: 'Guardian', cls: 'infantry', armor: 'heavy', hp: 380, spd: 1.5, turn: 4, weapon: 'greataxe', cost: 550, wood: 50, t: 13, era: 0, sight: 5, producer: 'infantry', turret: false, radius: 15, desc: 'Huge foot soldier in heavy plate with a tower shield and a giant axe it swings through the enemy line. Arrows and bullets barely scratch it, so it holds the front while others shoot. Slow; rockets, cannons and spells bring it down.' },
+  // the Flamethrower: an Industrial trooper with fuel tanks on his back and a hose that spits a short
+  // jet of burning oil. Too short-ranged for a stand-up fight, but every lick sets its target alight
+  // and the fire runs on through packed troops. Burns out bunched infantry, creatures and buildings;
+  // tanks and Tide Callers make short work of him.
+  flamer: { name: 'Flamethrower', cls: 'infantry', armor: 'light', hp: 110, spd: 2.0, turn: 6.5, weapon: 'flamethrower', cost: 250, oil: 60, t: 8, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, desc: 'Fuel tanks on his back and a hose of burning oil. Short reach, but everything he hits catches fire, and the fire spreads through packed troops. Clears out bunched infantry, creatures and buildings. Keep him away from tanks and water.' },
   jeep: { name: 'Scout Jeep', cls: 'vehicle', armor: 'light', hp: 210, spd: 5.0, turn: 4, weapon: 'mg', cost: 325, oil: 50, t: 10, era: 1, sight: 7, producer: 'vehicle', turret: true, radius: 11, desc: 'Fast scout with a machine gun.' },
   tank: { name: 'Battle Tank', key: 'T', cls: 'vehicle', armor: 'heavy', hp: 360, spd: 3.0, turn: 2.5, weapon: 'cannon', cost: 700, oil: 150, t: 20, era: 1, sight: 5, producer: 'vehicle', turret: true, radius: 13, desc: 'Main battle tank. Strong against vehicles and buildings.' },
   heavy: { name: 'Heavy Tank', cls: 'vehicle', armor: 'heavy', hp: 700, spd: 2.0, turn: 1.8, weapon: 'heavycannon', cost: 1200, oil: 200, t: 31, era: 2, sight: 6, producer: 'vehicle', turret: true, radius: 15, regen: 0.005, desc: 'Slow, heavily armored twin-cannon tank. Its crew patch it up in the field: it slowly repairs itself.' },
@@ -161,6 +168,10 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // jets: the fastest things in the sky, and they can't hover. They make passes at a target and loop back round.
   fighter: { name: 'Jet Fighter', cls: 'air', armor: 'air', hp: 280, spd: 9.5, turn: 2.6, weapon: 'aam', cost: 650, oil: 200, t: 21, era: 2, sight: 10, producer: 'air', turret: false, radius: 13, alt: 1.8, jet: true, desc: 'Supersonic interceptor with heat-seeking missiles. Hunts helicopters, drones, balloons and flying creatures, and outruns anything in the sky. Can\'t hit the ground, and can\'t hover: it makes passes and loops back.' },
   striker: { name: 'Strike Jet', cls: 'air', armor: 'air', hp: 340, spd: 8.0, turn: 1.9, weapon: 'jetbomb', cost: 1000, oil: 300, t: 31, era: 2, sight: 8, producer: 'air', turret: false, radius: 15, alt: 1.8, jet: true, desc: 'Swoops in low and drops a heavy bomb, then streaks away and loops back for another run. Wrecks buildings, turrets and tanks from across the map. Can\'t hover or fight other aircraft; flak and fighters bring it down.' },
+  // the Spy (Alex, 2026-11-27): a Modern-age infiltrator for watching other sides. It never fights; it
+  // stays cloaked (only Ward Stones, Sphinxes, other Spies and enemies all but on top of it see it),
+  // sees far, and runs when it's shot at.
+  spy: { name: 'Spy', cls: 'infantry', armor: 'none', hp: 70, spd: 2.8, turn: 7, weapon: null, cost: 250, oil: 75, t: 9, era: 2, sight: 11, producer: 'infantry', turret: false, radius: 6, cloak: true, spot: 1, detect: 4, desc: 'Unarmed infiltrator in a camouflage suit. Enemies can\'t see it unless they all but bump into it, and it sees far, so park it by an enemy base to watch what they build and where their army goes. Never attacks, and runs if it\'s shot at. Spots other cloaked units within 4 tiles. Ward Stones and Sphinxes see through its disguise.' },
   // hidden units, revealed by Aether: each matches its regular unit, plus one trick
   wraith: { name: 'Wraith Knight', cls: 'infantry', armor: 'light', hp: 240, spd: 4.6, turn: 5, weapon: 'wraithlance', cost: 350, wood: 30, aether: 50, t: 13, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, look: 'knight', desc: 'A knight bound to Aether. Its spectral lance passes through armor.' },
   hexblade: { name: 'Hex Rifleman', cls: 'infantry', armor: 'none', hp: 57, spd: 2.0, turn: 6.5, weapon: 'hexrifle', cost: 100, wood: 20, aether: 10, t: 4, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, look: 'rifleman', desc: 'Hexed shot slows whatever it hits to half speed for a moment.' },

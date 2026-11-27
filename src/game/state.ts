@@ -49,6 +49,8 @@ export function reactOf(u: Ent): React {
   // Workers and Harvesters run from danger and go back to work after (Alex, 2026-11-27, game/evade.ts)
   // (a Worker the player put on an attack stance fights back instead)
   if (u.kind === 'unit' && unitDef(u).haul && (u.stance === 'tend' || !unitDef(u).weapon)) return 'evade';
+  // an unarmed cloaked unit (the Spy) slips away when it's found
+  if (u.kind === 'unit' && unitDef(u).cloak && !unitDef(u).weapon) return 'evade';
   return u.kind === 'unit' && unitDef(u).weapon && u.type !== 'worker' ? 'pursue' : 'hold';
 }
 

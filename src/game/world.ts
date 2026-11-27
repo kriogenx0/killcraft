@@ -1,7 +1,7 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import type { FogMode, WeatherMode } from '../data/setup.ts';
 import { isWall } from '../data/building.ts';
-import { G, allied, hooks, say, unitDef, type Goal, type Rush, type Tile } from './state.ts';
+import { G, allied, hooks, say, unitDef, type Ent, type Goal, type Rush, type Tile } from './state.ts';
 import { markStartStock, resetStats, sampleStats } from './stats.ts';
 import { GRASS, MW, MH, TS } from './const.ts';
 import { type MapLayout, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
@@ -196,8 +196,12 @@ const FALL_SECONDS = 2.5;
  * for and is training), and nothing left that trains Workers. A side with no Worker gets its next one
  * free (freeWorker in production.ts), so having no ore never puts it out of the game.
  */
+/** An unarmed cloaked unit (the Spy). */
+const spyOnly = (e: Ent): boolean => !unitDef(e).weapon && !!unitDef(e).cloak;
+
 export function stranded(team: number): boolean {
-  if (G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'unit' || (e.type === 'yard' && e.done)))) return false;
+  // a lone Spy can't rebuild, and nobody can find it to finish the side off, so it doesn't count
+  if (G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'unit' && !spyOnly(e)) || (e.type === 'yard' && e.done)))) return false;
   if (Object.values(G.prod[team]).some((line) => line.some((it) => it.paid && isUnitType(it.type)))) return false;
   return !available(team, 'infantry').includes('worker');
 }
