@@ -149,8 +149,8 @@ function scatterUnits(team: number, units: readonly UnitType[], spots: Tile[]): 
   });
 }
 
-export const GOAL_TEXT: Record<Goal, string> = { derrick: 'Build an Oil Derrick' };
-const goalMet = (g: Goal): boolean => g === 'derrick' && G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'derrick' && e.done);
+export const GOAL_TEXT: Record<Goal, string> = { derrick: 'Build an Oil Derrick', industrial: 'Upgrade the Town Hall to the Industrial age' };
+const goalMet = (g: Goal): boolean => g === 'industrial' ? G.era[0] >= 1 : G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'derrick' && e.done);
 
 /** How many of the enemy's buildings and fighting units are left (for the mission goals). */
 export const foesLeft = (): number => G.ents.filter((e) => !e.dead && e.team >= 0 && !allied(e.team, 0) && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon))).length;

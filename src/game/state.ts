@@ -319,8 +319,8 @@ export interface Particle {
 
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
-/** A campaign mission goal: 'derrick' = build an Oil Derrick (Black Gold) */
-export type Goal = 'derrick';
+/** A campaign mission goal: 'derrick' = build an Oil Derrick, 'industrial' = research the Industrial Age at the Town Hall (Black Gold) */
+export type Goal = 'derrick' | 'industrial';
 /** A linked pair of Waygates: like a portal, but only its team may use it. */
 export interface Waygate extends Portal { team: number }
 
