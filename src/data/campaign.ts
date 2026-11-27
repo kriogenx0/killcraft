@@ -4,11 +4,12 @@
 // Each mission unlocks more to build (UNLOCKS): everything a later mission unlocks is banned for
 // every side until then. Some missions are on a winter map (snow). Winning a mission unlocks the
 // next one; progress is kept in this browser.
-import { DEFAULT_SETUP, type GameSetup } from './setup.ts';
+import { DEFAULT_SETUP, MODES, type GameSetup } from './setup.ts';
 import { ERA, TECH, TECH_TYPES, type TechType } from './era.ts';
 import { UNIT, UNIT_TYPES, type UnitType } from './unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from './building.ts';
-import { smallBounds } from './map.ts';
+import { SPARSE, smallBounds, type MapLayout } from './map.ts';
+import { mulberry32 } from '../util/math.ts';
 import type { Tile } from '../game/state.ts';
 
 type Thing = BldType | UnitType | TechType;
@@ -67,8 +68,8 @@ export interface Mission {
   wild?: boolean;
   /** no enemy town: the enemy is just these units, in small groups across the map */
   scatter?: UnitType[];
-  /** the only oil wells on the map (instead of one by each base) */
-  oil?: Tile[];
+  /** a single oil well on the whole map, as far from every base as the land allows (instead of one by each base) */
+  oneOil?: boolean;
   /** each side on its own island: only aircraft cross */
   islands?: boolean;
   /** no towns: the player starts with just this army (no Workers, no buildings) */
@@ -101,7 +102,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "Level 4 all about finding oil. One oil patch. Small map."
-    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oil: [[smallBounds(60)[0] + 6, smallBounds(60)[0] + 6]],
+    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true,
     brief: 'There is just one oil patch on this small map, somewhere out in the fog. Find it and hold it: oil builds the Engine Works that opens the Industrial age. One Easy computer is looking too.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 4404 }),
   },
@@ -154,8 +155,67 @@ MISSIONS.forEach((m, i) => { m.setup.weather = i >= 8 ? 'storms' : m.snow ? 'off
  * The world options a mission plays with (initWorld's StartOptions). Missions before 8 have no Aether
  * and no creature lairs (`wild` is left out on them, so it must be read as false here, not defaulted).
  */
+/**
+ * A mission's own layout (Alex: "Missions with town halls should be randomized locations but always
+ * set the same for that mission"): the Town Halls stand at spots picked from the mission's seed, not
+ * the usual mirrored corners, and each base gets its ore field, oil well and wood beside it, toward the
+ * middle. The same mission always gets the same spots, on every device.
+ */
+export function missionLayout(m: Mission): MapLayout {
+  const teams = MODES[m.setup.mode].teams, size = m.small ?? 0, [lo, hi] = size ? smallBounds(size) : [4, 92];
+  const lean = size > 0 && size < SPARSE, span = hi - lo, rnd = mulberry32((m.setup.seed ?? 1) * 7 + 13);
+  const inside = ([x, y]: Tile, pad: number) => x >= lo + pad && y >= lo + pad && x <= hi - pad - 3 && y <= hi - pad - 3;
+  // islands: one Town Hall each side of the sound that runs along x = y
+  const sideOk = (t: number, [x, y]: Tile) => !m.islands || (t === 0 ? y - x > 14 : x - y > 14);
+  const yards: Tile[] = [];
+  for (let t = 0; t < teams; t++) {
+    let best: Tile = [lo + 6, hi - 9], bestD = -1;
+    for (let k = 0; k < 400; k++) {
+      const p: Tile = [Math.round(lo + 4 + rnd() * (span - 11)), Math.round(lo + 4 + rnd() * (span - 11))];
+      if (!sideOk(t, p)) continue;
+      const d = Math.min(...yards.map(([x, y]) => Math.hypot(x - p[0], y - p[1])), 999);
+      // far enough from every other base; the first spot that is, else the farthest found
+      if (d >= span * (teams > 2 ? 0.42 : 0.6)) { best = p; break; }
+      if (d > bestD) { best = p; bestD = d; }
+    }
+    yards.push(best);
+  }
+  // each base's ore, oil and wood, turned toward the middle of the land
+  const mid = (lo + hi) / 2, ore: Tile[] = [], oil: Tile[] = [], forests: [number, number, number][] = [];
+  const at = ([x, y]: Tile, a: number, r: number): Tile => [Math.round(x + 1 + Math.cos(a) * r), Math.round(y + 1 + Math.sin(a) * r)];
+  const clampIn = (p: Tile): Tile => [Math.min(hi - 3, Math.max(lo + 3, p[0])), Math.min(hi - 3, Math.max(lo + 3, p[1]))];
+  for (const y of yards) {
+    const a = Math.atan2(mid - y[1] - 1, mid - y[0] - 1);
+    ore.push(clampIn(at(y, a + 0.9, 8)));
+    oil.push(clampIn(at(y, a - 0.9, 9)));
+    forests.push([...clampIn(at(y, a + Math.PI, 7)), lean ? 3 : 4]);
+  }
+  // more ore out in the open: one in the middle (not under the islands' sea), and more on a roomier map
+  if (!m.islands) ore.push([Math.round(mid), Math.round(mid)]);
+  for (let k = 0, extra = lean ? 0 : teams > 2 ? 4 : 2; k < 200 && extra > 0; k++) {
+    const p: Tile = [Math.round(lo + 6 + rnd() * (span - 12)), Math.round(lo + 6 + rnd() * (span - 12))];
+    if (!inside(p, 4) || (m.islands && Math.abs(p[0] - p[1]) < 12)) continue;
+    if ([...yards.map(([x, y]) => [x + 1, y + 1] as Tile), ...ore, ...oil].some(([x, y]) => Math.hypot(x - p[0], y - p[1]) < 11)) continue;
+    ore.push(p);
+    extra--;
+  }
+  // a lean map keeps one small wood, by the player
+  if (m.oneOil) {
+    // the one oil patch: the open spot farthest from every base, out where it has to be found
+    let best: Tile = [Math.round(mid), Math.round(mid)], bestD = -1;
+    for (let y = lo + 5; y <= hi - 5; y++)
+      for (let x = lo + 5; x <= hi - 5; x++) {
+        const d = Math.min(...yards.map(([a, b]) => Math.hypot(a + 1 - x, b + 1 - y)), ...ore.map(([a, b]) => Math.hypot(a - x, b - y) * 2));
+        if (d > bestD) { bestD = d; best = [x, y]; }
+      }
+    oil.length = 0;
+    oil.push(best);
+  }
+  return { yards, ore, oil, forests: lean ? forests.slice(0, 1) : forests, portals: [] };
+}
+
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, oilWells: m.oil ?? null, islands: !!m.islands,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

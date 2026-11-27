@@ -6,9 +6,8 @@
 import { G } from './state.ts';
 import { GRASS, MH, MW } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { layoutFor } from '../data/map.ts';
 import { lairsFor } from './creatures.ts';
-import { nearPortal } from './map.ts';
+import { mapLayout, nearPortal } from './map.ts';
 
 /** Coat colours a cow can have. Purple first: every herd gets one. */
 export const COW_COLORS = ['#8a4ad0', '#f2efe8', '#2a2624', '#7a4a2a', '#e86aa8', '#4aa8e8', '#f0c830', '#5ac86a', '#f08a30', '#d84040', '#40c8c0'];
@@ -83,7 +82,7 @@ function restartCows(): void {
 
 /** Place the herds for the current map. Same seed and map, same herds, on every screen. */
 export function initCows(): void {
-  const rnd = mulberry32(G.seed ^ 0xc0c0a), layout = layoutFor(G.teams, G.small);
+  const rnd = mulberry32(G.seed ^ 0xc0c0a), layout = mapLayout();
   const avoid: [number, number, number][] = [
     ...layout.yards.map(([x, y]): [number, number, number] => [x + 1, y + 1, CLEAR_OF_BASES]),
     ...lairsFor(G.seed).map(([[x, y]]): [number, number, number] => [x, y, CLEAR_OF_LAIRS]),

@@ -3,11 +3,11 @@
 // Purpose: a team that keeps one base standing can bring a beaten partner back into the fight.
 import { G, allied, isAir, say, tileOf } from './state.ts';
 import { MW, MH, TS, GRASS } from './const.ts';
-import { layoutFor, START_UNITS } from '../data/map.ts';
+import { START_UNITS } from '../data/map.ts';
 import { BUILDING } from '../data/building.ts';
 import { teamColors } from '../data/team.ts';
 import { addBuilding, addUnit } from './entity.ts';
-import { nearPortal } from './map.ts';
+import { mapLayout, nearPortal } from './map.ts';
 
 /** What it costs the reviving side: about two thirds of a Town Hall. */
 export const REVIVE_PRICE = { ore: 2000, wood: 300 } as const;
@@ -59,7 +59,7 @@ function spotNear(cx: number, cy: number): [number, number] | null {
 
 /** Where the new Town Hall goes: the fallen side's own corner if there's room, else beside the reviver's Town Hall. */
 export function reviveSpot(by: number, target: number): [number, number] | null {
-  const home = layoutFor(G.teams, G.small).yards[target];
+  const home = mapLayout().yards[target];
   const own = G.ents.find((e) => !e.dead && e.team === by && e.type === 'yard' && e.done);
   return (home && spotNear(home[0], home[1])) ?? (own ? spotNear(own.tx, own.ty) : null);
 }

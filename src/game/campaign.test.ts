@@ -14,7 +14,8 @@ import { available } from './production.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import type { LockedMap } from './map_lock.ts';
 import { matchOf } from '../data/setup.ts';
-import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionWorld, unlocked } from '../data/campaign.ts';
+import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionLayout, missionWorld, unlocked } from '../data/campaign.ts';
+import { START_YARDS } from '../data/map.ts';
 import { BUILDING } from '../data/building.ts';
 import { UNIT } from '../data/unit.ts';
 import { TECH } from '../data/era.ts';
@@ -207,6 +208,22 @@ describe('locked campaign maps', () => {
       expect(G.seed, m.id).toBe(locked.seed);
     }
   }, 60_000);
+});
+
+describe('mission layouts', () => {
+  it('put the Town Halls at spots of their own, the same every time (Alex)', () => {
+    for (const m of MISSIONS) {
+      const a = missionLayout(m), b = missionLayout(m);
+      expect(b, m.id).toEqual(a);
+      expect(a.yards.map(String), m.id).not.toEqual(START_YARDS.slice(0, a.yards.length).map(String));
+    }
+    // islands: each base on its own side of the sound
+    const isl = missionLayout(MISSIONS.find((m) => m.islands)!);
+    expect(isl.yards[0][1] - isl.yards[0][0]).toBeGreaterThan(14);
+    expect(isl.yards[1][0] - isl.yards[1][1]).toBeGreaterThan(14);
+    // one oil patch on Black Gold
+    expect(missionLayout(MISSIONS.find((m) => m.oneOil)!).oil.length).toBe(1);
+  });
 });
 
 describe('campaign progress', () => {
