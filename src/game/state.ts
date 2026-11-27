@@ -386,6 +386,10 @@ export const G = {
   reveal: false,
   /** fog of war: 'reveal' keeps explored ground fully visible; 'regrow' fogs it over again (troops hidden) once nobody on the side sees it */
   fog: 'reveal' as FogMode,
+  /** the latest age any side may research (0 Medieval, 1 Industrial, 2 Modern); campaign missions cap it */
+  maxEra: 2,
+  /** the campaign mission being played (see data/campaign.ts), or null outside the campaign */
+  mission: null as string | null,
   alertT: [-99, -99],
   /** last place the viewer's team was attacked */
   lastAlert: null as Point | null,

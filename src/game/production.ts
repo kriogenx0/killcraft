@@ -66,7 +66,7 @@ export const descOf = (t: Buildable): string => defOf(t).desc;
 /** A structure that opens the next age is built once: not after its age, and not while one stands or rises. */
 const spentAdvance = (team: number, t: BldType): boolean => {
   const to = BUILDING[t].opens;
-  return to != null && (eraOf(team) >= to || countOf(team, t) > 0);
+  return to != null && (eraOf(team) >= to || to > G.maxEra || countOf(team, t) > 0);
 };
 
 /** The team's current age (index into ERA). */
@@ -89,7 +89,8 @@ const plannedUpgrade = (team: number, track: UpgradeTrack): number =>
 /** The research that would take a team into its next age, if there is one (and it isn't queued already). */
 export function nextTech(team: number): TechType | null {
   const t = TECH_TYPES.find((x) => TECH[x].age === eraOf(team) + 1) ?? null;
-  return t && !queuedTech(team).includes(t) ? t : null;
+  // a campaign mission can hold every side in an age
+  return t && TECH[t].age! <= G.maxEra && !queuedTech(team).includes(t) ? t : null;
 }
 
 /** The next healing research, after any queued, once the team's age allows it. */

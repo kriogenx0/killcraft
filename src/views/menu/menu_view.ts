@@ -6,6 +6,7 @@ import type { LobbySummary, ServerMsg } from '../../net/protocol.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { liveText, mountLobby } from '../lobby/lobby_view.ts';
 import { mountSetup } from '../setup/setup_view.ts';
+import { mountCampaign } from '../campaign/campaign_view.ts';
 import { gameIdFromUrl, rememberOnline } from '../game/resume.ts';
 import { takeUpdate } from '../../pwa/register.ts';
 import type { GameBoot, GameView } from '../game/game_view.ts';
@@ -102,10 +103,16 @@ export function mountMenu(root: HTMLElement): Promise<void> {
     // Back from the pause menu's New Game returns to the paused game, otherwise to the main menu
     onBack: () => { if (!game?.playingSolo()) openMenu(); },
   });
+  const campaign = mountCampaign(must(root, '.view-campaign'), {
+    onPlay: (m) => toGame((g) => g.newSolo({ ...m.setup, mission: m.id }, false)),
+    onBack: openMenu,
+  });
+  const openCampaign = () => { closeModal(startModal); campaign.open(); void loadGameModule().catch(() => {}); };
   const openSetup = (watch: boolean) => { closeModal(startModal); setup.open(watch); void loadGameModule().catch(() => {}); };
   const openLobby = (o?: Parameters<typeof lobby.open>[0]) => { closeModal(startModal); lobby.open(o); void loadGameModule().catch(() => {}); };
 
   // with a new version waiting, each of these opens on it instead (see takeUpdate)
+  must(root, '.game-start-campaign').addEventListener('click', () => { if (!takeUpdate('/?campaign')) openCampaign(); });
   must(root, '.game-start-play').addEventListener('click', () => { if (!takeUpdate('/?setup')) openSetup(false); });
   must(root, '.game-start-watch').addEventListener('click', () => { if (!takeUpdate('/?setup=watch')) openSetup(true); });
   onlineBtn.addEventListener('click', () => { if (!takeUpdate('/?online')) openLobby(); });
@@ -192,6 +199,7 @@ export function mountMenu(root: HTMLElement): Promise<void> {
     return mountGame('resume').then(() => {}, (err) => { console.error(err); openMenu(); });
   }
   if (TEST_STARTS.some((k) => q.has(k))) return mountGame('test').then(() => {}, (err) => { console.error(err); });
+  if (q.has('campaign')) { history.replaceState(null, '', '/'); openCampaign(); return Promise.resolve(); }
   if (q.has('setup')) { history.replaceState(null, '', '/'); openSetup(q.get('setup') === 'watch'); return Promise.resolve(); }
   if (q.has('online') || q.has('join')) openLobby({ quick: q.get('online') === 'quick', join: q.get('join') ?? undefined });
   return Promise.resolve();

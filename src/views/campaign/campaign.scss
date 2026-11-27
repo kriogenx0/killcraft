@@ -1,0 +1,75 @@
+@use '../../styles/tokens' as *;
+@use '../../styles/spacing' as *;
+@use '../../styles/typography' as *;
+
+.view-campaign {
+  overflow-y: auto;
+  background: radial-gradient(ellipse at center, rgb(30 34 20 / 55%), rgb(0 0 0 / 95%));
+
+  &.ui-modal--open {
+    justify-content: safe center;
+  }
+
+  .campaign-title {
+    font-size: $font-display;
+    color: var(--color-title);
+    text-shadow: 0 4px 0 #6a3a10, 0 0 20px #000;
+  }
+
+  .campaign-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-2;
+    width: 100%;
+    max-width: 560px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .campaign-mission {
+    display: flex;
+    gap: $space-3;
+    align-items: center;
+    justify-content: space-between;
+    padding: $space-3;
+    color: #e8d8a8;
+    text-align: left;
+    background: rgb(0 0 0 / 40%);
+    border: 1px solid rgb(176 138 64 / 50%);
+    border-radius: $radius;
+  }
+
+  .campaign-mission--locked {
+    opacity: 0.55;
+  }
+
+  .campaign-mission-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .campaign-mission-name {
+    font-size: $font-lg;
+    color: var(--color-title);
+  }
+
+  .campaign-mission-check {
+    color: #8fd36a;
+  }
+
+  .campaign-mission-brief {
+    font-size: $font-sm;
+  }
+
+  .campaign-mission-meta {
+    font-size: $font-xs;
+    color: #cfc093;
+  }
+
+  .campaign-mission .ui-button {
+    flex: none;
+  }
+}

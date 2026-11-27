@@ -5,6 +5,7 @@ import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { layoutFor } from '../../data/map.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
+import { ageLimit, markWon, missionById, nextMission } from '../../data/campaign.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, outReasons, update } from '../../game/world.ts';
@@ -235,7 +236,9 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     setOffline(false);
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog });
+    const mission = demo ? null : missionById(s.mission);
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra });
+    G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
     ais.forEach((a, t) => {
@@ -257,6 +260,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     setSelection([]);
     saveNow();
     void pruneGames().catch(() => {});
+    if (mission) show(`${mission.name}: ${ageLimit(mission)}`);
   };
 
   /** Save the solo game in progress, so a refresh comes back to it. */
@@ -517,7 +521,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     lobby.open(hostedGame() === id ? { host: id } : { join: id });
   };
   // after a restart, reloading the game's page tries to rejoin it once more
-  againBtn.addEventListener('click', () => { if (restartEnd) location.reload(); else location.href = V.online ? '/?online' : '/'; });
+  againBtn.addEventListener('click', () => { if (restartEnd) location.reload(); else location.href = V.online ? '/?online' : G.mission && !G.demo ? '/?campaign' : '/'; });
   // Back from a game's address leaves the game for the start screen (a solo game stays saved there)
   window.addEventListener('popstate', () => { if (V.started && gameIdFromUrl() !== root.dataset.gameId) location.reload(); });
   pauseBtn.addEventListener('click', () => { V.paused = !V.paused; });
@@ -584,7 +588,16 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       if (!endReason && !V.online) endReason = outReasons((t) => `${watchingNames?.[t] ?? teamColors(t).name}${t === V.team && !G.demo ? ' (you)' : ''}`).join(' ');
       if (root.dataset.gameId && !restartEnd) void forgetGame(root.dataset.gameId).catch(() => {});
       must(root, '.game-result').textContent = G.demo ? (G.winner < 0 ? 'Draw' : `${winners(G.winner)} ${teamGame() ? 'win' : 'wins'}`) : G.winner >= 0 && allied(G.winner, V.team) ? 'Victory' : G.winner < 0 ? (restartEnd ? 'Restarting Server' : 'Game over') : 'Defeat';
-      must(root, '.game-end-time').textContent = [endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
+      // a campaign mission: a win opens the next one, and Play again goes back to the mission list
+      const mission = !V.online && !G.demo ? missionById(G.mission) : null;
+      let missionNote = '';
+      if (mission) {
+        const won = G.winner >= 0 && allied(G.winner, V.team), next = nextMission(mission.id);
+        if (won) markWon(mission.id);
+        missionNote = won ? (next ? `Mission complete. ${next.name} is unlocked.` : 'Mission complete. That was the last mission!') : 'Mission failed. Try it again from the campaign.';
+        againBtn.textContent = 'Campaign';
+      }
+      must(root, '.game-end-time').textContent = [missionNote, endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       const sideName = (t: number) => `${watchingNames?.[t] || onlineNames?.[t] || teamColors(t).name}${t === V.team && !G.demo && !watchingNames ? ' (you)' : ''}`;
       renderEndStats(must(root, '.game-end-stats'), V.online ? endStats : summarize(), sideName, G.winner);
       resignBtn.hidden = true;

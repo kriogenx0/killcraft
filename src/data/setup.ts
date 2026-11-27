@@ -121,6 +121,8 @@ export interface GameSetup {
   /** game speed at the start */
   speed: number;
   fog: FogMode;
+  /** a campaign mission (data/campaign.ts): caps the ages and records a win */
+  mission?: string;
 }
 
 export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: 'reveal' };

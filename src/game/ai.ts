@@ -177,7 +177,7 @@ function nextStructure(team: number, walling: boolean): BldType | null {
     if (BUILDING[t].era > G.era[team]) continue;
     // the Engine Works only matters until its age is researched
     const to = BUILDING[t].opens;
-    if (to != null && G.era[team] >= to) continue;
+    if (to != null && (G.era[team] >= to || to > G.maxEra)) continue;
     need[t] = (need[t] ?? 0) + 1;
     if (countOf(team, t) < (need[t] ?? 0)) {
       if (!can.includes(t)) return null;
