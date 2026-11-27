@@ -5,7 +5,7 @@ import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { layoutFor } from '../../data/map.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
-import { ageLimit, bannedIn, markWon, missionById, nextMission } from '../../data/campaign.ts';
+import { ageLimit, bannedIn, markWon, missionById, missionWorld, nextMission } from '../../data/campaign.ts';
 import { initSnow3d, updateSnow3d } from './render3d/snow3d.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
@@ -242,7 +242,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
     const mission = demo ? null : missionById(s.mission);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, weather: s.weather, maxEra: mission?.maxEra, ban: mission ? bannedIn(mission) : undefined, snow: !!mission?.snow, wild: !mission || mission.wild, gate: !mission, aether: !mission || mission.wild, small: !!mission?.small, scatter: mission?.scatter });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, weather: s.weather, ...(mission ? missionWorld(mission) : {}) });
     G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
@@ -285,6 +285,18 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     const w = g.world.g as { seed: number; teams: number };
     initWorld(w.seed, w.teams);
     if (!restoreWorld(g.world)) return false;
+    // a campaign game saved under older rules plays on under the mission's rules now
+    const mission = missionById(G.mission);
+    if (mission) {
+      G.banned = bannedIn(mission);
+      G.wild = !!mission.wild;
+      if (!mission.wild) {
+        const gone = G.ents.filter((e) => e.type === 'aether' || !!e.wild);
+        for (const e of gone) G.byId.delete(e.id);
+        G.ents = G.ents.filter((e) => !gone.includes(e));
+        G.respawns = [];
+      }
+    }
     rebuildBlk();
     updFog();
     setGameId(g.id);

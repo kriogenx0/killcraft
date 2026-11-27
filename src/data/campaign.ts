@@ -118,6 +118,15 @@ export const MISSIONS: Mission[] = [
   },
 ];
 
+/**
+ * The world options a mission plays with (initWorld's StartOptions). Missions before 8 have no Aether
+ * and no creature lairs (`wild` is left out on them, so it must be read as false here, not defaulted).
+ */
+export const missionWorld = (m: Mission) => ({
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: !!m.small, scatter: m.scatter,
+  wild: !!m.wild, aether: !!m.wild, gate: false,
+});
+
 /** What nobody may build, train or research in a mission: everything a later mission unlocks. */
 export const bannedIn = (m: Mission): string[] => UNLOCKS.slice(MISSIONS.indexOf(m) + 1).flat();
 

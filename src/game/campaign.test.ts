@@ -10,7 +10,7 @@ import { WATER } from './const.ts';
 import { kill } from './entity.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
-import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, unlocked } from '../data/campaign.ts';
+import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionWorld, unlocked } from '../data/campaign.ts';
 import { BUILDING } from '../data/building.ts';
 import { UNIT } from '../data/unit.ts';
 import { TECH } from '../data/era.ts';
@@ -141,6 +141,13 @@ describe('Aether and creatures', () => {
   it('stay out of the campaign until mission 8 (Alex)', () => {
     MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 7));
     for (const m of MISSIONS.slice(0, 7)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
+    // each mission as the game starts it
+    MISSIONS.forEach((m, i) => {
+      initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
+      expect(G.hell.gate, m.id).toBe(false);
+      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 7);
+      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 7);
+    });
     initWorld(2202, 2, { wild: false, gate: false, aether: false });
     expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
     initWorld(2202, 2, { wild: true, gate: false, aether: true });
