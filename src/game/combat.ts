@@ -17,6 +17,7 @@ import { hideFactor, kneeling, petrify, riseFromAshes, subdue } from './creature
 import { GUARD_RADIUS as WILD_REACH } from '../data/creatures.ts';
 import { armorFactor, weaponFactor } from './upgrade.ts';
 import { applyElement, elementMult, soakShield } from './spells.ts';
+import { stoneLands } from './weather.ts';
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -44,8 +45,8 @@ export const canAttack = (s: Ent, t: Ent): boolean => canHit(weaponOf(s), t);
  */
 export const isFoe = (s: { team: number }, t: Ent): boolean => !t.dead && !allied(s.team, t.team) && fair(t) && !kneeling(t);
 
-/** `dot`: a tick of burning or poison, which neither sprays sparks nor sends the unit after whoever caused it. */
-export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): void {
+/** `dot`: a tick of burning or poison, which neither sprays sparks nor sends the unit after whoever caused it. `quiet`: weather, which raises no "under attack" alarm. */
+export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false, quiet = false): void {
   if (t.dead || t.kind === 'source' || kneeling(t)) return;
   const raw = Math.max(1, wardDamage(t, dmg * weaponFactor(src) * armorFactor(t)));
   const left = dot ? raw : soakShield(t, raw);
@@ -55,7 +56,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false): v
   if (left <= 0) { /* the Shield took it all */ } else if (dot) { /* the flames and fumes show it (render3d/status3d.ts) */ } else if (t.kind === 'unit' && unitDef(t).cls === 'infantry') burst('blood', t.x, t.y - 6, 3, 30, 90);
   else if (isAir(t)) burst('spark', t.x, t.y, 3, 50, 140, null, altOf(t));
   else burst('spark', t.x + (Math.random() - 0.5) * (t.w || 0.6) * TS * 0.6, t.y - 6, 3, 50, 140);
-  if (t.team >= 0) {
+  if (t.team >= 0 && !quiet) {
     if (t.team === G.viewer) G.lastAlert = { x: t.x, y: t.y };
     if (!G.demo && G.gameT - G.alertT[t.team] > ALERT_COOLDOWN) {
       G.alertT[t.team] = G.gameT;
@@ -419,10 +420,10 @@ export function updProjs(dt: number): void {
       p.a = Math.atan2(dy, dx);
       p.tr += st;
       const k = clamp(p.tr / Math.max(p.d0, 1), 0, 1), [arc, cap] = ARC.ground;
-      p.z = lerp(p.z0, 4, k) + Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc);
+      p.z = lerp(p.z0, 4, k) + (p.sky ? 0 : Math.sin(k * Math.PI) * Math.min(cap, p.d0 * arc));
       if (p.kind === 'orb') part('flash', p.x, p.y, { max: 0.3, size: 9, z: p.z, col: ORB_COL[p.weapon] ?? null });
       if (Math.random() < 0.5) part('trail', p.x, p.y - p.z, { max: 0.5, size: p.kind === 'orb' ? 4 : 2, soft: true });
-      if (dist <= st + 2) { p.dead = true; shellLands(p.weapon as WeaponType, p.gx, p.gy, valid(p.src), p.team); }
+      if (dist <= st + 2) { p.dead = true; if (p.sky) stoneLands(p.gx, p.gy); else shellLands(p.weapon as WeaponType, p.gx, p.gy, valid(p.src), p.team); }
       else { p.x += (dx / dist) * st; p.y += (dy / dist) * st; }
       continue;
     }

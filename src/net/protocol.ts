@@ -4,7 +4,8 @@ import type { EntRow, FxEvent } from './snapshot.ts';
 import type { Production } from '../game/state.ts';
 import type { UpgradeTrack } from '../data/era.ts';
 import type { SideSummary } from '../game/stats.ts';
-import type { Difficulty, FogMode, Mode, SeatPick } from '../data/setup.ts';
+import type { Difficulty, FogMode, Mode, SeatPick, WeatherMode } from '../data/setup.ts';
+import type { WeatherSnap } from '../game/weather.ts';
 
 export const MAX_NAME = 20;
 
@@ -27,6 +28,8 @@ export interface RoomView {
   mode: Mode;
   /** fog of war the host picked */
   fog?: FogMode;
+  /** weather the host picked */
+  weather?: WeatherMode;
   /** you're the host: you set the seats and start the game */
   host: boolean;
   hostName: string;
@@ -99,7 +102,7 @@ export type ClientMsg =
   | { k: 'create'; game?: string }
   | { k: 'join'; game: string }
   /** the host sets up their room: how the sides line up, or who sits in a seat (a computer, open for a person, or closed) */
-  | { k: 'room'; mode?: Mode; seat?: number; pick?: SeatPick | 'open'; fog?: FogMode }
+  | { k: 'room'; mode?: Mode; seat?: number; pick?: SeatPick | 'open'; fog?: FogMode; weather?: WeatherMode }
   /** the host starts their room's game */
   | { k: 'begin' }
   | { k: 'leave' }
@@ -147,6 +150,8 @@ export interface SnapMsg {
   ore?: string;
   /** every side's stock, for someone watching (the fields above are then side 0's) */
   sides?: SideStock[];
+  /** rain and storms */
+  wx?: WeatherSnap;
 }
 
 /** One side's stock, sent to people watching (players only get their own, in the snapshot itself). */
@@ -179,6 +184,8 @@ export interface MatchShape {
   names?: string[];
   /** fog of war, when it isn't Reveal (the default) */
   fog?: FogMode;
+  /** weather, when it isn't Storms (the default) */
+  weather?: WeatherMode;
 }
 
 export type ServerMsg =

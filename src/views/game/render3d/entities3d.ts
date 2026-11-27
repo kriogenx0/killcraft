@@ -1,5 +1,6 @@
 // Keeps a 3D model for every entity the player can see, animates them, and draws the selection
 // rings, order markers, rally flags and building ghost. Also answers "what's under the cursor?".
+import { inHail } from '../../../game/weather.ts';
 import { updateBuildZone } from './build_zone3d.ts';
 import * as THREE from 'three';
 import { G, allied, loadOf, valid, type Cargo, type Ent } from '../../../game/state.ts';
@@ -580,7 +581,8 @@ function hitFlash(m: Model, e: Ent): void {
   let h = m.root.userData.hit as HitState | undefined;
   const now = performance.now();
   // any drop in health is a hit (works the same online, where health arrives in snapshots)
-  if (e.hp < (m.root.userData.hp ?? e.hp)) { h = hitState(m); h.at = now; }
+  // (hail's steady patter doesn't flash: the hailstones show it)
+  if (e.hp < (m.root.userData.hp ?? e.hp) && !inHail(e)) { h = hitState(m); h.at = now; }
   m.root.userData.hp = e.hp;
   // a spell or element on the unit tints it too (frozen, burning, poisoned...: status3d.ts)
   const tint = statusTint(e);

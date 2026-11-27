@@ -1,5 +1,5 @@
 // Setting up a match and advancing the simulation by one fixed step.
-import type { FogMode } from '../data/setup.ts';
+import type { FogMode, WeatherMode } from '../data/setup.ts';
 import { isWall } from '../data/building.ts';
 import { G, allied, hooks, say, unitDef } from './state.ts';
 import { markStartStock, resetStats, sampleStats } from './stats.ts';
@@ -28,6 +28,7 @@ import { AI_LEVEL } from '../data/setup.ts';
 import { isUnitType, type UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
 import { onGate, placeGate, updHell } from './hell.ts';
+import { initWeather, updWeather } from './weather.ts';
 
 const FOG_INTERVAL = 0.2;
 const ORE_INTERVAL = 1;
@@ -43,6 +44,8 @@ export interface StartOptions {
   absent?: readonly boolean[];
   /** fog of war; Off is G.reveal, which the caller sets */
   fog?: FogMode;
+  /** rain and storms (default Storms) */
+  weather?: WeatherMode;
   /** the latest age a side may research (default Modern, so every age); campaign missions cap it */
   maxEra?: number;
   /** units, buildings and research nobody may use (campaign missions) */
@@ -85,6 +88,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   placeCreatures(G.seed);
   rebuildBlk();
   initCows();
+  initWeather(start.weather ?? 'storms');
   updFog();
 }
 
@@ -183,6 +187,7 @@ export function update(dt: number): void {
   pickUpShards();
   for (let team = 0; team < G.teams; team++) updProduction(team, dt);
   updProjs(dt);
+  updWeather(dt);
   separate();
   updFx(dt);
   if (G.ents.some((e) => e.dead)) {

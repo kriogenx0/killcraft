@@ -179,6 +179,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
         o.wait = 0.3;
         const t = pickOre(u);
         if (t) [o.tx, o.ty] = t;
+        else if (u.carry > 0) o.st = 'ret'; // nothing else to top up from: bank what it has rather than try the same tile for ever
         return;
       }
     }
@@ -191,6 +192,7 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
       o.wait = 0.5;
       const t = pickOre(u);
       if (t) [o.tx, o.ty] = t;
+      else if (u.carry > 0) o.st = 'ret';
     }
     return;
   }

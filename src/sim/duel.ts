@@ -7,6 +7,7 @@
 // A score runs from +1 (the row unit won and lost nothing) to -1 (wiped out without a scratch on
 // the other side): the share of its value still standing, minus the other side's.
 import { writeFileSync } from 'node:fs';
+import { initWeather } from '../game/weather.ts';
 import { G, hooks, type Ent } from '../game/state.ts';
 import { GRASS, MH, MW, STEP, TS } from '../game/const.ts';
 import { ais } from '../game/ai.ts';
@@ -47,6 +48,7 @@ function arena(seed: number): void {
   G.respawns = [];
   G.portals = [];
   G.hell.gate = false;
+  initWeather('off');
   G.terr.fill(GRASS);
   G.elev.fill(0);
   G.ore.fill(0);

@@ -2,7 +2,7 @@
 // Knows nothing about sockets or game simulation.
 import { randomUUID } from 'node:crypto';
 import type { LiveGame, LobbyMsg, LobbySummary, OnlinePlayer, OpenGame, PlayerStatus, RoomSeat, RoomView } from '../../src/net/protocol.ts';
-import { MODES, isFogMode, isMode, isSeatPick, playable, seatOrder, type Difficulty, type FogMode, type Mode } from '../../src/data/setup.ts';
+import { MODES, isFogMode, isMode, isWeatherMode, isSeatPick, playable, seatOrder, type Difficulty, type FogMode, type Mode, type WeatherMode } from '../../src/data/setup.ts';
 
 export type { PlayerStatus };
 
@@ -20,9 +20,9 @@ export interface Player {
 export type Seat = { kind: 'person'; id: string } | { kind: 'computer'; level: Difficulty } | { kind: 'open' } | { kind: 'closed' };
 
 /** A game about to start from a room: how the sides line up and who sits where (by team; null for a closed seat). */
-export interface RoomStart { id: string; mode: Mode; seats: (Player | Difficulty | null)[]; /** fog of war; Reveal if left out */ fog?: FogMode }
+export interface RoomStart { id: string; mode: Mode; seats: (Player | Difficulty | null)[]; /** fog of war; Reveal if left out */ fog?: FogMode; /** weather; Storms if left out */ weather?: WeatherMode }
 
-interface Room { id: string; host: string; mode: Mode; seats: Seat[]; fog: FogMode }
+interface Room { id: string; host: string; mode: Mode; seats: Seat[]; fog: FogMode; weather: WeatherMode }
 
 export interface LobbyEvents {
   /** two players were matched; the first is team 0. `game` is the id of the listed game they met in, if any. */
@@ -93,7 +93,7 @@ export class LobbyService {
     this.leave(id);
     p.status = 'host';
     const gid = game && GAME_ID.test(game) && !this.rooms.has(game) ? game : randomUUID();
-    this.rooms.set(gid, { id: gid, host: id, mode: '1v1', seats: newSeats(id), fog: 'reveal' });
+    this.rooms.set(gid, { id: gid, host: id, mode: '1v1', seats: newSeats(id), fog: 'reveal', weather: 'storms' });
     this.events.changed();
     return gid;
   }
@@ -128,14 +128,18 @@ export class LobbyService {
 
   /**
    * The host changes their room: how the sides line up (`mode`), or who sits in a seat (a computer at a
-   * difficulty, open for a person, or closed), or the fog of war. Seats with people in them stay as they are.
+   * difficulty, open for a person, or closed), or the fog of war or weather. Seats with people in them stay as they are.
    */
-  configure(id: string, change: { mode?: unknown; seat?: unknown; pick?: unknown; fog?: unknown }): boolean {
+  configure(id: string, change: { mode?: unknown; seat?: unknown; pick?: unknown; fog?: unknown; weather?: unknown }): boolean {
     const r = this.roomOf(id);
     if (!r || r.host !== id) return false;
     if (change.fog !== undefined) {
       if (!isFogMode(change.fog)) return false;
       r.fog = change.fog;
+    }
+    if (change.weather !== undefined) {
+      if (!isWeatherMode(change.weather)) return false;
+      r.weather = change.weather;
     }
     if (change.mode !== undefined) {
       if (!isMode(change.mode)) return false;
@@ -167,14 +171,14 @@ export class LobbyService {
     const seats = this.used(r);
     const people = seats.flatMap((s) => (s.kind === 'person' ? [this.players.get(s.id)] : [])).filter((p): p is Player => !!p);
     this.rooms.delete(r.id);
-    // a plain game between two people (with the usual fog) is the classic match
-    if (r.mode === '1v1' && people.length === 2 && seats[0].kind === 'person' && r.fog === 'reveal') { this.pair(people[0], people[1], r.id); return true; }
+    // a plain game between two people (with the usual fog and weather) is the classic match
+    if (r.mode === '1v1' && people.length === 2 && seats[0].kind === 'person' && r.fog === 'reveal' && r.weather === 'storms') { this.pair(people[0], people[1], r.id); return true; }
     for (const p of people) {
       p.status = 'playing';
       p.opponent = seats.filter((s) => s.kind === 'person' && s.id !== p.id).map((s) => this.players.get((s as { id: string }).id)?.name ?? '?').join(', ') || 'the computer';
       this.dropInvitesTo(p.id);
     }
-    this.events.started?.({ id: r.id, mode: r.mode, seats: seats.map((s) => (s.kind === 'person' ? this.players.get(s.id) ?? null : s.kind === 'computer' ? s.level : null)), fog: r.fog });
+    this.events.started?.({ id: r.id, mode: r.mode, seats: seats.map((s) => (s.kind === 'person' ? this.players.get(s.id) ?? null : s.kind === 'computer' ? s.level : null)), fog: r.fog, weather: r.weather });
     this.events.changed();
     return true;
   }
@@ -266,7 +270,7 @@ export class LobbyService {
       if (s.kind === 'computer') return { team, kind: 'computer', level: s.level };
       return { team, kind: s.kind };
     });
-    return { id: r.id, mode: r.mode, fog: r.fog, host: r.host === id, hostName: this.players.get(r.host)?.name ?? '?', seats, ready: this.ready(r) };
+    return { id: r.id, mode: r.mode, fog: r.fog, weather: r.weather, host: r.host === id, hostName: this.players.get(r.host)?.name ?? '?', seats, ready: this.ready(r) };
   }
 
   /** What the main menu shows before connecting: how many are online, open games and matches to watch. */

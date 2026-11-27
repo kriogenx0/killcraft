@@ -1,4 +1,5 @@
 // The radar minimap, the fog-of-war image it shares with the 3D view, and who-can-see-what.
+import { STORM_FORM } from '../../../data/weather.ts';
 import { G, hooks, tileOf, type Ent } from '../../../game/state.ts';
 import { MW, MH, TS } from '../../../game/const.ts';
 import { exploredAt, seenAt } from '../../../game/fog.ts';
@@ -83,6 +84,20 @@ export function drawMinimap(m: CanvasRenderingContext2D, footprint: [number, num
     const x = (e.x / TS) * k, y = (e.y / TS) * k, r = 2 + Math.sin(G.gameT * 3) * 0.6;
     m.fillStyle = 'rgba(200,110,255,.35)'; m.beginPath(); m.arc(x, y, r + 2.5, 0, TAU); m.fill();
     m.fillStyle = '#e8b8ff'; m.beginPath(); m.arc(x, y, r, 0, TAU); m.fill();
+  }
+  // storms show over the fog: everyone can see the sky
+  for (const st of G.weather?.storms ?? []) {
+    const x = (st.x / TS) * k, y = (st.y / TS) * k, r = (st.r / TS) * k, hail = st.kind === 'hail';
+    const gathering = st.age < STORM_FORM, pulse = gathering ? 0.5 + 0.5 * Math.sin(G.gameT * 6) : 1;
+    m.fillStyle = hail ? `rgba(200,225,255,${0.16 + 0.12 * pulse})` : `rgba(255,90,30,${0.16 + 0.12 * pulse})`;
+    m.beginPath(); m.arc(x, y, r, 0, TAU); m.fill();
+    m.strokeStyle = hail ? '#e6f2ff' : '#ff7a3a'; m.lineWidth = 1.5;
+    m.setLineDash([3, 2]); m.stroke(); m.setLineDash([]);
+    // which way it's heading
+    const sp = Math.hypot(st.vx, st.vy) || 1, ux = st.vx / sp, uy = st.vy / sp, tip = r + 5;
+    m.beginPath(); m.moveTo(x + ux * r, y + uy * r); m.lineTo(x + ux * tip, y + uy * tip); m.stroke();
+    m.beginPath(); m.moveTo(x + ux * tip, y + uy * tip); m.lineTo(x + ux * (tip - 3) - uy * 2.5, y + uy * (tip - 3) + ux * 2.5); m.lineTo(x + ux * (tip - 3) + uy * 2.5, y + uy * (tip - 3) - ux * 2.5); m.closePath();
+    m.fillStyle = m.strokeStyle; m.fill();
   }
   for (const p of V.pings) {
     m.strokeStyle = `rgba(255,60,60,${1 - p.t / PING_LIFE})`; m.lineWidth = 2;

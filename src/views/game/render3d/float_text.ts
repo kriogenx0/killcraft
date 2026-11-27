@@ -1,6 +1,7 @@
 // Numbers that float up off the map: red damage over anything struck, and "+25 ore" where your
 // side banks resources. Damage is read from health changes rather than from the combat code, so it
 // shows the same whether this screen runs the game or follows a server.
+import { inHail } from '../../../game/weather.ts';
 import { G, hooks, type Ent } from '../../../game/state.ts';
 import { V } from '../view_state.ts';
 import { shownToPlayer } from '../render/minimap.ts';
@@ -55,7 +56,7 @@ function track(): void {
     if (e.kind === 'source') continue;
     const before = lastHp.get(e.id);
     const hp = Math.max(0, e.hp);
-    if (before !== undefined && hp < before - 0.5 && shownToPlayer(e)) damage(e, before - hp);
+    if (before !== undefined && hp < before - 0.5 && shownToPlayer(e) && !inHail(e)) damage(e, before - hp);
     if (e.dead) lastHp.delete(e.id);
     else lastHp.set(e.id, hp);
   }

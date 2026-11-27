@@ -1,6 +1,7 @@
 // Shared mutable simulation state. Nothing under src/game touches the DOM;
 // views subscribe to engine events through `hooks`.
-import type { FogMode } from '../data/setup.ts';
+import type { FogMode, WeatherMode } from '../data/setup.ts';
+import type { StormKind } from '../data/weather.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import type { ProjectileKind } from '../data/weapon.ts';
 import type { SpellType } from '../data/spells.ts';
@@ -202,6 +203,36 @@ export interface Ent extends Target {
   bee?: { q: number; until: number };
   /** a Bee Queen: game time she can next call up her swarm */
   swarmT?: number;
+  /** the computer is moving it out of a storm's way until this game time (game/weather.ts) */
+  dodgeT?: number;
+}
+
+/** A hailstorm or meteor shower crossing the map (game/weather.ts). Positions px, velocity px/s. */
+export interface Storm {
+  id: number;
+  kind: StormKind;
+  x: number; y: number; vx: number; vy: number;
+  /** radius, px */
+  r: number;
+  /** seconds since it formed (it does no harm for the first STORM_FORM) */
+  age: number;
+  /** stones owed (meteor) or seconds to the next hail tick */
+  acc: number;
+}
+
+/** The weather: the mode picked at setup, the rain, and any storms under way. */
+export interface Weather {
+  mode: WeatherMode;
+  /** rain now, 0 (dry) to 1 (pouring), and whether it is coming on or easing off */
+  rain: number;
+  raining: boolean;
+  /** game time the rain next starts or stops, and the next storm forms */
+  rainT: number;
+  stormT: number;
+  storms: Storm[];
+  nextId: number;
+  /** the weather's own dice (game/weather.ts) */
+  dice: number;
 }
 
 /** A demon's errand: lurking at its spot by the gate, or out raiding a side. */
@@ -271,6 +302,8 @@ export interface Projectile {
   weapon: string; sp: number; d0: number; tr: number; a: number; dead: boolean;
   /** where a lobbed (non-homing) shell will land */
   gx?: number; gy?: number;
+  /** a stone of a meteor shower, falling from the sky (game/weather.ts) */
+  sky?: boolean;
 }
 
 export type FxKind = 'blood' | 'chip' | 'debris' | 'spark' | 'dust' | 'smoke' | 'fire' | 'flash' | 'tracer' | 'trail' | 'ore' | 'slash';
@@ -386,6 +419,8 @@ export const G = {
   reveal: false,
   /** fog of war: 'reveal' keeps explored ground fully visible; 'regrow' fogs it over again (troops hidden) once nobody on the side sees it */
   fog: 'reveal' as FogMode,
+  /** rain and storms (game/weather.ts) */
+  weather: { mode: 'off', rain: 0, raining: false, rainT: Infinity, stormT: Infinity, storms: [], nextId: 1, dice: 1 } as Weather,
   /** the latest age any side may research (0 Medieval, 1 Industrial, 2 Modern); campaign missions cap it */
   maxEra: 2,
   /** the campaign mission being played (see data/campaign.ts), or null outside the campaign */
@@ -410,6 +445,8 @@ export const hooks = {
   alert: (_team: number, _x: number, _y: number): void => {},
   /** a weapon fired (the server forwards these so clients can draw shots) */
   fired: (_shooter: Ent, _weapon: string, _target: Ent): void => {},
+  /** a meteor shower's stone starts falling toward a spot (the server forwards these so clients can draw it) */
+  skyfall: (_x: number, _y: number): void => {},
   /** an entity was destroyed */
   killed: (_e: Ent): void => {},
   /** damage from `by` (if known) destroyed an entity; called just before `killed` */

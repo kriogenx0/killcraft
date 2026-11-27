@@ -10,6 +10,7 @@ import { initWorld, outReasons, surrender, update } from '../../src/game/world.t
 import { summarize, type SideSummary } from '../../src/game/stats.ts';
 import { captureWorld, restoreWorld, type SavedWorld } from '../../src/game/save.ts';
 import { applyCommand, parseCommand } from '../../src/game/command.ts';
+import { weatherSnap } from '../../src/game/weather.ts';
 import { encodeEnt, encodeOre, visibleTo, weaponIndex, type FxEvent } from '../../src/net/snapshot.ts';
 import type { SideStock, SnapMsg } from '../../src/net/protocol.ts';
 import type { MatchSetup } from '../services/match_service.ts';
@@ -52,7 +53,7 @@ const port = parentPort;
 if (!port) throw new Error('match_worker must run as a worker thread');
 
 G.headless = true;
-initWorld(Number(workerData?.seed ?? 1), setup.teams, { ally: setup.ally, absent: setup.absent, fog: setup.fog });
+initWorld(Number(workerData?.seed ?? 1), setup.teams, { ally: setup.ally, absent: setup.absent, fog: setup.fog, weather: setup.weather });
 // fog Off: every side sees the whole map, so every snapshot carries everything
 G.reveal = setup.fog === 'off';
 for (const a of ais) a.on = false;
@@ -77,6 +78,11 @@ hooks.alert = (team, x, y) => pending[team]?.push(['a', Math.round(x), Math.roun
 hooks.fired = (s, w, t) => {
   for (const team of TEAMS) if (visibleTo(s, team) || visibleTo(t, team)) pending[team].push(['f', s.id, t.id, weaponIndex(w)]);
   if (watchers) watched.push(['f', s.id, t.id, weaponIndex(w)]);
+};
+hooks.skyfall = (x, y) => {
+  const ev: FxEvent = ['s', Math.round(x), Math.round(y)];
+  for (const team of TEAMS) pending[team].push(ev);
+  if (watchers) watched.push(ev);
 };
 hooks.killed = (e) => {
   for (const team of TEAMS) if (visibleTo(e, team)) pending[team].push(['d', e.id]);
@@ -154,18 +160,18 @@ function stock(team: number): SideStock {
 
 function sendSnapshots(): void {
   const ore = snaps++ % ORE_EVERY === 0 ? encodeOre() : undefined;
-  const t = Math.round(G.gameT * 10) / 10;
+  const t = Math.round(G.gameT * 10) / 10, wx = weatherSnap();
   for (const team of TEAMS) {
     const snap: SnapMsg = {
       k: 'snap', t, ...stock(team),
       ents: G.ents.filter((e) => !e.dead && visibleTo(e, team)).map((e) => encodeEnt(e, e.team === team)),
-      ev: pending[team].splice(0), ore,
+      ev: pending[team].splice(0), ore, wx,
     };
     port?.postMessage({ k: 'snap', team, snap } satisfies WorkerOut);
   }
   if (!watchers) { watched.length = 0; return; }
   // people watching see everything, with every side's details, as a player sees their own
   const sides = ALL.map(stock);
-  const snap: SnapMsg = { k: 'snap', t, ...sides[0], sides, ents: G.ents.filter((e) => !e.dead).map((e) => encodeEnt(e, true)), ev: watched.splice(0), ore };
+  const snap: SnapMsg = { k: 'snap', t, ...sides[0], sides, ents: G.ents.filter((e) => !e.dead).map((e) => encodeEnt(e, true)), ev: watched.splice(0), ore, wx };
   port?.postMessage({ k: 'snap', team: -1, snap } satisfies WorkerOut);
 }

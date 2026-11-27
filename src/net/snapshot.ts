@@ -24,7 +24,8 @@ const WEAPONS = Object.keys(WEAPON) as WeaponType[];
 /** [id, type, team, x, y, hp, face*100, tface*100, carry, flags, prog*100, rallyX, rallyY, building age, upgrade*100 (-1: none) or for our own units the REACTS index] */
 export type EntRow = [number, number, number, number, number, number, number, number, number, number, number, number, number, number, number];
 /** fire: shooter, target, weapon · died: id · say: message · alert: x, y */
-export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number];
+/** 'f' a shot, 'd' a death, 'm' a message, 'a' an alert at a spot, 's' a meteor shower's stone falling on a spot */
+export type FxEvent = ['f', number, number, number] | ['d', number] | ['m', string] | ['a', number, number] | ['s', number, number];
 
 const MOVING = 1, DONE = 2, REPAIRING = 4, FIRING = 8, DRAWING = 64;
 /** a wild creature kneeling, waiting to be captured */

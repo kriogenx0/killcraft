@@ -1,6 +1,6 @@
 // Balance runner: plays many computer-only matches in parallel worker threads and prints a report.
 //
-//   npm run sim -- --matches 200 --teams 4 --max 3600 --seed 1 --level normal --json sim.json
+//   npm run sim -- --matches 200 --teams 4 --max 3600 --seed 1 --level normal --weather off --json sim.json
 //
 // Every match is seeded (map and dice), so the same options always give the same report.
 import { Worker, isMainThread, parentPort } from 'node:worker_threads';
@@ -8,9 +8,9 @@ import { availableParallelism } from 'node:os';
 import { writeFileSync } from 'node:fs';
 import { playMatch, type MatchResult } from './match.ts';
 import { report } from './report.ts';
-import { START_RESOURCES, type Difficulty, type StartResources } from '../data/setup.ts';
+import { START_RESOURCES, isWeatherMode, type Difficulty, type StartResources, type WeatherMode } from '../data/setup.ts';
 
-interface Job { seed: number; teams: number; maxSeconds: number; level: Difficulty | Difficulty[]; share?: number; ally?: number[] }
+interface Job { seed: number; teams: number; maxSeconds: number; level: Difficulty | Difficulty[]; share?: number; ally?: number[]; weather?: WeatherMode }
 
 if (!isMainThread) {
   const port = parentPort;
@@ -33,7 +33,9 @@ if (!isMainThread) {
   // --res low|standard|high: starting resources; --ally 0,0,2,2: alliances (two against two)
   const share = args.has('res') ? START_RESOURCES[args.get('res') as StartResources].share : undefined;
   const ally = args.get('ally')?.split(',').map(Number);
-  const jobs: Job[] = Array.from({ length: matches }, (_, i) => ({ seed: firstSeed + i * 7919, teams, maxSeconds, level: levelFor(i), share, ally }));
+  // --weather storms|rain|off (default Storms, as in a real game)
+  const w = args.get('weather'), weather = isWeatherMode(w) ? w : undefined;
+  const jobs: Job[] = Array.from({ length: matches }, (_, i) => ({ seed: firstSeed + i * 7919, teams, maxSeconds, level: levelFor(i), share, ally, weather }));
   const results: MatchResult[] = [];
   const t0 = performance.now();
   let next = 0, running = 0;

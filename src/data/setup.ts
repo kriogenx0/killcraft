@@ -110,6 +110,18 @@ export const FOG_MODES: Record<FogMode, { name: string; desc: string }> = {
 };
 export const isFogMode = (v: unknown): v is FogMode => typeof v === 'string' && v in FOG_MODES;
 
+/**
+ * Weather (Alex, 2026-11-27, data/weather.ts): Storms (the default) brings passing rain and, rarely, a
+ * hailstorm or meteor shower that sweeps across the map; Rain keeps only the harmless rain; Off is clear skies.
+ */
+export type WeatherMode = 'storms' | 'rain' | 'off';
+export const WEATHER_MODES: Record<WeatherMode, { name: string; desc: string }> = {
+  storms: { name: 'Storms', desc: 'Passing rain, and now and then a hailstorm or meteor shower that sweeps across the map and hurts everything under it.' },
+  rain: { name: 'Rain', desc: 'Passing rain only: it looks good and puts fires out, and never does harm.' },
+  off: { name: 'Off', desc: 'Clear skies all game.' },
+};
+export const isWeatherMode = (v: unknown): v is WeatherMode => typeof v === 'string' && v in WEATHER_MODES;
+
 export interface GameSetup {
   mode: Mode;
   /** the computer in each seat (index = team); seat 0 is you, except in a match to watch */
@@ -121,11 +133,12 @@ export interface GameSetup {
   /** game speed at the start */
   speed: number;
   fog: FogMode;
+  weather: WeatherMode;
   /** a campaign mission (data/campaign.ts): caps the ages and records a win */
   mission?: string;
 }
 
-export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: 'reveal' };
+export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: 'reveal', weather: 'storms' };
 export const SPEEDS = [0.5, 1, 2];
 
 /** The match a setup makes: how many teams, each one's side, which seats are empty, and each computer's difficulty. */

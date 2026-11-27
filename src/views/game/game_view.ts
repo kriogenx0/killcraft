@@ -4,7 +4,7 @@
 import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { layoutFor } from '../../data/map.ts';
-import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
+import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
 import { ageLimit, markWon, missionById, nextMission } from '../../data/campaign.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
@@ -15,6 +15,7 @@ import { rebuildBlk } from '../../game/map.ts';
 import { updFog } from '../../game/fog.ts';
 import { updFx } from '../../game/fx.ts';
 import { updProjs } from '../../game/combat.ts';
+import { applyWeatherSnap, dropStone, formStorm, updWeather } from '../../game/weather.ts';
 import { applyCommand } from '../../game/command.ts';
 import { net } from '../../net/client.ts';
 import { sidesTitle, type ServerMsg, type SideStock, type SnapMsg } from '../../net/protocol.ts';
@@ -45,6 +46,7 @@ import { initFx3d, updateFx3d } from './render3d/fx3d.ts';
 import { initBurning, updateBurning } from './render3d/burn3d.ts';
 import { animatePortals3d, initPortals3d } from './render3d/portals3d.ts';
 import { animateHellGate3d, initHellGate3d } from './render3d/hellgate3d.ts';
+import { initWeather3d, updateWeather3d } from './render3d/weather3d.ts';
 import { updateAetherBeams, updateAetherGlows } from './render3d/aetherbeam3d.ts';
 import { drawOverlay } from './render3d/overlay.ts';
 import { renderEndStats } from './end_stats.ts';
@@ -174,6 +176,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     initWorld3d();
     initPortals3d();
     initHellGate3d();
+    initWeather3d();
     resetEntities3d();
     initFx3d();
     initBurning();
@@ -237,7 +240,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
     const mission = demo ? null : missionById(s.mission);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra, ban: mission?.ban });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, weather: s.weather, maxEra: mission?.maxEra, ban: mission?.ban });
     G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
@@ -317,8 +320,10 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     if (s.sides) s.sides.forEach((side, team) => { if (team < G.teams) setStock(team, side); });
     else setStock(V.team, s);
     if (s.ore) decodeOre(s.ore);
+    applyWeatherSnap(s.wx);
     applySnapshot(s.ents, s.ev, (ev) => {
       if (ev[0] === 'm') show(ev[1]);
+      else if (ev[0] === 's') { const st = G.weather.storms.find((w) => Math.hypot(w.x - ev[1], w.y - ev[2]) <= w.r + TS); dropStone(ev[1], ev[2], st); }
       else if (ev[0] === 'a') { V.pings.push({ x: ev[1], y: ev[2], t: 0 }); G.lastAlert = { x: ev[1], y: ev[2] }; }
     });
   };
@@ -417,7 +422,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     setWatchedGame(null);
     V.online = true;
     V.team = m.team;
-    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent, fog: m.fog });
+    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent, fog: m.fog, weather: m.weather });
     for (const a of ais) a.on = false;
     G.reveal = q.has('reveal') || m.fog === 'off'; // not left over from a match watched before
     onlineNames = m.names ?? null;
@@ -455,7 +460,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     closeModal(startModal);
     V.online = true;
     V.team = 0;
-    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent });
+    initWorld(m.seed, m.teams ?? 2, { ally: m.ally, absent: m.absent, weather: m.weather });
     for (const a of ais) a.on = false;
     setGameId(m.game);
     enterGameUrl(m.game);
@@ -562,6 +567,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     if (V.online) {
       if (V.started && !G.over) {
         interpolate(dt);
+        updWeather(dt);
         updProjs(dt);
         updFx(dt);
         ageMarkers(dt);
@@ -620,6 +626,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       updateBurning(V.paused ? 0 : dt);
       animatePortals3d(dt);
       animateHellGate3d(dt);
+      updateWeather3d(V.paused ? 0 : dt);
       updateAetherBeams();
       updateAetherGlows();
       animateWater(dt);
@@ -679,7 +686,7 @@ function showcase(what: string): void {
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
  * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
  * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3 (free-for-all), ?mode=1v1|2v2|ffa, ?res=low|high, ?army=squad|army,
- * ?fog=reveal|regrow|off, ?speed=2.
+ * ?fog=reveal|regrow|off, ?weather=storms|rain|off, ?speed=2, ?storm=hail|meteor a storm forms right away (and ?rain pours now).
  */
 function testSetup(q: URLSearchParams): GameSetup {
   const s: GameSetup = { ...DEFAULT_SETUP, seed: null };
@@ -692,6 +699,8 @@ function testSetup(q: URLSearchParams): GameSetup {
   if (isMode(mode)) s.mode = mode;
   const fog = q.get('fog');
   if (fog === 'off' || fog === 'regrow' || fog === 'reveal') s.fog = fog;
+  const weather = q.get('weather');
+  if (isWeatherMode(weather)) s.weather = weather;
   if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
   if (q.has('seed')) s.seed = Number(q.get('seed')) || null;
   return s;
@@ -706,6 +715,9 @@ function applyTestOptions(q: URLSearchParams, startSolo: (demo: boolean, s?: Gam
   const armor = Number(q.get('armor'));
   if (armor > 0 && G.upg[V.team]) G.upg[V.team].infArmor = G.upg[V.team].vehArmor = Math.min(3, armor);
   for (const type of (q.get('queue') ?? '').split(',').filter(Boolean)) applyCommand(V.team, { c: 'build', type: type as never });
+  const storm = q.get('storm');
+  if (storm === 'hail' || storm === 'meteor') formStorm(storm);
+  if (q.has('rain')) { G.weather.raining = true; G.weather.rain = 1; G.weather.rainT = G.gameT + 120; }
   const sim = Number(q.get('sim') ?? 0) / STEP;
   for (let i = 0; i < sim && !G.over; i++) update(STEP);
   // ?stress=N: every side gets N more troops in the last age, marching on the middle (performance tests)
