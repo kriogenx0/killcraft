@@ -39,14 +39,17 @@ export const REACTS = ['pursue', 'hold', 'evade'] as const;
 export type React = (typeof REACTS)[number];
 
 /**
- * A unit's "when attacked" setting. Unset, fighters pursue and Workers, Harvesters and Medics hold
- * (carry on with their work), for people and the computer alike; a unit left on the old "Don't
+ * A unit's "when attacked" setting. Unset, fighters pursue, Workers and Harvesters evade (and go back
+ * to work once it's safe) and Medics hold (carry on with their work), for people and the computer alike; a unit left on the old "Don't
  * attack" or "Evade attacks" (passive) evades, as it always has.
  */
 export function reactOf(u: Ent): React {
   if (u.react) return u.react;
   if (u.stance === 'passive') return 'evade';
-  return u.kind === 'unit' && unitDef(u).weapon && u.type !== 'worker' && !unitDef(u).haul ? 'pursue' : 'hold';
+  // Workers and Harvesters run from danger and go back to work after (Alex, 2026-11-27, game/evade.ts)
+  // (a Worker the player put on an attack stance fights back instead)
+  if (u.kind === 'unit' && unitDef(u).haul && (u.stance === 'tend' || !unitDef(u).weapon)) return 'evade';
+  return u.kind === 'unit' && unitDef(u).weapon && u.type !== 'worker' ? 'pursue' : 'hold';
 }
 
 export const defaultStance = (type: string, team: number): Stance => (type === 'worker' ? 'tend' : G.human[team] ? 'skirmish' : 'engage');

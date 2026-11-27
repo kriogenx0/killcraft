@@ -98,7 +98,7 @@ describe('stances', () => {
   });
 
   /** Hold a harvester where it is (left idle it would drive off to dig straight away). */
-  const parked = (e: Ent): Ent => { e.order = { t: 'harvest', st: 'go', tx: 0, ty: 0, wait: 1e9 }; return e; };
+  const parked = (e: Ent): Ent => { e.order = { t: 'harvest', st: 'go', tx: 0, ty: 0, wait: 1e9 }; e.react = 'hold'; return e; };
 
   /** A unit walks the length of a strip of open ground, past an enemy harvester beside its path. */
   function walkPast(type: UnitType, stance: 'engage' | 'skirmish' | 'passive', seconds: number): { u: Ent; prey: Ent; gx: number } {
@@ -165,6 +165,7 @@ describe('stances', () => {
     const a = addUnit('swordsman', 0, x, y), b = addUnit('swordsman', 0, x, y + 12);
     const picked = addUnit('worker', 1, x + 7 * TS, y), near = addUnit('worker', 1, x + 2 * TS, y);
     picked.stance = 'passive'; near.stance = 'passive';
+    picked.react = 'hold'; near.react = 'hold'; // Workers that stand still, so this is only about who gets hit
     applyCommand(0, { c: 'attack', ids: [a.id, b.id, picked.id], target: picked.id });
     expect(picked.order?.t).not.toBe('attack'); // not your unit to order
     run(1);

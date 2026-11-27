@@ -10,6 +10,7 @@ import { cancel, enqueue, startSite, toggleHold, type Buildable } from './produc
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
 import { rallyArmy } from './rally.ts';
+import { doneFleeing } from './evade.ts';
 import { GATHER, forgetAether, forgetResume, recruitTo, sendGather, type GatherRes } from './autogather.ts';
 import { revive } from './revive.ts';
 
@@ -118,7 +119,7 @@ function ownBuilding(team: number, id: number): Ent | null {
 export function applyCommand(team: number, cmd: Command): void {
   // any other order for a Worker ends "fix, then harvest"
   // a new order replaces the job a Worker meant to go back to (a change of stance doesn't)
-  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance' && cmd.c !== 'aether') for (const u of ownUnits(team, cmd.ids)) { forgetResume(u); forgetAether(u); }
+  if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance' && cmd.c !== 'aether') for (const u of ownUnits(team, cmd.ids)) { forgetResume(u); forgetAether(u); doneFleeing(u); }
   // units walking Aether home take the order once it's banked
   if ('ids' in cmd && cmd.c !== 'tend' && cmd.c !== 'stance' && cmd.c !== 'aether' && ownUnits(team, cmd.ids).some((u) => u.aeRun))
     say(team, 'Carrying Aether home first. Turn off Return Aether to send them now');

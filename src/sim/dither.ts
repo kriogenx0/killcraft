@@ -3,6 +3,7 @@
 // The human side's economy is played by a simple script (Workers trained, a few structures placed)
 // while the computer plays the other side. Used by dither.test.ts and by
 // `node src/sim/dither.ts [seed] [seconds]`.
+import { hasFled } from '../game/evade.ts';
 import { G, oreLoadOf, tileOf, type Ent } from '../game/state.ts';
 import { applyCommand } from '../game/command.ts';
 import { isDrawing } from '../game/aether.ts';
@@ -82,11 +83,13 @@ export function watchWorkers(seed: number, seconds: number, chaos = false): stri
       if (u.order?.t === 'harvest' && u.order.st === 'go' && !u.order.res && u.carry >= oreLoadOf(u) - 0.5) say(u, 'set out for the field with a full load');
       // standing in one spot with nothing to show for it, order or no order (bar a Worker set to Oil
       // waiting by its derrick for the pump to fill the tank)
+      const hiding = hasFled(u) && !u.order;
       const pump = u.order?.t === 'harvest' && u.order.res === 'oil' && !u.order.auto && u.order.st === 'gather';
       if (pump || u.atkT > 0 || isDrawing(u) || Math.abs(u.carry - h.carry) > 0.01 || Math.hypot(u.x - h.still.x, u.y - h.still.y) > TS / 2) h.still = { t: G.gameT, x: u.x, y: u.y };
       else if (G.gameT - h.still.t > STILL) { say(u, `stood still ${STILL}s doing nothing`); h.still = { t: G.gameT + 1e9, x: u.x, y: u.y }; }
       // walking Aether home (Return Aether) counts as busy
-      if (!u.order && !isDrawing(u) && !u.aeRun) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
+      // keeping clear of an enemy until it's safe to go back to work (game/evade.ts) isn't idling
+      if (hiding) { h.still = { t: G.gameT, x: u.x, y: u.y }; h.idleT = 0; } else if (!u.order && !isDrawing(u) && !u.aeRun) { h.idleT += STEP * 6; if (h.idleT > 6) { say(u, 'stood idle 6s'); h.idleT = -1e9; } } else h.idleT = 0;
       // wandering a long way from every drop-off on its own (a player may send it anywhere)
       const homes = G.ents.filter((b) => !b.dead && b.team === 0 && b.kind === 'bld' && b.done && ['yard', 'refinery', 'mill', 'camp'].includes(b.type));
       const far = homes.length ? Math.min(...homes.map((b) => Math.hypot(b.x - u.x, b.y - u.y))) / TS : 0;

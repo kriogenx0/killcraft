@@ -18,7 +18,8 @@ import { nearestOwn } from './query.ts';
 import { AETHER_BANKS, ORE_BANKS, banksOf, dropAt } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
-import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, rethink, stayOnDerrick, takeResume } from './autogather.ts';
+import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, peekResume, rethink, stayOnDerrick, takeResume } from './autogather.ts';
+import { EVADE_GIVE_UP, doneFleeing, evade, evades, fledFor, hasFled, safeToWork, threatNear, watchOut } from './evade.ts';
 
 /** When each idle gatherer last had something to do (game seconds). */
 const idleSince = new WeakMap<Ent, number>();
@@ -254,6 +255,9 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     rethink(u, o);
   }
 }
+
+/** When each gatherer at work next looks round for danger. */
+const lookT = new WeakMap<Ent, number>();
 
 /** The drop-off each gatherer last headed for. */
 const headingTo = new WeakMap<Ent, number>();
@@ -705,6 +709,20 @@ function act(u: Ent, dt: number): void {
     u.scan -= dt;
     if (u.scan > 0) return;
     u.scan = 0.3 + Math.random() * 0.2;
+    // a Worker or Harvester on Evade runs from an enemy closing in, and after running waits where it's
+    // safe until the enemy is gone from it and from the job it left (game/evade.ts)
+    if (evades(u)) {
+      const t = attacker(u) ?? threatNear(u);
+      if (t) { evade(u, t); return; }
+      if (hasFled(u)) {
+        // its old job still has the enemy at it after a good wait: let it go and find other work
+        // (a job the player gave it, it keeps waiting for; the computer's Workers move on)
+        const job = peekResume(u);
+        if (fledFor(u) > EVADE_GIVE_UP && (job?.auto || !G.human[u.team]) && !safeToWork(u, job) && safeToWork(u, null)) takeResume(u);
+        else if (!safeToWork(u, peekResume(u))) { u.scan = 0.5; return; }
+        doneFleeing(u);
+      }
+    }
     if (u.type === 'medic') {
       const t = woundedNear(u, d.sight * TS);
       if (t) { setOrder(u, { t: 'heal', tgt: t.id, ox: u.x, oy: u.y, sent: false }); return; }
@@ -761,6 +779,8 @@ function act(u: Ent, dt: number): void {
     return;
   }
   idleSince.delete(u);
+  // a gatherer at work looks up now and then: an enemy closing in sends it running (game/evade.ts)
+  if (isHarvester(u) && G.gameT >= (lookT.get(u) ?? 0)) { lookT.set(u, G.gameT + 0.3); if (watchOut(u)) return; }
   lastOrder.set(u, o.t);
   busy.add(u);
   switch (o.t) {

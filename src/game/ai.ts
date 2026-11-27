@@ -810,7 +810,7 @@ function upkeep(team: number): void {
     if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && rich) b.repairing = true;
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
   const on = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
-  const free = () => workers.filter((w) => !w.order || w.order.t === 'move' || (w.order.t === 'harvest' && !w.order.res && w.carry < oreLoadOf(w) * 0.5));
+  const free = () => workers.filter((w) => !w.order || (w.order.t === 'move' && !w.order.flee) || (w.order.t === 'harvest' && !w.order.res && w.carry < oreLoadOf(w) * 0.5));
   const digging = () => workers.filter((w) => w.order?.t === 'harvest' && !w.order.res).length;
   const chopping = () => workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
   const nearest = (list: Ent[], b: Ent) => list.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];

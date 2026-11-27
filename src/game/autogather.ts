@@ -193,6 +193,7 @@ const movedAt = new WeakMap<Ent, number>();
 /** The gathering job each Worker set aside to go and fix something, to take up again after. */
 const resume = new WeakMap<Ent, HarvestOrder>();
 export const keepResume = (u: Ent, o: HarvestOrder): void => { resume.set(u, o); };
+export const peekResume = (u: Ent): HarvestOrder | null => resume.get(u) ?? null;
 export function takeResume(u: Ent): HarvestOrder | null {
   const o = resume.get(u);
   resume.delete(u);

@@ -160,7 +160,7 @@ describe('Workers', () => {
     expect(foe.hp).toBeGreaterThan(foe.maxhp * 0.6);
   });
 
-  it("stay off fights and mending on the passive stance when an enemy is about, and keep harvesting", () => {
+  it("stay off fights and mending on the passive stance when an enemy is about, and harvest again once it is gone", () => {
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), w = addUnit('worker', 0, 22 * TS, 50 * TS);
     s.hp = 20;
     const foe = addUnit('crossbowman', 1, 25 * TS, 50 * TS);
@@ -168,10 +168,11 @@ describe('Workers', () => {
     run(1);
     expect(w.order?.t).not.toBe('heal');
     expect(w.order?.t).not.toBe('attack');
-    expect(w.order?.t).not.toBe('move'); // no running off either
     s.hp = s.maxhp;
+    // it keeps clear of the enemy (game/evade.ts), and gets on with its work once it's gone
+    foe.dead = true;
     run(IDLE_GRACE + 1);
-    expect(w.order?.t).toBe('harvest'); // gets on with its work, enemy or not
+    expect(w.order?.t).toBe('harvest');
   });
 
   it('go and mend what a player right-clicks, however far', () => {

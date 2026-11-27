@@ -77,15 +77,15 @@ export function setSelection(list: Ent[]): void {
 const STANCE_INFO: Record<Stance, { label: string; tip: string }> = {
   engage: { label: 'Stop & attack', tip: 'Stop to fight enemies met on the way, then carry on' },
   skirmish: { label: 'Move & attack', tip: 'Shoot enemies in range without stopping (default)' },
-  passive: { label: 'Don\'t attack', tip: 'Hold fire. Set to Evade when attacked (below), it also keeps away from enemies that come near. Workers just keep harvesting' },
+  passive: { label: 'Don\'t attack', tip: 'Hold fire. Set to Evade when attacked (below), it also keeps away from enemies that come near. Workers and Harvesters run for safety and go back to work once it\'s clear' },
   tend: { label: 'Fix & Harvest', tip: `Workers: never attack. When free, build sites, repair buildings and patch up troops within ${TEND_RADIUS} tiles, then go back to harvesting (default)` },
 };
 
 /** What a unit does when it's attacked: a second pick-one bar under the attack modes, in Alex's order. */
 const REACT_INFO: Record<React, { label: string; key: string; tip: string }> = {
-  evade: { label: 'Evade', key: REACT_KEYS.evade, tip: 'When attacked, run away from the attacker. Orders you gave come first' },
+  evade: { label: 'Evade', key: REACT_KEYS.evade, tip: 'When attacked, run away from the attacker. Workers and Harvesters (their default) also run from enemies that come near, to the Town Hall, a Resource Drop or friendly troops, and go back to work once it\'s safe. Orders you gave come first' },
   pursue: { label: 'Pursue', key: REACT_KEYS.pursue, tip: 'When attacked, go after the attacker and fight it (default for fighters)' },
-  hold: { label: 'Stay still', key: REACT_KEYS.hold, tip: 'When attacked, stay put and fire back only if it\'s in range. Workers, Harvesters and Medics carry on working (their default)' },
+  hold: { label: 'Stay still', key: REACT_KEYS.hold, tip: 'When attacked, stay put and fire back only if it\'s in range. Workers, Harvesters and Medics carry on working (Medics\' default)' },
 };
 const REACT_ORDER: React[] = ['evade', 'pursue', 'hold'];
 const REACT_GROUP = 'When attacked';
