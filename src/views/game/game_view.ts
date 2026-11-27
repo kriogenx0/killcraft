@@ -7,6 +7,7 @@ import { layoutFor } from '../../data/map.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
 import { ageLimit, bannedIn, markWon, missionById, missionWorld, nextMission } from '../../data/campaign.ts';
 import { initSnow3d, updateSnow3d } from './render3d/snow3d.ts';
+import type { LockedMap } from '../../game/map_lock.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, outReasons, update } from '../../game/world.ts';
@@ -237,12 +238,12 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
 
   // ---- solo and AI vs AI ----
   /** Start a game against the computer (or, with `demo`, a computer-only match to watch) with these settings. */
-  const startSolo = (demo: boolean, s: GameSetup = DEFAULT_SETUP) => {
+  const startSolo = (demo: boolean, s: GameSetup = DEFAULT_SETUP, locked: LockedMap | null = null) => {
     setOffline(false);
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
     const mission = demo ? null : missionById(s.mission);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, weather: s.weather, ...(mission ? missionWorld(mission) : {}) });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, weather: s.weather, ...(mission ? missionWorld(mission) : {}), locked });
     G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
@@ -510,7 +511,11 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       delete root.dataset.gameId;
       leaveGameUrl();
     }
-    startSolo(watch, s);
+    const mission = watch ? null : missionById(s.mission);
+    if (!mission) { startSolo(watch, s); return; }
+    // a campaign mission plays its saved map (game/map_lock.ts); without it, the map from its seed
+    fetch(`/campaign/${mission.id}.json`).then((r) => (r.ok ? r.json() as Promise<LockedMap> : null)).catch(() => null)
+      .then((locked) => startSolo(false, s, locked));
   };
   must(root, '.game-paused-resume').addEventListener('click', () => { V.paused = false; });
   // what each computer player decided and why (Alex: logs to see why things happen); online, the computers run on the server

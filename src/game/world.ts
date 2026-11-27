@@ -28,6 +28,7 @@ import { AI_LEVEL } from '../data/setup.ts';
 import { isUnitType, type UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
 import { onGate, placeGate, updHell } from './hell.ts';
+import { applyGround, applyThings, type LockedMap } from './map_lock.ts';
 import { initWeather, updWeather } from './weather.ts';
 
 const FOG_INTERVAL = 0.2;
@@ -65,6 +66,8 @@ export interface StartOptions {
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
    */
   scatter?: readonly UnitType[];
+  /** a campaign mission's saved map (game/map_lock.ts): used instead of what the generator makes */
+  locked?: LockedMap | null;
 }
 
 /** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (one base per corner: a free-for-all, or two sides of two with `ally`). */
@@ -84,6 +87,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   for (const s of G.sight) s.fill(0);
   resetAi(n);
   generateMap(seed);
+  const locked = start.locked && applyGround(start.locked) ? start.locked : null;
   const wild = start.wild ?? true, gate = start.gate ?? wild;
   if (gate) placeGate();
   else G.hell = { gate: false, spawnT: 0, raidT: Infinity, archT: Infinity, prey: -1, burst: 0, burstT: 0, stay: 0, stir: false };
@@ -106,6 +110,11 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   if (wild) placeCreatures(G.seed);
   else { G.tamed = Array.from({ length: n }, () => []); G.respawns = []; }
+  if (locked) {
+    // the saved map as it was locked, whatever the placement code does today
+    applyGround(locked);
+    applyThings(locked, Array.from({ length: n }, (_, t) => t).filter((t) => !G.absent[t] && scattered(t)));
+  }
   rebuildBlk();
   initCows();
   initWeather(start.weather ?? 'storms');

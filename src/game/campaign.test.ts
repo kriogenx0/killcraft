@@ -11,6 +11,9 @@ import { updLeader } from './bounty.ts';
 import { addUnit, kill } from './entity.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
+import { existsSync, readFileSync } from 'node:fs';
+import type { LockedMap } from './map_lock.ts';
+import { matchOf } from '../data/setup.ts';
 import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionWorld, unlocked } from '../data/campaign.ts';
 import { BUILDING } from '../data/building.ts';
 import { UNIT } from '../data/unit.ts';
@@ -182,6 +185,28 @@ describe('no leader in the campaign', () => {
     updLeader();
     expect(G.leader).toBe(0);
   });
+});
+
+describe('locked campaign maps', () => {
+  it('every mission has a saved map, and plays exactly that map whatever seed the generator gets (Alex: always the same)', () => {
+    for (const m of MISSIONS) {
+      const file = new URL(`../../public/campaign/${m.id}.json`, import.meta.url);
+      expect(existsSync(file), m.id).toBe(true);
+      const locked = JSON.parse(readFileSync(file, 'utf8')) as LockedMap;
+      const { teams, ally, absent } = matchOf(m.setup, false);
+      const play = (seed: number) => {
+        initWorld(seed, teams, { ally, absent, units: ['worker', 'worker'], ...missionWorld(m), locked });
+        return { terr: Array.from(G.terr), elev: Array.from(G.elev), ore: Array.from(G.ore), things: G.ents.filter((e) => e.kind === 'source' || !!e.wild || (e.kind === 'unit' && e.team > 0 && !!m.scatter)).map((e) => `${e.type}@${Math.round(e.x)},${Math.round(e.y)}`).sort() };
+      };
+      const a = play(m.setup.seed ?? 1), b = play(12345);
+      expect(b.terr, m.id).toEqual(a.terr);
+      expect(b.elev, m.id).toEqual(a.elev);
+      expect(b.ore, m.id).toEqual(a.ore);
+      expect(b.things, m.id).toEqual(a.things);
+      expect(a.things.length, m.id).toBe(locked.things.length);
+      expect(G.seed, m.id).toBe(locked.seed);
+    }
+  }, 60_000);
 });
 
 describe('campaign progress', () => {

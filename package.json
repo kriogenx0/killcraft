@@ -12,7 +12,8 @@
     "test": "vitest run",
     "sim": "node src/sim/run.ts",
     "duel": "node src/sim/duel.ts",
-    "bench": "node src/sim/bench.ts"
+    "bench": "node src/sim/bench.ts",
+    "campaign-maps": "node src/sim/campaign_maps.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
