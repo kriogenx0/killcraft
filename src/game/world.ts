@@ -18,12 +18,12 @@ import { regrowOre } from './ore.ts';
 import { collect, dropSalvage } from './economy.ts';
 import { bankAether, drawAether, regrowAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { initCows } from './cows.ts';
-import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
+import { addBeast, beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { available, emptyProduction, priceOf, updProduction, type Price } from './production.ts';
 import { refitPrice } from './refit.ts';
 import { teamColors } from '../data/team.ts';
-import { ais, aiThink, resetAi } from './ai.ts';
+import { ais, aiThink, campAlarm, resetAi } from './ai.ts';
 import { AI_LEVEL } from '../data/setup.ts';
 import { isUnitType, type UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
@@ -67,6 +67,12 @@ export interface StartOptions {
   islands?: boolean;
   /** the computers against the player raid early (G.raids), and each starts with these raiders as well */
   raiders?: readonly UnitType[];
+  /** scattered enemy troops come to help from this many tiles away (G.camps) */
+  camps?: number;
+  /** no wood but the layout's forests (G.oneWood) */
+  oneWood?: boolean;
+  /** wild creatures standing guard around the middle of the map (the layout's first forest, else the centre) */
+  guards?: readonly UnitType[];
   /**
    * Enemy sides get no town: just these units, in small groups across the map (campaign mission 1,
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
@@ -86,7 +92,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, camps: start.camps ?? 0, oneWood: !!start.oneWood, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -124,6 +130,20 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   if (wild) placeCreatures(G.seed);
   else { G.tamed = Array.from({ length: n }, () => []); G.respawns = []; }
+  // creatures guarding the middle (campaign, The Last Grove): in a ring around it, each on open ground
+  if (start.guards?.length) {
+    const [cx, cy] = mapLayout().forests[0] ?? [MW / 2, MH / 2];
+    start.guards.forEach((type, k) => {
+      const a = (k / start.guards!.length) * Math.PI * 2 + 0.4;
+      for (let r = 5; r < 10; r++) {
+        const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+        if (G.terr[y * MW + x] !== GRASS || G.blk[y * MW + x] || G.ore[y * MW + x]) continue;
+        const u = addBeast(type, (x + 0.5) * TS, (y + 0.5) * TS);
+        u.face = u.tface = a + Math.PI;
+        break;
+      }
+    });
+  }
   if (locked) {
     // the saved map as it was locked, whatever the placement code does today
     applyGround(locked);
@@ -168,39 +188,21 @@ export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === 
 const FALL_SECONDS = 2.5;
 
 /**
- * What the side has in hand plus everything it could get back by calling off orders it has paid for:
- * queued research and troops, unfinished building sites and upgrades under way all refund in full.
- */
-function fundsWithRefunds(team: number): Price {
-  const f: Price = { ore: G.credits[team], wood: G.wood[team], oil: G.oil[team], aether: G.aether[team] ?? 0 };
-  const add = (p: Partial<Price>) => { f.ore += p.ore ?? 0; f.wood += p.wood ?? 0; f.oil += p.oil ?? 0; f.aether += p.aether ?? 0; };
-  for (const line of Object.values(G.prod[team])) for (const it of line) if (it.paid && !it.free) add(priceOf(it.type));
-  for (const e of G.ents) {
-    if (e.dead || e.team !== team || e.kind !== 'bld') continue;
-    if (!e.done && !e.unpaid) add(priceOf(e.type as Parameters<typeof priceOf>[0]));
-    else if (e.done && e.upT != null) add(refitPrice(e));
-  }
-  return f;
-}
-
-/**
  * A side that has lost (Alex's rule): it has no Town Hall, no units at all (counting units it has paid
- * for and is training), and it can't train a Worker, either because it has no Barracks left or because
- * it can't pay for one, even by cancelling orders. A side that keeps its Town Hall stays in the game.
+ * for and is training), and nothing left that trains Workers. A side with no Worker gets its next one
+ * free (freeWorker in production.ts), so having no ore never puts it out of the game.
  */
 export function stranded(team: number): boolean {
   if (G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'unit' || (e.type === 'yard' && e.done)))) return false;
   if (Object.values(G.prod[team]).some((line) => line.some((it) => it.paid && isUnitType(it.type)))) return false;
-  if (!available(team, 'infantry').includes('worker')) return true;
-  const p = priceOf('worker'), f = fundsWithRefunds(team);
-  return f.ore < p.ore || f.wood < p.wood || f.oil < p.oil || f.aether < p.aether;
+  return !available(team, 'infantry').includes('worker');
 }
 
 /** Every building a stranded side still has blows up, and the side is out of the game. */
 function fall(team: number): boolean {
   const left = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (!left.length) return false;
-  const why = `no Town Hall, no units and ${available(team, 'infantry').includes('worker') ? 'no ore for a Worker' : 'nothing that trains Workers'}`;
+  const why = 'no Town Hall, no units and nothing that trains Workers';
   knockOut(team, `its base blew up: ${why}`);
   for (const e of left) { kill(e); dropSalvage(e); }
   for (let t = 0; t < G.teams; t++) say(t, t === team ? `Your base is lost: ${why}` : `${teamColors(team).name}'s base has fallen: ${why}`);
@@ -266,7 +268,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); regrowAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); updHell(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); regrowAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); updHell(); campAlarm(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows

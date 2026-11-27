@@ -39,14 +39,17 @@ export const REACTS = ['pursue', 'hold', 'evade'] as const;
 export type React = (typeof REACTS)[number];
 
 /**
- * A unit's "when attacked" setting. Unset, fighters pursue and Workers, Harvesters and Medics hold
- * (carry on with their work), for people and the computer alike; a unit left on the old "Don't
+ * A unit's "when attacked" setting. Unset, fighters pursue, Workers and Harvesters evade (and go back
+ * to work once it's safe) and Medics hold (carry on with their work), for people and the computer alike; a unit left on the old "Don't
  * attack" or "Evade attacks" (passive) evades, as it always has.
  */
 export function reactOf(u: Ent): React {
   if (u.react) return u.react;
   if (u.stance === 'passive') return 'evade';
-  return u.kind === 'unit' && unitDef(u).weapon && u.type !== 'worker' && !unitDef(u).haul ? 'pursue' : 'hold';
+  // Workers and Harvesters run from danger and go back to work after (Alex, 2026-11-27, game/evade.ts)
+  // (a Worker the player put on an attack stance fights back instead)
+  if (u.kind === 'unit' && unitDef(u).haul && (u.stance === 'tend' || !unitDef(u).weapon)) return 'evade';
+  return u.kind === 'unit' && unitDef(u).weapon && u.type !== 'worker' ? 'pursue' : 'hold';
 }
 
 export const defaultStance = (type: string, team: number): Stance => (type === 'worker' ? 'tend' : G.human[team] ? 'skirmish' : 'engage');
@@ -438,6 +441,10 @@ export const G = {
   islands: false,
   /** the computers against the player make a few small raids early on (campaign missions 3 and 5, see ai.ts military) */
   raids: false,
+  /** a mission's scattered enemy camps come to each other's help: tiles a camp unit hears a fight from (0: they hold their ground; ai.ts campAlarm) */
+  camps: 0,
+  /** the map's only wood is the layout's grove: no trees scattered over the land (campaign, The Last Grove) */
+  oneWood: false,
   /** a campaign mission's extra goals for the player (side 0), beside destroying the enemy, and those met so far */
   goals: [] as Goal[],
   goalsDone: [] as Goal[],

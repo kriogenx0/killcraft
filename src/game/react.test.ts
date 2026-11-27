@@ -60,12 +60,12 @@ describe('when attacked', () => {
     expect(parseCommand({ c: 'react', ids: [1], react: 'flee' })).toBeNull();
   });
 
-  it('defaults: fighters pursue, Workers, Harvesters and Medics carry on, units on Don\'t attack evade', () => {
+  it('defaults: fighters pursue, Workers and Harvesters evade, Medics carry on, units on Don\'t attack evade', () => {
     openField();
     expect(reactOf(addUnit('rifleman', 0, 20 * TS, 20 * TS))).toBe('pursue');
     expect(reactOf(addUnit('rifleman', 1, 20 * TS, 22 * TS))).toBe('pursue');
-    expect(reactOf(addUnit('worker', 0, 22 * TS, 20 * TS))).toBe('hold');
-    expect(reactOf(addUnit('harvester', 1, 24 * TS, 20 * TS))).toBe('hold');
+    expect(reactOf(addUnit('worker', 0, 22 * TS, 20 * TS))).toBe('evade');
+    expect(reactOf(addUnit('harvester', 1, 24 * TS, 20 * TS))).toBe('evade');
     expect(reactOf(addUnit('medic', 0, 26 * TS, 20 * TS))).toBe('hold');
     const p = addUnit('swordsman', 0, 28 * TS, 20 * TS);
     p.stance = 'passive';

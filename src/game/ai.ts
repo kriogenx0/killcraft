@@ -447,7 +447,7 @@ const DIG_REACH = 8;
 const LOW_ORE = 2500;
 /** The least ore a far field must hold to be worth a camp. */
 const FIELD_ORE = 1200;
-/** Most Mining Camps and Town Halls the computer adds beyond its first hall. */
+/** Most Resource Drops and Town Halls the computer adds beyond its first hall. */
 const MAX_EXPANSIONS = 2;
 /** The computer keeps its new bases this much further from the enemy than the rule requires. */
 const SAFE_GAP = EXPAND_GAP + 4;
@@ -455,7 +455,7 @@ const SAFE_GAP = EXPAND_GAP + 4;
 const HOME_REACH = 22;
 
 /**
- * A new drop-off by far ore once the fields by the current ones run low: a Mining Camp, or a second
+ * A new drop-off by far ore once the fields by the current ones run low: a Resource Drop, or a second
  * Town Hall once well off in a later age. One at a time.
  */
 function expansion(team: number, can: readonly string[]): BldType | null {
@@ -787,7 +787,7 @@ function training(team: number): void {
   // Workers: a few per refinery (by difficulty) for ore before the Modern age, plus the mills' choppers and derricks' haulers
   // (the Town Hall trains them too, before there's a Barracks)
   if (available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
-    !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
+    !prod.infantry.some((x) => x.type === 'worker') && (prod.infantry.length < 5 || !countOf(team, 'worker'))) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = (credits > 2500 ? L.queue + 2 : L.queue) + Math.max(0, barracks - 1) + (alarm ? 1 : 0);
   // an idle War Factory in the Industrial age or later: save up for a vehicle instead of spending every
@@ -812,7 +812,7 @@ function upkeep(team: number): void {
     if (!b.dead && b.team === team && b.kind === 'bld' && b.done && b.hp < b.maxhp * 0.6 && rich) b.repairing = true;
   const workers = G.ents.filter((e) => !e.dead && e.team === team && e.type === 'worker');
   const on = (b: Ent) => workers.filter((w) => w.order?.t === 'heal' && w.order.tgt === b.id).length;
-  const free = () => workers.filter((w) => !w.order || w.order.t === 'move' || (w.order.t === 'harvest' && !w.order.res && w.carry < oreLoadOf(w) * 0.5));
+  const free = () => workers.filter((w) => !w.order || (w.order.t === 'move' && !w.order.flee) || (w.order.t === 'harvest' && !w.order.res && w.carry < oreLoadOf(w) * 0.5));
   const digging = () => workers.filter((w) => w.order?.t === 'harvest' && !w.order.res).length;
   const chopping = () => workers.filter((w) => w.order?.t === 'harvest' && w.order.res === 'wood');
   const nearest = (list: Ent[], b: Ent) => list.sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y))[0];
@@ -1225,6 +1225,26 @@ function revival(team: number): void {
   if (G.credits[team] - REVIVE_PRICE.ore >= workerKeep() && revive(team, t)) return;
   ais[team].reserve = Math.max(ais[team].reserve, REVIVE_PRICE.ore);
   ais[team].reserveWood = Math.max(ais[team].reserveWood ?? 0, REVIVE_PRICE.wood);
+}
+
+/** Seconds at the start of a mission before its camps answer fights, so the player can get their army in hand. */
+const CAMP_CALM = 30;
+
+/**
+ * A mission's scattered enemy camps (G.camps, no AI running them) come to each other's help: an idle
+ * enemy trooper within G.camps tiles of the player's troops marches on the nearest of them.
+ */
+export function campAlarm(): void {
+  if (!G.camps || G.gameT < CAMP_CALM) return;
+  const ours = G.ents.filter((e) => !e.dead && e.kind === 'unit' && allied(e.team, 0) && !e.bee);
+  if (!ours.length) return;
+  const R = G.camps * TS;
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || u.order || allied(u.team, 0) || !unitDef(u).weapon || isHarvester(u) || u.wild) continue;
+    let near: Ent | null = null, nd = R;
+    for (const p of ours) { const d = Math.hypot(p.x - u.x, p.y - u.y); if (d < nd && canAttack(u, p)) { nd = d; near = p; } }
+    if (near) advance(u, tileOf(near.x), tileOf(near.y));
+  }
 }
 
 export function aiThink(team: number): void {

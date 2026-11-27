@@ -148,7 +148,7 @@ export const onWell = (type: BldType): boolean => type === 'derrick';
 
 /**
  * Where a structure may go: 'base' near the side's buildings, 'well' on an oil well, 'far' (a Town
- * Hall or Mining Camp, see EXPANSION) anywhere explored that isn't up against an enemy base.
+ * Hall or Resource Drop, see EXPANSION) anywhere explored that isn't up against an enemy base.
  */
 export type Reach = 'base' | 'well' | 'far';
 export const reachOf = (type: BldType): Reach => (onWell(type) ? 'well' : isExpansion(type) ? 'far' : 'base');
@@ -162,7 +162,7 @@ export function clearOfFoes(tx: number, ty: number, s: number, team: number, R =
 /**
  * Is a site here close enough to build? Most structures must be near the base (nearBase). An Oil
  * Derrick instead must reach oil, and may stand on any well, however far from home; a new Town Hall
- * or Mining Camp may go anywhere away from the enemy (the explored-ground check is tileFree's).
+ * or Resource Drop may go anywhere away from the enemy (the explored-ground check is tileFree's).
  */
 export function inReach(tx: number, ty: number, s: number, team: number, wall = false, reach: Reach | boolean = 'base'): boolean {
   const r = reach === true ? 'well' : reach === false ? 'base' : reach;
@@ -188,7 +188,7 @@ export function buildZone(type: BldType, team: number, out: Uint8Array): Uint8Ar
     for (let i = 0; i < MW * MH; i++) if (G.oilField[i] > 0) { const x = i % MW, y = (i / MW) | 0; stamp(x - DERRICK_REACH, y - DERRICK_REACH, x + 1 + DERRICK_REACH, y + 1 + DERRICK_REACH); }
   } else {
     if (isExpansion(type)) {
-      // a new Town Hall or Mining Camp: anywhere but up against an enemy base
+      // a new Town Hall or Resource Drop: anywhere but up against an enemy base
       stamp(0, 0, MW, MH);
       for (const e of G.ents) {
         if (e.dead || e.kind !== 'bld' || e.team < 0 || e.team === team || isWall(e.type)) continue;

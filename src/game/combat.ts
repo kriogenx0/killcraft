@@ -12,6 +12,7 @@ import { dropSalvage } from './economy.ts';
 import { payBounty } from './bounty.ts';
 import { burst, explosion, impact, part } from './fx.ts';
 import { orderFlee, setOrder } from './order.ts';
+import { evade, evades, mayRun } from './evade.ts';
 import { cloakedFrom, hex, unveil, wardDamage } from './aether.ts';
 import { hideFactor, kneeling, petrify, riseFromAshes, subdue } from './creatures.ts';
 import { GUARD_RADIUS as WILD_REACH } from '../data/creatures.ts';
@@ -76,6 +77,7 @@ export function dealDamage(t: Ent, dmg: number, src: Ent | null, dot = false, qu
   // after a shooter beyond it, it would drop the fight next step and take it up again with every shot.
   if (t.wild) return;
   const r = reactOf(t), o = t.order;
+  if (evades(t)) { if (mayRun(t) && !(o?.t === 'move' && o.flee)) evade(t, src); return; }
   if (r === 'evade' && (!o || o.t === 'harvest' || (o.t === 'attack' && o.auto) || (o.t === 'heal' && !o.sent))) orderFlee(t, src);
   else if (r === 'pursue' && !o && t.stance === 'engage' && canAttack(t, src)) setOrder(t, { t: 'attack', tgt: src.id, auto: true, ox: t.x, oy: t.y });
 }

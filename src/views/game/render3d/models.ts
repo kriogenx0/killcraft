@@ -1599,7 +1599,7 @@ function industrial(m: Model): Model {
 /**
  * Which look a structure has in an age. Each age rebuilds the base one step further:
  * 0 wood and thatch (Medieval), 2 brick and iron (Industrial), 3 concrete and steel (Modern).
- * The Watchtower, Lumber Mill and Mining Camp grow into dressed stone (look 1) and stop there; the Oil Derrick,
+ * The Watchtower, Lumber Mill and Resource Drop grow into dressed stone (look 1) and stop there; the Oil Derrick,
  * Engine Works and Flak Cannon are brick and iron until the Modern age, even in a Medieval town.
  */
 const ERA_LOOK = [0, 2, 3] as const;

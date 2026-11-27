@@ -1,6 +1,6 @@
-// The campaign (Alex, 2026-11-27): ten solo missions against the computer, starting super simple.
+// The campaign (Alex, 2026-11-27): eleven solo missions against the computer, starting super simple.
 // Missions 1-3 are against Easy computers in the Medieval age with no magic and no oil; the
-// Industrial age opens on mission 4, magic on mission 7, the Modern age on mission 8, and Aether, creatures and storms on mission 9.
+// Industrial age opens on mission 4, scarce wood on mission 7, magic on mission 8, the Modern age on mission 9, and Aether, creatures and storms on mission 10.
 // Each mission unlocks more to build (UNLOCKS): everything a later mission unlocks is banned for
 // every side until then. Some missions are on a winter map (snow). Winning a mission unlocks the
 // next one; progress is kept in this browser.
@@ -31,16 +31,18 @@ export const UNLOCKS: Thing[][] = [
   // 5: air power (Alex: islands, airplanes)
   ['airfield', 'balloon', 'biplane', 'flak'],
   // 6: big guns
-  ['artillery', 'bertha'],
-  // 7: magic (Alex: "Discover magic": the Arcane Circle and the spellcasters of the first two ages)
+  ['artillery'],
+  // 7: the wood is all in one small grove in the middle (Alex: "scarce wood"); Big Bertha to shell it from afar
+  ['bertha'],
+  // 8: magic (Alex: "Discover magic": the Arcane Circle and the spellcasters of the first two ages)
   ['magetower', 'mage', 'tidecaller', 'stormcaller', 'plaguewitch'],
-  // 8: the Modern age (Alex: "introduction to Modern. Expand to more things"): Modern troops, aircraft,
+  // 9: the Modern age (Alex: "introduction to Modern. Expand to more things"): Modern troops, aircraft,
   // jets and cyborgs, the Modern casters
   ['age2', 'harvester', 'rocket', 'heavy', 'helicopter', 'drone', 'atturret', 'archmage', 'sludgewarlock', 'heal3', 'infWeapon3', 'infArmor3', 'vehWeapon3', 'vehArmor3',
     'fighter', 'striker', 'juggernaut'],
-  // 9: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
+  // 10: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
   ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'mystery', 'titan'],
-  // 10: everything is open (Alex: "2v2 hard")
+  // 11: everything is open (Alex: "2v2 hard")
   [],
 ];
 
@@ -70,12 +72,18 @@ export interface Mission {
   scatter?: UnitType[];
   /** a single oil well on the whole map, as far from every base as the land allows (instead of one by each base) */
   oneOil?: boolean;
+  /** no wood but one small grove in the middle of the map (Alex: "scarce wood") */
+  oneWood?: boolean;
+  /** wild creatures guarding the middle of the map (Alex: The Last Grove "could have creatures guarding it"); the only creatures before mission 10 */
+  guards?: UnitType[];
   /** what else must be done to win, beside destroying the enemy */
   goals?: Goal[];
   /** each side on its own island: only aircraft cross */
   islands?: boolean;
   /** a few small early raids by the enemy (Alex), who starts with these raiders too */
   raids?: UnitType[];
+  /** the scattered enemy camps come to each other's help from this many tiles (Alex: mission 6 was too easy) */
+  camps?: number;
   /** no towns: the player starts with just this army (no Workers, no buildings) */
   army?: UnitType[];
   /** the game it plays (fixed map, so a mission is the same each time) */
@@ -121,15 +129,22 @@ export const MISSIONS: Mission[] = [
     // has random units around. Still more difficult"
     id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1, small: 68,
     army: [...rep('rifleman', 8), ...rep('gunner', 4), ...rep('tank', 4), ...rep('jeep', 2), ...rep('artillery', 2)],
-    scatter: [...rep('rifleman', 10), ...rep('gunner', 6), ...rep('tank', 5), ...rep('jeep', 3), ...rep('artillery', 2)],
-    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, more of them than you. Pick your fights and wipe them out.',
+    // Alex: "Mission 6 and 7 were too easy": more of them, heavier, and camps answer each other's fights
+    scatter: [...rep('rifleman', 10), ...rep('gunner', 8), ...rep('tank', 8), ...rep('jeep', 4), ...rep('artillery', 4)], camps: 14,
+    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, far more of them than you, and the camps nearby rush to join any fight they hear. Pick your fights carefully and wipe them out.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6606 }),
   },
   {
+    // Alex: "a new mission between 6 and 7. One with scarce wood. Only a small patch in the center"
+    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true, guards: ['centaur', 'minotaur', 'cyclops'], raids: ['rifleman', 'rifleman', 'gunner'], // Alex: creatures guard it; the enemy raids
+    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. Wild creatures guard it: beat one down and it kneels, ready to be captured. One Normal computer needs the wood as badly as you do, and raids you early. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
+    setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6707 }),
+  },
+  {
     // Alex: "Mission 7. Discover magic. Can now build magic units and build the magic tower"
-    id: 'modern-war', name: 'Discover Magic', maxEra: 1,
-    brief: 'Magic is found: build an Arcane Circle and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and an ally against two Normal computers.',
-    setup: game({ mode: '2v2', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 7707 }),
+    id: 'modern-war', name: 'Discover Magic', maxEra: 1, raids: ['rifleman', 'rifleman', 'gunner'], // Alex: was too easy
+    brief: 'Magic is found: build an Arcane Circle and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and a Normal ally against two Hard computers, who raid you early.',
+    setup: game({ mode: '2v2', seats: ['normal', 'hard', 'normal', 'hard'], resources: 'standard', army: 'workers', seed: 7707 }),
   },
   {
     // Alex: "Mission 8 - introduction to Modern. Expand to more things. 1v1 Normal difficulty"
@@ -152,8 +167,8 @@ export const MISSIONS: Mission[] = [
 ];
 
 // Weather (Alex, 2026-11-27: "no weather besides rain until level 8"): passing rain only on missions
-// 1-8 (a snow map's falling snow is its weather, so no rain there), and storms from mission 9 (Alex).
-MISSIONS.forEach((m, i) => { m.setup.weather = i >= 8 ? 'storms' : m.snow ? 'off' : 'rain'; });
+// 1-9 (a snow map's falling snow is its weather, so no rain there), and storms from mission 10 (Alex).
+MISSIONS.forEach((m) => { m.setup.weather = m.wild ? 'storms' : m.snow ? 'off' : 'rain'; });
 
 /**
  * The world options a mission plays with (initWorld's StartOptions). Missions before 8 have no Aether
@@ -195,7 +210,8 @@ export function missionLayout(m: Mission): MapLayout {
     forests.push([...clampIn(at(y, a + Math.PI, 7)), lean ? 3 : 4]);
   }
   // more ore out in the open: one in the middle (not under the islands' sea), and more on a roomier map
-  if (!m.islands) ore.push([Math.round(mid), Math.round(mid)]);
+  // (the one grove takes the middle instead)
+  if (!m.islands && !m.oneWood) ore.push([Math.round(mid), Math.round(mid)]);
   for (let k = 0, extra = lean ? 0 : teams > 2 ? 4 : 2; k < 200 && extra > 0; k++) {
     const p: Tile = [Math.round(lo + 6 + rnd() * (span - 12)), Math.round(lo + 6 + rnd() * (span - 12))];
     if (!inside(p, 4) || (m.islands && Math.abs(p[0] - p[1]) < 12)) continue;
@@ -215,11 +231,12 @@ export function missionLayout(m: Mission): MapLayout {
     oil.length = 0;
     oil.push(best);
   }
+  if (m.oneWood) return { yards, ore, oil, forests: [[Math.round(mid), Math.round(mid), 3]], portals: [] };
   return { yards, ore, oil, forests: lean ? forests.slice(0, 1) : forests, portals: [] };
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, camps: m.camps, oneWood: !!m.oneWood, guards: m.guards,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

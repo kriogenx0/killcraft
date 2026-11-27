@@ -3,8 +3,8 @@
 // Industrial Age research, and the computer doesn't save up for them.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
-import { STEP } from './const.ts';
-import { ais, setAiLevel } from './ai.ts';
+import { MW, STEP, TREE, TS } from './const.ts';
+import { ais, campAlarm, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { SHALLOW, WATER } from './const.ts';
 import { updLeader } from './bounty.ts';
@@ -144,14 +144,14 @@ describe('mission 1', () => {
 
 describe('Aether and creatures', () => {
   it('stay out of the campaign until mission 9 (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 8));
+    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 9));
     for (const m of MISSIONS.slice(0, 8)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
     // each mission as the game starts it
     MISSIONS.forEach((m, i) => {
       initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
       expect(G.hell.gate, m.id).toBe(false);
-      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 8);
-      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 8);
+      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 9);
+      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 9 || !!m.guards);
     });
     initWorld(2202, 2, { wild: false, gate: false, aether: false });
     expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
@@ -226,15 +226,55 @@ describe('mission layouts', () => {
   });
 });
 
-describe('early raids (Alex: missions 3, 4 and 5)', () => {
-  it('missions 3 to 5 give the enemy raiders and raid early; the others do not', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe(i >= 2 && i <= 4));
+describe('early raids (Alex: missions 3, 4, 5 and 7)', () => {
+  it('missions 3, 4, 5 and 7 give the enemy raiders and raid early; the others do not', () => {
+    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe([2, 3, 4, 6, 7].includes(i)));
     const m = MISSIONS[4];
     G.headless = true;
     initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
     expect(G.raids).toBe(true);
     expect(G.ents.filter((e) => !e.dead && e.team === 1 && e.type === 'balloon').length).toBe(2);
     expect(G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'balloon')).toBe(false);
+  });
+});
+
+describe('mission 6 camps (Alex: too easy)', () => {
+  it('camps near a fight march on the player; far ones stay put', () => {
+    const m = MISSIONS.find((x) => x.camps)!;
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m) });
+    expect(G.camps).toBeGreaterThan(0);
+    const me = G.ents.find((e) => !e.dead && e.team === 0 && e.kind === 'unit')!;
+    const foes = G.ents.filter((e) => !e.dead && e.team === 1 && e.kind === 'unit');
+    const near = (e: { x: number; y: number }) => Math.hypot(e.x - me.x, e.y - me.y) < G.camps * TS;
+    expect(foes.some((e) => !near(e))).toBe(true);
+    // move one enemy close by: it (and only those in earshot) come
+    foes[0].x = me.x + 8 * TS; foes[0].y = me.y;
+    G.gameT = 0;
+    campAlarm();
+    expect(foes[0].order).toBeFalsy();
+    G.gameT = 60;
+    campAlarm();
+    expect(foes[0].order).toBeTruthy();
+    expect(foes.filter((e) => !near(e)).every((e) => !e.order)).toBe(true);
+  });
+});
+
+describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () => {
+  it('has trees only in one small grove in the middle', () => {
+    const m = MISSIONS.find((x) => x.oneWood)!;
+    expect(MISSIONS.indexOf(m)).toBe(6);
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m), locked: JSON.parse(readFileSync(`public/campaign/${m.id}.json`, 'utf8')) as LockedMap });
+    const [[cx, cy]] = G.layout!.forests, trees: number[] = [];
+    G.terr.forEach((v, i) => { if (v === TREE) trees.push(i); });
+    expect(trees.length).toBeGreaterThan(5);
+    expect(trees.length).toBeLessThan(40);
+    for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
+    // creatures stand guard around it (Alex)
+    const guards = G.ents.filter((e) => !e.dead && !!e.wild);
+    expect(guards.map((e) => e.type).sort()).toEqual([...m.guards!].sort());
+    for (const g of guards) expect(Math.hypot(g.x / TS - cx, g.y / TS - cy)).toBeLessThan(10);
   });
 });
 
@@ -261,7 +301,7 @@ describe('Black Gold goals', () => {
 
 describe('campaign progress', () => {
   it('has only rain for weather until mission 8, and none on a snow map (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 8 ? 'storms' : m.snow ? 'off' : 'rain'));
+    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 9 ? 'storms' : m.snow ? 'off' : 'rain'));
   });
 
   it('every mission uses the Regrow fog of war (Alex)', () => {
@@ -275,8 +315,8 @@ describe('campaign progress', () => {
     expect(new Set(MISSIONS.map((m) => m.id)).size).toBe(MISSIONS.length);
   });
 
-  it('opens the Industrial age on mission 4 and the Modern age on mission 8 (Alex)', () => {
-    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 2, 2, 2]);
+  it('opens the Industrial age on mission 4 and the Modern age on mission 9 (Alex)', () => {
+    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2]);
   });
 
   it('unlocks every building, unit and research exactly once, never before its age (Alex: each level unlocks more)', () => {

@@ -54,14 +54,17 @@ $sidebar-width: 248px;
       flex: none;
     }
 
+    // a fixed width (not just a minimum), so a counter never grows or shrinks as its number changes
+    // and the counters after it stay put; wide enough for the widest four characters ("8888", "999k")
     .ui-resource-value {
       display: inline-block;
-      min-width: 4ch; // counts are at most four characters (see shortCount)
+      flex: none;
+      width: 4.4ch; // counts are at most four characters (see shortCount)
       font-variant-numeric: tabular-nums;
     }
 
     .topbar-power {
-      min-width: 7ch;
+      width: 7.4ch; // used/made, "888/888"
     }
 
     // the unit count is last before the spacer, so on a very cramped bar it is the one that gets
@@ -910,20 +913,38 @@ $sidebar-width: 248px;
         gap: 2px;
       }
 
-      // no room for fixed-width counters on a phone: each takes just what its number needs
-      .ui-resource-value,
-      .topbar-power {
-        min-width: 0;
-      }
+      // fixed-width counters on phones too (see above), so the bar never shifts as numbers change
 
       .ui-button--small {
         min-width: 36px;
       }
 
-      // the smallest phones: tighter spacing so every counter and button fits
-      @media (max-width: 360px) {
+      // most phones: tighter spacing, smaller digits and icons so every counter and button fits
+      @media (max-width: 430px) {
         gap: 2px;
         padding: 0 $space-1;
+        font-size: 12px;
+
+        .ui-resource {
+          gap: 1px;
+        }
+
+        .ui-resource-icon {
+          width: 11px;
+          height: 11px;
+        }
+
+        .ui-button--small {
+          min-width: 32px;
+          padding-inline: 2px;
+        }
+
+        // the smallest phones (320px): smaller still; with Aether showing the unit count is what gets clipped
+        @media (max-width: 340px) {
+          gap: 1px;
+          padding: 0 2px;
+          font-size: 11px;
+        }
       }
     }
 
