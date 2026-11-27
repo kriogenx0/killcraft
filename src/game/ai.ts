@@ -56,6 +56,9 @@ interface AiState {
   /** when the base was last raided (game seconds), and until when a beaten wave regroups before going out again */
   raidT?: number;
   regroupT?: number;
+  /** early raids made so far, and when the next may go (G.raids) */
+  raids?: number;
+  raidAt?: number;
 }
 
 export const ais: AiState[] = [
@@ -125,7 +128,7 @@ export function resetAi(teams = 2): void {
   wallPause.length = 0;
   noteKey.length = 0;
   scouted.length = 0;
-  ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.home = undefined; a.raidT = undefined; a.regroupT = undefined; a.big = null; a.bigDone = false; a.foe = teams === 2 ? 1 - team : -1; });
+  ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.home = undefined; a.raidT = undefined; a.regroupT = undefined; a.raids = 0; a.raidAt = undefined; a.big = null; a.bigDone = false; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
 const homeOf = (team: number): Ent | undefined =>
@@ -170,13 +173,24 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.type === 'phantom')) return 'wardstone';
   if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
   // islands (campaign): nothing reaches the enemy but aircraft, so an Airfield as soon as there can be one
-  if (G.islands && can.includes('airfield') && countOf(team, 'airfield') < 1) return 'airfield';
+  if (G.islands && can.includes('airfield') && countOf(team, 'airfield') < 1) {
+    // wood is what holds an Airfield up there: a second Lumber Mill rather than wait minutes for it
+    if (G.wood[team] < priceOf('airfield').wood && countOf(team, 'mill') < 2 && can.includes('mill') && G.credits[team] >= priceOf('airfield').ore) return 'mill';
+    return 'airfield';
+  }
+  // islands (Alex: the enemy base focuses on air attacks and defense): a ring of Flak Cannons, more as
+  // enemy aircraft show up, and a second Airfield once the bank allows
+  if (G.islands && countOf(team, 'airfield') > 0) {
+    const foeAir = G.ents.filter((e) => !e.dead && hostile(e.team, team) && isAir(e) && !e.bee).length;
+    if (can.includes('flak') && countOf(team, 'flak') < Math.min(5, 2 + Math.floor(foeAir / 2)) && G.credits[team] > 700) return 'flak';
+    if (can.includes('airfield') && countOf(team, 'airfield') < 2 && G.credits[team] > 1600) return 'airfield';
+  }
   const grow = expansion(team, can);
   if (grow) return grow;
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
-    if (BUILDING[t].era > G.era[team] || G.banned.includes(t)) continue;
+    if (BUILDING[t].era > G.era[team] || G.banned.includes(t) || (G.islands && GROUND_ONLY.includes(t))) continue;
     // the Engine Works only matters until its age is researched
     const to = BUILDING[t].opens;
     if (to != null && (G.era[team] >= to || to > G.maxEra)) continue;
@@ -225,13 +239,18 @@ function defense(team: number, can: readonly string[]): BldType | null {
   if (credits > 1500 && turrets < 9) {
     const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
     const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
-    const pick = infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
+    const pick = G.islands ? antiAir(can) : infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
     if (can.includes(pick)) return pick;
   }
   return null;
 }
 
 const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+/** The defenses an alarm counts: on islands Flak too */
+const alarmDefenses = (): BldType[] => G.islands ? [...DEFENSES, 'flak'] : DEFENSES;
+/** Islands (campaign): only aircraft come, so defenses that can't hit them are no use; Flak once there is one, else a Watchtower. */
+const antiAir = (can: readonly string[]): BldType => can.includes('flak') ? 'flak' : 'tower';
+const GROUND_ONLY: BldType[] = ['turret', 'pillbox', 'atturret'];
 
 /** Seconds a raid on the base keeps a computer on a war footing: troops before buildings, and defenses sooner. */
 const ALARM = 60;
@@ -247,14 +266,14 @@ const alarmed = (team: number): boolean => careful(team) && G.gameT - (ais[team]
  * ALARM_DEFENSES (more in later ages), one site at a time.
  */
 function alarmDefense(team: number, can: readonly string[], note = true): BldType | null {
-  if (!alarmed(team) || sitesOf(team).some((e) => DEFENSES.includes(e.type as BldType))) return null;
-  const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
+  if (!alarmed(team) || sitesOf(team).some((e) => alarmDefenses().includes(e.type as BldType))) return null;
+  const turrets = alarmDefenses().reduce((n, t) => n + countOf(team, t), 0);
   if (turrets >= ALARM_DEFENSES + 2 * G.era[team]) return null;
   const foe = G.ents.filter((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && !isAir(e) && unitDef(e).weapon);
   const infantry = foe.filter(isOrganic).length;
   const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
   const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
-  const pick = infantry * 2 >= foe.length ? vsInfantry : vsArmor;
+  const pick = G.islands ? antiAir(can) : infantry * 2 >= foe.length ? vsInfantry : vsArmor;
   if (!can.includes(pick)) return null;
   if (note) aiNote(team, `raided: putting up ${label(pick)}`, `alarm ${pick}`);
   return pick;
@@ -755,7 +774,8 @@ function training(team: number): void {
     if (t) enqueue(team, t);
   }
   // a few aircraft once there's money to spare
-  if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') && credits > (G.islands ? 400 : 900)) {
+  // (islands: the whole army is aircraft, two orders at each Airfield and on a small bank)
+  if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') * (G.islands ? 2 : 1) && credits > (G.islands ? 250 : 900)) {
     // fighters answer enemy aircraft; strike jets go after bases once there's money for them
     const foeAir = G.ents.filter((e) => !e.dead && e.kind === 'unit' && hostile(e.team, team) && isAir(e)).length;
     const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['fighter', foeAir >= 3 ? 4 : foeAir ? 1.5 : 0.3], ['striker', credits > 1300 ? 2 : 0], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0], ['beequeen', 1.5]]);
@@ -1002,6 +1022,8 @@ const GUARD_FROM = 8;
 const FALL_BACK = 0.4;
 /** Seconds a beaten wave regroups before the next one goes out. */
 const REGROUP = 45;
+/** Early raids a computer makes in a mission with raids (G.raids), and the seconds between them (the first goes at that time too). */
+const EARLY_RAIDS = 3, RAID_EVERY = 150;
 /** A teammate's troops this far (tiles) from its Town Hall are out on the attack. */
 const OUT_ON_ATTACK = 20;
 /** Fewest of a teammate's troops out together that count as an attack worth joining. */
@@ -1060,7 +1082,8 @@ function military(team: number): void {
   const all = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e));
   holdAether(team, all, homeOf(team));
   huntBeasts(team, all.filter((e) => !A.guards.has(e.id)), homeOf(team));
-  const army = all.filter((e) => !A.guards.has(e.id) && !A.hunters.has(e.id));
+  // islands: ground troops can't cross the sea, so they guard home and only aircraft go out in waves
+  const army = all.filter((e) => !A.guards.has(e.id) && !A.hunters.has(e.id) && (!G.islands || isAir(e)));
   // fast raiders shoot on the move; everyone else stops to fight (the default stance)
   for (const u of army) if (SKIRMISHERS.has(u.type) && u.stance !== 'skirmish') setStance(u, 'skirmish');
   const home = homeOf(team);
@@ -1113,6 +1136,19 @@ function military(team: number): void {
   const from: Ent | { x: number; y: number } = home ?? army[0] ?? { x: 0, y: 0 };
   const tgt = targets.reduce((a, p) => (Math.hypot(p.x - from.x, p.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? p : a));
   const idle = army.filter((u) => !u.order);
+  // a few small raids early on (campaign, Alex): a couple of troops at a time, every couple of minutes
+  if (G.raids && hostile(team, 0) && (A.raids ?? 0) < EARLY_RAIDS && G.gameT >= (A.raidAt ??= RAID_EVERY) && !threat) {
+    const party = army.filter((u) => !u.order || u.order.t === 'move').slice(0, 3);
+    if (party.length >= 2) {
+      A.raids = (A.raids ?? 0) + 1;
+      A.raidAt = G.gameT + RAID_EVERY;
+      // at the player, wherever the wave would go
+      const mine = G.ents.filter((e) => !e.dead && e.team === 0 && e.kind === 'bld' && !isWall(e.type));
+      const at = mine.length ? mine.reduce((a, p) => (Math.hypot(p.x - from.x, p.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? p : a)) : tgt;
+      aiNote(team, `early raid ${A.raids} with ${party.length} troops`);
+      for (const u of party) advance(u, tileOf(at.x), tileOf(at.y));
+    }
+  }
   const enemyArmy = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length;
   // attack in waves, or press on whenever the enemy army is clearly smaller
   const L = lvl(team), ready = G.gameT >= L.firstAttack && G.gameT >= (A.regroupT ?? 0) && !bigRaid;

@@ -436,6 +436,8 @@ export const G = {
   layout: null as MapLayout | null,
   /** each side on its own island, with sea between (campaign mission 5): only aircraft cross */
   islands: false,
+  /** the computers against the player make a few small raids early on (campaign missions 3 and 5, see ai.ts military) */
+  raids: false,
   /** a campaign mission's extra goals for the player (side 0), beside destroying the enemy, and those met so far */
   goals: [] as Goal[],
   goalsDone: [] as Goal[],

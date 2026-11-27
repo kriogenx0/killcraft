@@ -226,6 +226,18 @@ describe('mission layouts', () => {
   });
 });
 
+describe('early raids (Alex: missions 3 and 5)', () => {
+  it('missions 3 and 5 give the enemy raiders and raid early; the others do not', () => {
+    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe(i === 2 || i === 4));
+    const m = MISSIONS[4];
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
+    expect(G.raids).toBe(true);
+    expect(G.ents.filter((e) => !e.dead && e.team === 1 && e.type === 'balloon').length).toBe(2);
+    expect(G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'balloon')).toBe(false);
+  });
+});
+
 describe('Black Gold goals', () => {
   it('is not won until an Oil Derrick stands and the Town Hall is Industrial, even with the enemy destroyed (Alex)', () => {
     const m = MISSIONS.find((x) => x.goals?.includes('derrick'))!;

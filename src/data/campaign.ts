@@ -74,6 +74,8 @@ export interface Mission {
   goals?: Goal[];
   /** each side on its own island: only aircraft cross */
   islands?: boolean;
+  /** a few small early raids by the enemy (Alex), who starts with these raiders too */
+  raids?: UnitType[];
   /** no towns: the player starts with just this army (no Workers, no buildings) */
   army?: UnitType[];
   /** the game it plays (fixed map, so a mission is the same each time) */
@@ -98,8 +100,8 @@ export const MISSIONS: Mission[] = [
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 2202 }),
   },
   {
-    id: 'with-a-friend', name: 'Winter Friends', maxEra: 0, snow: true,
-    brief: 'Snow on the ground. A computer ally fights beside you against two Easy computers.',
+    id: 'with-a-friend', name: 'Winter Friends', maxEra: 0, snow: true, raids: ['swordsman', 'swordsman'], // Alex: a few early attacks
+    brief: 'Snow on the ground. A computer ally fights beside you against two Easy computers, who will raid you early.',
     setup: game({ mode: '2v2', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 3303 }),
   },
   {
@@ -110,8 +112,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "Level 5 airplanes. Small map. Each player is on an island. Player can build air plane hanger"
-    id: 'thin-pickings', name: 'Frozen Isles', maxEra: 1, snow: true, small: 64, islands: true,
-    brief: 'You and a Normal computer each hold an island, with icy sea between. Only aircraft can cross: reach the Industrial age, build an Airfield and take the war to them by air.',
+    id: 'thin-pickings', name: 'Frozen Isles', maxEra: 1, snow: true, small: 64, islands: true, raids: ['balloon', 'balloon'], // Alex: a few early (air) attacks
+    brief: 'You and a Normal computer each hold an island, with icy sea between. Only aircraft can cross: reach the Industrial age, build an Airfield and take the war to them by air. Expect their War Balloons over your town early on.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 5505 }),
   },
   {
@@ -217,7 +219,7 @@ export function missionLayout(m: Mission): MapLayout {
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [],
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

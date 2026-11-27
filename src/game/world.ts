@@ -65,6 +65,8 @@ export interface StartOptions {
   layout?: MapLayout | null;
   /** each side on its own island (campaign mission 5) */
   islands?: boolean;
+  /** the computers against the player raid early (G.raids), and each starts with these raiders as well */
+  raiders?: readonly UnitType[];
   /**
    * Enemy sides get no town: just these units, in small groups across the map (campaign mission 1,
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
@@ -84,7 +86,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -110,6 +112,10 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
     const face = Math.atan2(MH / 2 - y, MW / 2 - x), cols = start.noTown ? 5 : 2, x0 = start.noTown ? x - 1 : x + 3.5;
     units.forEach((type, i) => {
       const u = addUnit(type, team, (x0 + (i % cols)) * TS, (y + 1 + Math.floor(i / cols)) * TS);
+      u.face = u.tface = face;
+    });
+    if (G.ally[team] !== G.ally[0]) (start.raiders ?? []).forEach((type, i) => {
+      const u = addUnit(type, team, (x + 3.5 + (i % 2)) * TS, (y + 3 + Math.floor(i / 2)) * TS);
       u.face = u.tface = face;
     });
   });
