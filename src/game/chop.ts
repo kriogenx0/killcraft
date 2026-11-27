@@ -1,18 +1,17 @@
 // Chopping wood. A Worker on a wood run walks to a tree, chops a load and carries it to the nearest
-// Lumber Mill, Refinery or Town Hall (see unit.ts for the trip home); nothing is banked
+// Lumber Mill, Refinery, Resource Drop or Town Hall (see unit.ts for the trip home); nothing is banked
 // until it's dropped off. Workers spread over the trees, one to a tree while there are enough.
 import { G, valid, type Ent, type HarvestOrder, type Target } from './state.ts';
 import { found } from './fog.ts';
 import { GRASS, MH, MW, TREE, TS } from './const.ts';
 import { approach, turnToward } from './move.ts';
-import { bankAt } from './haul.ts';
+import { dropAt, walkFrom } from './haul.ts';
 import { pathTo } from './path.ts';
-import { walkDist } from './ore.ts';
 import { part } from './fx.ts';
 import { CHOP_RATE, CHOP_WORTH, MILL_RADIUS, WOOD_LOAD } from '../data/economy.ts';
 
 /** Where a Worker drops off wood. */
-export const WOOD_BANKS = ['mill', 'refinery', 'yard'] as const;
+export const WOOD_BANKS = ['mill', 'refinery', 'yard', 'camp'] as const;
 
 /** How close (px, from the tree's edge) a Worker has to stand to chop: anywhere on a tile touching it, corners included. */
 const CHOP_REACH = TS * 0.75;
@@ -65,17 +64,6 @@ function choppersAt(i: number, u: Ent): number {
   return n;
 }
 
-/** Walking distances from each drop-off, kept a couple of seconds (woods and buildings change slowly). */
-const walks = new Map<number, { t: number; d: Float32Array }>();
-function walkFrom(home: Ent): Float32Array {
-  const c = walks.get(home.id);
-  if (c && G.gameT >= c.t && G.gameT - c.t < 2) return c.d;
-  if (walks.size > 64) walks.clear();
-  const d = walkDist([home]);
-  walks.set(home.id, { t: G.gameT, d });
-  return d;
-}
-
 /** Tiles of walk from the drop-off to a spot beside the tree it can chop from (Infinity: none). */
 function walkTo(walk: Float32Array | null, x: number, y: number): number {
   if (!walk) return 0;
@@ -123,10 +111,10 @@ const CROWD = 40;
 
 /**
  * Pick the next tree: the closest to the Worker's mill if it has one, else to its nearest drop-off
- * (Lumber Mill, Refinery or Town Hall), so the walk home stays short; anywhere as a last resort.
+ * (Lumber Mill, Refinery, Resource Drop or Town Hall), so the walk home stays short; anywhere as a last resort.
  */
 function nextTree(u: Ent, o: HarvestOrder): number | null {
-  const home = valid(o.src) ?? bankAt(u, [...WOOD_BANKS]);
+  const home = valid(o.src) ?? dropAt(u, WOOD_BANKS);
   if (!home) return nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 14) ?? nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), MW);
   const cx = home.tx + (home.w >> 1), cy = home.ty + (home.h >> 1);
   // a tree of its own near the drop-off, then further out (but not one a long way round woods or
@@ -140,7 +128,7 @@ function nextTree(u: Ent, o: HarvestOrder): number | null {
  */
 /** A tree within reach of the Worker's wood drop-off that it hasn't found it can't walk up to. */
 export function treeFor(u: Ent): boolean {
-  const home = bankAt(u, [...WOOD_BANKS]);
+  const home = dropAt(u, WOOD_BANKS);
   if (!home) return false;
   return nearestTree(u, home.tx + (home.w >> 1), home.ty + (home.h >> 1), 18, home) !== null;
 }

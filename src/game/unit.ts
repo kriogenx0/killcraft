@@ -15,7 +15,7 @@ import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, AETHER_RETUR
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { found } from './fog.ts';
 import { nearestOwn } from './query.ts';
-import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
+import { AETHER_BANKS, ORE_BANKS, bankAt, banksOf, dropAt } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, rethink, stayOnDerrick, takeResume } from './autogather.ts';
@@ -213,10 +213,14 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     }
     return;
   }
-  // ore and oil go to the nearest Refinery, Mining Camp or Town Hall; wood to a Town Hall, Refinery or Lumber Mill
+  // ore and oil go to the nearest Refinery, Resource Drop or Town Hall by walking; wood there or to a
+  // Lumber Mill. Picked afresh as it goes, so one finished (or lost) on the way home counts at once
   const cargo0 = u.cargo ?? 'ore';
-  const ref = bankAt(u, cargo0 === 'wood' ? [...WOOD_BANKS] : ORE_BANKS);
+  const ref = dropAt(u, cargo0 === 'wood' ? WOOD_BANKS : ORE_BANKS);
   if (!ref) { o.wait = 2; return; } // nowhere to unload: wait
+  // heading for a different drop-off than last time: drop the old path (approach keeps a path to a
+  // building until it runs out, which walked Workers on to the old one first)
+  if (headingTo.get(u) !== ref.id) { headingTo.set(u, ref.id); if (o.st === 'ret') u.path = null; }
   if (o.st === 'ret') {
     // shut in by trees on the way home: cut a way out
     if (fellingOut(u) && chopOut(u, ref, dt)) return;
@@ -250,6 +254,9 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
     rethink(u, o);
   }
 }
+
+/** The drop-off each gatherer last headed for. */
+const headingTo = new WeakMap<Ent, number>();
 
 /** Haul oil: walk to a derrick, fill up from its store, then head home. */
 /** The side's Oil Derrick (other than `not`) with the most oil waiting in its tank, if any has half a load. */
@@ -612,7 +619,7 @@ export function updUnit(u: Ent, dt: number): void {
 }
 
 /** The path and goal of a unit carrying Aether home (kept apart, so orders given meanwhile can't steer it), and when one that couldn't get there may try again. */
-const homeWay = new WeakMap<Ent, { path: Tile[] | null; goal: Tile | null }>();
+const homeWay = new WeakMap<Ent, { path: Tile[] | null; goal: Tile | null; home?: number }>();
 const homeRetry = new WeakMap<Ent, number>();
 
 /** Is this unit walking Aether home under Return Aether? A Worker sent to draw Aether fills up at its deposit first. */
@@ -627,7 +634,7 @@ function carryingHome(u: Ent): boolean {
  * passes but doesn't stop. Returns true while it's doing that.
  */
 function aetherHome(u: Ent, dt: number): boolean {
-  const home = carryingHome(u) ? bankAt(u, ['yard', 'refinery']) : null;
+  const home = carryingHome(u) ? dropAt(u, AETHER_BANKS) : null;
   if (!home) {
     if (u.aeRun) {
       // banked (or switched off): back to its orders, with a fresh path
@@ -642,11 +649,11 @@ function aetherHome(u: Ent, dt: number): boolean {
   }
   const near = edgeDist(u, home) <= AETHER_BANK_REACH * TS * 0.8;
   let way = homeWay.get(u);
-  if (!u.aeRun || !way) {
+  if (!u.aeRun || !way || way.home !== home.id) {
     u.aeRun = true;
     u.goal = null;
     const path = near ? [] : pathTo(u, home) ?? [];
-    way = { path, goal: u.goal };
+    way = { path, goal: u.goal, home: home.id };
     homeWay.set(u, way);
   }
   u.path = way.path;
@@ -718,7 +725,7 @@ function act(u: Ent, dt: number): void {
     if (u.type === 'worker' && (u.stance !== 'passive' || !nearestThreat(u, Math.min(d.sight, 7)))) {
       const s = shardFor(u, SHARD_PULL); // dropped Aether comes before anything else
       if (s) { orderMove(u, tileOf(s.x), tileOf(s.y)); return; }
-      const home = u.ae ? bankAt(u, ['yard', 'refinery']) : null;
+      const home = u.ae ? dropAt(u, AETHER_BANKS) : null;
       if (home && edgeDist(u, home) > AETHER_BANK_REACH * TS * 0.8) { const t = adjTile(home, u, false); if (t) { orderMove(u, t[0], t[1]); return; } }
     }
     // fix, then harvest: an idle Worker first builds, repairs and patches up whatever needs it nearby

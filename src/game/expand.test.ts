@@ -1,13 +1,14 @@
-// Expanding: a second Town Hall or a Mining Camp goes up by far ore, and gatherers drop their loads
+// Expanding: a second Town Hall or a Resource Drop goes up by far ore, and gatherers drop their loads
 // at whichever drop-off is nearest, so the far field doesn't mean a walk all the way home.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G } from './state.ts';
-import { GRASS, MW, STEP, TS } from './const.ts';
+import { GRASS, MW, STEP, TREE, TS } from './const.ts';
 import { ais } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { rebuildBlk } from './map.ts';
 import { orderHarvest } from './order.ts';
+import { sendGather } from './autogather.ts';
 import { canPlaceType } from './building.ts';
 import { available } from './production.ts';
 import { mulberry32 } from '../util/math.ts';
@@ -43,7 +44,7 @@ describe('expanding', () => {
     ais[1].on = true;
   });
 
-  it('can put a Town Hall or Mining Camp anywhere away from the enemy, but other structures only by the base', () => {
+  it('can put a Town Hall or Resource Drop anywhere away from the enemy, but other structures only by the base', () => {
     emptyMap();
     expect(available(0, 'structure')).toEqual(expect.arrayContaining(['yard', 'camp']));
     expect(canPlaceType('camp', 30, 20, 0)).toBe(true);
@@ -53,7 +54,7 @@ describe('expanding', () => {
     expect(canPlaceType('camp', 50, 52, 0)).toBe(false);
   });
 
-  it('Workers mining a far field unload at the Mining Camp beside it, not back at the Town Hall', () => {
+  it('Workers mining a far field unload at the Resource Drop beside it, not back at the Town Hall', () => {
     emptyMap();
     for (let y = 30; y < 33; y++) for (let x = 34; x < 37; x++) G.ore[y * MW + x] = 400;
     const camp = addBuilding('camp', 0, 31, 30, false);
@@ -72,6 +73,52 @@ describe('expanding', () => {
     expect(G.credits[0]).toBeGreaterThan(start);
     expect(dropped).toBeGreaterThan(0);
     expect(far).toBe(0);
+  });
+
+  it('Workers chopping by a Resource Drop drop their wood there', () => {
+    emptyMap();
+    for (let y = 30; y < 33; y++) for (let x = 36; x < 39; x++) { G.terr[y * MW + x] = TREE; G.treeWood[y * MW + x] = 100; }
+    const camp = addBuilding('camp', 0, 32, 30, false);
+    rebuildBlk();
+    const u = addUnit('worker', 0, 35 * TS, 34 * TS);
+    expect(sendGather(u, 'wood')).toBe(true);
+    let far = 0;
+    const start = G.wood[0];
+    for (let i = 0; i < 60 / STEP; i++) {
+      update(STEP);
+      if (u.order?.t === 'harvest' && u.order.st === 'unload' && Math.hypot(u.x - camp.x, u.y - camp.y) > 3 * TS) far++;
+    }
+    expect(G.wood[0]).toBeGreaterThan(start);
+    expect(far).toBe(0);
+  });
+
+  it('a Worker heading home turns to a Resource Drop that finishes on the way', () => {
+    emptyMap();
+    const camp = addBuilding('camp', 0, 40, 30, false);
+    camp.done = false;
+    rebuildBlk();
+    const u = addUnit('worker', 0, 44 * TS, 33 * TS);
+    u.carry = 150; u.cargo = 'ore';
+    orderHarvest(u, 44, 33);
+    u.order!.st = 'ret';
+    for (let i = 0; i < 1 / STEP; i++) update(STEP);
+    camp.done = true;
+    for (let i = 0; i < 8 / STEP && u.carry > 0; i++) update(STEP);
+    expect(u.carry).toBe(0);
+    expect(Math.hypot(u.x - camp.x, u.y - camp.y)).toBeLessThan(3 * TS);
+  });
+
+  it('Aether is banked at a Resource Drop', () => {
+    emptyMap();
+    const camp = addBuilding('camp', 0, 40, 30, false);
+    rebuildBlk();
+    const u = addUnit('worker', 0, 43 * TS, 31 * TS);
+    u.ae = 40;
+    const start = G.aether[0] ?? 0;
+    // right by it: banked at once, with no walk back to the Town Hall
+    for (let i = 0; i < 1 / STEP; i++) update(STEP);
+    expect(G.aether[0]).toBeGreaterThan(start);
+    expect(camp.dead).toBe(false);
   });
 
   it('a side that loses its first Town Hall plays on from its second', () => {

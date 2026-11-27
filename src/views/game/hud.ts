@@ -400,7 +400,7 @@ function buildingDetails(e: Ent): string {
       barHtml(e.hp / e.maxhp, 'health', 'Health');
   const aetherText = !own ? '' : e.type === 'shrine' ? `Heals your units within ${SHRINE_RANGE} tiles` : e.type === 'wardstone' ? `Reveals cloaked enemies within ${WARD_STONE_SIGHT} tiles`
     : e.type === 'waygate' ? (waygateLinked(e) ? 'Linked: your units step through to the other Waygate' : 'Build a second Waygate to link them') : '';
-  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore and oil here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? `${Math.floor(e.carry)}/${storeMax(e)} in the tank for Workers · ${oilLeft(e) > 0 ? `pumps +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left in the well` : `well dry: trickles +${perMin(OIL_TRICKLE)}/min`}` : '');
+  const yieldText = aetherText || (!own ? '' : e.type === 'camp' ? 'Workers and Harvesters drop ore, wood, oil and Aether here' : e.type === 'mill' ? `${treesNear(e.tx, e.ty, e.w)} trees nearby · ${choppers(V.team, e.id)} Workers chopping here · Workers drop wood here` : e.type === 'derrick' ? `${Math.floor(e.carry)}/${storeMax(e)} in the tank for Workers · ${oilLeft(e) > 0 ? `pumps +${perMin(OIL_PER_DERRICK)}/min · ${Math.floor(oilLeft(e))} left in the well` : `well dry: trickles +${perMin(OIL_TRICKLE)}/min`}` : '');
   // defenses reload 2.5× slower while their side is short of power
   const slow = d.weapon && lowPower(e.team) ? 2.5 : 1;
   const rows: Row[] = [

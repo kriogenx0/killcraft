@@ -8,7 +8,7 @@ import { G, allied, teamGame, hooks, say, type Ent } from './state.ts';
 import { noteGathered } from './stats.ts';
 import { TS } from './const.ts';
 import { AETHER_BANK_REACH } from '../data/aether.ts';
-import { bankAt } from './haul.ts';
+import { AETHER_BANKS, bankAt } from './haul.ts';
 import { edgeDist } from './path.ts';
 import { UNIT, isUnitType } from '../data/unit.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
@@ -55,7 +55,7 @@ export function payBounty(victim: Ent, by: Ent | null): void {
 export function bankLoot(): void {
   for (const u of G.ents) {
     if (u.dead || u.kind !== 'unit' || !u.loot) continue;
-    const home = bankAt(u, ['yard', 'refinery']);
+    const home = bankAt(u, AETHER_BANKS);
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.credits[u.team] += u.loot;
     hooks.gain(u.team, u.x, u.y, 'ore', u.loot, u.id);

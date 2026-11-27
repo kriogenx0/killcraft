@@ -33,7 +33,7 @@ export const AETHER_DRY = 1;
 export const AETHER_WORTH = 20;
 /** Aether per second a side draws from a deposit it holds. Extra units don't draw any faster. */
 export const AETHER_RATE = 2;
-/** Aether one unit can carry. It counts once the unit brings it within AETHER_BANK_REACH tiles of its own Town Hall or Refinery, and is lost if the unit dies. */
+/** Aether one unit can carry. It counts once the unit brings it within AETHER_BANK_REACH tiles of its own Town Hall, Refinery or Resource Drop, and is lost if the unit dies. */
 export const AETHER_CARRY = 40;
 export const AETHER_BANK_REACH = 3;
 /** Return Aether (on by default): a unit carrying at least this much walks it home, whatever it was told. */

@@ -445,7 +445,7 @@ const DIG_REACH = 8;
 const LOW_ORE = 2500;
 /** The least ore a far field must hold to be worth a camp. */
 const FIELD_ORE = 1200;
-/** Most Mining Camps and Town Halls the computer adds beyond its first hall. */
+/** Most Resource Drops and Town Halls the computer adds beyond its first hall. */
 const MAX_EXPANSIONS = 2;
 /** The computer keeps its new bases this much further from the enemy than the rule requires. */
 const SAFE_GAP = EXPAND_GAP + 4;
@@ -453,7 +453,7 @@ const SAFE_GAP = EXPAND_GAP + 4;
 const HOME_REACH = 22;
 
 /**
- * A new drop-off by far ore once the fields by the current ones run low: a Mining Camp, or a second
+ * A new drop-off by far ore once the fields by the current ones run low: a Resource Drop, or a second
  * Town Hall once well off in a later age. One at a time.
  */
 function expansion(team: number, can: readonly string[]): BldType | null {

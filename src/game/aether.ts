@@ -10,7 +10,7 @@ import {
   AETHER_FFA_SITES, AETHER_MIDDLE, AETHER_MIDDLE_CHANCE, AETHER_PER_DEPOSIT, AETHER_RATE, AETHER_REGROW, AETHER_DRY, AETHER_BANK_REACH, AETHER_CARRY, AETHER_REACH, AETHER_RETURN_MIN, AETHER_SITES,
   CLOAK_DETECT, CLOAK_REVEAL, MAX_WAYGATES, SHARD_DANGER, SHARD_ENEMY_BASE, SHARD_PICKUP, SHARD_SEEK, SHRINE_HEAL, SHRINE_RANGE, SLOW_FACTOR, WARD_FACTOR, WARD_STONE_SIGHT,
 } from '../data/aether.ts';
-import { bankAt } from './haul.ts';
+import { AETHER_BANKS, bankAt } from './haul.ts';
 import { edgeDist } from './path.ts';
 import { eachInDisk, mapLayout, nearPortal, setBlk } from './map.ts';
 
@@ -133,11 +133,11 @@ export function drawAether(dt: number): void {
   }
 }
 
-/** Units carrying Aether bank it once they're near their own Town Hall or Refinery. */
+/** Units carrying Aether bank it once they're near their own Town Hall, Refinery or Resource Drop. */
 export function bankAether(): void {
   for (const u of G.ents) {
     if (u.dead || u.kind !== 'unit' || !u.ae) continue;
-    const home = bankAt(u, ['yard', 'refinery']);
+    const home = bankAt(u, AETHER_BANKS);
     if (!home || edgeDist(u, home) > AETHER_BANK_REACH * TS) continue;
     G.aether[u.team] = (G.aether[u.team] ?? 0) + u.ae;
     hooks.gain(u.team, u.x, u.y, 'aether', u.ae, u.id);

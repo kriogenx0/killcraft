@@ -55,7 +55,7 @@ function near(b: Ent, test: (i: number) => boolean): boolean {
 /** The resources this Worker could go and gather right now: something to take and somewhere to bring it. */
 export function options(u: Ent): Res[] {
   const out: Res[] = [];
-  // ore by any drop-off counts: a Mining Camp or second Town Hall by a far field keeps Workers digging
+  // ore by any drop-off counts: a Resource Drop or second Town Hall by a far field keeps Workers digging
   const oreHome = bankAt(u, ORE_BANKS);
   if (banksOf(u.team, ORE_BANKS).some((b) => near(b, (i) => G.ore[i] > 0 && found(u.team, i)))) out.push('ore');
   if (u.type === 'worker') {
@@ -223,7 +223,7 @@ export const aetherJobOf = (u: Ent): Ent | null => {
 };
 export const forgetAether = (u: Ent): void => { aetherJob.delete(u); };
 
-/** Walking-free distance (tiles) from the side's nearest Town Hall, Refinery or Mining Camp. */
+/** Walking-free distance (tiles) from the side's nearest Town Hall, Refinery or Resource Drop. */
 function fromBase(team: number, x: number, y: number): number {
   let d = Infinity;
   for (const b of banksOf(team, ORE_BANKS)) d = Math.min(d, Math.hypot(b.x - x, b.y - y));

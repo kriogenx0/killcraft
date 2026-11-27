@@ -741,7 +741,7 @@ function sawmill(L: Look): Model {
 }
 
 /**
- * Mining Camp: an open timber lean-to over an ore bin, an ore heap and a mine cart on a short run of
+ * Resource Drop: an open timber lean-to over an ore bin, an ore heap and a mine cart on a short run of
  * rails, picks racked by the post. Stone footings and a shingled roof once the town grows up.
  */
 function miningCamp(L: Look): Model {

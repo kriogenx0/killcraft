@@ -60,7 +60,7 @@ const BLD_KEYS = Object.values(BUILDING_KEYS);
 
 /**
  * Preferred keys for the default groups: G for guns, L for walls (W scrolls), T for the Aether's star
- * stones, X for expansions (Town Hall, Mining Camp; E scrolls); at the Barracks, Y for mythic creatures and Z for spellcasters (zap).
+ * stones, X for expansions (Town Hall, Resource Drop; E scrolls); at the Barracks, Y for mythic creatures and Z for spellcasters (zap).
  */
 const GROUP_KEYS: Record<string, string> = { Defenses: 'G', Walls: 'L', Aether: 'T', Expand: 'X', Creatures: 'Y', Magic: 'Z' };
 
