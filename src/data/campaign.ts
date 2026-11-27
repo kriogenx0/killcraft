@@ -55,8 +55,8 @@ export interface Mission {
   maxEra: number;
   /** a winter map */
   snow?: boolean;
-  /** a small map */
-  small?: boolean;
+  /** a small map: the land is a square this many tiles across (the full map is 96) */
+  small?: number;
   /** creature lairs and Aether on the map (Alex: none until mission 8) */
   wild?: boolean;
   /** no enemy town: the enemy is just these units, in small groups across the map */
@@ -71,13 +71,13 @@ const vs = (level: GameSetup['seats'][number]): GameSetup['seats'] => [level, le
 
 export const MISSIONS: Mission[] = [
   {
-    id: 'first-camp', name: 'First Camp', maxEra: 0, small: true,
+    id: 'first-camp', name: 'First Camp', maxEra: 0, small: 52,
     scatter: ['swordsman', 'swordsman', 'crossbowman', 'swordsman', 'crossbowman', 'swordsman', 'swordsman', 'crossbowman'],
     brief: 'A small island with little ore and wood. No enemy town yet: hunt down the enemy soldiers camped across it.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'squad', seed: 1101 }),
   },
   {
-    id: 'two-workers', name: 'Two Workers', maxEra: 0,
+    id: 'two-workers', name: 'Two Workers', maxEra: 0, small: 68, // half the full map's area (Alex: "Level 2 map half size")
     brief: 'The usual start: a Town Hall and two Workers against one Easy computer.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 2202 }),
   },
@@ -118,12 +118,16 @@ export const MISSIONS: Mission[] = [
   },
 ];
 
+// Weather (Alex, 2026-11-27: "no weather besides rain until level 8"): passing rain only on missions
+// 1-7 (a snow map's falling snow is its weather, so no rain there), and storms from mission 8.
+MISSIONS.forEach((m, i) => { m.setup.weather = i >= 7 ? 'storms' : m.snow ? 'off' : 'rain'; });
+
 /**
  * The world options a mission plays with (initWorld's StartOptions). Missions before 8 have no Aether
  * and no creature lairs (`wild` is left out on them, so it must be read as false here, not defaulted).
  */
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: !!m.small, scatter: m.scatter,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter,
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });
 

@@ -27,7 +27,8 @@ export function worth(): number[] {
 /** Work out who is in the lead (-1 if nobody is clearly ahead) and tell everyone when it changes. */
 export function updLeader(): void {
   // no bounty in a team game: a side's ally could be the one ahead
-  if (teamGame()) { G.leader = -1; return; }
+  // team games and the campaign (Alex: no bounty, no leader advantage or disadvantage) have no leader
+  if (teamGame() || G.mission) { G.leader = -1; return; }
   const w = worth(), order = w.map((v, t) => t).sort((a, b) => w[b] - w[a]);
   const [first, second] = order;
   const leader = w[first] > w[second] * BOUNTY_LEAD ? first : -1;

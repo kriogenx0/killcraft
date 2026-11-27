@@ -79,24 +79,38 @@ export const FFA_OIL_WELLS: Tile[] = [...corners(OIL_WELLS[0]), ...corners(OIL_W
 export const FFA_FORESTS: [number, number, number][] = corners([FORESTS[0][0], FORESTS[0][1]]).map(([x, y]) => [x, y, FORESTS[0][2]]);
 
 /**
- * A small map (campaign mission 1, Alex: "Level 1 map smaller"): the same 96x96 grid, but only the
- * middle SMALL_LO..SMALL_HI tiles are land; the rest is sea. Two bases, mirrored through the centre
- * like the full map (a tile (x, y) pairs with (95 - x, 95 - y), a Town Hall's corner with (93 - x, 93 - y)).
+ * A small map (campaign missions; Alex: "Level 1 map smaller", "Level 2 map half size"): the same 96x96
+ * grid, but only a square of `size` tiles in the middle is land; the rest is sea. Two bases, mirrored
+ * through the centre like the full map (a tile (x, y) pairs with (95 - x, 95 - y), a Town Hall's corner
+ * with (93 - x, 93 - y)). Below SPARSE tiles across it's a lean map: few ore fields and little wood.
  */
-export const SMALL_LO = 22, SMALL_HI = 74;
-const SMALL_LAYOUT = {
-  yards: [[27, 61], [66, 32]] as Tile[],
-  // few resources (Alex: "much fewer resources"): one ore field by each base and one in the middle,
-  // one small wood by the player's base, and sparse trees elsewhere (map.ts)
-  ore: [[35, 65], [60, 30], [48, 47]] as Tile[],
-  oil: [[36, 56], [59, 39]] as Tile[],
-  forests: [[26, 52, 3]] as [number, number, number][],
-};
+export const SPARSE = 60;
+/** A small map's size in tiles (0 for the full map); saves from before sizes were numbers say `true`, which was 52. */
+export const smallSize = (small: number | boolean | undefined): number => (small === true ? 52 : typeof small === 'number' ? small : 0);
+/** The land's first and last tiles across a small map of this size (0: the full map). */
+export const smallBounds = (size: number): [number, number] => { const lo = Math.round((MW - size) / 2); return [lo, lo + size]; };
+const mirror = ([x, y]: Tile, s = 1): Tile => [MW - s - x, MH - s - y];
+function smallLayout(size: number): Omit<MapLayout, 'portals'> {
+  const [lo, hi] = smallBounds(size), yard: Tile = [lo + 5, hi - 13], at = (dx: number, dy: number): Tile => [yard[0] + dx, yard[1] + dy];
+  const lean = size < SPARSE;
+  const ore: Tile[] = [at(8, 4), mirror(at(8, 4)), [48, 47]];
+  // a roomier map gets an ore field halfway along each side too
+  if (!lean) ore.push([lo + Math.round(size * 0.2), 44], mirror([lo + Math.round(size * 0.2), 44]));
+  const forest: [number, number, number] = [yard[0] - 1, yard[1] - 9, lean ? 3 : 4];
+  const [fx, fy] = mirror([forest[0], forest[1]]);
+  return {
+    yards: [yard, mirror(yard, 3)],
+    ore,
+    oil: [at(9, -5), mirror(at(9, -5))],
+    // a lean map: one small wood by the player's base only, and sparse trees elsewhere (map.ts)
+    forests: lean ? [forest] : [forest, [fx, fy, forest[2]]],
+  };
+}
 
 export interface MapLayout { yards: Tile[]; ore: Tile[]; oil: Tile[]; forests: [number, number, number][]; portals: [Tile, Tile][] }
 /** The map layout for a number of players (2, or 4 for a free-for-all). */
-export const layoutFor = (teams: number, small = false): MapLayout =>
-  small && teams <= 2 ? { ...SMALL_LAYOUT, portals: [] }
+export const layoutFor = (teams: number, small: number | boolean = 0): MapLayout =>
+  smallSize(small) && teams <= 2 ? { ...smallLayout(smallSize(small)), portals: [] }
   : teams > 2
     ? { yards: FFA_YARDS, ore: FFA_ORE_SOURCES, oil: FFA_OIL_WELLS, forests: FFA_FORESTS, portals: [] }
     : { yards: START_YARDS, ore: ORE_SOURCES, oil: OIL_WELLS, forests: FORESTS, portals: PORTAL_LAYOUTS };

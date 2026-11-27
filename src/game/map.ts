@@ -5,7 +5,7 @@ import { GATE_SIZE, GATE_TILE } from '../data/hell.ts';
 import { MW, MH, GRASS, WATER, TREE, SHALLOW, ROCK, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
 import {
-  SMALL_LO, SMALL_HI,
+  SPARSE, smallBounds, smallSize,
   layoutFor, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR, WATER_LEVEL, HILL_HEIGHT, PLATEAU_HEIGHT, RIVER_CHANCE, COAST_CHANCE,
 } from '../data/map.ts';
 import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
@@ -89,11 +89,12 @@ function riverCourse(rnd: () => number): { pts: [number, number][]; fords: numbe
 function genMap(seed: number): boolean {
   const { terr, ore, oilField, treeWood, elev } = G;
   const { yards, ore: sources, oil, forests } = layoutFor(G.teams, G.small);
+  const lean = smallSize(G.small) > 0 && smallSize(G.small) < SPARSE;
   const rnd = mulberry32(seed);
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
   const h1 = valueGrid(rnd, 3), h2 = valueGrid(rnd, 7), h3 = valueGrid(rnd, 13), pl = valueGrid(rnd, 4), rp = valueGrid(rnd, 9);
   const river = rnd() < RIVER_CHANCE ? riverCourse(rnd) : null;
-  const coast = rnd() < COAST_CHANCE && G.teams <= 2 && !G.small ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = (13 + rnd() * 6) * K;
+  const coast = rnd() < COAST_CHANCE && G.teams <= 2 && !smallSize(G.small) ? (rnd() < 0.5 ? [0, 0] : [MW, MH]) : null, coastR = (13 + rnd() * 6) * K;
   terr.fill(GRASS);
   ore.fill(0);
   G.scrap.fill(0);
@@ -114,9 +115,10 @@ function genMap(seed: number): boolean {
         const d = Math.hypot(x - coast[0], y - coast[1]) + (t2(u, v) - 0.5) * 8 * K;
         w = Math.max(w, d < coastR ? 1.2 : d < coastR + 2 ? 0.7 : 0);
       }
-      if (G.small) {
+      if (smallSize(G.small)) {
         // a small map: sea all round the middle, with a ragged shore
-        const out = Math.max(SMALL_LO - x, x - SMALL_HI, SMALL_LO - y, y - SMALL_HI) + (t2(u, v) - 0.5) * 6;
+        const [lo, hi] = smallBounds(smallSize(G.small));
+        const out = Math.max(lo - x, x - hi, lo - y, y - hi) + (t2(u, v) - 0.5) * 6;
         w = Math.max(w, out > 0 ? 1.2 : out > -1.5 ? 0.7 : 0);
       }
       wet[i] = w;
@@ -160,7 +162,7 @@ function genMap(seed: number): boolean {
   for (let y = 0; y < MH; y++)
     for (let x = 0; x < MW; x++) {
       const i = y * MW + x, u = x / MW, v = y / MH, tn = (t1(u, v) + t2(u, v) * 0.6) / 1.6;
-      if (terr[i] === GRASS && tn > (G.small ? 0.7 : 0.62) && rnd() < (G.small ? 0.5 : 0.8)) terr[i] = TREE;
+      if (terr[i] === GRASS && tn > (lean ? 0.7 : 0.62) && rnd() < (lean ? 0.5 : 0.8)) terr[i] = TREE;
     }
   for (const [cx, cy, r] of forests) eachInDisk(cx, cy, r, (i) => { if (terr[i] === GRASS && rnd() < 0.85) terr[i] = TREE; });
   const flats: [number, number, number][] = [];

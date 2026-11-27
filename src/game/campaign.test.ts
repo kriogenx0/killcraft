@@ -6,8 +6,9 @@ import { G, hooks } from './state.ts';
 import { STEP } from './const.ts';
 import { ais, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
-import { WATER } from './const.ts';
-import { kill } from './entity.ts';
+import { SHALLOW, WATER } from './const.ts';
+import { updLeader } from './bounty.ts';
+import { addUnit, kill } from './entity.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
 import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionWorld, unlocked } from '../data/campaign.ts';
@@ -118,8 +119,8 @@ describe('campaign maps', () => {
 describe('mission 1', () => {
   it('is a small island with few resources and no enemy town, only scattered soldiers (Alex)', () => {
     const m = MISSIONS[0];
-    initWorld(m.setup.seed ?? 1, 2, { maxEra: m.maxEra, ban: bannedIn(m), wild: false, small: true, scatter: m.scatter, units: ['worker', 'worker'] });
-    expect(G.small).toBe(true);
+    initWorld(m.setup.seed ?? 1, 2, { maxEra: m.maxEra, ban: bannedIn(m), wild: false, small: 52, scatter: m.scatter, units: ['worker', 'worker'] });
+    expect(G.small).toBe(52);
     expect(G.ents.filter((e) => e.team === 1 && e.kind === 'bld')).toEqual([]);
     const foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
     expect(foes.length).toBe(m.scatter!.length);
@@ -157,7 +158,37 @@ describe('Aether and creatures', () => {
   });
 });
 
+describe('mission 2', () => {
+  it('is half the full map\'s area, with sea round it (Alex)', () => {
+    const m = MISSIONS[1];
+    expect(m.small! * m.small!).toBeCloseTo((96 * 96) / 2, -3);
+    initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
+    const land = Array.from(G.terr).filter((t) => t !== WATER && t !== SHALLOW).length;
+    expect(land).toBeLessThan(96 * 96 * 0.6);
+    expect(land).toBeGreaterThan(96 * 96 * 0.35);
+    expect(G.ents.filter((e) => e.type === 'yard').length).toBe(2);
+  });
+});
+
+describe('no leader in the campaign', () => {
+  it('nobody gets a bounty or a leader handicap (Alex)', () => {
+    initWorld(2202, 2, missionWorld(MISSIONS[1]));
+    G.mission = MISSIONS[1].id;
+    // one side far ahead: a big army
+    for (let k = 0; k < 30; k++) addUnit('knight', 0, 40 * 32, 40 * 32);
+    updLeader();
+    expect(G.leader).toBe(-1);
+    G.mission = null;
+    updLeader();
+    expect(G.leader).toBe(0);
+  });
+});
+
 describe('campaign progress', () => {
+  it('has only rain for weather until mission 8, and none on a snow map (Alex)', () => {
+    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 7 ? 'storms' : m.snow ? 'off' : 'rain'));
+  });
+
   it('every mission uses the Regrow fog of war (Alex)', () => {
     expect(MISSIONS.every((m) => m.setup.fog === 'regrow')).toBe(true);
   });
