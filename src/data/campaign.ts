@@ -111,8 +111,8 @@ export const MISSIONS: Mission[] = [
   {
     // Alex: "Level 5 airplanes. Small map. Each player is on an island. Player can build air plane hanger"
     id: 'thin-pickings', name: 'Frozen Isles', maxEra: 1, snow: true, small: 64, islands: true,
-    brief: 'You and an Easy computer each hold an island, with icy sea between. Only aircraft can cross: reach the Industrial age, build an Airfield and take the war to them by air.',
-    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 5505 }),
+    brief: 'You and a Normal computer each hold an island, with icy sea between. Only aircraft can cross: reach the Industrial age, build an Airfield and take the war to them by air.',
+    setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 5505 }),
   },
   {
     // Alex: "Start with 20 army units. No workers. No buildings and enemy has no buildings. Enemy just
