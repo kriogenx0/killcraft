@@ -121,6 +121,8 @@ const HUNT_ARMY = 9;
 
 const PLAN: BldType[] = ['power', 'refinery', 'mill', 'barracks', 'tower', 'power', 'factory', 'derrick', 'works', 'hospital', 'armory', 'barracks', 'mill', 'tower', 'turret', 'power', 'refinery', 'magetower', 'turret', 'factory', 'derrick', 'power', 'airfield', 'pillbox', 'turret', 'flak', 'power', 'atturret', 'pillbox', 'atturret', 'bertha'];
 const MAX_WAVE = 30;
+/** The biggest wave is this share of the most troops the level keeps (Easy 8 -> 6, Normal 25 -> 20). */
+const WAVE_OF_CAP = 0.8;
 const SKIRMISHERS = new Set<string>(['jeep']);
 
 /** Reset every computer player for a new match of `teams` sides (extra sides start switched on). */
@@ -1061,6 +1063,9 @@ function allyInTrouble(team: number, from: { x: number; y: number }): { ally: nu
  */
 function allyPush(team: number): { ally: number; x: number; y: number } | undefined {
   for (const t of teammates(team)) {
+    // a computer teammate's troops away from home are only a push while its wave is on; otherwise they
+    // may just be helping someone, and two computers would end up following each other round the map
+    if (!G.human[t] && ais[t]?.on && !ais[t].attacking) continue;
     const base = homeOf(t);
     const out = G.ents.filter((e) => !e.dead && e.team === t && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e) &&
       (!base || Math.hypot(e.x - base.x, e.y - base.y) > OUT_ON_ATTACK * TS));
@@ -1072,6 +1077,8 @@ function allyPush(team: number): { ally: number; x: number; y: number } | undefi
       const d = Math.hypot(e.x - cx, e.y - cy);
       if (d < bd) { bd = d; tgt = e; }
     }
+    // a computer's wave heads for the enemy's buildings: join it there, not wherever it is strung out
+    if (!tgt && !G.human[t]) continue;
     return { ally: t, x: tgt?.x ?? cx, y: tgt?.y ?? cy };
   }
   return undefined;
@@ -1165,9 +1172,10 @@ function military(team: number): void {
         for (const u of [...army].sort((a, b) => Math.hypot(a.x - home.x, a.y - home.y) - Math.hypot(b.x - home.x, b.y - home.y)).slice(0, keep)) guard.add(u.id);
       }
       aiNote(team, `attacking side ${foe + 1} with ${army.length - guard.size} troops, ${guard.size} kept home (enemy has ${enemyArmy})`);
+      // the next wave is a little bigger, but never more than the army it may keep (or it would never go)
+      A.attackAt = Math.min(MAX_WAVE, Math.round(L.armyCap * WAVE_OF_CAP), A.attackAt + L.waveStep);
     }
     A.attacking = true;
-    A.attackAt = Math.min(MAX_WAVE, A.attackAt + L.waveStep);
     for (const u of army) if (!guard.has(u.id) && (!u.order || u.order.t === 'move')) advance(u, tileOf(tgt.x), tileOf(tgt.y));
   } else if (A.attacking && home) {
     for (const u of idle) if (!guard.has(u.id) && Math.hypot(u.x - home.x, u.y - home.y) > 10 * TS) orderMove(u, tileOf(tgt.x), tileOf(tgt.y));
