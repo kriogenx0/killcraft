@@ -23,6 +23,7 @@ function emptyMap(): void {
   G.byId.clear();
   G.terr.fill(GRASS);
   G.ore.fill(0);
+  for (const s of G.sight) s.fill(1); // the whole map explored: these tests aren't about fog
   G.portals = [];
   G.waygates = [];
   G.warp.fill(-1);

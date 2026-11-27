@@ -13,6 +13,7 @@ import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor, wantsHome } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, AETHER_RETURN_RETRY, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
+import { found } from './fog.ts';
 import { nearestOwn } from './query.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
@@ -80,7 +81,9 @@ const WRECK_SPREAD = 4;
 const AROUND_TAKEN = 5;
 
 function pickOre(u: Ent, underway = false, around: Tile | null = null): [number, number] | null {
-  const bad = cantReach.get(u), danger = scrapInDanger(u), free = (i: number) => !!bad?.has(i) || oreTaken(i, u, true) || danger(i), ok = bad && ((i: number) => bad.has(i));
+  // only ore the side has found: none still hidden in the fog of war
+  const bad = cantReach.get(u), danger = scrapInDanger(u), hidden = (i: number) => !found(u.team, i);
+  const free = (i: number) => !!bad?.has(i) || hidden(i) || oreTaken(i, u, true) || danger(i), ok = (i: number) => !!bad?.has(i) || hidden(i);
   // sent to pick over a wreck: what's left of it first, until it's all carried off
   const o = u.order;
   if (o?.t === 'harvest' && o.wreck) {

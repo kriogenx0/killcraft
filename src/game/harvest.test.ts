@@ -17,6 +17,7 @@ function emptyMap(): void {
   G.byId.clear();
   G.terr.fill(GRASS);
   G.ore.fill(0);
+  for (const s of G.sight) s.fill(1); // the whole map explored: these tests aren't about fog
   G.portals = [];
   G.waygates = [];
   G.warp.fill(-1);
@@ -148,5 +149,26 @@ describe('Workers go for the ore closest to base', () => {
     run(1);
     expect(open).toContain(scooped(w));
     expect(behind).not.toContain(scooped(w));
+  });
+
+  it('but only ore their side has found, never ore still hidden in the fog of war', () => {
+    emptyMap();
+    addBuilding('refinery', 0, 20, 20, false);
+    for (const e of G.ents) if (e.kind === 'unit') e.dead = true;
+    // nothing explored but a far patch to the south: the nearer patch to the east is still in the fog
+    G.sight[0].fill(0);
+    const hidden = patch(30, 21, 2, 400), seen = patch(21, 36, 2, 400);
+    for (const i of seen) G.sight[0][i] = 1;
+    const w = addUnit('worker', 0, 21.5 * TS, 24.5 * TS);
+    orderHarvest(w, 21, 24);
+    run(1);
+    expect(seen).toContain(scooped(w));
+    run(30);
+    expect(oreIn(hidden)).toBe(400 * hidden.length);
+    expect(oreIn(seen)).toBeLessThan(400 * seen.length);
+    // once found, it's the ore closest to base again
+    for (const i of hidden) G.sight[0][i] = 1;
+    run(30);
+    expect(oreIn(hidden)).toBeLessThan(400 * hidden.length);
   });
 });

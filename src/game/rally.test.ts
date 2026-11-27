@@ -14,6 +14,9 @@ describe('rally army leaves Workers alone', () => {
   beforeEach(() => {
     for (const a of ais) a.on = false;
     initWorld(7);
+    // the whole map explored, so Workers gather from the trees nearest base wherever they are, not
+    // the found ones (out toward the rally point); this test is about the rally, not the fog
+    for (const s of G.sight) s.fill(1);
   });
 
   it("never sends existing or newly trained Workers to the rally point, and the Town Hall isn't a rally producer", () => {
