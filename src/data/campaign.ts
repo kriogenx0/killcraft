@@ -10,7 +10,7 @@ import { UNIT, UNIT_TYPES, type UnitType } from './unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from './building.ts';
 import { SPARSE, smallBounds, type MapLayout } from './map.ts';
 import { mulberry32 } from '../util/math.ts';
-import type { Tile } from '../game/state.ts';
+import type { Goal, Tile } from '../game/state.ts';
 
 type Thing = BldType | UnitType | TechType;
 
@@ -70,6 +70,8 @@ export interface Mission {
   scatter?: UnitType[];
   /** a single oil well on the whole map, as far from every base as the land allows (instead of one by each base) */
   oneOil?: boolean;
+  /** what else must be done to win, beside destroying the enemy */
+  goals?: Goal[];
   /** each side on its own island: only aircraft cross */
   islands?: boolean;
   /** no towns: the player starts with just this army (no Workers, no buildings) */
@@ -102,7 +104,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "Level 4 all about finding oil. One oil patch. Small map."
-    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true,
+    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true, goals: ['derrick'], // Alex: not won until an Oil Derrick is built and the enemy destroyed
     brief: 'There is just one oil patch on this small map, somewhere out in the fog. Find it and hold it: oil builds the Engine Works that opens the Industrial age. One Easy computer is looking too.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 4404 }),
   },
@@ -215,7 +217,7 @@ export function missionLayout(m: Mission): MapLayout {
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [],
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

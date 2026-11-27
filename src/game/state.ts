@@ -319,6 +319,8 @@ export interface Particle {
 
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
+/** A campaign mission goal: 'derrick' = build an Oil Derrick (Black Gold) */
+export type Goal = 'derrick';
 /** A linked pair of Waygates: like a portal, but only its team may use it. */
 export interface Waygate extends Portal { team: number }
 
@@ -434,6 +436,9 @@ export const G = {
   layout: null as MapLayout | null,
   /** each side on its own island, with sea between (campaign mission 5): only aircraft cross */
   islands: false,
+  /** a campaign mission's extra goals for the player (side 0), beside destroying the enemy, and those met so far */
+  goals: [] as Goal[],
+  goalsDone: [] as Goal[],
   /** creature lairs and the Gate of Hell are on the map (false in campaign missions; eggs then hatch no creatures) */
   wild: true,
   /** units, buildings and research nobody may use in this game (a campaign mission's rules) */

@@ -9,7 +9,7 @@ import { initSnow3d, updateSnow3d } from './render3d/snow3d.ts';
 import type { LockedMap } from '../../game/map_lock.ts';
 import { teamColors } from '../../data/team.ts';
 import { LAST_ERA } from '../../data/era.ts';
-import { initWorld, outReasons, update } from '../../game/world.ts';
+import { GOAL_TEXT, foesLeft, initWorld, outReasons, update } from '../../game/world.ts';
 import { aiLogText, ais, setAiLevel } from '../../game/ai.ts';
 import { noUpgrades } from '../../game/upgrade.ts';
 import { mapLayout, rebuildBlk } from '../../game/map.ts';
@@ -139,6 +139,21 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   const minimap = must<HTMLCanvasElement>(root, '.sidebar-minimap'), mg = ctx2d(minimap);
   const sidebar = must<HTMLElement>(root, '.sidebar'), topbar = must<HTMLElement>(root, '.topbar');
   const message = must<HTMLElement>(root, '.game-message');
+  const goalsEl = must<HTMLElement>(root, '.game-goals');
+  let goalsText = '';
+  /** A campaign mission's goals: destroy the enemy (how much is left), plus its own (an Oil Derrick on Black Gold). */
+  const showGoals = () => {
+    const on = !!G.mission && !V.online && !G.demo && V.started;
+    let html = '';
+    if (on) {
+      const n = foesLeft(), row = (done: boolean, text: string) => `<li class="game-goal${done ? ' game-goal--done' : ''}">${done ? '✓' : '○'} ${text}</li>`;
+      html = [...G.goals.map((g) => row(G.goalsDone.includes(g), GOAL_TEXT[g])), row(n === 0, n === 0 ? 'Destroy the enemy' : `Destroy the enemy (${n} left)`)].join('');
+    }
+    if (html === goalsText) return;
+    goalsText = html;
+    goalsEl.innerHTML = html;
+    goalsEl.hidden = !html;
+  };
   /** "Disconnected", in the corner while our connection to an online game is down */
   const offline = must<HTMLElement>(root, '.game-offline');
   const setOffline = (on: boolean) => { offline.hidden = !on; };
@@ -638,7 +653,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     updatePlacement((tx, ty) => V.mode?.t === 'place' && canPlaceType(V.mode.type, tx, ty, V.team), (t) => BUILDING[t as BldType].size);
     canvas.classList.toggle('game-canvas--targeting', !!V.mode);
     oreT -= dt;
-    if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); }
+    if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); showGoals(); }
     try {
       updateCamera();
       syncEntities(dt);

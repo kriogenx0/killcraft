@@ -226,6 +226,23 @@ describe('mission layouts', () => {
   });
 });
 
+describe('Black Gold goals', () => {
+  it('is not won until an Oil Derrick stands, even with the enemy destroyed (Alex)', () => {
+    const m = MISSIONS.find((x) => x.goals?.includes('derrick'))!;
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
+    for (const e of G.ents.filter((x) => x.team === 1)) { e.hp = 0; kill(e); }
+    for (let k = 0; k < 15 / STEP && !G.over; k++) update(STEP);
+    expect(G.over).toBe(false);
+    const [ox, oy] = G.layout!.oil[0];
+    addBuilding('derrick', 0, ox - 1, oy - 1, false);
+    for (let k = 0; k < 5 / STEP && !G.over; k++) update(STEP);
+    expect(G.goalsDone).toContain('derrick');
+    expect(G.over).toBe(true);
+    expect(G.winner).toBe(0);
+  });
+});
+
 describe('campaign progress', () => {
   it('has only rain for weather until mission 8, and none on a snow map (Alex)', () => {
     MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 8 ? 'storms' : m.snow ? 'off' : 'rain'));

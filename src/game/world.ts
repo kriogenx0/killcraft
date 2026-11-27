@@ -1,7 +1,7 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import type { FogMode, WeatherMode } from '../data/setup.ts';
 import { isWall } from '../data/building.ts';
-import { G, allied, hooks, say, unitDef, type Tile } from './state.ts';
+import { G, allied, hooks, say, unitDef, type Goal, type Tile } from './state.ts';
 import { markStartStock, resetStats, sampleStats } from './stats.ts';
 import { GRASS, MW, MH, TS } from './const.ts';
 import { type MapLayout, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
@@ -70,6 +70,8 @@ export interface StartOptions {
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
    */
   scatter?: readonly UnitType[];
+  /** goals the player must meet as well as destroying the enemy (campaign) */
+  goals?: readonly Goal[];
   /** no Town Halls at all: the player starts with `units` only (campaign mission 6) */
   noTown?: boolean;
   /** a campaign mission's saved map (game/map_lock.ts): used instead of what the generator makes */
@@ -82,7 +84,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -146,6 +148,12 @@ function scatterUnits(team: number, units: readonly UnitType[], spots: Tile[]): 
     u.face = u.tface = Math.random() * Math.PI * 2;
   });
 }
+
+export const GOAL_TEXT: Record<Goal, string> = { derrick: 'Build an Oil Derrick' };
+const goalMet = (g: Goal): boolean => g === 'derrick' && G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'derrick' && e.done);
+
+/** How many of the enemy's buildings and fighting units are left (for the mission goals). */
+export const foesLeft = (): number => G.ents.filter((e) => !e.dead && e.team >= 0 && !allied(e.team, 0) && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon))).length;
 
 /** A side is still in the game while it has a building (walls don't count) or an armed unit. */
 export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon)));
@@ -279,7 +287,11 @@ export function update(dt: number): void {
     if (fell) { G.endT = FALL_SECONDS; return; }
     const left = playing.filter(alive);
     for (const t of playing) if (!left.includes(t)) knockOut(t, 'no buildings and no fighting units left');
-    // the match is over when one side is left (in a team game, allies win together)
+    // a mission's goals, met once and kept
+    for (const g of G.goals) if (!G.goalsDone.includes(g) && goalMet(g)) { G.goalsDone.push(g); say(0, `Goal done: ${GOAL_TEXT[g]}`); }
+    // the match is over when one side is left (in a team game, allies win together); a mission isn't won until its goals are met too
+    const playerWins = left.length > 0 && left.every((t) => allied(t, 0));
+    if (playerWins && G.goals.some((g) => !G.goalsDone.includes(g))) return;
     if (left.every((t) => allied(t, left[0]))) { G.over = true; G.winner = left[0] ?? -1; }
   }
 }
