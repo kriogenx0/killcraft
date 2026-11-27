@@ -85,7 +85,7 @@ export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: En
   for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
     for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) {
       const i = y * MW + x;
-      if (G.terr[i] !== TREE || G.treeWood[i] < CHOP_WORTH || !found(u.team, i) || !reachable(i) || bad?.has(i)) continue;
+      if (G.terr[i] !== TREE || G.treeWood[i] < CHOP_WORTH || G.treeFire[i] > 0 || !found(u.team, i) || !reachable(i) || bad?.has(i)) continue;
       // a stump with less than the Worker still has room for counts as further off: it'd soon be on the move again
       const thin = Math.max(0, 1 - G.treeWood[i] / Math.max(1, woodLoad(u) - u.carry)) * THIN;
       const crowd = choppersAt(i, u);
@@ -147,7 +147,7 @@ const shortT = new WeakMap<Ent, number>();
 /** Walk to a tree and chop it until the load is full; the caller takes it home once `o.st` is 'ret'. */
 export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
   let i = o.ty * MW + o.tx;
-  const good = G.terr[i] === TREE && G.treeWood[i] >= Math.min(CHOP_WORTH, 1) && reachable(i);
+  const good = G.terr[i] === TREE && G.treeWood[i] >= Math.min(CHOP_WORTH, 1) && !(G.treeFire[i] > 0) && reachable(i);
   if (!good || (o.st === 'go' && G.treeWood[i] < CHOP_WORTH)) {
     // on the way to a tree someone else has stripped: one right here, or by that one, will do
     const close = Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) < 4 * TS;

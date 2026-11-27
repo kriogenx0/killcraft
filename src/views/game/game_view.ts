@@ -17,6 +17,8 @@ import { updFog } from '../../game/fog.ts';
 import { updFx } from '../../game/fx.ts';
 import { updProjs } from '../../game/combat.ts';
 import { applyWeatherSnap, dropStone, formStorm, updWeather } from '../../game/weather.ts';
+import { updWildfire } from '../../game/wildfire.ts';
+import { regrowTrees } from '../../game/economy.ts';
 import { applyCommand } from '../../game/command.ts';
 import { net } from '../../net/client.ts';
 import { sidesTitle, type ServerMsg, type SideStock, type SnapMsg } from '../../net/protocol.ts';
@@ -623,11 +625,12 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       if (V.started && !G.over) {
         interpolate(dt);
         updWeather(dt);
+        updWildfire(dt);
         updProjs(dt);
         updFx(dt);
         ageMarkers(dt);
         fogT -= dt;
-        if (fogT <= 0) { fogT = FOG_INTERVAL; updFog(); }
+        if (fogT <= 0) { fogT = FOG_INTERVAL; updFog(); regrowTrees(FOG_INTERVAL); }
       }
     } else if (V.started && !V.paused && !G.over) {
       acc += dt * V.speed;

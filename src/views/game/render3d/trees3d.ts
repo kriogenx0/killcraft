@@ -5,6 +5,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { G } from '../../../game/state.ts';
 import { MW, MH, TREE, ROCK, GRASS } from '../../../game/const.ts';
 import { TREE_WOOD } from '../../../data/economy.ts';
+import { TREE_BURN } from '../../../data/wildfire.ts';
 import { hash } from '../../../util/math.ts';
 import { heightAt, slopeAt } from './heights.ts';
 import { M, lumpy, mat } from './materials.ts';
@@ -169,12 +170,18 @@ function placeBoulders(): void {
 /** How grown a tree is (0 = stump), in eighths, so we only redraw when it visibly changes. */
 const growth = (i: number): number => Math.round(Math.min(1, G.treeWood[i] / TREE_WOOD) * 8);
 
+/** How charred a burning tree's crown is, in steps (0: not on fire). */
+const CHAR_STEPS = 4;
+const CHAR = new THREE.Color('#3a2c22');
+const char = (i: number): number => (G.treeFire[i] > 0 ? 1 + Math.min(CHAR_STEPS - 1, Math.floor((1 - G.treeFire[i] / TREE_BURN) * CHAR_STEPS)) : 0);
+
 /** Show trees once their tile has been explored, sized by the wood left on them. */
 export function refreshTrees(force = false): void {
   if (!sets) return;
   let changed = force;
   for (let k = 0; k < trees.length; k++) {
-    const t = trees[k], s = G.vis[t.i] > 0 && G.terr[t.i] === TREE ? 1 + growth(t.i) : 0; // a felled tree is gone
+    // a felled tree is gone; a burning one blackens as it burns (a few shades, on top of its size)
+    const t = trees[k], s = G.vis[t.i] > 0 && G.terr[t.i] === TREE ? 1 + growth(t.i) + 9 * char(t.i) : 0;
     if (s !== shown[k]) { shown[k] = s; changed = true; }
   }
   if (!changed) return;
@@ -184,7 +191,7 @@ export function refreshTrees(force = false): void {
     if (!shown[k]) return;
     const set = sets?.get(t.set);
     if (!set) return;
-    const x = t.i % MW, y = (t.i / MW) | 0, h = hash(x, y), h2 = hash(y + 3.3, x - 7.1), grown = (shown[k] - 1) / 8;
+    const x = t.i % MW, y = (t.i / MW) | 0, h = hash(x, y), h2 = hash(y + 3.3, x - 7.1), grown = ((shown[k] - 1) % 9) / 8, burnt = Math.floor((shown[k] - 1) / 9) / CHAR_STEPS;
     const s = (0.8 + h2 * 0.4) * (0.25 + 0.75 * grown), px = x + 0.5 + (h - 0.5) * 0.3, pz = y + 0.5 + (h2 - 0.5) * 0.3;
     // lean a little with the slope, and a little at random
     const [sx, sz] = slopeAt(px, pz);
@@ -195,6 +202,8 @@ export function refreshTrees(force = false): void {
     color.setHSL(hue + (h - 0.5) * 0.05, sat, lit + (h2 - 0.5) * 0.08);
     // winter: needles and leaves dusted with snow
     if (G.snow) color.lerp(SNOW, 0.5 + h * 0.2);
+    // on fire: leaves scorch to black
+    if (burnt) color.lerp(CHAR, 0.85 * burnt);
     // a stump keeps only a short trunk
     set.trunk.setMatrixAt(set.n, grown < 0.15 ? m4.compose(v, q, sc.set(1.1, 0.25, 1.1)) : m4);
     if (grown < 0.15) m4.compose(v, q, sc.set(0, 0, 0));

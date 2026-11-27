@@ -30,6 +30,7 @@ import { bankLoot, updLeader } from './bounty.ts';
 import { onGate, placeGate, updHell } from './hell.ts';
 import { applyGround, applyThings, type LockedMap } from './map_lock.ts';
 import { initWeather, updWeather } from './weather.ts';
+import { initWildfire, updWildfire } from './wildfire.ts';
 
 const FOG_INTERVAL = 0.2;
 const ORE_INTERVAL = 1;
@@ -154,6 +155,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   initCows();
   initWeather(start.weather ?? 'storms');
+  initWildfire();
   updFog();
 }
 
@@ -261,6 +263,7 @@ export function update(dt: number): void {
   for (let team = 0; team < G.teams; team++) updProduction(team, dt);
   updProjs(dt);
   updWeather(dt);
+  updWildfire(dt);
   separate();
   updFx(dt);
   if (G.ents.some((e) => e.dead)) {

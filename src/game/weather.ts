@@ -16,6 +16,8 @@ import { edgeDist, nearestFree } from './path.ts';
 import { orderMove } from './order.ts';
 import { ais } from './ai.ts';
 import { clamp } from '../util/math.ts';
+import { applyWildfireSnap, sparkTrees, wildfireSnap } from './wildfire.ts';
+import { STONE_CATCH } from '../data/wildfire.ts';
 
 /**
  * The weather's own dice (mulberry32, its state kept in G.weather so a saved game carries on the same):
@@ -142,6 +144,7 @@ export function stoneLands(x: number, y: number): void {
   explosion(x, y, METEOR_SPLASH);
   burst('debris', x, y, 10, 60, 180);
   if (G.visualOnly) return; // the server decides damage
+  sparkTrees(x, y, METEOR_SPLASH, STONE_CATCH); // and now and then sets the woods alight
   for (const e of G.ents) {
     if (e.dead || (e.kind !== 'unit' && e.kind !== 'bld')) continue;
     const d = e.w ? edgeDist({ x, y }, e) : Math.max(0, Math.hypot(e.x - x, e.y - y) - unitDef(e).radius);
@@ -198,10 +201,14 @@ function stepAside(e: Ent, s: Storm): boolean {
   return tryGo(first) || tryGo(-first);
 }
 
-/** The weather as a snapshot sends it: rain (0..100) and each storm [id, kind (0 hail, 1 meteor), x, y, vx, vy, r, age*10]. */
-export interface WeatherSnap { rain: number; s: number[][] }
+/**
+ * The weather as a snapshot sends it: rain (0..100) and each storm [id, kind (0 hail, 1 meteor), x, y, vx, vy, r, age*10],
+ * and any burning trees (game/wildfire.ts) as [tile, seconds left * 10, ...].
+ */
+export interface WeatherSnap { rain: number; s: number[][]; f?: number[] }
 
 export const weatherSnap = (): WeatherSnap => ({
+  f: wildfireSnap(),
   rain: Math.round(G.weather.rain * 100),
   s: G.weather.storms.map((s) => [s.id, s.kind === 'meteor' ? 1 : 0, Math.round(s.x), Math.round(s.y), Math.round(s.vx * 10) / 10, Math.round(s.vy * 10) / 10, Math.round(s.r), Math.round(s.age * 10)]),
 });
@@ -212,4 +219,5 @@ export function applyWeatherSnap(w: WeatherSnap | undefined): void {
   const g = G.weather;
   g.rain = w.rain / 100;
   g.storms = w.s.map(([id, k, x, y, vx, vy, r, age]) => ({ id, kind: k ? 'meteor' : 'hail', x, y, vx, vy, r, age: age / 10, acc: 0 }));
+  applyWildfireSnap(w.f);
 }

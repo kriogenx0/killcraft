@@ -56,7 +56,8 @@ export const oilRate = (team: number): number => working(team, 'derrick').reduce
  * stopping when full. Cut trees grow back.
  */
 export function collect(dt: number): void {
-  if (G.visualOnly) return; // online, the server's stores and trees are the truth
+  regrowTrees(dt);
+  if (G.visualOnly) return; // online, the server's stores are the truth
   for (let team = 0; team < G.teams; team++) {
     for (const d of working(team, 'derrick')) {
       const room = DERRICK_STORE - d.carry;
@@ -74,7 +75,14 @@ export function collect(dt: number): void {
       d.carry += got;
     }
   }
-  for (let i = 0; i < MW * MH; i++) if (G.terr[i] === TREE && G.treeWood[i] < TREE_WOOD) G.treeWood[i] = Math.min(TREE_WOOD, G.treeWood[i] + TREE_REGROW * dt);
+}
+
+/**
+ * Cut and burnt trees grow back, slowly (not while still on fire). Clients grow them too: online they
+ * only learn of a tree burning down (game/wildfire.ts), and its stump grows back the same on both.
+ */
+export function regrowTrees(dt: number): void {
+  for (let i = 0; i < MW * MH; i++) if (G.terr[i] === TREE && G.treeWood[i] < TREE_WOOD && !(G.treeFire[i] > 0)) G.treeWood[i] = Math.min(TREE_WOOD, G.treeWood[i] + TREE_REGROW * dt);
 }
 
 /** Ore a destroyed unit or building leaves behind: a share of its price, plus any ore it carried. */

@@ -346,6 +346,8 @@ export const G = {
   oilField: new Float32Array(MW * MH),
   /** wood left on each tree tile (grows back) */
   treeWood: new Float32Array(MW * MH),
+  /** seconds a burning tree has left to burn (0: not on fire; game/wildfire.ts) */
+  treeFire: new Float32Array(MW * MH),
   blk: new Uint8Array(MW * MH),
   /** linked portal pairs on this map */
   portals: [] as Portal[],
@@ -428,6 +430,8 @@ export const G = {
   /** fog of war: 'reveal' keeps explored ground fully visible; 'regrow' fogs it over again (troops hidden) once nobody on the side sees it */
   fog: 'reveal' as FogMode,
   /** rain and storms (game/weather.ts) */
+  /** forest fires (game/wildfire.ts): the burning tree tiles, their own dice, and the spread check's timer */
+  wildfire: { burning: [] as number[], dice: 1, acc: 0 },
   weather: { mode: 'off', rain: 0, raining: false, rainT: Infinity, stormT: Infinity, storms: [], nextId: 1, dice: 1 } as Weather,
   /** the latest age any side may research (0 Medieval, 1 Industrial, 2 Modern); campaign missions cap it */
   maxEra: 2,

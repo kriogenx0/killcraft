@@ -10,7 +10,8 @@
 // thin out rather than costing frames.
 import * as THREE from 'three';
 import { G, altOf, unitDef, type Ent, type Projectile as Proj } from '../../../game/state.ts';
-import { TS } from '../../../game/const.ts';
+import { MW, TS } from '../../../game/const.ts';
+import { TREE_BURN } from '../../../data/wildfire.ts';
 import { seenAt } from '../../../game/fog.ts';
 import { burning } from '../../../game/spells.ts';
 import { WEAPON } from '../../../data/weapon.ts';
@@ -227,6 +228,25 @@ function unitOnFire(e: Ent, dt: number): void {
   debt.set(e.id, Math.min(d, 0.25));
 }
 
+const treeDebt = new Map<number, number>();
+
+/** A tree on fire (game/wildfire.ts): flames climb its crown, then sink to the stump as it burns away. */
+function treeOnFire(i: number, dt: number): void {
+  const tx = i % MW, ty = (i / MW) | 0, x0 = tx + 0.5, z0 = ty + 0.5, bottom = groundY(x0 * TS, z0 * TS);
+  const left = Math.min(1, G.treeFire[i] / TREE_BURN), h = 0.35 + 1.0 * left, rate = (24 + 16 * left) * budget;
+  let d = (treeDebt.get(i) ?? 0) + dt;
+  const step = 1 / rate;
+  for (; d >= step; d -= step) {
+    const a = Math.random() * 6.283, rr = Math.sqrt(Math.random()) * 0.3;
+    const x = x0 + Math.cos(a) * rr, z = z0 + Math.sin(a) * rr, y = bottom + h * (0.1 + Math.random() * 0.75), q = Math.random();
+    if (q < 0.08) emit(EMBER, x, y, z, 0.05);
+    else if (q < 0.18) emit(BLACK, x, bottom + h + 0.2, z, 0.4, 2.4);
+    else if (q < 0.27) emit(GLOW, x, y, z, 1.1);
+    else emit(FLAME, x, y, z, 0.3 + 0.22 * left, 0.55);
+  }
+  treeDebt.set(i, Math.min(d, 0.25));
+}
+
 /** what a flying fire shot leaves behind it: flame size, flames per tile, black smoke per tile, and how far its flames are flung */
 interface Flight { size: number; dens: number; smoke: number; spread: number; gout: boolean }
 const FLIGHT: Partial<Record<string, Flight>> = {
@@ -313,6 +333,8 @@ export function updateBurning(dt: number): void {
       else if (e.kind === 'unit' && burning(e) && shownToPlayer(e)) unitOnFire(e, dt);
       else if (debt.has(e.id)) debt.delete(e.id);
     }
+    for (const i of G.wildfire?.burning ?? []) if (seenAt(((i % MW) + 0.5) * TS, (((i / MW) | 0) + 0.5) * TS)) treeOnFire(i, dt);
+    if (treeDebt.size > 64) treeDebt.clear();
     live.clear();
     for (const p of G.projs) if (fiery(p) && seenAt(p.x, p.y)) { live.add(p); inFlight(p, dt); }
     for (const [p, l] of flying) if (!live.has(p)) { flying.delete(p); if (!G.projs.includes(p)) landed(l.x, l.y, l.z, l.w); }
