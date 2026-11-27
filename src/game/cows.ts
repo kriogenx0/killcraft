@@ -83,7 +83,7 @@ function restartCows(): void {
 
 /** Place the herds for the current map. Same seed and map, same herds, on every screen. */
 export function initCows(): void {
-  const rnd = mulberry32(G.seed ^ 0xc0c0a), layout = layoutFor(G.teams);
+  const rnd = mulberry32(G.seed ^ 0xc0c0a), layout = layoutFor(G.teams, G.small);
   const avoid: [number, number, number][] = [
     ...layout.yards.map(([x, y]): [number, number, number] => [x + 1, y + 1, CLEAR_OF_BASES]),
     ...lairsFor(G.seed).map(([[x, y]]): [number, number, number] => [x, y, CLEAR_OF_LAIRS]),

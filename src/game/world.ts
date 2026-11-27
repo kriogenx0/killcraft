@@ -1,9 +1,9 @@
 // Setting up a match and advancing the simulation by one fixed step.
 import type { FogMode, WeatherMode } from '../data/setup.ts';
 import { isWall } from '../data/building.ts';
-import { G, allied, hooks, say, unitDef } from './state.ts';
+import { G, allied, hooks, say, unitDef, type Tile } from './state.ts';
 import { markStartStock, resetStats, sampleStats } from './stats.ts';
-import { MW, MH, TS } from './const.ts';
+import { GRASS, MW, MH, TS } from './const.ts';
 import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
 import { START_ERA } from '../data/era.ts';
 import { generateMap, rebuildBlk } from './map.ts';
@@ -50,6 +50,21 @@ export interface StartOptions {
   maxEra?: number;
   /** units, buildings and research nobody may use (campaign missions) */
   ban?: readonly string[];
+  /** a winter map (looks only) */
+  snow?: boolean;
+  /** false: no creature lairs (campaign missions before 8; cows, sheep and unicorns stay) */
+  wild?: boolean;
+  /** false: no Gate of Hell (campaign missions) */
+  gate?: boolean;
+  /** false: no Aether deposits (campaign missions before 8) */
+  aether?: boolean;
+  /** a small map (campaign mission 1) */
+  small?: boolean;
+  /**
+   * Enemy sides get no town: just these units, in small groups across the map (campaign mission 1,
+   * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
+   */
+  scatter?: readonly UnitType[];
 }
 
 /** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (one base per corner: a free-for-all, or two sides of two with `ally`). */
@@ -58,7 +73,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: !!start.small, wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -69,11 +84,15 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   for (const s of G.sight) s.fill(0);
   resetAi(n);
   generateMap(seed);
-  placeGate();
-  const { yards, ore } = layoutFor(n);
-  for (const [x, y] of ore) if (!onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
+  const wild = start.wild ?? true, gate = start.gate ?? wild;
+  if (gate) placeGate();
+  else G.hell = { gate: false, spawnT: 0, raidT: Infinity, archT: Infinity, prey: -1, burst: 0, burstT: 0, stay: 0, stir: false };
+  const { yards, ore } = layoutFor(n, G.small);
+  for (const [x, y] of ore) if (!gate || !onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
+  const scattered = (team: number) => !!start.scatter?.length && G.ally[team] !== G.ally[0];
   yards.forEach(([x, y], team) => {
     if (G.absent[team]) return;
+    if (scattered(team)) { scatterUnits(team, start.scatter ?? [], [[x + 1, y + 1], ...ore.slice(2)]); return; }
     addBuilding('yard', team, x, y, false);
     // the starting Workers face the middle of the map
     const face = Math.atan2(MH / 2 - y, MW / 2 - x);
@@ -83,13 +102,34 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
     });
   });
   rebuildBlk();
-  placeAether(G.seed);
+  placeAether(G.seed, start.aether ?? true);
   rebuildBlk();
-  placeCreatures(G.seed);
+  if (wild) placeCreatures(G.seed);
+  else { G.tamed = Array.from({ length: n }, () => []); G.respawns = []; }
   rebuildBlk();
   initCows();
   initWeather(start.weather ?? 'storms');
   updFog();
+}
+
+/** Put a side's units in small groups at these spots (round-robin), each on open ground by its spot. */
+function scatterUnits(team: number, units: readonly UnitType[], spots: Tile[]): void {
+  const taken = new Set<number>();
+  units.forEach((type, k) => {
+    const [sx, sy] = spots[k % spots.length];
+    let best = -1, bd = Infinity;
+    // the nearest open grass to the spot that nobody stands on, a little away from ore rocks
+    for (let y = Math.max(1, sy - 6); y < Math.min(MH - 1, sy + 7); y++)
+      for (let x = Math.max(1, sx - 6); x < Math.min(MW - 1, sx + 7); x++) {
+        const i = y * MW + x, d = Math.hypot(x - sx, y - sy);
+        if (d < 2 || taken.has(i) || G.terr[i] !== GRASS) continue;
+        if (d < bd) { bd = d; best = i; }
+      }
+    if (best < 0) return;
+    taken.add(best);
+    const u = addUnit(type, team, (best % MW + 0.5) * TS, (Math.floor(best / MW) + 0.5) * TS);
+    u.face = u.tface = Math.random() * Math.PI * 2;
+  });
 }
 
 /** A side is still in the game while it has a building (walls don't count) or an armed unit. */

@@ -116,7 +116,7 @@ export function updateWeather3d(dt: number): void {
   if (!w) return;
   const cx = V.cam.x / TS, cz = V.cam.y / TS, base = ground(cx, cz);
   // ---- rain round the camera ----
-  rain.visible = w.rain > 0.01;
+  rain.visible = w.rain > 0.01 && !G.snow; // a winter map's snowfall stands in for it (snow3d.ts)
   if (rain.visible) {
     rainMat.opacity = 0.42 * w.rain;
     const fall = RAIN_SPEED * dt;

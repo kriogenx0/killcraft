@@ -18,7 +18,7 @@ const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
 /** Ground tiles reachable on foot from the first base. */
 function reachable(): Uint8Array {
-  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
+  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams, G.small).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;
@@ -58,14 +58,14 @@ export function addAether(tx: number, ty: number, amount = AETHER_PER_DEPOSIT): 
  * Put the deposits on a freshly generated map: clear a little meadow around each site, and if the
  * spot is cut off by water or woods, move it to the nearest ground both bases can walk to.
  */
-export function placeAether(seed: number): void {
+export function placeAether(seed: number, deposits = true): void {
   G.aether = teams().map(() => 0);
   G.aetherFound = teams().map(() => false);
   G.ward = teams().map(() => false);
   G.mech = teams().map(() => false);
   G.waygates = [];
   G.warpTeam.fill(-1);
-  for (const [sx, sy] of aetherSites(seed)) {
+  for (const [sx, sy] of deposits ? aetherSites(seed) : []) {
     eachInDisk(sx, sy, 2, (i) => { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); });
     const ok = reachable();
     let best: Tile | null = null, bd = 1e9;

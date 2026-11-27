@@ -23,7 +23,8 @@ const underLimit = (team: number, t: UnitType): boolean => {
 
 /** The units an egg can hatch for a side now: of its age or earlier, and not one it already has its fill of (the Titan). */
 export function hatchable(team: number, era: number): UnitType[] {
-  return MYSTERY_POOL.filter((t) => UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && underLimit(team, t));
+  // a campaign mission has no creatures, and keeps back what a later mission unlocks
+  return MYSTERY_POOL.filter((t) => (G.wild || !UNIT[t].beast) && !G.banned.includes(t) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && underLimit(team, t));
 }
 
 /** Crack the egg: what comes out. `roll` is 0..1 (random by default). */

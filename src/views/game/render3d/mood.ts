@@ -41,8 +41,16 @@ export const MOODS: Mood[] = [
   },
 ];
 
+/** A winter map's light: low, pale sun and a cold white haze. */
+export const WINTER: Mood = {
+  name: 'winter', sun: '#fff2e6', sunI: 2.0, bearing: -1.2, height: 0.55,
+  sky: '#dfe9f6', ground: '#b8c0c8', hemiI: 0.65, zenith: '#7f9fc8', horizon: '#e8eef4', glow: '#fff0e0', envI: 0.6,
+  haze: '#c8d4e0', water: '#5a86a4', exposure: 0.88,
+};
+
 /** The light for a map: `?mood=name` overrides the seed's choice. */
 export function moodFor(seed: number, name?: string | null): Mood {
+  if (name === 'winter') return WINTER;
   return MOODS.find((m) => m.name === name) ?? MOODS[Math.floor(mulberry32(seed * 31 + 7)() * MOODS.length)];
 }
 

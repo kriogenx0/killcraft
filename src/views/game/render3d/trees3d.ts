@@ -64,6 +64,7 @@ const TRUNKS: Record<Kind, () => THREE.BufferGeometry> = {
 };
 
 /** Leaf colour per kind: hue, saturation, lightness (instances vary around it). */
+const SNOW = new THREE.Color('#eef3fa');
 const TINT: Record<Kind, [number, number, number]> = { pine: [0.34, 0.5, 0.17], fir: [0.38, 0.45, 0.14], oak: [0.26, 0.55, 0.22], birch: [0.2, 0.6, 0.3] };
 
 const wind = { value: 0 };
@@ -192,6 +193,8 @@ export function refreshTrees(force = false): void {
     m4.compose(v.set(px, heightAt(px, pz) - 0.03, pz), q, sc.set(s, s * (0.9 + h * 0.3), s));
     const [hue, sat, lit] = TINT[t.kind];
     color.setHSL(hue + (h - 0.5) * 0.05, sat, lit + (h2 - 0.5) * 0.08);
+    // winter: needles and leaves dusted with snow
+    if (G.snow) color.lerp(SNOW, 0.5 + h * 0.2);
     // a stump keeps only a short trunk
     set.trunk.setMatrixAt(set.n, grown < 0.15 ? m4.compose(v, q, sc.set(1.1, 0.25, 1.1)) : m4);
     if (grown < 0.15) m4.compose(v, q, sc.set(0, 0, 0));
