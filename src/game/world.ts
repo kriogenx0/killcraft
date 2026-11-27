@@ -170,39 +170,21 @@ export const alive = (team: number) => G.ents.some((e) => !e.dead && e.team === 
 const FALL_SECONDS = 2.5;
 
 /**
- * What the side has in hand plus everything it could get back by calling off orders it has paid for:
- * queued research and troops, unfinished building sites and upgrades under way all refund in full.
- */
-function fundsWithRefunds(team: number): Price {
-  const f: Price = { ore: G.credits[team], wood: G.wood[team], oil: G.oil[team], aether: G.aether[team] ?? 0 };
-  const add = (p: Partial<Price>) => { f.ore += p.ore ?? 0; f.wood += p.wood ?? 0; f.oil += p.oil ?? 0; f.aether += p.aether ?? 0; };
-  for (const line of Object.values(G.prod[team])) for (const it of line) if (it.paid && !it.free) add(priceOf(it.type));
-  for (const e of G.ents) {
-    if (e.dead || e.team !== team || e.kind !== 'bld') continue;
-    if (!e.done && !e.unpaid) add(priceOf(e.type as Parameters<typeof priceOf>[0]));
-    else if (e.done && e.upT != null) add(refitPrice(e));
-  }
-  return f;
-}
-
-/**
  * A side that has lost (Alex's rule): it has no Town Hall, no units at all (counting units it has paid
- * for and is training), and it can't train a Worker, either because it has no Barracks left or because
- * it can't pay for one, even by cancelling orders. A side that keeps its Town Hall stays in the game.
+ * for and is training), and nothing left that trains Workers. A side with no Worker gets its next one
+ * free (freeWorker in production.ts), so having no ore never puts it out of the game.
  */
 export function stranded(team: number): boolean {
   if (G.ents.some((e) => !e.dead && e.team === team && (e.kind === 'unit' || (e.type === 'yard' && e.done)))) return false;
   if (Object.values(G.prod[team]).some((line) => line.some((it) => it.paid && isUnitType(it.type)))) return false;
-  if (!available(team, 'infantry').includes('worker')) return true;
-  const p = priceOf('worker'), f = fundsWithRefunds(team);
-  return f.ore < p.ore || f.wood < p.wood || f.oil < p.oil || f.aether < p.aether;
+  return !available(team, 'infantry').includes('worker');
 }
 
 /** Every building a stranded side still has blows up, and the side is out of the game. */
 function fall(team: number): boolean {
   const left = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'bld');
   if (!left.length) return false;
-  const why = `no Town Hall, no units and ${available(team, 'infantry').includes('worker') ? 'no ore for a Worker' : 'nothing that trains Workers'}`;
+  const why = 'no Town Hall, no units and nothing that trains Workers';
   knockOut(team, `its base blew up: ${why}`);
   for (const e of left) { kill(e); dropSalvage(e); }
   for (let t = 0; t < G.teams; t++) say(t, t === team ? `Your base is lost: ${why}` : `${teamColors(team).name}'s base has fallen: ${why}`);

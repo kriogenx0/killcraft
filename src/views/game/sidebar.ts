@@ -4,7 +4,7 @@ import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { atLimit, available, unitNeeds, unitSlots, canAfford, priceOf, descOf, timeText, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { atLimit, available, unitNeeds, unitSlots, canAfford, freeWorker, priceOf, descOf, timeText, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -175,7 +175,7 @@ export function refreshSidebar(): void {
     // research queues one after another: one waiting its turn shows its place in line
     const research = line === 'tech' || line === 'hospital' || line === 'armory';
     const place = research && first && first.at == null ? G.prod[V.team][line].indexOf(first) + 1 : 0;
-    const status = needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : place ? 'QUEUED' : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : '';
+    const status = needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : place ? 'QUEUED' : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : !items.length && freeWorker(V.team, type) ? 'FREE' : '';
     if (c.status.textContent !== status) c.status.textContent = status;
     // a unit's count queued; a research's place in its line
     const count = place ? `#${place}` : (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
