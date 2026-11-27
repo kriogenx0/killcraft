@@ -85,8 +85,8 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // jets: heat-seeking missiles that only hit aircraft, and a heavy bomb dropped on a pass
   aam: { dmg: 70, range: 6, cd: 1.5, proj: 'rocket', speed: 480, splash: 0, vs: { none: 0, light: 0, heavy: 0, building: 0, air: 1.4 } },
   jetbomb: { dmg: 150, range: 1, cd: 3.5, proj: 'shell', speed: 300, splash: 30, vs: { none: 0.7, light: 0.9, heavy: 1, building: 1.4, air: 0 } },
-  // the Sky Carrier's defensive guns (mostly for fliers), and its Hornets' cannon and rockets
-  carriergun: { dmg: 8, range: 4.5, cd: 0.5, proj: 'bullet', speed: 0, splash: 0, vs: { none: 0.4, light: 0.3, heavy: 0.15, building: 0.1, air: 1 } },
+  // the Sky Battleship's big guns, shelling the ground below (they barely touch aircraft), and its Hornets' cannon
+  carriergun: { dmg: 55, range: 6, cd: 2.2, proj: 'shell', speed: 600, splash: 24, vs: { none: 0.7, light: 1, heavy: 1.1, building: 1.2, air: 0.25 } },
   hornetgun: { dmg: 9, range: 3.5, cd: 0.45, proj: 'bullet', speed: 0, splash: 0, vs: { none: 1, light: 0.8, heavy: 0.45, building: 0.4, air: 0.8 } },
   // Aether arms (hidden units)
   wraithlance: { dmg: 30, range: 0.8, cd: 1.3, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.95, heavy: 0.85, building: 0.4, air: 0 } },

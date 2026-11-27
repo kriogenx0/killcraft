@@ -257,7 +257,7 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
     if (P.prop) P.prop.rotation.x = t * 40;
     for (let i = 0; i < 4; i++) { const q = P[`prop${i}`]; if (q) q.rotation.y = t * (i % 2 ? -45 : 45); }
     for (let i = 0; i < 4; i++) { const q = P[`cprop${i}`]; if (q) q.rotation.x = t * 28; }
-    // a Sky Carrier shows the Hornets it has aboard on its deck
+    // a Sky Battleship shows the Hornets it has aboard on its deck
     if (P.dock0) { const n = e.hangar ?? UNIT[e.type as UnitType].hangar ?? 0; for (let i = 0; i < 4; i++) P[`dock${i}`].visible = i < n; }
     if (P.envelope) P.envelope.rotation.z = Math.sin(t * 0.9 + e.id) * 0.04;
     // a biplane banks into its turns
@@ -280,7 +280,9 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
     }
   }
   if (P.turret) P.turret.rotation.y = -(e.tface - e.face);
+  if (P.turret2) P.turret2.rotation.y = P.turret.rotation.y; // the Sky Battleship's second turret trains with the first
   if (P.barrel) recoil(P.barrel, atk > 0 ? (1 - atk) * 0.1 : 0);
+  if (P.barrel2) recoil(P.barrel2, atk > 0 ? (1 - atk) * 0.1 : 0);
   if (UNIT[e.type as UnitType]?.beast) animateCreature(m, e, w, atk);
   if (UNIT[e.type as UnitType]?.magic || UNIT[e.type as UnitType]?.cyborg) animateArcane(m, e, w, atk);
   if (UNIT[e.type as UnitType]?.giant) animateGiant(m, e, w, atk);

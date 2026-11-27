@@ -425,7 +425,7 @@ function striker(g: G2, T: TeamColors, p: UnitPose): void {
   g.restore();
 }
 
-/** A Sky Carrier from above: long straight wings with four engines, a fat body with its deck, and a twin tail. */
+/** A Sky Battleship from above: short wings with four engines, two gun turrets forward, the bridge, and a flight deck at the stern. */
 function carrierArt(g: G2, T: TeamColors, p: UnitPose): void {
   g.save();
   g.translate(0, -6);
@@ -437,9 +437,10 @@ function carrierArt(g: G2, T: TeamColors, p: UnitPose): void {
   panel(g, -16, -7, 3, 14, 1, '#9aa2aa', '#5d656e'); // tailplane
   for (const y of [-7, 5]) { g.fillStyle = T.m; g.fillRect(-17, y, 4, 2); }
   blob(g, -2, 0, 15, 4, shade(g, -2, 0, 15, '#b4bcc4', '#5d656e'));
-  panel(g, -10, -2, 14, 4, 1, '#5d656e', '#3a4048'); // flight deck
-  for (const x of [-7, 0]) blob(g, x, 0, 2.2, 1.2, T.m);
-  blob(g, 11, 0, 2.2, 1.6, '#9ec4d8');
+  panel(g, -14, -2, 8, 4, 1, '#3a4048', '#22262b'); // flight deck at the stern
+  for (const x of [-12, -8]) blob(g, x, 0, 1.6, 1, T.m);
+  blob(g, -2, 0, 2.4, 2, '#6b737c'); // bridge
+  for (const x of [5, 9]) { for (const y of [-1, 0, 1]) oline(g, x, y, x + 5, y, 0.7, '#222'); blob(g, x, 0, 2.2, 2, T.m); } // two triple turrets
   g.restore();
 }
 

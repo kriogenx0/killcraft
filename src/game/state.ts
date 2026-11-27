@@ -209,13 +209,13 @@ export interface Ent extends Target {
   bee?: { q: number; until: number };
   /** a Bee Queen: game time she can next call up her swarm */
   swarmT?: number;
-  /** a Hornet: the id of the Sky Carrier it flies from (game/carrier.ts) */
+  /** a Hornet: the id of the Sky Battleship it flies from (game/carrier.ts) */
   wing?: number;
-  /** a Sky Carrier: Hornets aboard (unset: a full hangar), seconds spent rebuilding the next lost one, and when the next may take off */
+  /** a Sky Battleship: Hornets aboard (unset: a full hangar), seconds spent rebuilding the next lost one, and when the next may take off */
   hangar?: number;
   rebuildT?: number;
   launchT?: number;
-  /** a Sky Carrier: the nearest foe its lookout saw within reach */
+  /** a Sky Battleship: the nearest foe its lookout saw within reach */
   spot?: number | null;
   /** the computer is moving it out of a storm's way until this game time (game/weather.ts) */
   dodgeT?: number;

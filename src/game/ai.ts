@@ -781,7 +781,7 @@ function training(team: number): void {
   if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') * (G.islands ? 2 : 1) && credits > (G.islands ? 250 : 900)) {
     // fighters answer enemy aircraft; strike jets go after bases once there's money for them
     const foeAir = G.ents.filter((e) => !e.dead && e.kind === 'unit' && hostile(e.team, team) && isAir(e)).length;
-    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['fighter', foeAir >= 3 ? 4 : foeAir ? 1.5 : 0.3], ['striker', credits > 1300 ? 2 : 0], ['carrier', credits > 2300 ? 1.5 : 0], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0], ['beequeen', 1.5]]);
+    const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['fighter', foeAir >= 3 ? 4 : foeAir ? 1.5 : 0.3], ['striker', credits > 1300 ? 2 : 0], ['carrier', credits > 3100 ? 1.5 : 0], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0], ['beequeen', 1.5]]);
     if (t) enqueue(team, t);
   }
   // Workers: a few per refinery (by difficulty) for ore before the Modern age, plus the mills' choppers and derricks' haulers

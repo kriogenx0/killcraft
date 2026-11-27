@@ -1,4 +1,4 @@
-// The Sky Carrier: a huge flying hangar that launches its own wing of Hornets at foes near it, calls
+// The Sky Battleship: a huge flying hangar that launches its own wing of Hornets at foes near it, calls
 // them back aboard when the fight is over, and very slowly rebuilds the ones it loses.
 import { G, hooks, unitDef, valid, type Ent } from './state.ts';
 import { TS } from './const.ts';

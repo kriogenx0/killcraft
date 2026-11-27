@@ -24,7 +24,7 @@ function standoff(): [Ent, Ent] {
   return [c, foe];
 }
 
-describe('the Sky Carrier', () => {
+describe('the Sky Battleship', () => {
   beforeEach(() => {
     for (const a of ais) a.on = false;
     G.reveal = true;

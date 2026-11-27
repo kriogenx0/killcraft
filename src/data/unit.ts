@@ -90,7 +90,7 @@ export interface UnitDef {
    */
   swarm?: number;
   /**
-   * a Sky Carrier: carries this many Hornets in its hangar, launches them at whatever comes near and
+   * a Sky Battleship: carries this many Hornets in its hangar, launches them at whatever comes near and
    * takes them back aboard when the fight is over. Each one lost is rebuilt aboard, very slowly
    * (CARRIER_* below; game/carrier.ts).
    */
@@ -174,9 +174,9 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // jets: the fastest things in the sky, and they can't hover. They make passes at a target and loop back round.
   fighter: { name: 'Jet Fighter', cls: 'air', armor: 'air', hp: 280, spd: 9.5, turn: 2.6, weapon: 'aam', cost: 650, oil: 200, t: 21, era: 2, sight: 10, producer: 'air', turret: false, radius: 13, alt: 1.8, jet: true, desc: 'Supersonic interceptor with heat-seeking missiles. Hunts helicopters, drones, balloons and flying creatures, and outruns anything in the sky. Can\'t hit the ground, and can\'t hover: it makes passes and loops back.' },
   striker: { name: 'Strike Jet', cls: 'air', armor: 'air', hp: 340, spd: 8.0, turn: 1.9, weapon: 'jetbomb', cost: 1000, oil: 300, t: 31, era: 2, sight: 8, producer: 'air', turret: false, radius: 15, alt: 1.8, jet: true, desc: 'Swoops in low and drops a heavy bomb, then streaks away and loops back for another run. Wrecks buildings, turrets and tanks from across the map. Can\'t hover or fight other aircraft; flak and fighters bring it down.' },
-  // the Sky Carrier: a huge, slow flying hangar that launches its own wing of little Hornet jets
-  carrier: { name: 'Sky Carrier', cls: 'air', armor: 'air', hp: 1000, spd: 2.2, turn: 0.9, weapon: 'carriergun', cost: 1800, oil: 500, t: 80, era: 2, sight: 11, producer: 'air', turret: true, radius: 28, alt: 2.6, hangar: 4, desc: 'A huge four-engined flying hangar, slow to build and slow in the air. It carries four Hornets and launches them at anything that comes within 8 tiles, then takes them back aboard. A Hornet that is shot down is rebuilt in the hangar, but very slowly, one every 75 seconds. Its own guns only keep fliers off. Lose its wing and it is a big slow target for Flak and fighters.' },
-  hornet: { name: 'Hornet', cls: 'air', armor: 'air', hp: 80, spd: 8.0, turn: 5, weapon: 'hornetgun', cost: 0, t: 1, era: 2, sight: 7, producer: 'air', turret: false, radius: 9, alt: 1.6, hatched: true, summoned: true, desc: 'A little jet flown off a Sky Carrier. Only a Carrier launches them; they fight what it fights, hit ground and air alike, and fly home to it when the fight is over.' },
+  // the Sky Battleship (internal `carrier`): a huge, slow flying warship with big guns that also launches its own wing of little Hornet jets
+  carrier: { name: 'Sky Battleship', cls: 'air', armor: 'air', hp: 1600, spd: 2.0, turn: 0.8, weapon: 'carriergun', cost: 2400, oil: 700, t: 90, era: 2, sight: 11, producer: 'air', turret: true, radius: 28, alt: 2.6, hangar: 4, desc: 'A flying battleship, slow to build and slow in the air. Two armored triple-gun turrets shell troops, tanks and buildings below, and the flight deck at its stern carries four Hornets that it launches at anything within 8 tiles and takes back aboard after the fight. A Hornet that is shot down is rebuilt aboard, but very slowly, one every 75 seconds. Its big guns barely touch other aircraft: Jet Fighters, Flak and Missile Turrets bring it down.' },
+  hornet: { name: 'Hornet', cls: 'air', armor: 'air', hp: 80, spd: 8.0, turn: 5, weapon: 'hornetgun', cost: 0, t: 1, era: 2, sight: 7, producer: 'air', turret: false, radius: 9, alt: 1.6, hatched: true, summoned: true, desc: 'A little jet flown off a Sky Battleship. Only a Battleship launches them; they fight what it fights, hit ground and air alike, and fly home to it when the fight is over.' },
   // the Spy (Alex, 2026-11-27): a Modern-age infiltrator for watching other sides. It never fights; it
   // stays cloaked (only Ward Stones, Sphinxes, other Spies and enemies all but on top of it see it),
   // sees far, and runs when it's shot at.
@@ -258,7 +258,7 @@ export const UNIT_TYPES = Object.keys(UNIT) as UnitType[];
 
 export const isUnitType = (t: string): t is UnitType => t in UNIT;
 
-/** a Sky Carrier sends its Hornets after foes this many tiles from it, and calls them home past it */
+/** a Sky Battleship sends its Hornets after foes this many tiles from it, and calls them home past it */
 export const CARRIER_REACH = 8;
 /** seconds between Hornets taking off */
 export const CARRIER_LAUNCH_EVERY = 0.7;
