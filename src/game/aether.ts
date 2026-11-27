@@ -174,10 +174,10 @@ export function unveil(u: Ent): void {
   if (u.kind === 'unit' && unitDef(u).cloak) u.shownT = G.gameT + CLOAK_REVEAL;
 }
 
-/** Is `e` a cloaked unit that `team` can't see right now? Enemies very close see through the cloak. */
+/** Is `e` a cloaked unit that `team` can't see right now? Enemies very close see through the cloak (a Spy's, only closer still). */
 export function cloakedFrom(e: Ent, team: number): boolean {
   if (e.kind !== 'unit' || allied(e.team, team) || e.team < 0 || !unitDef(e).cloak || (e.shownT ?? 0) > G.gameT) return false;
-  const r = CLOAK_DETECT * TS;
+  const r = (unitDef(e).spot ?? CLOAK_DETECT) * TS;
   for (const o of G.ents) {
     if (o.dead || o.team < 0 || !allied(o.team, team) || o.kind === 'source') continue;
     if (o.type === 'wardstone' && o.done && Math.hypot(o.x - e.x, o.y - e.y) <= WARD_STONE_SIGHT * TS) return false;

@@ -170,10 +170,10 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   // walls are cheap and go up alongside the build plan, not after it: a stretch for each defensive structure
   const wall = walling ? null : wallWanted(team, can);
   if (wall) return wall;
-  // Aether: a Ward Stone once the enemy fields cloaked jeeps, and a Star Shrine once past the first
+  // Aether: a Ward Stone once the enemy fields cloaked units (Phantom Jeeps, Spies), and a Star Shrine once past the first
   // age (troops leave the Aether for it, see shrineAether); these jump the build plan
   const aether = G.aether[team] ?? 0;
-  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.type === 'phantom')) return 'wardstone';
+  if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.kind === 'unit' && !!unitDef(e).cloak)) return 'wardstone';
   if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
   // islands (campaign): nothing reaches the enemy but aircraft, so an Airfield as soon as there can be one
   if (G.islands && can.includes('airfield') && countOf(team, 'airfield') < 1) {

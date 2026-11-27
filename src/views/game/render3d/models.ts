@@ -282,6 +282,29 @@ function medic(team: number): Model {
   return m;
 }
 
+/** The Spy: a dark stealth suit and hood, night-vision goggles glowing green and a radio pack with a whip aerial. */
+function spy(team: number): Model {
+  const suit = mat('#2b3033', { rough: 0.85 }), patch = mat('#3c4440', { rough: 0.9 });
+  const m = soldier({ torso: suit, legs: patch, arms: suit, boots: M.rubber(), hands: M.rubber() });
+  // camouflage blotches on the suit
+  for (const [y, z] of [[0.3, -0.06], [0.36, 0.05], [0.25, 0.03]] as const) m.root.add(mesh(box(0.008, 0.035, 0.05), patch, chest(y, 0.004), y, z));
+  m.root.add(mesh(shell(0.222, 0.25, 0.008), teamMat(team, 'd'))); // a team-coloured belt, the only colour on it
+  m.root.add(mesh(box(0.008, 0.03, 0.03), teamMat(team), chest(0.37, 0.004), 0.37, 0.05)); // shoulder patch
+  // hood pulled over the head, leaving the goggles
+  m.root.add(mesh(loft([[0.43, 0.07, 0.07], [0.45, 0.112, 0.1], [0.47, 0.132, 0.124], [0.5, 0.132, 0.126, -0.004], [0.525, 0.104, 0.104, -0.006], [0.542, 0.05, 0.05, -0.006]], 8), suit));
+  const lens = mat('#3cff6a', { rough: 0.2, emissive: '#2aff55', emissiveIntensity: 1.6 });
+  for (const z of [-0.024, 0.024]) {
+    m.root.add(along(mesh(cyl(0.017, 0.019, 0.026, 8), M.gun(), 0.068, 0.49, z)));
+    m.root.add(along(mesh(cyl(0.013, 0.013, 0.004, 8), lens, 0.082, 0.49, z)));
+  }
+  // radio pack and its aerial
+  m.root.add(mesh(box(0.065, 0.12, 0.12), M.gun(), -0.095, 0.33, 0));
+  m.root.add(mesh(box(0.01, 0.02, 0.05), lens, -0.13, 0.36, 0)); // a dim status light
+  m.root.add(rod([-0.11, 0.39, 0.045], [-0.14, 0.74, 0.06], 0.004, M.gun(), 4));
+  m.root.add(mesh(sph(0.009, 6, 4), M.gun(), -0.14, 0.745, 0.06));
+  return m;
+}
+
 function rocketeer(team: number): Model {
   const m = soldier({ torso: M.olive(), legs: M.olive(), arms: M.olive(), boots: M.rubber() });
   m.root.add(mesh(shell(0.295, 0.39, 0.008), teamMat(team)));
@@ -944,6 +967,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'crossbowman': return crossbowman(team);
     case 'knight': return knight(team);
     case 'medic': return medic(team);
+    case 'spy': return spy(team);
     case 'jeep': return jeep(team);
     case 'tank': return tank(team, false);
     case 'heavy': return tank(team, true);
