@@ -174,7 +174,7 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   const need: Partial<Record<BldType, number>> = {};
   for (const t of PLAN) {
     // structures from a later age wait until the research is done
-    if (BUILDING[t].era > G.era[team]) continue;
+    if (BUILDING[t].era > G.era[team] || G.banned.includes(t)) continue;
     // the Engine Works only matters until its age is researched
     const to = BUILDING[t].opens;
     if (to != null && (G.era[team] >= to || to > G.maxEra)) continue;

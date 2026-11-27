@@ -237,7 +237,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
     const mission = demo ? null : missionById(s.mission);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra, ban: mission?.ban });
     G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
@@ -260,7 +260,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     setSelection([]);
     saveNow();
     void pruneGames().catch(() => {});
-    if (mission) show(`${mission.name}: ${ageLimit(mission)}`);
+    if (mission) show(`${mission.name}: ${ageLimit(mission)}${mission.ban?.includes('derrick') ? ', no magic or oil' : ''}`);
   };
 
   /** Save the solo game in progress, so a refresh comes back to it. */

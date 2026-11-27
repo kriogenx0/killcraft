@@ -50,7 +50,7 @@ export const canAfford = (team: number, t: Buildable): boolean => { if (freeWork
  * Things that cost Aether stay hidden until the side first finds some. Creatures of myth only show
  * once the side has captured one of their kind (data/creatures.ts).
  */
-const revealed = (team: number, t: Buildable): boolean =>
+const revealed = (team: number, t: Buildable): boolean => G.banned.includes(t) ? false :
   isUnitType(t) && UNIT[t].demon ? false : isUnitType(t) && UNIT[t].beast ? !!G.tamed[team]?.includes(t) : priceOf(t).aether <= 0 || !!G.aetherFound[team];
 /** base seconds to train, build (with one Worker) or research it, before power, upgrades or army size */
 export const timeOf = (t: Buildable): number => defOf(t).t;
