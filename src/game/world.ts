@@ -49,8 +49,12 @@ export interface StartOptions {
   ban?: readonly string[];
   /** a winter map (looks only) */
   snow?: boolean;
-  /** false: no creature lairs and no Gate of Hell (campaign missions; cows and unicorns stay) */
+  /** false: no creature lairs (campaign missions before 8; cows, sheep and unicorns stay) */
   wild?: boolean;
+  /** false: no Gate of Hell (campaign missions) */
+  gate?: boolean;
+  /** false: no Aether deposits (campaign missions before 8) */
+  aether?: boolean;
   /** a small map (campaign mission 1) */
   small?: boolean;
   /**
@@ -77,11 +81,11 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   for (const s of G.sight) s.fill(0);
   resetAi(n);
   generateMap(seed);
-  const wild = start.wild ?? true;
-  if (wild) placeGate();
+  const wild = start.wild ?? true, gate = start.gate ?? wild;
+  if (gate) placeGate();
   else G.hell = { gate: false, spawnT: 0, raidT: Infinity, archT: Infinity, prey: -1, burst: 0, burstT: 0, stay: 0, stir: false };
   const { yards, ore } = layoutFor(n, G.small);
-  for (const [x, y] of ore) if (!wild || !onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
+  for (const [x, y] of ore) if (!gate || !onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
   const scattered = (team: number) => !!start.scatter?.length && G.ally[team] !== G.ally[0];
   yards.forEach(([x, y], team) => {
     if (G.absent[team]) return;
@@ -95,7 +99,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
     });
   });
   rebuildBlk();
-  placeAether(G.seed);
+  placeAether(G.seed, start.aether ?? true);
   rebuildBlk();
   if (wild) placeCreatures(G.seed);
   else { G.tamed = Array.from({ length: n }, () => []); G.respawns = []; }

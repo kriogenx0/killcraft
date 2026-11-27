@@ -137,6 +137,19 @@ describe('mission 1', () => {
   });
 });
 
+describe('Aether and creatures', () => {
+  it('stay out of the campaign until mission 8 (Alex)', () => {
+    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 7));
+    for (const m of MISSIONS.slice(0, 7)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
+    initWorld(2202, 2, { wild: false, gate: false, aether: false });
+    expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
+    initWorld(2202, 2, { wild: true, gate: false, aether: true });
+    expect(G.ents.some((e) => e.type === 'aether')).toBe(true);
+    expect(G.ents.some((e) => !!e.wild)).toBe(true);
+    expect(G.hell.gate).toBe(false);
+  });
+});
+
 describe('campaign progress', () => {
   it('every mission uses the Regrow fog of war (Alex)', () => {
     expect(MISSIONS.every((m) => m.setup.fog === 'regrow')).toBe(true);

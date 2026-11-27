@@ -239,7 +239,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
     const mission = demo ? null : missionById(s.mission);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra, ban: mission ? bannedIn(mission) : undefined, snow: !!mission?.snow, wild: !mission, small: !!mission?.small, scatter: mission?.scatter });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra, ban: mission ? bannedIn(mission) : undefined, snow: !!mission?.snow, wild: !mission || mission.wild, gate: !mission, aether: !mission || mission.wild, small: !!mission?.small, scatter: mission?.scatter });
     G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });

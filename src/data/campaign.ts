@@ -26,13 +26,13 @@ export const UNLOCKS: Thing[][] = [
   // 4: oil, engines and magic; the Industrial age
   ['derrick', 'works', 'age1', 'magetower', 'mage', 'tidecaller', 'rifleman', 'gunner', 'jeep', 'tank', 'turret', 'pillbox', 'concretewall', 'heal2', 'mech', 'infWeapon2', 'infArmor2', 'vehWeapon2', 'vehArmor2'],
   // 5: air power, big guns and Aether
-  ['airfield', 'balloon', 'biplane', 'flak', 'artillery', 'bertha', 'stormcaller', 'plaguewitch', 'shrine', 'wardstone', 'ward', 'wraith', 'hexblade', 'phantom', 'mystery'],
-  // 6: the Waygate and the Titan
-  ['waygate', 'giant'],
+  ['airfield', 'balloon', 'biplane', 'flak', 'stormcaller', 'plaguewitch'],
+  // 6: big guns
+  ['artillery', 'bertha'],
   // 7: the Modern age
   ['age2', 'harvester', 'rocket', 'heavy', 'helicopter', 'drone', 'atturret', 'archmage', 'sludgewarlock', 'heal3', 'infWeapon3', 'infArmor3', 'vehWeapon3', 'vehArmor3'],
-  // 8: jets and cyborgs
-  ['fighter', 'striker', 'juggernaut', 'starfall'],
+  // 8: jets and cyborgs, and Aether (Alex: no Aether until mission 8): its buildings, units and the Titan
+  ['fighter', 'striker', 'juggernaut', 'shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'mystery'],
   // 9: the biggest of all
   ['titan'],
 ];
@@ -57,6 +57,8 @@ export interface Mission {
   snow?: boolean;
   /** a small map */
   small?: boolean;
+  /** creature lairs and Aether on the map (Alex: none until mission 8) */
+  wild?: boolean;
   /** no enemy town: the enemy is just these units, in small groups across the map */
   scatter?: UnitType[];
   /** the game it plays (fixed map, so a mission is the same each time) */
@@ -105,12 +107,12 @@ export const MISSIONS: Mission[] = [
     setup: game({ mode: '2v2', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 7707 }),
   },
   {
-    id: 'frozen-front', name: 'Frozen Front', maxEra: 2, snow: true,
-    brief: 'Four sides on a frozen map, everyone for themselves, against three Normal computers.',
+    id: 'frozen-front', name: 'Frozen Front', maxEra: 2, snow: true, wild: true,
+    brief: 'Four sides on a frozen map, everyone for themselves, against three Normal computers. Aether and wild creatures appear for the first time.',
     setup: game({ mode: 'ffa', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 8808 }),
   },
   {
-    id: 'last-stand', name: 'Last Stand', maxEra: 2,
+    id: 'last-stand', name: 'Last Stand', maxEra: 2, wild: true,
     brief: 'One Hard computer and everything unlocked. Win this and the campaign is yours.',
     setup: game({ mode: '1v1', seats: vs('hard'), resources: 'standard', army: 'workers', seed: 9909 }),
   },
