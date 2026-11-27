@@ -104,7 +104,7 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "Level 4 all about finding oil. One oil patch. Small map."
-    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true, goals: ['derrick'], // Alex: not won until an Oil Derrick is built and the enemy destroyed
+    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true, goals: ['derrick', 'industrial'], // Alex: not won until an Oil Derrick is built, the Town Hall reaches the Industrial age and the enemy is destroyed
     brief: 'There is just one oil patch on this small map, somewhere out in the fog. Find it and hold it: oil builds the Engine Works that opens the Industrial age. One Easy computer is looking too.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 4404 }),
   },

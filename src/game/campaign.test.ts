@@ -227,7 +227,7 @@ describe('mission layouts', () => {
 });
 
 describe('Black Gold goals', () => {
-  it('is not won until an Oil Derrick stands, even with the enemy destroyed (Alex)', () => {
+  it('is not won until an Oil Derrick stands and the Town Hall is Industrial, even with the enemy destroyed (Alex)', () => {
     const m = MISSIONS.find((x) => x.goals?.includes('derrick'))!;
     G.headless = true;
     initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
@@ -238,6 +238,10 @@ describe('Black Gold goals', () => {
     addBuilding('derrick', 0, ox - 1, oy - 1, false);
     for (let k = 0; k < 5 / STEP && !G.over; k++) update(STEP);
     expect(G.goalsDone).toContain('derrick');
+    expect(G.over).toBe(false);
+    G.era[0] = 1;
+    for (let k = 0; k < 5 / STEP && !G.over; k++) update(STEP);
+    expect(G.goalsDone).toContain('industrial');
     expect(G.over).toBe(true);
     expect(G.winner).toBe(0);
   });
