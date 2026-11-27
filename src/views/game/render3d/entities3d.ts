@@ -32,6 +32,7 @@ import { WALL_DIRS } from './defenses.ts';
 import { MELEE_LAND } from '../../../game/combat.ts';
 import { armorKit, armorLevel } from './armor3d.ts';
 import { makeTeamDiscs, updateTeamDiscs } from './team_discs3d.ts';
+import { makeNightLights, updateNightLights } from './night_lights3d.ts';
 import { resetTargets, updateTargets } from './targets3d.ts';
 import { footprintRange, footprintY, heightAt, slopeAt, surfaceY } from './heights.ts';
 
@@ -73,6 +74,7 @@ export function resetEntities3d(): void {
   armyFlag = null;
   S.scene.add(holder, overlays, batched);
   makeTeamDiscs(overlays);
+  makeNightLights(overlays);
 }
 
 /** How far a foundation reaches below the lowest ground under it, so no gap shows at its foot. */
@@ -490,7 +492,7 @@ export function syncEntities(dt: number): void {
   const seen = new Set<number>();
   // which team's wall stands on each tile, so segments join up with their neighbours
   const walls = new Map<number, number>();
-  const drawn: Ent[] = [];
+  const drawn: Ent[] = [], lit: Ent[] = [];
   for (const e of G.ents) if (!e.dead && e.kind === 'bld' && isWall(e.type)) walls.set(e.ty * MW + e.tx, e.team);
   for (const e of G.ents) {
     if (e.dead) continue;
@@ -520,6 +522,7 @@ export function syncEntities(dt: number): void {
     } else if (e.kind === 'bld') {
       r.position.set(x, footprintY(e.tx, e.ty, e.w, e.h), z);
       animateBuilding(o.model, e, dt);
+      if (e.done && !isWall(e.type)) lit.push(e);
     } else {
       r.position.set(x, heightAt(x, z), z);
       // an Aether deposit shrinks as it's drawn down and grows back with it
@@ -542,6 +545,7 @@ export function syncEntities(dt: number): void {
   updateRings();
   updateTargets(overlays, (e) => !!objs.get(e.id)?.model.root.visible);
   updateTeamDiscs(drawn);
+  updateNightLights(drawn, lit);
   updateAuras(overlays, (e) => !!objs.get(e.id)?.model.root.visible);
   updateMarkers();
   updateRally();

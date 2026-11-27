@@ -37,8 +37,8 @@ import { initTerrain } from './render/terrain.ts';
 import { makeIcons } from './render/icon.ts';
 import { drawMinimap, initFog } from './render/minimap.ts';
 import { moodFor } from './render3d/mood.ts';
-import { initScene, setMood, renderScene, resizeScene, startDayNight, updateCamera, updateDayNight, viewFootprint } from './render3d/scene.ts';
-import { hourAt, pinnedHour } from './render3d/daynight.ts';
+import { initScene, setMood, renderScene, resizeScene, dayNightOn, startDayNight, updateCamera, updateDayNight, viewFootprint } from './render3d/scene.ts';
+import { clockText, darkness, hourAt, pinnedHour } from './render3d/daynight.ts';
 import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { updateCows3d } from './render3d/cows3d.ts';
 import { updateUnicorns3d } from './render3d/unicorns3d.ts';
@@ -170,6 +170,17 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   /** the server said it's restarting, or dropped us mid-match: if the game is then lost, say so rather than "Game over" */
   let serverRestarting = false, droppedMidGame = false, restartEnd = false, lostAt = 0;
   const pausedBox = must<HTMLElement>(root, '.game-paused'), timeEl = must<HTMLElement>(root, '.topbar-time');
+  const clockEl = must<HTMLElement>(root, '.topbar-clock'), clockTextEl = must<HTMLElement>(root, '.topbar-clock-text');
+  /** The time of day in the top bar, while day and night is on (touch the sun or moon on a phone to see the hour). */
+  const showClock = (hour: number) => {
+    const on = dayNightOn();
+    if (clockEl.hidden === on) clockEl.hidden = !on;
+    if (!on) return;
+    const text = clockText(hour), night = darkness(hour) > 0.5;
+    if (clockTextEl.textContent !== text) { clockTextEl.textContent = text; clockEl.title = `Time of day: ${text}`; }
+    clockEl.classList.toggle('topbar-clock--night', night);
+  };
+  clockEl.addEventListener('click', () => show(`Time of day: ${clockTextEl.textContent}`));
   /** Every game gets a UUID when it starts (online games use the server's match id). */
   const setGameId = (id: string) => {
     root.dataset.gameId = id;
@@ -666,7 +677,9 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     oreT -= dt;
     if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); showGoals(); }
     try {
-      updateDayNight(tod ?? hourAt(G.gameT));
+      const hour = tod ?? hourAt(G.gameT);
+      updateDayNight(hour);
+      showClock(hour);
       updateCamera();
       syncEntities(dt);
       updateCows3d();

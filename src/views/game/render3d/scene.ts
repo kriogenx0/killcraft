@@ -9,7 +9,7 @@ import { TS } from '../../../game/const.ts';
 import { eye } from '../camera_rig.ts';
 import { V } from '../view_state.ts';
 import { MOODS, skyEnvironment, sunDirection, type Mood } from './mood.ts';
-import { lightAt } from './daynight.ts';
+import { darkness, lightAt } from './daynight.ts';
 import { groundY, surfaceY, WATER_LEVEL } from './heights.ts';
 
 export const S = {
@@ -19,6 +19,8 @@ export const S = {
   sun: new THREE.DirectionalLight('#fff1dc', 2.2),
   hemi: new THREE.HemisphereLight('#d8ecff', '#3e4a2a', 1.1),
   mood: MOODS[1],
+  /** how dark it is: 0 by day, 1 at full night (day and night cycle; night lights fade with it) */
+  dark: 0,
   raycaster: new THREE.Raycaster(),
   ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
   canvas: null as unknown as HTMLCanvasElement,
@@ -76,11 +78,15 @@ let cycle: { snow: boolean } | null = null;
 /** Light the scene for a map's time of day (a fixed light: the day and night cycle is off). */
 export function setMood(m: Mood): void {
   cycle = null;
+  S.dark = 0;
   S.mood = m;
   dropSkies();
   applyLight(m);
   S.scene.environment = skyEnvironment(S.renderer, m);
 }
+
+/** Whether the day and night cycle is running on this map. */
+export const dayNightOn = (): boolean => !!cycle;
 
 /** Turn the day and night cycle on for this map (call after setMood); `updateDayNight` then moves the light. */
 export function startDayNight(snow: boolean): void {
@@ -92,6 +98,7 @@ export function updateDayNight(hour: number): void {
   if (!cycle) return;
   const { mood, env } = lightAt(hour, cycle.snow);
   S.mood = mood;
+  S.dark = darkness(hour);
   applyLight(mood);
   let sky = skies.get(env.name + (cycle.snow ? '-snow' : ''));
   if (!sky) { sky = skyEnvironment(S.renderer, env); skies.set(env.name + (cycle.snow ? '-snow' : ''), sky); }

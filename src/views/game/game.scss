@@ -94,6 +94,43 @@ $sidebar-width: 248px;
     color: var(--color-text-muted);
   }
 
+  // time of day, while day and night is on (render3d/daynight.ts): a sun or moon and the hour
+  .topbar-clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .topbar-clock-text {
+    // wide enough for "12:45 PM", so the bar doesn't shift as the hour changes
+    min-width: 5.2em;
+  }
+
+  .topbar-clock-icon {
+    width: 15px;
+    height: 15px;
+    flex: none;
+  }
+
+  .topbar-clock-sun {
+    color: #e0a020;
+  }
+
+  .topbar-clock-moon {
+    color: #6f86c8;
+  }
+
+  .topbar-clock--night .topbar-clock-sun,
+  .topbar-clock:not(.topbar-clock--night) .topbar-clock-moon {
+    display: none;
+  }
+
   // top right of the map while our connection to an online game is down (the computer plays our side meanwhile)
   .game-offline {
     position: absolute;
@@ -956,6 +993,11 @@ $sidebar-width: 248px;
     }
 
     .topbar-time {
+      display: none;
+    }
+
+    // phones: the sun or moon alone; tap it for the hour
+    .topbar-clock-text {
       display: none;
     }
 

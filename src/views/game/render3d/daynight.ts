@@ -98,10 +98,29 @@ export function lightAt(h: number, snow: boolean): { mood: Mood; env: Mood } {
   return { mood: live, env: t < 0.5 ? a : b };
 }
 
+const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** How dark it is at an hour: 0 through the day, rising through dusk to 1 at night, gone again soon after first light. */
+export function darkness(h: number): number {
+  return h < 0.3 ? 1 - smooth(0.0, 0.05, h) : smooth(0.55, 0.64, h);
+}
+
+/** The hour on a clock (minutes past midnight): noon falls when the sun is highest, first light about 5 AM. */
+export function clockMinutes(h: number): number {
+  const noon = ((SUNRISE + SUNSET + 1) / 2) % 1;
+  return ((((h - noon) * 24 + 12) * 60) % 1440 + 1440) % 1440;
+}
+
+/** "6:30 AM": the clock time rounded to a quarter hour. */
+export function clockText(h: number): string {
+  const m = Math.floor(clockMinutes(h) / 15) * 15, hr = Math.floor(m / 60), min = m % 60;
+  return `${hr % 12 || 12}:${String(min).padStart(2, '0')} ${hr < 12 ? 'AM' : 'PM'}`;
+}
+
 /** `?tod=dawn|morning|noon|afternoon|dusk|night` or a share of the day (0..1): pin the hour for screenshots. */
 export function pinnedHour(v: string | null): number | null {
   if (v === null) return null;
-  const named: Record<string, number> = { dawn: 0.015, morning: 0.1, noon: 0.25, afternoon: 0.42, evening: 0.53, dusk: 0.575, night: 0.8 };
+  const named: Record<string, number> = { dawn: 0.015, morning: 0.1, noon: 0.295, afternoon: 0.42, evening: 0.53, dusk: 0.575, night: 0.8 };
   if (v in named) return named[v];
   const n = Number(v);
   return Number.isFinite(n) && v !== '' ? ((n % 1) + 1) % 1 : null;
