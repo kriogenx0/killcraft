@@ -40,7 +40,7 @@ export const UNLOCKS: Thing[][] = [
   // 9: the Modern age (Alex: "introduction to Modern. Expand to more things"): Modern troops, aircraft,
   // jets and cyborgs, the Modern casters
   ['age2', 'harvester', 'rocket', 'heavy', 'helicopter', 'drone', 'atturret', 'archmage', 'sludgewarlock', 'heal3', 'infWeapon3', 'infArmor3', 'vehWeapon3', 'vehArmor3',
-    'fighter', 'striker', 'juggernaut'],
+    'fighter', 'striker', 'carrier', 'juggernaut'],
   // 10: creatures only, on both sides (Alex): the Mystery Egg, which hatches them
   ['mystery'],
   // 11: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things"); the Spy, with the Ward Stone that finds it

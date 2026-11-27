@@ -2,7 +2,7 @@
 // gathered and spent, when it reached each age, and its upgrade levels. The engine keeps the running
 // counts in G.stats; summarize() turns them into what the end screen shows (the server sends that
 // to online players, whose own copy of the game doesn't decide kills or income).
-import { G, allied, type Ent } from './state.ts';
+import { G, allied, escort, type Ent } from './state.ts';
 import { UPGRADE_TRACKS, type UpgradeTrack } from '../data/era.ts';
 import { BUILDING, type BldType } from '../data/building.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
@@ -96,7 +96,7 @@ export function noteGathered(team: number, kind: StatRes, amount: number): void 
 /** Something was destroyed by damage from `by` (if known). */
 export function noteKill(victim: Ent, by: Ent | null): void {
   const unit = victim.kind === 'unit', bld = victim.kind === 'bld';
-  if ((!unit && !bld) || victim.bee) return; // a Bee is part of its Queen's swarm, not a unit of its own
+  if ((!unit && !bld) || escort(victim)) return; // a Bee is part of its Queen's swarm, not a unit of its own
   const v = of(victim.team);
   if (v && unit) v.lost++;
   if (!by || victim.team < 0 || !(by.team >= 0) || allied(by.team, victim.team)) return;
@@ -110,7 +110,7 @@ export function noteKill(victim: Ent, by: Ent | null): void {
 export function sampleStats(): void {
   const army = new Array<number>(G.teams).fill(0);
   for (const e of G.ents) {
-    if (e.dead || e.kind !== 'unit' || e.team < 0 || e.team >= G.teams || e.bee) continue;
+    if (e.dead || e.kind !== 'unit' || e.team < 0 || e.team >= G.teams || escort(e)) continue;
     const d = UNIT[e.type as UnitType];
     if (d?.weapon && e.type !== 'worker' && !d.haul) army[e.team]++;
   }

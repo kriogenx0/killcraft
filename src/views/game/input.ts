@@ -1,5 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
-import { G, allied, bldDef, isHarvester, targetable, tileOf, unitDef, type Ent } from '../../game/state.ts';
+import { G, allied, bldDef, escort, isHarvester, targetable, tileOf, unitDef, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TREE, TS } from '../../game/const.ts';
 import { isWall } from '../../data/building.ts';
@@ -143,7 +143,7 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
 function unitsOnScreen(test: (sx: number, sy: number) => boolean): Ent[] {
   const anyTeam = spectating();
   return G.ents.filter((e) => {
-    if (e.dead || e.kind !== 'unit' || (!anyTeam && e.team !== V.team) || e.team < 0 || e.bee) return false; // Bees follow their Queen, not orders
+    if (e.dead || e.kind !== 'unit' || (!anyTeam && e.team !== V.team) || e.team < 0 || escort(e) || unitDef(e).summoned) return false; // Bees follow their Queen, not orders
     const p = worldToScreen(e.x, e.y, midHeight(e));
     return p.front && test(p.sx, p.sy);
   });
@@ -232,7 +232,7 @@ export function startRally(): void {
 }
 
 export function selectArmy(): void {
-  setSelection(G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && !isHarvester(e) && !e.bee));
+  setSelection(G.ents.filter((e) => !e.dead && e.kind === 'unit' && e.team === V.team && !isHarvester(e) && !escort(e) && !unitDef(e).summoned));
 }
 
 function minimapWorld(ev: PointerEvent, mini: HTMLCanvasElement): [number, number] {

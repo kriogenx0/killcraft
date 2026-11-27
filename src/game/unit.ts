@@ -1,4 +1,5 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
+import { updCarrier, updHornet } from './carrier.ts';
 import { aiPace, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
@@ -693,6 +694,8 @@ function act(u: Ent, dt: number): void {
   if (d.turret && u.atkT <= 0 && u.order?.t !== 'attack' && !u.shot) u.tface = turnToward(u.tface, u.face, 2 * dt);
   if (u.bee) { updBee(u, dt); return; } // one of a Bee Queen's swarm: it stings what she fights
   if (d.swarm) callSwarm(u); // a Bee Queen in a fight calls up her Bees
+  if (u.wing != null) { updHornet(u, dt); return; } // flown off a Sky Carrier: it fights what the Carrier fights
+  if (d.hangar) updCarrier(u, dt); // a Sky Carrier launches, recalls and rebuilds its Hornets
   if (u.wild) { updWild(u, dt); return; } // guards its lair (data/creatures.ts)
   if (u.demon) { updDemon(u, dt); return; } // lurks by the Gate of Hell, or raids the leader (data/hell.ts)
   if (aetherHome(u, dt)) return; // Return Aether: banking comes before orders

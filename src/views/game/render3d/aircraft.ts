@@ -264,6 +264,69 @@ export function striker(team: number): Model {
   return { root, parts, height: 0.45 };
 }
 
+/** A Hornet, the little jet a Sky Carrier flies: a Jet Fighter in miniature. */
+export function hornet(team: number, k = 0.55): Model {
+  const f = fighter(team), root = new THREE.Group();
+  f.root.scale.setScalar(k);
+  root.add(f.root);
+  return { root, parts: f.parts, height: f.height * k };
+}
+
+/**
+ * Modern age: the Sky Carrier, a huge flying hangar. A fat grey body on long high wings with four
+ * propeller engines, a flat flight deck along its back where its Hornets sit (parts `dock0`..), a
+ * team-coloured twin tail, and launch doors in its belly. Props are parts `cprop0`..`cprop3`.
+ */
+export function carrier(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  const tm = teamMat(team, 'm', 0.35), td = teamMat(team, 'd', 0.35);
+  const grey = mat('#9aa2aa', { rough: 0.5, metal: 0.5 }), dark = mat('#5d656e', { rough: 0.6, metal: 0.5 });
+  // the body: long and deep, with a rounded nose and the cockpit glazing up front
+  root.add(scl(mesh(ball(0.1), grey, 0, 0.26, 0), 11.5, 2, 2.1));
+  root.add(scl(mesh(ball(0.1), M.glass(), 0.92, 0.36, 0), 1.6, 0.7, 1.4));
+  root.add(mesh(box(1.5, 0.05, 0.2), dark, -0.05, 0.08, 0)); // launch doors in the belly
+  for (const x of [-0.55, -0.05, 0.45]) root.add(mesh(box(0.02, 0.055, 0.21), M.hazard(), x, 0.08, 0));
+  // the flight deck along the back, with a painted centre line and a team-coloured edge
+  root.add(mesh(box(1.5, 0.04, 0.6), dark, -0.12, 0.45, 0));
+  for (let i = 0; i < 6; i++) root.add(mesh(box(0.12, 0.005, 0.02), M.white(), -0.72 + i * 0.24, 0.473, 0));
+  for (const z of [-0.3, 0.3]) root.add(mesh(box(1.5, 0.05, 0.025), tm, -0.12, 0.46, z));
+  // long high wings, team-coloured tips
+  root.add(pair([[0.3, 0.1], [0.12, 1.35], [-0.12, 1.35], [-0.28, 0.1]], 0.04, grey, 0.34));
+  root.add(pair([[0.14, 1.12], [0.12, 1.35], [-0.12, 1.35], [-0.1, 1.12]], 0.045, tm, 0.34));
+  // four engines under the wings, each with a big four-bladed prop
+  let n = 0;
+  for (const z of [-0.95, -0.5, 0.5, 0.95]) {
+    root.add(along(mesh(cyl(0.075, 0.06, 0.42, 12), dark, 0.12, 0.3, z)));
+    root.add(along(mesh(cone(0.06, 0.1, 10), M.darkSteel(), 0.38, 0.3, z)));
+    const prop = group(0.36, 0.3, z,
+      mesh(box(0.012, 0.42, 0.04), M.dark(), 0, 0, 0),
+      mesh(box(0.012, 0.04, 0.42), M.dark(), 0, 0, 0));
+    parts[`cprop${n++}`] = prop;
+    root.add(prop);
+  }
+  // twin tail: a broad tailplane and two big fins in team colour
+  root.add(pair([[-0.9, 0.05], [-1.05, 0.55], [-1.2, 0.55], [-1.18, 0.05]], 0.03, grey, 0.32));
+  for (const z of [-0.5, 0.5]) {
+    root.add(mesh(box(0.28, 0.4, 0.03), tm, -1.12, 0.55, z));
+    root.add(mesh(box(0.28, 0.06, 0.035), td, -1.12, 0.76, z));
+  }
+  // a gun turret either side of the cockpit (part `barrel` recoils)
+  const gun = group(0.6, 0.48, 0, mesh(ball(0.05), dark, 0, 0, 0), along(mesh(cyl(0.01, 0.01, 0.14, 6), M.gun(), 0.08, 0.01, 0)));
+  parts.turret = gun;
+  parts.barrel = gun.children[1];
+  root.add(gun);
+  // the Hornets aboard, two by two on the deck
+  let d = 0;
+  for (const x of [0.32, -0.12, -0.56]) for (const z of [-0.15, 0.15]) {
+    if (d >= 4) break;
+    const h = hornet(team, 0.3).root;
+    h.position.set(x, 0.47, z);
+    parts[`dock${d++}`] = h;
+    root.add(h);
+  }
+  return { root, parts, height: 0.85 };
+}
+
 // ---------------------------------------------------------------- structures
 
 /**
