@@ -122,6 +122,17 @@ export const WEATHER_MODES: Record<WeatherMode, { name: string; desc: string }> 
 };
 export const isWeatherMode = (v: unknown): v is WeatherMode => typeof v === 'string' && v in WEATHER_MODES;
 
+/**
+ * Day and night (Alex, 2026-11-27, views/game/render3d/daynight.ts): Cycle runs dawn, day, dusk and
+ * night with the sun moving across the sky; Day keeps the map's own fixed light. Only changes the look.
+ */
+export type DayNightMode = 'cycle' | 'day';
+export const DAYNIGHT_MODES: Record<DayNightMode, { name: string; desc: string }> = {
+  cycle: { name: 'Cycle', desc: 'Dawn, day, dusk and night come round every 12 minutes, and the sun moves so shadows move with it. Only the look changes.' },
+  day: { name: 'Always day', desc: 'A fixed daylight all game.' },
+};
+export const isDayNightMode = (v: unknown): v is DayNightMode => typeof v === 'string' && v in DAYNIGHT_MODES;
+
 export interface GameSetup {
   mode: Mode;
   /** the computer in each seat (index = team); seat 0 is you, except in a match to watch */
@@ -134,11 +145,13 @@ export interface GameSetup {
   speed: number;
   fog: FogMode;
   weather: WeatherMode;
+  /** day and night cycle, or always day (only the look; each player's own choice online) */
+  daynight: DayNightMode;
   /** a campaign mission (data/campaign.ts): caps the ages and records a win */
   mission?: string;
 }
 
-export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: 'reveal', weather: 'storms' };
+export const DEFAULT_SETUP: GameSetup = { mode: '1v1', seats: ['normal', 'normal', 'normal', 'normal'], seed: null, resources: 'standard', army: 'workers', speed: 1, fog: 'reveal', weather: 'storms', daynight: 'cycle' };
 export const SPEEDS = [0.5, 1, 2];
 
 /** The match a setup makes: how many teams, each one's side, which seats are empty, and each computer's difficulty. */

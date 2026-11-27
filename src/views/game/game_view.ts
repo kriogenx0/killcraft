@@ -3,7 +3,7 @@
 // The main menu (views/menu) loads this module, and three.js with it, only once a game starts.
 import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
-import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
+import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isDayNightMode, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
 import { ageLimit, bannedIn, markWon, missionById, missionWorld, nextMission } from '../../data/campaign.ts';
 import { initSnow3d, updateSnow3d } from './render3d/snow3d.ts';
 import type { LockedMap } from '../../game/map_lock.ts';
@@ -27,7 +27,7 @@ import { copyText, setupCopyButton } from '../../components/copy_button/copy_but
 import { hostedGame, storedName, type Lobby } from '../lobby/lobby_view.ts';
 import { captureWorld, restoreWorld } from '../../game/save.ts';
 import { enterGameUrl, forgetGame, gameIdFromUrl, leaveGameUrl, loadGame, onlineKey, openSaves, pruneGames, rememberOnline, saveGame, type SavedGame } from './resume.ts';
-import type { Setup } from '../setup/setup_view.ts';
+import { savedDayNight, type Setup } from '../setup/setup_view.ts';
 import { mountFullscreenButton } from './fullscreen.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
 import { canPlaceType } from '../../game/building.ts';
@@ -37,7 +37,8 @@ import { initTerrain } from './render/terrain.ts';
 import { makeIcons } from './render/icon.ts';
 import { drawMinimap, initFog } from './render/minimap.ts';
 import { moodFor } from './render3d/mood.ts';
-import { initScene, setMood, renderScene, resizeScene, updateCamera, viewFootprint } from './render3d/scene.ts';
+import { initScene, setMood, renderScene, resizeScene, startDayNight, updateCamera, updateDayNight, viewFootprint } from './render3d/scene.ts';
+import { hourAt, pinnedHour } from './render3d/daynight.ts';
 import { animateWater, initWorld3d, refreshFog, refreshOre } from './render3d/world3d.ts';
 import { updateCows3d } from './render3d/cows3d.ts';
 import { updateUnicorns3d } from './render3d/unicorns3d.ts';
@@ -161,6 +162,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   const speedBtn = must<HTMLButtonElement>(root, '.topbar-speed'), pauseBtn = must<HTMLButtonElement>(root, '.topbar-pause');
   const resignBtn = must<HTMLButtonElement>(root, '.topbar-resign'), againBtn = must<HTMLButtonElement>(root, '.game-end-again');
   const q = new URLSearchParams(location.search);
+  const tod = pinnedHour(q.get('tod'));
 
   let errors = 0, messageTimer = 0, endReason = '', shownEnd = false, quitting = false;
   /** each side's record from the server, when an online game ends */
@@ -185,9 +187,12 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   hooks.error = (err) => { console.error(err); root.dataset.errors = String(++errors); };
 
   /** Build everything drawn for the current map: terrain art, fog, and the 3D layers. */
-  const setupWorldView = () => {
+  const setupWorldView = (daynight = isDayNightMode(q.get('daynight')) ? q.get('daynight') as 'cycle' | 'day' : savedDayNight()) => {
     initTerrain(G.seed);
-    setMood(moodFor(G.seed, new URLSearchParams(location.search).get('mood') ?? (G.snow ? 'winter' : null)));
+    const mood = q.get('mood');
+    setMood(moodFor(G.seed, mood ?? (G.snow ? 'winter' : null)));
+    // day and night follows the game clock; a light picked with ?mood= stays put
+    if (daynight === 'cycle' && !mood) startDayNight(G.snow);
     initFog(refreshFog);
     initWorld3d();
     initPortals3d();
@@ -273,7 +278,8 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     updFog();
     setGameId(newGameId());
     enterGameUrl(root.dataset.gameId ?? '');
-    setupWorldView();
+    // a campaign mission keeps the player's own choice from the New game screen
+    setupWorldView(mission ? savedDayNight() : s.daynight);
     makeIcons(0);
     Object.assign(V, { team: 0, online: false, sel: [], mode: null, markers: [], pings: [], paused: false, speed: s.speed, started: true });
     (document.activeElement as HTMLElement | null)?.blur?.(); // keys go to the game, not a closed dialog's field
@@ -655,6 +661,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     oreT -= dt;
     if (oreT <= 0) { oreT = ORE_REFRESH; refreshOre(); showGoals(); }
     try {
+      updateDayNight(tod ?? hourAt(G.gameT));
       updateCamera();
       syncEntities(dt);
       updateCows3d();
@@ -725,7 +732,7 @@ function showcase(what: string): void {
  * ?showcase put one of everything near the middle, ?mood=morning|midday|afternoon|evening the light, ?armor=N
  * your Armory armour upgrades at level N, ?damage=0.5,0.3,0.1 your buildings' health in turn (fires).
  * New game settings for ?auto and ?demo: ?ai=easy|normal|hard|brutal, ?foes=3 (free-for-all), ?mode=1v1|2v2|ffa, ?res=low|high, ?army=squad|army,
- * ?fog=reveal|regrow|off, ?weather=storms|rain|off, ?speed=2, ?storm=hail|meteor a storm forms right away (and ?rain pours now).
+ * ?fog=reveal|regrow|off, ?weather=storms|rain|off, ?daynight=cycle|day, ?tod=dawn|morning|noon|afternoon|evening|dusk|night|0..1 hold the hour of the day, ?speed=2, ?storm=hail|meteor a storm forms right away (and ?rain pours now).
  */
 function testSetup(q: URLSearchParams): GameSetup {
   const s: GameSetup = { ...DEFAULT_SETUP, seed: null };
@@ -740,6 +747,8 @@ function testSetup(q: URLSearchParams): GameSetup {
   if (fog === 'off' || fog === 'regrow' || fog === 'reveal') s.fog = fog;
   const weather = q.get('weather');
   if (isWeatherMode(weather)) s.weather = weather;
+  const daynight = q.get('daynight');
+  if (isDayNightMode(daynight)) s.daynight = daynight;
   if (q.has('speed')) s.speed = Number(q.get('speed')) || 1;
   if (q.has('seed')) s.seed = Number(q.get('seed')) || null;
   return s;

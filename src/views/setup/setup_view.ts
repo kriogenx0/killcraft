@@ -1,7 +1,7 @@
 // The new game screen: how the sides line up (one vs one, two vs two or a free-for-all), the computer
 // in each seat (its difficulty, or closed), map, starting resources and units, game speed, fog of war and weather,
 // before a game against the computer (or a match to watch). The last choices are remembered.
-import { AI_LEVEL, DEFAULT_SETUP, FOG_MODES, MODES, WEATHER_MODES, isFogMode, isWeatherMode, SPEEDS, START_ARMY, START_RESOURCES, isMode, isSeatPick, playable, type Difficulty, type GameSetup, type Mode, type SeatPick } from '../../data/setup.ts';
+import { AI_LEVEL, DEFAULT_SETUP, FOG_MODES, MODES, WEATHER_MODES, DAYNIGHT_MODES, isDayNightMode, isFogMode, isWeatherMode, SPEEDS, START_ARMY, START_RESOURCES, isMode, isSeatPick, playable, type Difficulty, type GameSetup, type Mode, type SeatPick } from '../../data/setup.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 import { seatRows } from '../../components/seats/seats.ts';
 
@@ -35,6 +35,7 @@ const MARKUP = `
     ${group('speed', 'Game speed', SPEEDS.map((s) => ({ value: String(s), label: `${s}x` })), 'Speed')}
     ${group('fog', 'Fog of war', Object.entries(FOG_MODES).map(([value, f]) => ({ value, label: f.name, title: f.desc })), 'Fog')}
     ${group('weather', 'Weather', Object.entries(WEATHER_MODES).map(([value, w]) => ({ value, label: w.name, title: w.desc })))}
+    ${group('daynight', 'Day and night', Object.entries(DAYNIGHT_MODES).map(([value, d]) => ({ value, label: d.name, title: d.desc })), 'Day/night')}
     <div class="setup-row" role="group" aria-label="Map">
       <span class="setup-label">Map</span>
       <div class="setup-map">
@@ -48,6 +49,11 @@ const MARKUP = `
     <button type="button" class="ui-button setup-start">Start</button>
   </div>
 `;
+
+/** The saved choice for day and night (online games and resumed games use it too: it only changes the look). */
+export function savedDayNight(): GameSetup['daynight'] {
+  return load().daynight;
+}
 
 function load(): GameSetup {
   try {
@@ -67,6 +73,7 @@ function load(): GameSetup {
     const fog = out.fog as unknown;
     out.fog = fog === false ? 'off' : isFogMode(fog) ? fog : DEFAULT_SETUP.fog;
     if (!isWeatherMode(out.weather)) out.weather = DEFAULT_SETUP.weather;
+    if (!isDayNightMode(out.daynight)) out.daynight = DEFAULT_SETUP.daynight;
     return out;
   } catch { return { ...DEFAULT_SETUP }; }
 }
@@ -128,6 +135,7 @@ export function mountSetup(root: HTMLElement, opts: SetupOptions) {
       speed: Number(radio('speed')) || 1,
       fog: isFogMode(radio('fog')) ? radio('fog') as GameSetup['fog'] : DEFAULT_SETUP.fog,
       weather: isWeatherMode(radio('weather')) ? radio('weather') as GameSetup['weather'] : DEFAULT_SETUP.weather,
+      daynight: isDayNightMode(radio('daynight')) ? radio('daynight') as GameSetup['daynight'] : DEFAULT_SETUP.daynight,
     };
   };
 
@@ -156,6 +164,7 @@ export function mountSetup(root: HTMLElement, opts: SetupOptions) {
       set('speed', String(s.speed));
       set('fog', s.fog);
       set('weather', s.weather);
+      set('daynight', s.daynight);
       seed.value = '';
       title.textContent = watchAi ? 'Watch AI vs AI' : 'New game';
       showSeats();
