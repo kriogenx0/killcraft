@@ -20,7 +20,10 @@ import { armorFactor, weaponFactor } from './upgrade.ts';
 import { applyElement, elementMult, soakShield } from './spells.ts';
 import { stoneLands } from './weather.ts';
 import { sparkTrees } from './wildfire.ts';
-import { FIRE_CATCH } from '../data/wildfire.ts';
+import { FIRE_CATCH, FIRE_CATCH_CD } from '../data/wildfire.ts';
+
+/** A fast-firing flame (a Flamethrower's hose) catches the woods less per shot, so by the second it's no worse than a dragon's breath. */
+const catchChance = (cd: number): number => FIRE_CATCH * Math.min(1, cd / FIRE_CATCH_CD);
 
 const ALERT_COOLDOWN = 8;
 const TURRET_TURN = 4.5;
@@ -92,7 +95,7 @@ function hit(wt: WeaponType, t: Ent, src: Ent | null, x: number, y: number): voi
   if (G.visualOnly) { if (w.splash) blast(x, y, w.splash); return; } // the server decides damage
   dealDamage(t, w.dmg * w.vs[armorOf(t)] * elementMult(w.element, t) * hideFactor(wt, t), src);
   applyElement(t, w.element, src);
-  if (w.element === 'fire') sparkTrees(x, y, w.splash, FIRE_CATCH); // a stray flame can catch the woods
+  if (w.element === 'fire') sparkTrees(x, y, w.splash, catchChance(w.cd)); // a stray flame can catch the woods
   if (w.slow) hex(t, w.slow);
   if (w.petrify && !t.dead) petrify(t, w.petrify);
   if (!w.splash) return;
@@ -406,7 +409,7 @@ function shellLands(wt: WeaponType, x: number, y: number, src: Ent | null, team:
   explosion(x, y, w.splash);
   burst('debris', x, y, 10, 60, 180);
   if (G.visualOnly) return; // the server decides damage
-  if (w.element === 'fire') sparkTrees(x, y, w.splash, FIRE_CATCH);
+  if (w.element === 'fire') sparkTrees(x, y, w.splash, catchChance(w.cd));
   for (const e of G.ents) {
     if (e.dead || e.kind === 'source' || allied(e.team, team)) continue;
     const d = e.w ? edgeDist({ x, y }, e) : Math.max(0, Math.hypot(e.x - x, e.y - y) - unitDef(e).radius);

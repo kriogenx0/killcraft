@@ -7,6 +7,8 @@
 
 /** Chance a fire attack (a dragon's breath, a fireball, a burning blade...) landing by the woods sets a tree alight. */
 export const FIRE_CATCH = 0.05;
+/** Weapons that fire faster than once in this many seconds (a Flamethrower) catch the woods less per shot, in step. */
+export const FIRE_CATCH_CD = 2;
 /** Chance a falling meteor-shower stone that lands by the woods sets a tree alight. */
 export const STONE_CATCH = 0.15;
 /** How far beyond a blast's edge (tiles) a tree can catch from it. */
