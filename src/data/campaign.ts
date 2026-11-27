@@ -43,8 +43,8 @@ export const UNLOCKS: Thing[][] = [
     'fighter', 'striker', 'juggernaut'],
   // 10: creatures only, on both sides (Alex): the Mystery Egg, which hatches them
   ['mystery'],
-  // 11: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
-  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'titan'],
+  // 11: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things"); the Spy, with the Ward Stone that finds it
+  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'titan', 'spy'],
   // 12: everything is open (Alex: "2v2 hard")
   [],
 ];

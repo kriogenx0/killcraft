@@ -8,7 +8,7 @@ export type UnitType = 'rifleman' | 'gunner' | 'rocket' | 'swordsman' | 'crossbo
   | 'mage' | 'stormcaller' | 'archmage' | 'tidecaller' | 'plaguewitch' | 'sludgewarlock' | 'juggernaut' | 'titan' | 'giant'
   | 'centaur' | 'minotaur' | 'harpy' | 'griffin' | 'pegasus' | 'cyclops' | 'hydra' | 'cerberus'
   | 'medusa' | 'nemean' | 'phoenix' | 'sphinx' | 'satyr' | 'chimera' | 'dragon' | 'beequeen' | 'bee'
-  | 'mystery' | 'chicken'
+  | 'mystery' | 'chicken' | 'spy'
   | 'imp' | 'fiend' | 'archfiend' | 'drake';
 /** infantry turn on the spot and bleed (knights included); vehicles turn slowly and explode; aircraft fly over everything */
 export type UnitClass = 'infantry' | 'vehicle' | 'air';
@@ -36,6 +36,8 @@ export interface UnitDef {
   aether?: number;
   /** stays unseen by enemies until it fires or an enemy comes close (see CLOAK_* in data/aether.ts) */
   cloak?: boolean;
+  /** a cloaked unit that only shows to enemies this close, in tiles, instead of CLOAK_DETECT (the Spy) */
+  spot?: number;
   /**
    * a creature of Greek myth (data/creatures.ts). Wild ones guard lairs on the map; a side can only
    * train a kind once it has captured one.
@@ -161,6 +163,10 @@ export const UNIT: Record<UnitType, UnitDef> = {
   // jets: the fastest things in the sky, and they can't hover. They make passes at a target and loop back round.
   fighter: { name: 'Jet Fighter', cls: 'air', armor: 'air', hp: 280, spd: 9.5, turn: 2.6, weapon: 'aam', cost: 650, oil: 200, t: 21, era: 2, sight: 10, producer: 'air', turret: false, radius: 13, alt: 1.8, jet: true, desc: 'Supersonic interceptor with heat-seeking missiles. Hunts helicopters, drones, balloons and flying creatures, and outruns anything in the sky. Can\'t hit the ground, and can\'t hover: it makes passes and loops back.' },
   striker: { name: 'Strike Jet', cls: 'air', armor: 'air', hp: 340, spd: 8.0, turn: 1.9, weapon: 'jetbomb', cost: 1000, oil: 300, t: 31, era: 2, sight: 8, producer: 'air', turret: false, radius: 15, alt: 1.8, jet: true, desc: 'Swoops in low and drops a heavy bomb, then streaks away and loops back for another run. Wrecks buildings, turrets and tanks from across the map. Can\'t hover or fight other aircraft; flak and fighters bring it down.' },
+  // the Spy (Alex, 2026-11-27): a Modern-age infiltrator for watching other sides. It never fights; it
+  // stays cloaked (only Ward Stones, Sphinxes, other Spies and enemies all but on top of it see it),
+  // sees far, and runs when it's shot at.
+  spy: { name: 'Spy', cls: 'infantry', armor: 'none', hp: 70, spd: 2.8, turn: 7, weapon: null, cost: 250, oil: 75, t: 9, era: 2, sight: 11, producer: 'infantry', turret: false, radius: 6, cloak: true, spot: 1, detect: 4, desc: 'Unarmed infiltrator in a camouflage suit. Enemies can\'t see it unless they all but bump into it, and it sees far, so park it by an enemy base to watch what they build and where their army goes. Never attacks, and runs if it\'s shot at. Spots other cloaked units within 4 tiles. Ward Stones and Sphinxes see through its disguise.' },
   // hidden units, revealed by Aether: each matches its regular unit, plus one trick
   wraith: { name: 'Wraith Knight', cls: 'infantry', armor: 'light', hp: 240, spd: 4.6, turn: 5, weapon: 'wraithlance', cost: 350, wood: 30, aether: 50, t: 13, era: 0, sight: 6, producer: 'infantry', turret: false, radius: 11, look: 'knight', desc: 'A knight bound to Aether. Its spectral lance passes through armor.' },
   hexblade: { name: 'Hex Rifleman', cls: 'infantry', armor: 'none', hp: 57, spd: 2.0, turn: 6.5, weapon: 'hexrifle', cost: 100, wood: 20, aether: 10, t: 4, era: 1, sight: 5, producer: 'infantry', turret: false, radius: 6, look: 'rifleman', desc: 'Hexed shot slows whatever it hits to half speed for a moment.' },

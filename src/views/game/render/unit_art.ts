@@ -223,6 +223,19 @@ function medic(g: G2, T: TeamColors, p: UnitPose): void {
   g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 0.8; g.stroke();
 }
 
+function spy(g: G2, T: TeamColors, p: UnitPose): void {
+  const by = feet(g, p, '#1c1c1c');
+  // radio pack and its aerial
+  blob(g, -Math.cos(p.f) * 3.5, by - 1, 2.8, 3, '#2a2d30');
+  g.strokeStyle = '#2a2d30'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(-Math.cos(p.f) * 3.5, by - 3); g.lineTo(-Math.cos(p.f) * 4.5 - 1, by - 16); g.stroke();
+  blob(g, 0, by, 5, 6, shade(g, 0, by, 6, '#4a5054', '#22262a'));
+  g.fillStyle = T.d; g.fillRect(-5, by + 2, 10, 1.6); // team belt
+  blob(g, 0, by - 8, 4, 4, '#2b3033'); // hood
+  // goggles glowing green, facing the way it looks
+  const cs = Math.cos(p.f), sn = Math.sin(p.f);
+  if (sn > -0.3) { g.fillStyle = '#5aff80'; for (const s of [-1, 1]) { g.beginPath(); g.arc(cs * 1.6 + s * 1.5, by - 8.2 + sn * 0.8, 1.1, 0, TAU); g.fill(); } }
+}
+
 function swordsman(g: G2, T: TeamColors, p: UnitPose): void {
   const cs = Math.cos(p.f), sn = Math.sin(p.f), back = sn < -0.3, by = feet(g, p, '#4c525c');
   // kite shield on the off hand
@@ -445,6 +458,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     case 'crossbowman': crossbowman(g, T, p); break;
     case 'knight': knight(g, T, p); break;
     case 'medic': medic(g, T, p); break;
+    case 'spy': spy(g, T, p); break;
     case 'catapult': catapult(g, T, p); break;
     case 'artillery': artillery(g, T, p); break;
     case 'jeep': jeep(g, T, p); break;

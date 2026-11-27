@@ -109,7 +109,7 @@ const eyeMat = new THREE.MeshBasicMaterial({ color: '#ff2010' });
 const LUST_GROW = 0.12;
 
 /** Foot soldiers (models.ts soldier()): their faces are all in one place. */
-const SOLDIERS = new Set(['rifleman', 'gunner', 'medic', 'rocket', 'swordsman', 'crossbowman', 'worker']);
+const SOLDIERS = new Set(['rifleman', 'gunner', 'medic', 'rocket', 'swordsman', 'crossbowman', 'worker', 'spy']);
 
 /** Glowing red eyes on a foot soldier's face (soldier heads all sit at the same spot: models.ts). */
 function rageEyes(): THREE.Group {
