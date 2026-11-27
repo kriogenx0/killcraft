@@ -128,7 +128,7 @@ export const isWeatherMode = (v: unknown): v is WeatherMode => typeof v === 'str
  */
 export type DayNightMode = 'cycle' | 'day';
 export const DAYNIGHT_MODES: Record<DayNightMode, { name: string; desc: string }> = {
-  cycle: { name: 'Cycle', desc: 'Dawn, day, dusk and night come round every 12 minutes, and the sun moves so shadows move with it. Only the look changes.' },
+  cycle: { name: 'Cycle', desc: 'Dawn, day, dusk and night come round every 20 minutes, and the sun moves so shadows move with it. Only the look changes.' },
   day: { name: 'Always day', desc: 'A fixed daylight all game.' },
 };
 export const isDayNightMode = (v: unknown): v is DayNightMode => typeof v === 'string' && v in DAYNIGHT_MODES;

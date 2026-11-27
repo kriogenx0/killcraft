@@ -8,7 +8,7 @@ import { lerp } from '../../../util/math.ts';
 import { MOODS, WINTER, type Mood } from './mood.ts';
 
 /** Length of one whole day and night, in game seconds. */
-export const DAY_LENGTH = 12 * 60;
+export const DAY_LENGTH = 20 * 60;
 /** Where in the day a game starts (0 = first light, see KEYS): early morning. */
 export const START_HOUR = 0.07;
 /** The sun is up from SUNRISE through SUNSET (share of the day, wrapping past 1); the moon the rest. */
