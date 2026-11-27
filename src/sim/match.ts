@@ -109,6 +109,12 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
   for (let t = 0; t < G.teams; t++) ais[t].on = true;
   if (Array.isArray(level)) level.forEach((l, t) => { if (ais[t]) { ais[t].level = l; ais[t].attackAt = AI_LEVEL[l].firstWave; } });
   else setAiLevel(level);
+  // a head start, as a real game gives it (game_view.ts): Brutal starts with more ore and wood
+  for (let t = 0; t < G.teams; t++) {
+    const bonus = AI_LEVEL[ais[t].level].bonus;
+    if (bonus !== 1) { G.credits[t] = Math.round(G.credits[t] * bonus); G.wood[t] = Math.round(G.wood[t] * bonus); }
+  }
+  const startCredits = G.credits.slice(0, G.teams);
 
   const stats: TeamStats[] = Array.from({ length: G.teams }, (_, team) => ({
     team, ageAt: [0, null, null, null], healAt: [0, null, null, null], built: {}, lost: {}, killsBy: {}, killed: {}, killValueBy: {},
@@ -167,7 +173,7 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
     s.avgOil = Math.round(s.avgOil / Math.max(1, samples));
     s.income = Math.round(s.income);
     if (s.gathered) for (const k of ['wood', 'oil', 'aether'] as const) s.gathered[k] = Math.round(s.gathered[k]);
-    s.spent = Math.round(START_CREDITS + s.income + s.bounty - G.credits[s.team]);
+    s.spent = Math.round((startCredits[s.team] ?? START_CREDITS) + s.income + s.bounty - G.credits[s.team]);
     s.peakBank = Math.round(s.peakBank);
   }
   // places: survivors share first (or the winner alone), then in reverse order of elimination
