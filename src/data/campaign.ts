@@ -1,6 +1,6 @@
-// The campaign (Alex, 2026-11-27): eleven solo missions against the computer, starting super simple.
+// The campaign (Alex, 2026-11-27): twelve solo missions against the computer, starting super simple.
 // Missions 1-3 are against Easy computers in the Medieval age with no magic and no oil; the
-// Industrial age opens on mission 4, scarce wood on mission 7, magic on mission 8, the Modern age on mission 9, and Aether, creatures and storms on mission 10.
+// Industrial age opens on mission 4, scarce wood on mission 7, magic on mission 8, the Modern age on mission 9, creatures against creatures on mission 10, and Aether, creatures and storms on mission 11.
 // Each mission unlocks more to build (UNLOCKS): everything a later mission unlocks is banned for
 // every side until then. Some missions are on a winter map (snow). Winning a mission unlocks the
 // next one; progress is kept in this browser.
@@ -10,6 +10,7 @@ import { UNIT, UNIT_TYPES, type UnitType } from './unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from './building.ts';
 import { SPARSE, smallBounds, type MapLayout } from './map.ts';
 import { mulberry32 } from '../util/math.ts';
+import { BEASTS } from './creatures.ts';
 import type { Goal, Rush, Tile } from '../game/state.ts';
 
 type Thing = BldType | UnitType | TechType;
@@ -40,9 +41,11 @@ export const UNLOCKS: Thing[][] = [
   // jets and cyborgs, the Modern casters
   ['age2', 'harvester', 'rocket', 'heavy', 'helicopter', 'drone', 'atturret', 'archmage', 'sludgewarlock', 'heal3', 'infWeapon3', 'infArmor3', 'vehWeapon3', 'vehArmor3',
     'fighter', 'striker', 'juggernaut'],
-  // 10: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
-  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'mystery', 'titan'],
-  // 11: everything is open (Alex: "2v2 hard")
+  // 10: creatures only, on both sides (Alex): the Mystery Egg, which hatches them
+  ['mystery'],
+  // 11: Aether, creatures, storms and all the rest (Alex: "introduction to aether, creatures, weather, all the other things")
+  ['shrine', 'wardstone', 'ward', 'waygate', 'wraith', 'hexblade', 'phantom', 'starfall', 'giant', 'titan'],
+  // 12: everything is open (Alex: "2v2 hard")
   [],
 ];
 
@@ -95,6 +98,11 @@ export interface Mission {
 // every mission uses the Regrow fog of war (Alex, 2026-11-27)
 const game = (s: Partial<GameSetup>): GameSetup => ({ ...DEFAULT_SETUP, seats: [...DEFAULT_SETUP.seats], speed: 1, ...s, fog: 'regrow' });
 const rep = <T extends UnitType>(t: T, n: number): UnitType[] => Array.from({ length: n }, () => t);
+/** `n` creatures picked at random from the seed (the same every time), no Dragons */
+const randomBeasts = (seed: number, n: number): UnitType[] => {
+  const rnd = mulberry32(seed), kinds = BEASTS.filter((t) => t !== 'dragon');
+  return Array.from({ length: n }, () => kinds[Math.floor(rnd() * kinds.length)]);
+};
 const vs = (level: GameSetup['seats'][number]): GameSetup['seats'] => [level, level, level, level];
 
 export const MISSIONS: Mission[] = [
@@ -153,6 +161,14 @@ export const MISSIONS: Mission[] = [
     id: 'frozen-front', name: 'Frozen Front', maxEra: 2, snow: true,
     brief: 'The Modern age opens, with jets, helicopters, cyborgs and more. One Normal computer on a frozen map.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 8808 }),
+  },
+  {
+    // Alex: "Between mission 9 and 10 add a mission where player only has creatures and goes against random creatures"
+    id: 'beast-war', name: 'Beast War', maxEra: 2, small: 68,
+    army: [...rep('centaur', 3), ...rep('minotaur', 2), ...rep('cyclops', 2), ...rep('harpy', 2), ...rep('griffin', 2), 'medusa', 'nemean', 'dragon'],
+    scatter: randomBeasts(9505, 18), camps: 12,
+    brief: 'No town, no soldiers: you lead a band of 14 creatures of myth. Creatures of every kind roam the land against you, more of them than you, and packs nearby come running when they hear a fight. Hunt them all down.',
+    setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 9505 }),
   },
   {
     // Alex: "Mission 9 - introduction to aether, creatures, weather, all the other things"

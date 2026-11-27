@@ -144,14 +144,14 @@ describe('mission 1', () => {
 
 describe('Aether and creatures', () => {
   it('stay out of the campaign until mission 9 (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 9));
+    MISSIONS.forEach((m, i) => expect(!!m.wild, m.id).toBe(i >= 10));
     for (const m of MISSIONS.slice(0, 8)) for (const t of bannedIn(m).length ? ['shrine', 'wraith', 'giant', 'mystery', 'waygate'] : []) expect(bannedIn(m), `${m.id} ${t}`).toContain(t);
     // each mission as the game starts it
     MISSIONS.forEach((m, i) => {
       initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
       expect(G.hell.gate, m.id).toBe(false);
-      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 9);
-      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 9 || !!m.guards);
+      expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 10);
+      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 10 || !!m.guards);
     });
     initWorld(2202, 2, { wild: false, gate: false, aether: false });
     expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
@@ -301,7 +301,7 @@ describe('Black Gold goals', () => {
 
 describe('campaign progress', () => {
   it('has only rain for weather until mission 8, and none on a snow map (Alex)', () => {
-    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 9 ? 'storms' : m.snow ? 'off' : 'rain'));
+    MISSIONS.forEach((m, i) => expect(m.setup.weather, m.id).toBe(i >= 10 ? 'storms' : m.snow ? 'off' : 'rain'));
   });
 
   it('every mission uses the Regrow fog of war (Alex)', () => {
@@ -322,7 +322,7 @@ describe('campaign progress', () => {
   });
 
   it('opens the Industrial age on mission 4 and the Modern age on mission 9 (Alex)', () => {
-    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2]);
+    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2]);
   });
 
   it('unlocks every building, unit and research exactly once, never before its age (Alex: each level unlocks more)', () => {
