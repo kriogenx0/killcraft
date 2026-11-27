@@ -7,7 +7,7 @@ import { exploredAt, seenAt } from '../../game/fog.ts';
 import { priceOf } from '../../game/production.ts';
 import { dispatch, ids } from './dispatch.ts';
 import { toggleFollow } from './follow_cam.ts';
-import { centerCam, clampCam, inFormation, ownSelected, selectedUnits, spectating, toggleFormation, V } from './view_state.ts';
+import { canToggleFormation, centerCam, clampCam, inFormation, ownSelected, selectedUnits, spectating, toggleFormation, V } from './view_state.ts';
 import { refreshCommands, runHotkey, setSelection } from './hud.ts';
 import { ROTATE_KEYS, SCROLL_KEYS, SPEED_KEYS, isTyping, zoomKey, normalizeKey, scrollVector, tracksKey } from './keyboard.ts';
 import { productionHotkey } from './sidebar.ts';
@@ -496,7 +496,7 @@ function onKey(ev: KeyboardEvent): void {
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (k === 'f' && (ev.shiftKey || spectating())) { toggleFollow(); refreshCommands(true); return; }
   if (k === 'r' && ev.shiftKey) { if (!spectating()) startRally(); return; }
-  if (k === 'm' && ev.shiftKey) { if (ownSelected().filter((e) => e.kind === 'unit').length > 1) { toggleFormation(); refreshCommands(true); } return; }
+  if (k === 'm' && ev.shiftKey) { if (canToggleFormation()) { toggleFormation(); refreshCommands(true); } return; }
   // Shift with a letter: the card's Shift commands, such as what to do when attacked
   if (ev.shiftKey && /^[a-z]$/.test(k) && runHotkey(`shift+${k}`)) { ev.preventDefault(); refreshCommands(true); return; }
   const hk = normalizeKey(ev.key);

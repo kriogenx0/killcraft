@@ -15,6 +15,7 @@
   color: var(--color-button-text);
   cursor: pointer;
   user-select: none;
+  touch-action: manipulation;
   background: var(--color-button-bottom) center 3px / 26px no-repeat;
   border: 2px solid var(--color-rim);
   border-radius: $radius;
