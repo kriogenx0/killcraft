@@ -15,7 +15,7 @@ import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, AETHER_RETUR
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { found } from './fog.ts';
 import { nearestOwn } from './query.ts';
-import { AETHER_BANKS, ORE_BANKS, bankAt, banksOf, dropAt } from './haul.ts';
+import { AETHER_BANKS, ORE_BANKS, banksOf, dropAt } from './haul.ts';
 import { WOOD_BANKS, chopOut, fellingOut, updChop } from './chop.ts';
 import { part } from './fx.ts';
 import { IDLE_GRACE, aetherJobOf, forgetAether, fetching, autoGather, keepResume, rethink, stayOnDerrick, takeResume } from './autogather.ts';

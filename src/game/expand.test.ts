@@ -100,7 +100,7 @@ describe('expanding', () => {
     const u = addUnit('worker', 0, 44 * TS, 33 * TS);
     u.carry = 150; u.cargo = 'ore';
     orderHarvest(u, 44, 33);
-    u.order!.st = 'ret';
+    if (u.order?.t === 'harvest') u.order.st = 'ret';
     for (let i = 0; i < 1 / STEP; i++) update(STEP);
     camp.done = true;
     for (let i = 0; i < 8 / STEP && u.carry > 0; i++) update(STEP);
