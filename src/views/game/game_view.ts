@@ -4,7 +4,7 @@
 import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isDayNightMode, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
-import { ageLimit, bannedIn, markWon, missionById, missionWorld, nextMission } from '../../data/campaign.ts';
+import { CAMPAIGN_DONE, ageLimit, bannedIn, campaignDone, markWon, missionById, missionWorld, nextMission } from '../../data/campaign.ts';
 import { initSnow3d, updateSnow3d } from './render3d/snow3d.ts';
 import type { LockedMap } from '../../game/map_lock.ts';
 import { teamColors } from '../../data/team.ts';
@@ -646,7 +646,12 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
         if (won) markWon(mission.id);
         missionNote = won ? (next ? `Mission complete. ${next.name} is unlocked.` : 'Mission complete. That was the last mission!') : 'Mission failed. Try it again from the campaign.';
         againBtn.textContent = 'Campaign';
+        // the last mission won with every other one: the whole campaign is done (Alex: a congratulations)
+        if (won && !next && campaignDone()) must(root, '.game-result').textContent = 'Campaign complete!';
       }
+      const congrats = must<HTMLElement>(root, '.game-end-congrats');
+      congrats.hidden = !(mission && !nextMission(mission.id) && G.winner >= 0 && allied(G.winner, V.team) && campaignDone());
+      congrats.textContent = congrats.hidden ? '' : CAMPAIGN_DONE;
       must(root, '.game-end-time').textContent = [missionNote, endReason, `Time ${formatTime(G.gameT)}`].filter(Boolean).join(' ');
       const sideName = (t: number) => `${watchingNames?.[t] || onlineNames?.[t] || teamColors(t).name}${t === V.team && !G.demo && !watchingNames ? ' (you)' : ''}`;
       renderEndStats(must(root, '.game-end-stats'), V.online ? endStats : summarize(), sideName, G.winner);

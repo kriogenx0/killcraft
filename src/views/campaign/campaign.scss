@@ -16,6 +16,19 @@
     text-shadow: 0 4px 0 #6a3a10, 0 0 20px #000;
   }
 
+  // every mission won (Alex: a congratulations for finishing the campaign)
+  .campaign-done {
+    max-width: 560px;
+    margin: 0;
+    padding: $space-3 $space-4;
+    border: 2px solid var(--color-title);
+    border-radius: 8px;
+    background: rgb(60 40 10 / 70%);
+    color: var(--color-title);
+    font-weight: 600;
+    text-align: center;
+  }
+
   .campaign-list {
     display: flex;
     flex-direction: column;

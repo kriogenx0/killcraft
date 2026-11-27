@@ -274,4 +274,10 @@ export function markWon(id: string): void {
 export const unlocked = (i: number, won = wonMissions()): boolean => MISSIONS.slice(0, i).every((m) => won.has(m.id));
 
 /** The mission after this one, if any. */
+/** Every mission won: the whole campaign is finished. */
+export const campaignDone = (won = wonMissions()): boolean => MISSIONS.every((m) => won.has(m.id));
+
+/** The congratulations for finishing the campaign (Alex): on the last mission's victory screen and the campaign screen. */
+export const CAMPAIGN_DONE = `Congratulations, Commander! You have won all ${MISSIONS.length} missions of the Killcraft campaign, from a lone camp on a small island to the last stand of the modern age. Every age, every machine and every spell is yours. Replay any mission, or take your army online.`;
+
 export const nextMission = (id: string): Mission | null => MISSIONS[MISSIONS.findIndex((m) => m.id === id) + 1] ?? null;

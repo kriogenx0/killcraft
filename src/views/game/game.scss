@@ -178,6 +178,13 @@ $sidebar-width: 248px;
     }
   }
 
+  // the last mission won: the whole campaign is done
+  .game-end-congrats {
+    max-width: 480px;
+    color: var(--color-title);
+    font-weight: 600;
+  }
+
   .game-end-id {
     font-size: $font-sm;
     overflow-wrap: anywhere;

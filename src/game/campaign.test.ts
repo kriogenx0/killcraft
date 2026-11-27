@@ -14,7 +14,7 @@ import { available } from './production.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import type { LockedMap } from './map_lock.ts';
 import { matchOf } from '../data/setup.ts';
-import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, missionLayout, missionWorld, unlocked } from '../data/campaign.ts';
+import { CAMPAIGN_DONE, MISSIONS, SCHEDULED, campaignDone, UNLOCKS, bannedIn, missionLayout, missionWorld, unlocked } from '../data/campaign.ts';
 import { START_YARDS } from '../data/map.ts';
 import { BUILDING } from '../data/building.ts';
 import { UNIT } from '../data/unit.ts';
@@ -306,6 +306,12 @@ describe('campaign progress', () => {
 
   it('every mission uses the Regrow fog of war (Alex)', () => {
     expect(MISSIONS.every((m) => m.setup.fog === 'regrow')).toBe(true);
+  });
+
+  it('is finished once every mission is won (Alex: a congratulations)', () => {
+    expect(campaignDone(new Set(MISSIONS.slice(0, -1).map((m) => m.id)))).toBe(false);
+    expect(campaignDone(new Set(MISSIONS.map((m) => m.id)))).toBe(true);
+    expect(CAMPAIGN_DONE).toContain(`${MISSIONS.length} missions`);
   });
 
   it('opens a mission once every mission before it is won', () => {

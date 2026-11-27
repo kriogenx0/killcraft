@@ -1,12 +1,13 @@
 // The campaign screen: the missions in order, each with its brief and age limit. The first is always
 // open; winning one opens the next (data/campaign.ts keeps the progress in this browser).
-import { MISSIONS, ageLimit, newIn, unlocked, wonMissions, type Mission } from '../../data/campaign.ts';
+import { CAMPAIGN_DONE, MISSIONS, ageLimit, campaignDone, newIn, unlocked, wonMissions, type Mission } from '../../data/campaign.ts';
 import { AI_LEVEL } from '../../data/setup.ts';
 import { closeModal, openModal } from '../../components/modal/modal.ts';
 
 const MARKUP = `
   <h2 class="campaign-title">Campaign</h2>
   <p class="game-intro campaign-intro">Win a mission to open the next one.</p>
+  <p class="campaign-done" hidden></p>
   <ol class="campaign-list" aria-label="Missions"></ol>
   <div class="ui-modal-actions">
     <button type="button" class="ui-button ui-button--secondary campaign-back">Back</button>
@@ -27,6 +28,9 @@ export function mountCampaign(root: HTMLElement, opts: CampaignOptions) {
 
   const render = () => {
     const won = wonMissions();
+    const done = root.querySelector('.campaign-done') as HTMLElement;
+    done.hidden = !campaignDone(won);
+    done.textContent = done.hidden ? '' : `🏆 ${CAMPAIGN_DONE}`;
     let focus: HTMLButtonElement | null = null;
     list.replaceChildren(...MISSIONS.map((m, i) => {
       const open = unlocked(i, won), done = won.has(m.id);
