@@ -392,6 +392,8 @@ export const G = {
   mission: null as string | null,
   /** a winter map: snow on the ground and trees, and snow falling (looks only) */
   snow: false,
+  /** a small map: only the middle of the grid is land (data/map.ts SMALL_LO..SMALL_HI) */
+  small: false,
   /** creature lairs and the Gate of Hell are on the map (false in campaign missions; eggs then hatch no creatures) */
   wild: true,
   /** units, buildings and research nobody may use in this game (a campaign mission's rules) */

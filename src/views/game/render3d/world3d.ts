@@ -220,7 +220,7 @@ export function refreshOre(): void {
   if (!oil) return;
   // one dark pool at the heart of each well, shrinking as it's drained
   let k = 0;
-  for (const [wx, wy] of layoutFor(G.teams).oil) {
+  for (const [wx, wy] of layoutFor(G.teams, G.small).oil) {
     if (!G.vis[wy * MW + wx]) continue;
     let left = 0, n = 0;
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const i = (wy + dy) * MW + wx + dx; if (i >= 0 && i < MW * MH) { left += G.oilField[i]; n++; } }

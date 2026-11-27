@@ -59,7 +59,7 @@ function spotNear(cx: number, cy: number): [number, number] | null {
 
 /** Where the new Town Hall goes: the fallen side's own corner if there's room, else beside the reviver's Town Hall. */
 export function reviveSpot(by: number, target: number): [number, number] | null {
-  const home = layoutFor(G.teams).yards[target];
+  const home = layoutFor(G.teams, G.small).yards[target];
   const own = G.ents.find((e) => !e.dead && e.team === by && e.type === 'yard' && e.done);
   return (home && spotNear(home[0], home[1])) ?? (own ? spotNear(own.tx, own.ty) : null);
 }

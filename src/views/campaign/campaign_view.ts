@@ -37,7 +37,7 @@ export function mountCampaign(root: HTMLElement, opts: CampaignOptions) {
         <div class="campaign-mission-text">
           <span class="campaign-mission-name">${i + 1}. ${m.name}${done ? ' <span class="campaign-mission-check" title="Won">✓</span>' : ''}</span>
           <span class="campaign-mission-brief">${open ? m.brief : 'Win the mission before to unlock.'}</span>
-          <span class="campaign-mission-meta">${ageLimit(m)}${m.snow ? ' · Snow' : ''} · ${level} computer</span>
+          <span class="campaign-mission-meta">${ageLimit(m)}${m.snow ? ' · Snow' : ''}${m.small ? ' · Small map' : ''} · ${m.scatter ? 'No enemy town' : `${level} computer`}</span>
           ${open ? `<span class="campaign-mission-meta campaign-mission-new">New: ${newIn(m).join(', ')}</span>` : ''}
         </div>`;
       const b = document.createElement('button');

@@ -55,18 +55,24 @@ export interface Mission {
   maxEra: number;
   /** a winter map */
   snow?: boolean;
+  /** a small map */
+  small?: boolean;
+  /** no enemy town: the enemy is just these units, in small groups across the map */
+  scatter?: UnitType[];
   /** the game it plays (fixed map, so a mission is the same each time) */
   setup: GameSetup;
 }
 
-const game = (s: Partial<GameSetup>): GameSetup => ({ ...DEFAULT_SETUP, seats: [...DEFAULT_SETUP.seats], fog: 'reveal', speed: 1, ...s });
+// every mission uses the Regrow fog of war (Alex, 2026-11-27)
+const game = (s: Partial<GameSetup>): GameSetup => ({ ...DEFAULT_SETUP, seats: [...DEFAULT_SETUP.seats], speed: 1, ...s, fog: 'regrow' });
 const vs = (level: GameSetup['seats'][number]): GameSetup['seats'] => [level, level, level, level];
 
 export const MISSIONS: Mission[] = [
   {
-    id: 'first-camp', name: 'First Camp', maxEra: 0,
-    brief: 'One Easy computer, plenty of ore and wood and a small squad to start. Build a base and knock theirs down.',
-    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'high', army: 'squad', seed: 1101 }),
+    id: 'first-camp', name: 'First Camp', maxEra: 0, small: true,
+    scatter: ['swordsman', 'swordsman', 'crossbowman', 'swordsman', 'crossbowman', 'swordsman', 'swordsman', 'crossbowman'],
+    brief: 'A small island with little ore and wood. No enemy town yet: hunt down the enemy soldiers camped across it.',
+    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'squad', seed: 1101 }),
   },
   {
     id: 'two-workers', name: 'Two Workers', maxEra: 0,
@@ -85,8 +91,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'thin-pickings', name: 'Thin Pickings', maxEra: 1, snow: true,
-    brief: 'A hard winter: half the usual ore and wood, and the fog grows back. Every Worker counts.',
-    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'workers', fog: 'regrow', seed: 5505 }),
+    brief: 'A hard winter: half the usual ore and wood. Every Worker counts.',
+    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'workers', seed: 5505 }),
   },
   {
     id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1,

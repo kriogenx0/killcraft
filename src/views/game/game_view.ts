@@ -229,7 +229,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   /** The winning side's names: one team, or every team allied with it ("Blue and Green"). */
   const winners = (team: number): string => Array.from({ length: G.teams }, (_, t) => t)
     .filter((t) => !G.absent?.[t] && allied(t, team)).map((t) => watchingNames?.[t] || onlineNames?.[t] || teamColors(t).name).join(' and ');
-  const home = (team: number) => { const [x, y] = layoutFor(G.teams).yards[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
+  const home = (team: number) => { const [x, y] = layoutFor(G.teams, G.small).yards[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
   home(V.team);
 
   // ---- solo and AI vs AI ----
@@ -239,13 +239,14 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     closeModal(startModal);
     const { teams, ally, absent, levels } = matchOf(s, demo);
     const mission = demo ? null : missionById(s.mission);
-    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra, ban: mission ? bannedIn(mission) : undefined, snow: !!mission?.snow, wild: !mission });
+    initWorld(s.seed ?? Math.floor(Math.random() * 1e6), teams, { share: START_RESOURCES[s.resources].share, units: START_ARMY[s.army].units, ally, absent, fog: s.fog, maxEra: mission?.maxEra, ban: mission ? bannedIn(mission) : undefined, snow: !!mission?.snow, wild: !mission, small: !!mission?.small, scatter: mission?.scatter });
     G.mission = mission?.id ?? null;
     // spectators see the whole map, so they can follow and inspect every side
     Object.assign(G, { demo, visualOnly: false, viewer: 0, human: Array.from({ length: teams }, (_, t) => t === 0 && !demo), reveal: q.has('reveal') || demo || s.fog === 'off' });
     ais.forEach((a, t) => {
       const level = levels[t];
-      a.on = t < teams && !G.human[t] && !!level;
+      // a mission's scattered enemies have no town to run: they just stand their ground
+      a.on = t < teams && !G.human[t] && !!level && !mission?.scatter;
       if (!a.on || !level) return;
       setAiLevel(level, t);
       const bonus = AI_LEVEL[level].bonus;
@@ -477,7 +478,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     speedBtn.hidden = pauseBtn.hidden = true;
     againBtn.textContent = 'Back to lobby';
     // between the two bases, pulled back
-    const [a, b] = layoutFor(G.teams).yards;
+    const [a, b] = layoutFor(G.teams, G.small).yards;
     centerCam(((a[0] + b[0]) / 2 + 1.5) * TS, ((a[1] + b[1]) / 2 + 1.5) * TS);
     setSelection([]);
     show(`Watching ${sidesTitle(m.players.map((p, t) => (p ? `${p} (${teamColors(t).name})` : '')), m.ally)}`);

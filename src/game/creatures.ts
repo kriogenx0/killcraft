@@ -21,7 +21,7 @@ const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
 /** Ground tiles reachable on foot from the first base. */
 function reachable(): Uint8Array {
-  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
+  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams, G.small).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;

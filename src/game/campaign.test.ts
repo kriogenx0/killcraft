@@ -6,6 +6,8 @@ import { G, hooks } from './state.ts';
 import { STEP } from './const.ts';
 import { ais, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
+import { WATER } from './const.ts';
+import { kill } from './entity.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
 import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, unlocked } from '../data/campaign.ts';
@@ -113,7 +115,33 @@ describe('campaign maps', () => {
   });
 });
 
+describe('mission 1', () => {
+  it('is a small island with few resources and no enemy town, only scattered soldiers (Alex)', () => {
+    const m = MISSIONS[0];
+    initWorld(m.setup.seed ?? 1, 2, { maxEra: m.maxEra, ban: bannedIn(m), wild: false, small: true, scatter: m.scatter, units: ['worker', 'worker'] });
+    expect(G.small).toBe(true);
+    expect(G.ents.filter((e) => e.team === 1 && e.kind === 'bld')).toEqual([]);
+    const foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
+    expect(foes.length).toBe(m.scatter!.length);
+    // the outside of the grid is sea
+    expect(G.terr[2 * 96 + 2]).toBe(WATER);
+    expect(G.terr[93 * 96 + 50]).toBe(WATER);
+    // no more than three ore rocks
+    expect(G.ents.filter((e) => e.type === 'source').length).toBeLessThanOrEqual(3);
+    // wipe them out and the mission is won
+    G.headless = true;
+    for (const f of foes) { f.hp = 0; kill(f); }
+    for (let k = 0; k < 10 / STEP && !G.over; k++) update(STEP);
+    expect(G.over).toBe(true);
+    expect(G.winner).toBe(0);
+  });
+});
+
 describe('campaign progress', () => {
+  it('every mission uses the Regrow fog of war (Alex)', () => {
+    expect(MISSIONS.every((m) => m.setup.fog === 'regrow')).toBe(true);
+  });
+
   it('opens a mission once every mission before it is won', () => {
     expect(unlocked(0, new Set())).toBe(true);
     expect(unlocked(1, new Set())).toBe(false);
