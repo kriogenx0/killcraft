@@ -297,7 +297,7 @@ function animateBuilding(m: Model, e: Ent, dt: number): void {
   if (P.pump && e.done) P.pump.rotation.z = Math.sin(G.gameT * 2.2 + e.id) * 0.22;
   // Aether structures: the shrine's star turns and bobs, the ward's eye pulses, a linked waygate's veil swirls
   if (P.star && e.done) { P.star.rotation.y += dt * 0.8; P.star.position.y = 0.72 + Math.sin(G.gameT * 1.6 + e.id) * 0.04; }
-  // the Mage Tower's crystal turns and bobs over its roof
+  // the Arcane Circle's crystal turns and bobs over its roof
   if (P.rune && e.done) { P.rune.rotation.y += dt * 0.9; P.rune.position.y = (P.rune.userData.y as number) + Math.sin(G.gameT * 1.4 + e.id) * 0.05; }
   if (P.eye && e.done) P.eye.scale.setScalar(1 + Math.sin(G.gameT * 3 + e.id) * 0.15);
   if (P.veil) { P.veil.visible = e.done && waygateLinked(e); P.veil.rotation.z += dt * 1.2; }

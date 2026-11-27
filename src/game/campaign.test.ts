@@ -86,7 +86,7 @@ describe('campaign bans', () => {
       expect(own.filter((e) => bannedIn(m).includes(e.type)).map((e) => e.type)).toEqual([]);
     }, 30_000);
 
-  it('the first missions offer no Mage Tower, spellcasters or Oil Derrick, and the computer builds without them', () => {
+  it('the first missions offer no Arcane Circle, spellcasters or Oil Derrick, and the computer builds without them', () => {
     const m = MISSIONS[1];
     vi.spyOn(Math, 'random').mockImplementation(mulberry32(9));
     hooks.error = (e) => { throw e; };
