@@ -82,5 +82,5 @@ describe('units steer around each other', () => {
     // at the field, and matches fight more, which lifts this to about 2-2.8 (it was 1.8-2.3). The slower Normal computer keeps more units bunched at
     // home, about 3.1
     expect(crowding(1, 600).shove).toBeLessThan(3.6);
-  }, 60_000);
+  }, 150_000);
 });

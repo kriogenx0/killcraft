@@ -102,7 +102,7 @@ export const WEAPON: Record<WeaponType, WeaponDef> = {
   // creatures of Greek myth
   centaurbow: { dmg: 17, range: 4.5, cd: 1.1, proj: 'bolt', speed: 540, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.3, air: 1.3 } },
   axe: { dmg: 34, range: 0.8, cd: 1.5, proj: 'melee', speed: 0, splash: 0, vs: { none: 1, light: 0.9, heavy: 0.6, building: 1.3, air: 0 } },
-  hurl: { dmg: 45, range: 6, cd: 3.2, proj: 'boulder', speed: 260, splash: 16, vs: { none: 0.6, light: 0.9, heavy: 1.1, building: 1.4, air: 0 } },
+  hurl: { dmg: 55, range: 6, cd: 3.2, proj: 'boulder', speed: 260, splash: 16, vs: { none: 0.6, light: 0.9, heavy: 1.1, building: 1.4, air: 0 } },
   hydrabite: { element: 'poison', dmg: 13, range: 1.1, cd: 0.9, proj: 'melee', speed: 0, splash: 0, heads: 3, vs: { none: 1, light: 0.85, heavy: 0.5, building: 0.5, air: 0.5 } },
   hellfire: { element: 'fire', dmg: 26, range: 1.8, cd: 1.4, proj: 'shell', speed: 300, splash: 22, vs: { none: 1.2, light: 0.8, heavy: 0.4, building: 0.6, air: 0 } },
   talons: { dmg: 14, range: 0.8, cd: 0.8, proj: 'melee', speed: 0, splash: 0, vs: { none: 1.1, light: 0.8, heavy: 0.3, building: 0.25, air: 0.6 } },

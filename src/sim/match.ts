@@ -36,6 +36,8 @@ export interface TeamStats {
   killValueBy: Record<string, number>;
   /** ore harvested */
   income: number;
+  /** wood, oil and Aether brought home (ore is `income`) */
+  gathered?: { wood: number; oil: number; aether: number };
   /** ore banked from bounty loot for destroying the leader's things */
   bounty: number;
   /** ore spent (start + income - bank; sales and refunds count as negative spending) */
@@ -110,11 +112,12 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
 
   const stats: TeamStats[] = Array.from({ length: G.teams }, (_, team) => ({
     team, ageAt: [0, null, null, null], healAt: [0, null, null, null], built: {}, lost: {}, killsBy: {}, killed: {}, killValueBy: {},
-    timeline: [], income: 0, bounty: 0, spent: 0, avgBank: 0, avgWood: 0, avgOil: 0, peakBank: START_CREDITS, peakArmy: 0, outAt: null, place: 0,
+    timeline: [], gathered: { wood: 0, oil: 0, aether: 0 }, income: 0, bounty: 0, spent: 0, avgBank: 0, avgWood: 0, avgOil: 0, peakBank: START_CREDITS, peakArmy: 0, outAt: null, place: 0,
   }));
   const seen = new Set<number>(G.ents.map((e) => e.id));
   hooks.income = (team, a) => { stats[team].income += a; };
   hooks.bounty = (team, a) => { stats[team].bounty += a; };
+  hooks.gain = (team, _x, _y, kind, a) => { const g = stats[team]?.gathered; if (g && kind !== 'ore') g[kind] += a; };
   hooks.killedBy = (v: Ent, by: Ent | null) => {
     if (v.team < 0) return;
     bump(stats[v.team].lost, v.type);
@@ -163,6 +166,7 @@ export function playMatch({ seed, teams = 4, maxSeconds = 3600, level = 'normal'
     s.avgWood = Math.round(s.avgWood / Math.max(1, samples));
     s.avgOil = Math.round(s.avgOil / Math.max(1, samples));
     s.income = Math.round(s.income);
+    if (s.gathered) for (const k of ['wood', 'oil', 'aether'] as const) s.gathered[k] = Math.round(s.gathered[k]);
     s.spent = Math.round(START_CREDITS + s.income + s.bounty - G.credits[s.team]);
     s.peakBank = Math.round(s.peakBank);
   }
