@@ -72,6 +72,10 @@ function infantry(g: G2, type: UnitType, T: TeamColors, p: UnitPose): void {
       // heavy gun with a cooling jacket
       oline(g, hx - cs * recoil, hy - sn * recoil, hx + cs * (12 - recoil), hy + sn * (10 - recoil), 2.8, '#3a3e38');
       blob(g, hx + cs * 2, hy + sn * 2 + 2, 2, 1.6, '#4e5430');
+    } else if (type === 'flamer') {
+      // wand with a glowing nozzle
+      oline(g, hx - cs * recoil, hy - sn * recoil, hx + cs * (10 - recoil), hy + sn * (8 - recoil), 2, '#3a3e38');
+      blob(g, hx + cs * (10 - recoil), hy + sn * (8 - recoil), 1.4, 1.4, '#ff8a30');
     } else if (type === 'rocket') {
       // launcher on the shoulder
       oline(g, hx - cs * (5 + recoil), hy - 3 - sn * 5, hx + cs * (9 - recoil), hy - 3 + sn * 7, 3.4, '#5a6232');
@@ -80,6 +84,7 @@ function infantry(g: G2, type: UnitType, T: TeamColors, p: UnitPose): void {
   };
   if (back) gun();
   if (type === 'rocket') blob(g, -cs * 4, by - 1 - sn * 2, 3.5, 4, '#4e5430'); // backpack
+  if (type === 'flamer') blob(g, -cs * 4, by - 1 - sn * 2, 4, 4.5, '#8c2a1c'); // fuel tanks
   blob(g, 0, by, 5, 6, shade(g, 0, by, 6, UNIFORM[0], UNIFORM[1]));
   g.fillStyle = T.m;
   g.fillRect(-4, by - 2, 8, 3.2);
@@ -439,7 +444,7 @@ export function drawUnitArt(g: G2, type: UnitType, team: number, x: number, y: n
     g.fillRect(-26, -30, 52, 44);
   }
   switch (look ?? type) {
-    case 'rifleman': case 'gunner': case 'rocket': infantry(g, look ?? type, T, p); break;
+    case 'rifleman': case 'gunner': case 'rocket': case 'flamer': infantry(g, look ?? type, T, p); break;
     case 'swordsman': swordsman(g, T, p); break;
     case 'guardian': g.scale(1.6, 1.6); swordsman(g, T, p); break; // a Footman's outline, much bigger
     case 'crossbowman': crossbowman(g, T, p); break;

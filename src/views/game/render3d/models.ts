@@ -20,7 +20,7 @@ import { arcaneModel } from './arcane3d.ts';
 import { giantModel } from './giant3d.ts';
 import { chickenModel } from './chicken3d.ts';
 import { mageTower } from './magetower3d.ts';
-import { gem, loft, loftX, slab, taper, turned } from './shapes.ts';
+import { ball, cap, gem, loft, loftX, slab, taper, turned } from './shapes.ts';
 import { M, box, cone, cyl, dodeca, dome, lathe, mat, octa, prism, sph, teamMat, torus } from './materials.ts';
 
 export type { Model } from './model_kit.ts';
@@ -222,6 +222,46 @@ function gunner(team: number): Model {
     mesh(box(0.04, 0.05, 0.05), M.olive(), 0, -0.05, -0.04), // ammo pan
     rod([0.2, -0.01, 0.015], [0.24, -0.13, 0.05], 0.005, M.gun(), 4), // bipod legs
     rod([0.2, -0.01, -0.015], [0.24, -0.13, -0.05], 0.005, M.gun(), 4));
+  m.parts.gun = gun;
+  m.root.add(gun);
+  return m;
+}
+
+/**
+ * Industrial: a flamethrower trooper in a heavy fire-proof coat and a gas mask, two fuel tanks strapped
+ * to his back, a hose running down to the wand in his hands and a pilot light burning at its tip.
+ */
+function flamer(team: number): Model {
+  const coat = mat('#5c5a48', { rough: 0.95, tex: 'canvas' });
+  const m = soldier({ torso: coat, legs: M.olive(), arms: coat, boots: M.rubber(), hands: M.leather() });
+  m.root.add(mesh(shell(0.27, 0.4, 0.01), teamMat(team))); // team apron over the coat
+  m.root.add(mesh(shell(0.2, 0.235, 0.014), M.leather())); // belt
+  helmet(m.root, teamMat(team, 'd'));
+  // gas mask: round goggles and a snout with its filter can
+  for (const z of [-0.035, 0.035]) m.root.add(along(mesh(cyl(0.02, 0.02, 0.012, 8), M.glass(), 0.112, 0.485, z)));
+  m.root.add(along(mesh(cyl(0.022, 0.03, 0.04, 8), M.rubber(), 0.12, 0.445, 0)));
+  m.root.add(along(mesh(cyl(0.025, 0.025, 0.03, 8), M.darkSteel(), 0.15, 0.44, 0)));
+  // two fuel tanks with a pressure bottle between them, on a frame
+  const tank = mat('#8c2a1c', { rough: 0.5, metal: 0.4 });
+  for (const z of [-0.045, 0.045]) {
+    m.root.add(mesh(cyl(0.04, 0.04, 0.2, 10), tank, -0.12, 0.34, z));
+    m.root.add(mesh(cap(0.04, 10), tank, -0.12, 0.44, z));
+    m.root.add(mesh(cyl(0.042, 0.042, 0.014, 10), M.darkSteel(), -0.12, 0.3, z)); // band
+  }
+  m.root.add(mesh(cyl(0.024, 0.024, 0.17, 8), M.steel(), -0.155, 0.33, 0)); // pressure bottle
+  m.root.add(mesh(cyl(0.01, 0.01, 0.03, 6), M.brass(), -0.155, 0.43, 0)); // valve
+  m.root.add(mesh(box(0.012, 0.03, 0.15), M.darkSteel(), -0.1, 0.235, 0)); // frame foot
+  m.root.add(rod([-0.12, 0.25, 0.045], [0.02, 0.2, 0.09], 0.01, M.rubber(), 5)); // hose
+  m.root.add(rod([0.02, 0.2, 0.09], [0.11, 0.3, 0.07], 0.01, M.rubber(), 5));
+  m.parts.armL.rotation.z = m.parts.armR.rotation.z = 1.2;
+  const gun = group(0.15, 0.31, 0.06,
+    mesh(box(0.05, 0.04, 0.03), M.gun(), -0.05, 0, 0), // rear grip housing
+    mesh(box(0.02, 0.05, 0.02), M.gun(), -0.06, -0.04, 0), // trigger grip
+    along(mesh(cyl(0.022, 0.022, 0.1, 8), M.brass(), 0.02, 0.008, 0)), // fuel reservoir
+    along(mesh(cyl(0.011, 0.011, 0.2, 6), M.darkSteel(), 0.12, 0, 0)), // wand
+    mesh(box(0.02, 0.045, 0.02), M.gun(), 0.07, -0.035, 0), // front grip
+    along(mesh(cyl(0.02, 0.016, 0.04, 8), M.darkSteel(), 0.22, 0, 0)), // nozzle
+    mesh(ball(0.016), M.ember(), 0.25, -0.016, 0)); // pilot light
   m.parts.gun = gun;
   m.root.add(gun);
   return m;
@@ -900,6 +940,7 @@ function makeUnit(type: UnitType, team: number): Model {
     case 'rocket': return rocketeer(team);
     case 'swordsman': return swordsman(team);
     case 'guardian': return guardian(team);
+    case 'flamer': return flamer(team);
     case 'crossbowman': return crossbowman(team);
     case 'knight': return knight(team);
     case 'medic': return medic(team);

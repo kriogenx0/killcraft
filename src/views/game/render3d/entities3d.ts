@@ -202,6 +202,7 @@ function animateUnit(m: Model, e: Ent, dt: number): void {
       break;
     case 'rifleman':
     case 'gunner':
+    case 'flamer':
     case 'rocket':
     case 'crossbowman':
       recoil(P.gun, atk > 0 ? (1 - atk) * 0.08 : 0);
