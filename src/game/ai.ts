@@ -4,6 +4,7 @@
 import { WEAPON, type WeaponType } from '../data/weapon.ts';
 import { REVIVE_PRICE, fallenAllies, revive } from './revive.ts';
 import { G, oreLoadOf, allied, bldDef, hostile, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
+import { found } from './fog.ts';
 import { TECH, isTechType, type TechType } from '../data/era.ts';
 import { MH, MW, TS } from './const.ts';
 import { clamp } from '../util/math.ts';
@@ -430,11 +431,11 @@ function wellSite(team: number, s: number, yard: Ent): Tile | null {
   return best;
 }
 
-/** Ore (in tiles worth a trip) within r tiles of a tile. */
-function oreWithin(cx: number, cy: number, r: number): number {
+/** Ore (in tiles worth a trip) the side has found within r tiles of a tile. */
+function oreWithin(team: number, cx: number, cy: number, r: number): number {
   let sum = 0;
   for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
-    for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) if (G.ore[y * MW + x] >= ORE_WORTH) sum += G.ore[y * MW + x];
+    for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) if (G.ore[y * MW + x] >= ORE_WORTH && found(team, y * MW + x)) sum += G.ore[y * MW + x];
   return sum;
 }
 
@@ -460,7 +461,7 @@ function expansion(team: number, can: readonly string[]): BldType | null {
   if (sitesOf(team).some((e) => isExpansion(e.type))) return null;
   if (countOf(team, 'camp') + countOf(team, 'yard') - 1 >= MAX_EXPANSIONS) return null;
   const banks = banksOf(team, ORE_BANKS);
-  const left = banks.reduce((s, b) => s + oreWithin(b.tx + (b.w >> 1), b.ty + (b.h >> 1), DIG_REACH), 0);
+  const left = banks.reduce((s, b) => s + oreWithin(team, b.tx + (b.w >> 1), b.ty + (b.h >> 1), DIG_REACH), 0);
   if (left >= LOW_ORE) return null;
   // only worth it once the nearest ore left is a long walk away
   if (nearestTrip(team, banks) < LONG_TRIP) return null;
@@ -480,7 +481,7 @@ const LONG_TRIP = 14;
 function nearestTrip(team: number, banks: Ent[]): number {
   const walk = walkDist(banks);
   let best = Infinity;
-  for (let i = 0; i < MW * MH; i++) if (G.ore[i] >= ORE_WORTH && !G.blk[i] && walk[i] < best) best = walk[i];
+  for (let i = 0; i < MW * MH; i++) if (G.ore[i] >= ORE_WORTH && !G.blk[i] && walk[i] < best && found(team, i)) best = walk[i];
   return best;
 }
 
@@ -499,7 +500,7 @@ function expandSite(team: number, s: number, yard: Ent): Tile | null {
     for (let tx = 1; tx + s < MW - 1; tx++) {
       // far enough from every drop-off that it shortens trips, not just doubles up
       if (banks.some((b) => Math.max(b.tx - (tx + s), tx - (b.tx + b.w), b.ty - (ty + s), ty - (b.ty + b.h)) < DIG_REACH)) continue;
-      const ore = oreWithin(tx + (s >> 1), ty + (s >> 1), 5);
+      const ore = oreWithin(team, tx + (s >> 1), ty + (s >> 1), 5);
       if (ore < FIELD_ORE) continue;
       // don't bury ore under the camp
       let onOre = false;

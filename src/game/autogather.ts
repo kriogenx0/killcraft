@@ -4,6 +4,7 @@
 // follows the bank. A Worker set to Ore, Wood or Oil sticks to it.
 import { AETHER_DRY, AETHER_WORTH } from '../data/aether.ts';
 import { G, isHarvester, tileOf, valid, type Ent, type HarvestOrder } from './state.ts';
+import { found } from './fog.ts';
 import { MH, MW, TS } from './const.ts';
 import { ORE_BANKS, bankAt, banksOf } from './haul.ts';
 import { WOOD_BANKS, treeFor } from './chop.ts';
@@ -56,7 +57,7 @@ export function options(u: Ent): Res[] {
   const out: Res[] = [];
   // ore by any drop-off counts: a Mining Camp or second Town Hall by a far field keeps Workers digging
   const oreHome = bankAt(u, ORE_BANKS);
-  if (banksOf(u.team, ORE_BANKS).some((b) => near(b, (i) => G.ore[i] > 0))) out.push('ore');
+  if (banksOf(u.team, ORE_BANKS).some((b) => near(b, (i) => G.ore[i] > 0 && found(u.team, i)))) out.push('ore');
   if (u.type === 'worker') {
     if (treeFor(u)) out.push('wood');
     if (oreHome && derrickFor(u)) out.push('oil');

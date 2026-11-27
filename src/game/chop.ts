@@ -2,6 +2,7 @@
 // Lumber Mill, Refinery or Town Hall (see unit.ts for the trip home); nothing is banked
 // until it's dropped off. Workers spread over the trees, one to a tree while there are enough.
 import { G, valid, type Ent, type HarvestOrder, type Target } from './state.ts';
+import { found } from './fog.ts';
 import { GRASS, MH, MW, TREE, TS } from './const.ts';
 import { approach, turnToward } from './move.ts';
 import { bankAt } from './haul.ts';
@@ -96,7 +97,7 @@ export function nearestTree(u: Ent, cx: number, cy: number, r: number, home?: En
   for (let y = Math.max(0, cy - r); y <= Math.min(MH - 1, cy + r); y++)
     for (let x = Math.max(0, cx - r); x <= Math.min(MW - 1, cx + r); x++) {
       const i = y * MW + x;
-      if (G.terr[i] !== TREE || G.treeWood[i] < CHOP_WORTH || !reachable(i) || bad?.has(i)) continue;
+      if (G.terr[i] !== TREE || G.treeWood[i] < CHOP_WORTH || !found(u.team, i) || !reachable(i) || bad?.has(i)) continue;
       // a stump with less than the Worker still has room for counts as further off: it'd soon be on the move again
       const thin = Math.max(0, 1 - G.treeWood[i] / Math.max(1, woodLoad(u) - u.carry)) * THIN;
       const crowd = choppersAt(i, u);

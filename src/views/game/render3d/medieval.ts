@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import type { AetherBld, BldType } from '../../../data/building.ts';
 import { across, along, group, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { M, box, cone, cyl, dome, lathe, prism, sph, teamMat, torus } from './materials.ts';
+import { M, box, cone, cyl, dome, lathe, mat, prism, sph, teamMat, torus } from './materials.ts';
 
 /** The look of one age: `gun` is the Gunpowder age. */
 interface Look { gun: boolean; team: number; wall: Mat; roof: Mat; thatch: Mat }
@@ -863,3 +863,90 @@ export function smithy(team: number, gun: boolean): Model {
   return { root, parts, height: 1.5 };
 }
 
+
+/**
+ * Hospital, Medieval: an infirmary chapel. A whitewashed nave set end-on with a steep red-tiled roof,
+ * a rounded apse behind, a bell-cote and a tall cross over the front gable, a red cross over the door
+ * and a red-cross banner out front, an herb garden in raised beds, a well, and a line of linen
+ * drying. Tall, white and gabled end-on, so it never reads as the Barracks' thatched round hut.
+ */
+export function infirmary(team: number, gun: boolean): Model {
+  const root = new THREE.Group(), parts: Parts = {};
+  ground(root, 2, 67);
+  const red = mat('#c42a22', { rough: 0.7 }), tile = gun ? M.slate() : mat('#a8462e', { rough: 0.85, tex: 'brick' });
+  const lime = mat('#f4f0e6', { rough: 0.95, tex: 'plaster' });
+  const nx = -0.3, nz = -0.3, nw = 0.66, nd = 1.1, wh = 0.62, rh = 0.55, front = nz + nd / 2;
+  // the nave: a stone footing, limewashed walls, corner quoins, a steep tiled roof end-on
+  root.add(mesh(box(nw + 0.06, 0.1, nd + 0.06), gun ? M.dressedStone() : M.stone(), nx, 0.1, nz));
+  root.add(mesh(box(nw, wh, nd), lime, nx, 0.15 + wh / 2, nz));
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let i = 0; i < 4; i++) {
+    root.add(mesh(box(0.07, 0.07, 0.07), M.dressedStone(), nx + sx * (nw / 2 - 0.025), 0.22 + i * 0.15, nz + sz * (nd / 2 - 0.025)));
+  }
+  const y0 = 0.15 + wh;
+  root.add(rot(mesh(prism(nd, nw, rh), lime, nx, y0, nz), 0, Math.PI / 2, 0));
+  const slope = Math.hypot(nw / 2, rh), ang = Math.atan2(rh, nw / 2);
+  for (const s of [-1, 1]) root.add(rot(mesh(box(slope + 0.1, 0.04, nd + 0.12), tile, nx + s * nw / 4, y0 + rh / 2, nz), 0, 0, -s * ang));
+  root.add(mesh(box(0.05, 0.05, nd + 0.14), M.darkWood(), nx, y0 + rh + 0.01, nz));
+  // tall lancet windows down each side
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) {
+    const z = nz - 0.32 + i * 0.32, x = nx + s * (nw / 2 + 0.006);
+    root.add(mesh(box(0.012, 0.22, 0.07), M.window(), x, 0.45, z));
+    root.add(rot(mesh(cone(0.04, 0.07, 4), M.window(), x, 0.59, z), 0, Math.PI / 4, 0));
+  }
+  // the apse: a half-round end with a cone roof
+  root.add(mesh(cyl(0.3, 0.3, wh, 14), lime, nx, 0.15 + wh / 2, nz - nd / 2));
+  root.add(mesh(cone(0.36, 0.38, 14), tile, nx, y0 + 0.17, nz - nd / 2));
+  // the front: an arched door, a rose window with a red cross, a red-cross cloth over the door
+  door(root, nx, 0.15, front + 0.005, 0.22, 0.4);
+  root.add(mesh(cyl(0.11, 0.11, 0.03, 14), M.dressedStone(), nx, 0.95, front + 0.01).rotateX(Math.PI / 2));
+  root.add(mesh(cyl(0.085, 0.085, 0.035, 14), M.white(), nx, 0.95, front + 0.012).rotateX(Math.PI / 2));
+  root.add(mesh(box(0.04, 0.14, 0.04), red, nx, 0.95, front + 0.025), mesh(box(0.14, 0.04, 0.04), red, nx, 0.95, front + 0.025));
+  // bell-cote on the front gable, and a cross over everything
+  const by = y0 + rh - 0.05, bz = front - 0.06;
+  for (const dx of [-0.08, 0.08]) root.add(mesh(box(0.04, 0.24, 0.08), M.dressedStone(), nx + dx, by + 0.12, bz));
+  root.add(rot(mesh(prism(0.12, 0.24, 0.1), tile, nx, by + 0.24, bz), 0, Math.PI / 2, 0));
+  root.add(mesh(lathe([[0, 0], [0.055, 0], [0.04, 0.03], [0.03, 0.09], [0, 0.1]], 10), M.bronze(), nx, by + 0.08, bz));
+  root.add(mesh(box(0.04, 0.3, 0.04), M.white(), nx, by + 0.48, bz));
+  root.add(mesh(box(0.18, 0.04, 0.04), M.white(), nx, by + 0.54, bz));
+  // red-cross banner on a pole by the door, seen from across the map
+  const px = nx + 0.55, pz = front + 0.25, ph = 1.15;
+  root.add(mesh(cyl(0.015, 0.018, ph, 6), M.timber(), px, ph / 2 + 0.05, pz));
+  root.add(mesh(box(0.34, 0.025, 0.025), M.timber(), px, ph, pz));
+  root.add(mesh(box(0.3, 0.38, 0.012), M.white(), px, ph - 0.21, pz));
+  root.add(mesh(box(0.07, 0.28, 0.02), red, px, ph - 0.21, pz), mesh(box(0.24, 0.07, 0.02), red, px, ph - 0.21, pz));
+  root.add(mesh(box(0.3, 0.03, 0.014), teamMat(team), px, ph - 0.41, pz)); // team-coloured fringe
+  // herb garden: raised beds of greens and lavender behind a wattle edge
+  const leaf = mat('#4c8a34', { rough: 0.9, flat: true }), sage = mat('#7fa868', { rough: 0.9, flat: true });
+  const lav = mat('#8a6ac8', { rough: 0.8 }), bloom = mat('#e8c840', { rough: 0.8 });
+  for (let b = 0; b < 3; b++) {
+    const gz = -0.7 + b * 0.38, gx = 0.55;
+    root.add(mesh(box(0.56, 0.08, 0.26), M.wattle(), gx, 0.09, gz));
+    root.add(mesh(box(0.52, 0.02, 0.22), M.dirt(), gx, 0.135, gz));
+    for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) {
+      const x = gx - 0.2 + i * 0.1, z = gz - 0.05 + j * 0.1;
+      if (b === 1) {
+        root.add(mesh(cyl(0.006, 0.006, 0.1, 4), sage, x, 0.19, z));
+        root.add(mesh(cone(0.022, 0.07, 5), lav, x, 0.26, z));
+      } else {
+        root.add(scl(mesh(sph(0.045, 6, 4), (i + j) % 2 ? leaf : sage, x, 0.17, z), 1, 0.8, 1));
+        if (b === 2 && (i + j) % 3 === 0) root.add(mesh(sph(0.018, 6, 4), bloom, x, 0.215, z));
+      }
+    }
+  }
+  // the well
+  const wx = 0.62, wz = 0.62;
+  root.add(mesh(cyl(0.13, 0.14, 0.18, 12), M.stone(), wx, 0.14, wz));
+  root.add(mesh(cyl(0.1, 0.1, 0.01, 12), M.glass(), wx, 0.22, wz));
+  for (const dx of [-0.12, 0.12]) root.add(mesh(box(0.03, 0.34, 0.03), M.timber(), wx + dx, 0.32, wz));
+  root.add(rot(mesh(prism(0.3, 0.3, 0.12), tile, wx, 0.48, wz), 0, 0, 0));
+  root.add(mesh(box(0.06, 0.05, 0.05), M.wood(), wx, 0.33, wz));
+  // linen and bandages drying on a line out front
+  for (const x of [-0.88, -0.12]) root.add(mesh(cyl(0.012, 0.012, 0.42, 5), M.timber(), x, 0.26, 0.72));
+  root.add(mesh(box(0.76, 0.006, 0.006), M.rope(), -0.5, 0.45, 0.72));
+  for (const [x, w, h] of [[-0.74, 0.16, 0.2], [-0.52, 0.18, 0.24], [-0.3, 0.14, 0.18]] as const) {
+    root.add(rot(mesh(box(w, h, 0.008), M.white(), x, 0.45 - h / 2, 0.72), 0, 0.05, 0));
+  }
+  root.add(mesh(box(0.1, 0.012, 0.009), red, -0.52, 0.38, 0.725));
+  flagpole(root, parts, team, 0.85, 0.05, -0.85, 1.0);
+  return { root, parts, height: 1.6 };
+}

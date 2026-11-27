@@ -11,7 +11,7 @@ import { UNIT, type UnitType } from '../../../data/unit.ts';
 import { isAetherBld, type AetherBld, type BldType } from '../../../data/building.ts';
 import { aetherBuilding } from './aether3d.ts';
 import { across, along, group, mesh, rod, rot, scl, type Mat, type Model, type Parts } from './model_kit.ts';
-import { medievalBuilding, smithy } from './medieval.ts';
+import { infirmary, medievalBuilding, smithy } from './medieval.ts';
 import { bertha, missileTurret, pillbox, wallModel } from './defenses.ts';
 import { airfield, balloon, biplane, drone, fighter, flak, helicopter, striker } from './aircraft.ts';
 import { creatureModel } from './creatures3d.ts';
@@ -1078,6 +1078,70 @@ function powerPlant(team: number): Model {
   return { root, parts, height: 1.45 };
 }
 
+/**
+ * Power Plant, Modern: a solar and wind farm. Rows of tilted blue solar panels, a white wind turbine
+ * whose blades turn (the `sails` part), a glass-fronted control centre, a bank of battery containers
+ * and a substation. No smoke, no cooling towers: nothing like the Industrial coal plant.
+ */
+function solarPlant(team: number): Model {
+  const root = new THREE.Group(), parts: Parts = {}, tm = teamMat(team);
+  root.add(pad(2));
+  kerb(root, 2);
+  const cell = mat('#1c3368', { rough: 0.2, metal: 0.6 }), frame = M.steel();
+  // three rows of solar panels on steel legs, tilted to the sun
+  for (const z of [0.12, 0.44, 0.76]) {
+    for (const x of [-0.6, -0.08, 0.44]) {
+      root.add(rot(group(x + 0.2, 0.2, z,
+        mesh(box(0.48, 0.025, 0.24), frame, 0, 0, 0),
+        mesh(box(0.46, 0.03, 0.22), cell, 0, 0.003, 0),
+        mesh(box(0.006, 0.034, 0.22), frame, -0.115, 0.004, 0),
+        mesh(box(0.006, 0.034, 0.22), frame, 0, 0.004, 0),
+        mesh(box(0.006, 0.034, 0.22), frame, 0.115, 0.004, 0),
+        mesh(box(0.46, 0.034, 0.006), frame, 0, 0.004, 0)), 0.45, 0, 0));
+      for (const dx of [-0.15, 0.15]) root.add(mesh(box(0.02, 0.17, 0.02), M.darkSteel(), x + 0.2 + dx, 0.12, z - 0.04));
+    }
+  }
+  // the wind turbine: a tall white tapered mast, a nacelle with a team band, three turning blades
+  const tx = -0.62, tz = -0.6, hub = 1.38;
+  root.add(mesh(cyl(0.1, 0.13, 0.08, 12), M.lightConcrete(), tx, 0.1, tz));
+  root.add(mesh(cyl(0.035, 0.065, hub - 0.1, 10), M.white(), tx, 0.1 + (hub - 0.1) / 2, tz));
+  root.add(mesh(box(0.12, 0.12, 0.28), M.white(), tx, hub, tz - 0.06));
+  root.add(mesh(box(0.125, 0.03, 0.285), tm, tx, hub - 0.03, tz - 0.06));
+  const rotor = new THREE.Group();
+  rotor.position.set(tx, hub, tz + 0.1);
+  rotor.add(rot(mesh(cone(0.05, 0.1, 10), M.white(), 0, 0, 0.03), Math.PI / 2, 0, 0));
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const blade = mesh(box(0.06, 0.52, 0.015), M.white(), 0, 0.28, 0);
+    const arm = new THREE.Group();
+    arm.rotation.z = a;
+    arm.add(blade);
+    arm.add(mesh(box(0.062, 0.06, 0.017), tm, 0, 0.5, 0)); // team-coloured tips
+    rotor.add(arm);
+  }
+  root.add(rotor);
+  parts.sails = rotor;
+  // the control centre: white walls, a glass front, a team band and a rooftop dish
+  const cx = 0.35, cz = -0.5;
+  root.add(mesh(box(0.86, 0.4, 0.5), M.white(), cx, 0.26, cz));
+  root.add(mesh(box(0.82, 0.3, 0.02), M.glass(), cx, 0.25, cz + 0.255));
+  for (let i = 0; i < 5; i++) root.add(mesh(box(0.015, 0.32, 0.025), M.steel(), cx - 0.4 + i * 0.2, 0.25, cz + 0.26));
+  root.add(mesh(box(0.9, 0.05, 0.54), tm, cx, 0.48, cz));
+  root.add(mesh(box(0.88, 0.02, 0.52), M.metalRoof(), cx, 0.515, cz));
+  root.add(mesh(box(0.2, 0.06, 0.14), M.steel(), cx + 0.2, 0.555, cz - 0.08));
+  // battery containers along the back, green charge lights on each
+  const charge = mat('#5cff8a', { emissive: '#3dff6a', emissiveIntensity: 1.2 });
+  for (const x of [-0.25, 0.05]) {
+    root.add(mesh(box(0.26, 0.2, 0.14), M.lightConcrete(), x, 0.16, -0.86));
+    root.add(mesh(box(0.265, 0.03, 0.145), tm, x, 0.2, -0.86));
+    root.add(mesh(box(0.03, 0.03, 0.01), charge, x + 0.08, 0.13, -0.785));
+  }
+  // substation: transformer and insulators
+  root.add(mesh(box(0.18, 0.18, 0.16), M.darkSteel(), 0.82, 0.15, -0.84));
+  for (const x of [0.77, 0.82, 0.87]) for (let j = 0; j < 3; j++) root.add(mesh(cyl(0.014, 0.014, 0.02, 8), mat('#6a8a6a', { rough: 0.3 }), x, 0.26 + j * 0.025, -0.84));
+  return { root, parts, height: 1.8 };
+}
+
 function refinery(team: number): Model {
   const root = new THREE.Group();
   const tm = teamMat(team);
@@ -1561,13 +1625,12 @@ export function buildingModel(type: BldType, team: number, era = ERA_LOOK.length
   if (type === 'armory') return cached(`b:${type}:${team}:${lk}`, () => (lk <= 1 ? smithy(team, lk === 1) : lk === 2 ? industrial(arsenal(team)) : arsenal(team)));
   if (type === 'magetower') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(mageTower(team, 3)) : mageTower(team, lk)));
   if (type === 'hospital') {
-    // a barracks-sized building told apart by the red cross out front
-    const base = () => (lk === 0 ? medievalBuilding('barracks', team, 'wood')
-      : lk === 1 ? medievalBuilding('barracks', team, 'stone')
-        : lk === 2 ? industrial(makeBuilding('barracks', team))
-          : makeBuilding('barracks', team));
-    return cached(`b:${type}:${team}:${lk}`, () => hospital(base()));
+    // Medieval: its own infirmary chapel; later ages: a barracks-sized ward told apart by the red cross out front
+    if (lk <= 1) return cached(`b:${type}:${team}:${lk}`, () => infirmary(team, lk === 1));
+    return cached(`b:${type}:${team}:${lk}`, () => hospital(lk === 2 ? industrial(makeBuilding('barracks', team)) : makeBuilding('barracks', team)));
   }
+  // the Modern Power Plant is solar and wind, not the Industrial coal plant's cooling towers in concrete
+  if (type === 'power' && lk === 3) return cached(`b:${type}:${team}:${lk}`, () => solarPlant(team));
   // the Town Hall is its own building in each age, not the Town Hall's block made over
   if (type === 'yard' && lk >= 2) return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? townHallBrick(team) : townHallModern(team)));
   if (type === 'flak') return cached(`b:${type}:${team}:${lk}`, () => (lk === 2 ? industrial(flak(team)) : flak(team)));
