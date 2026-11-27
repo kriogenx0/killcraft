@@ -323,6 +323,8 @@ export interface Particle {
 /** Two linked gates: a unit stepping onto one comes out of the other. Tile coordinates. */
 export interface Portal { a: Tile; b: Tile }
 /** A campaign mission goal: 'derrick' = build an Oil Derrick, 'industrial' = research the Industrial Age at the Town Hall (Black Gold) */
+/** Early raids: how many, the seconds before the first and between them, and the most troops in each */
+export interface Rush { count: number; every: number; size: number }
 export type Goal = 'derrick' | 'industrial';
 /** A linked pair of Waygates: like a portal, but only its team may use it. */
 export interface Waygate extends Portal { team: number }
@@ -441,6 +443,8 @@ export const G = {
   islands: false,
   /** the computers against the player make a few small raids early on (campaign missions 3 and 5, see ai.ts military) */
   raids: false,
+  /** how those raids go, if not the usual three every 150s of up to 3 troops (Alex: mission 3 rushes) */
+  rush: null as Rush | null,
   /** a mission's scattered enemy camps come to each other's help: tiles a camp unit hears a fight from (0: they hold their ground; ai.ts campAlarm) */
   camps: 0,
   /** the map's only wood is the layout's grove: no trees scattered over the land (campaign, The Last Grove) */

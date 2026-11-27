@@ -10,7 +10,7 @@ import { UNIT, UNIT_TYPES, type UnitType } from './unit.ts';
 import { BUILDING, BLD_TYPES, type BldType } from './building.ts';
 import { SPARSE, smallBounds, type MapLayout } from './map.ts';
 import { mulberry32 } from '../util/math.ts';
-import type { Goal, Tile } from '../game/state.ts';
+import type { Goal, Rush, Tile } from '../game/state.ts';
 
 type Thing = BldType | UnitType | TechType;
 
@@ -82,6 +82,8 @@ export interface Mission {
   islands?: boolean;
   /** a few small early raids by the enemy (Alex), who starts with these raiders too */
   raids?: UnitType[];
+  /** how the raids go, if not three small ones every 150s */
+  rush?: Rush;
   /** the scattered enemy camps come to each other's help from this many tiles (Alex: mission 6 was too easy) */
   camps?: number;
   /** no towns: the player starts with just this army (no Workers, no buildings) */
@@ -108,8 +110,8 @@ export const MISSIONS: Mission[] = [
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 2202 }),
   },
   {
-    id: 'with-a-friend', name: 'Winter Friends', maxEra: 0, snow: true, raids: ['swordsman', 'swordsman'], // Alex: a few early attacks
-    brief: 'Snow on the ground. A computer ally fights beside you against two Easy computers, who will raid you early.',
+    id: 'with-a-friend', name: 'Winter Friends', maxEra: 0, snow: true, raids: ['swordsman', 'swordsman'], rush: { count: 3, every: 90, size: 2 }, // Alex: introduces early attacks: multiple small rushes, just a few units, not harder
+    brief: 'Snow on the ground. A computer ally fights beside you against two Easy computers, who teach you about early attacks: from the first minutes they send small rushes of a couple of soldiers, one after another. Get a few Footmen or a Watchtower up to meet them.',
     setup: game({ mode: '2v2', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 3303 }),
   },
   {
@@ -236,7 +238,7 @@ export function missionLayout(m: Mission): MapLayout {
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, camps: m.camps, oneWood: !!m.oneWood, guards: m.guards,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, rush: m.rush, camps: m.camps, oneWood: !!m.oneWood, guards: m.guards,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

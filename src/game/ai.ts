@@ -1025,7 +1025,7 @@ const GUARD_FROM = 8;
 const FALL_BACK = 0.4;
 /** Seconds a beaten wave regroups before the next one goes out. */
 const REGROUP = 45;
-/** Early raids a computer makes in a mission with raids (G.raids), and the seconds between them (the first goes at that time too). */
+/** Early raids a computer makes in a mission with raids (G.raids), and the seconds between them (the first goes at that time too; a second enemy half a gap later, so rushes alternate). */
 const EARLY_RAIDS = 3, RAID_EVERY = 150;
 /** A teammate's troops this far (tiles) from its Town Hall are out on the attack. */
 const OUT_ON_ATTACK = 20;
@@ -1145,11 +1145,12 @@ function military(team: number): void {
   const tgt = targets.reduce((a, p) => (Math.hypot(p.x - from.x, p.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? p : a));
   const idle = army.filter((u) => !u.order);
   // a few small raids early on (campaign, Alex): a couple of troops at a time, every couple of minutes
-  if (G.raids && hostile(team, 0) && (A.raids ?? 0) < EARLY_RAIDS && G.gameT >= (A.raidAt ??= RAID_EVERY) && !threat) {
-    const party = army.filter((u) => !u.order || u.order.t === 'move').slice(0, 3);
+  const rush = G.rush ?? { count: EARLY_RAIDS, every: RAID_EVERY, size: 3 };
+  if (G.raids && hostile(team, 0) && (A.raids ?? 0) < rush.count && G.gameT >= (A.raidAt ??= rush.every * (1 + (team >> 1) / 2)) && !threat) {
+    const party = army.filter((u) => !u.order || u.order.t === 'move').slice(0, rush.size);
     if (party.length >= 2) {
       A.raids = (A.raids ?? 0) + 1;
-      A.raidAt = G.gameT + RAID_EVERY;
+      A.raidAt = G.gameT + rush.every;
       // at the player, wherever the wave would go
       const mine = G.ents.filter((e) => !e.dead && e.team === 0 && e.kind === 'bld' && !isWall(e.type));
       const at = mine.length ? mine.reduce((a, p) => (Math.hypot(p.x - from.x, p.y - from.y) < Math.hypot(a.x - from.x, a.y - from.y) ? p : a)) : tgt;
