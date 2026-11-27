@@ -438,6 +438,8 @@ export const G = {
   islands: false,
   /** the computers against the player make a few small raids early on (campaign missions 3 and 5, see ai.ts military) */
   raids: false,
+  /** a mission's scattered enemy camps come to each other's help: tiles a camp unit hears a fight from (0: they hold their ground; ai.ts campAlarm) */
+  camps: 0,
   /** a campaign mission's extra goals for the player (side 0), beside destroying the enemy, and those met so far */
   goals: [] as Goal[],
   goalsDone: [] as Goal[],

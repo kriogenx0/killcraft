@@ -1219,6 +1219,26 @@ function revival(team: number): void {
   ais[team].reserveWood = Math.max(ais[team].reserveWood ?? 0, REVIVE_PRICE.wood);
 }
 
+/** Seconds at the start of a mission before its camps answer fights, so the player can get their army in hand. */
+const CAMP_CALM = 30;
+
+/**
+ * A mission's scattered enemy camps (G.camps, no AI running them) come to each other's help: an idle
+ * enemy trooper within G.camps tiles of the player's troops marches on the nearest of them.
+ */
+export function campAlarm(): void {
+  if (!G.camps || G.gameT < CAMP_CALM) return;
+  const ours = G.ents.filter((e) => !e.dead && e.kind === 'unit' && allied(e.team, 0) && !e.bee);
+  if (!ours.length) return;
+  const R = G.camps * TS;
+  for (const u of G.ents) {
+    if (u.dead || u.kind !== 'unit' || u.order || allied(u.team, 0) || !unitDef(u).weapon || isHarvester(u) || u.wild) continue;
+    let near: Ent | null = null, nd = R;
+    for (const p of ours) { const d = Math.hypot(p.x - u.x, p.y - u.y); if (d < nd && canAttack(u, p)) { nd = d; near = p; } }
+    if (near) advance(u, tileOf(near.x), tileOf(near.y));
+  }
+}
+
 export function aiThink(team: number): void {
   construction(team);
   revival(team);

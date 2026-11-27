@@ -3,8 +3,8 @@
 // Industrial Age research, and the computer doesn't save up for them.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { G, hooks } from './state.ts';
-import { STEP } from './const.ts';
-import { ais, setAiLevel } from './ai.ts';
+import { STEP, TS } from './const.ts';
+import { ais, campAlarm, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { SHALLOW, WATER } from './const.ts';
 import { updLeader } from './bounty.ts';
@@ -226,15 +226,37 @@ describe('mission layouts', () => {
   });
 });
 
-describe('early raids (Alex: missions 3, 4 and 5)', () => {
-  it('missions 3 to 5 give the enemy raiders and raid early; the others do not', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe(i >= 2 && i <= 4));
+describe('early raids (Alex: missions 3, 4, 5 and 7)', () => {
+  it('missions 3, 4, 5 and 7 give the enemy raiders and raid early; the others do not', () => {
+    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe([2, 3, 4, 6].includes(i)));
     const m = MISSIONS[4];
     G.headless = true;
     initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
     expect(G.raids).toBe(true);
     expect(G.ents.filter((e) => !e.dead && e.team === 1 && e.type === 'balloon').length).toBe(2);
     expect(G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'balloon')).toBe(false);
+  });
+});
+
+describe('mission 6 camps (Alex: too easy)', () => {
+  it('camps near a fight march on the player; far ones stay put', () => {
+    const m = MISSIONS.find((x) => x.camps)!;
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m) });
+    expect(G.camps).toBeGreaterThan(0);
+    const me = G.ents.find((e) => !e.dead && e.team === 0 && e.kind === 'unit')!;
+    const foes = G.ents.filter((e) => !e.dead && e.team === 1 && e.kind === 'unit');
+    const near = (e: { x: number; y: number }) => Math.hypot(e.x - me.x, e.y - me.y) < G.camps * TS;
+    expect(foes.some((e) => !near(e))).toBe(true);
+    // move one enemy close by: it (and only those in earshot) come
+    foes[0].x = me.x + 8 * TS; foes[0].y = me.y;
+    G.gameT = 0;
+    campAlarm();
+    expect(foes[0].order).toBeFalsy();
+    G.gameT = 60;
+    campAlarm();
+    expect(foes[0].order).toBeTruthy();
+    expect(foes.filter((e) => !near(e)).every((e) => !e.order)).toBe(true);
   });
 });
 

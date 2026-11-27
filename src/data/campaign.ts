@@ -76,6 +76,8 @@ export interface Mission {
   islands?: boolean;
   /** a few small early raids by the enemy (Alex), who starts with these raiders too */
   raids?: UnitType[];
+  /** the scattered enemy camps come to each other's help from this many tiles (Alex: mission 6 was too easy) */
+  camps?: number;
   /** no towns: the player starts with just this army (no Workers, no buildings) */
   army?: UnitType[];
   /** the game it plays (fixed map, so a mission is the same each time) */
@@ -121,15 +123,16 @@ export const MISSIONS: Mission[] = [
     // has random units around. Still more difficult"
     id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1, small: 68,
     army: [...rep('rifleman', 8), ...rep('gunner', 4), ...rep('tank', 4), ...rep('jeep', 2), ...rep('artillery', 2)],
-    scatter: [...rep('rifleman', 10), ...rep('gunner', 6), ...rep('tank', 5), ...rep('jeep', 3), ...rep('artillery', 2)],
-    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, more of them than you. Pick your fights and wipe them out.',
+    // Alex: "Mission 6 and 7 were too easy": more of them, heavier, and camps answer each other's fights
+    scatter: [...rep('rifleman', 10), ...rep('gunner', 8), ...rep('tank', 8), ...rep('jeep', 4), ...rep('artillery', 4)], camps: 14,
+    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, far more of them than you, and the camps nearby rush to join any fight they hear. Pick your fights carefully and wipe them out.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6606 }),
   },
   {
     // Alex: "Mission 7. Discover magic. Can now build magic units and build the magic tower"
-    id: 'modern-war', name: 'Discover Magic', maxEra: 1,
-    brief: 'Magic is found: build an Arcane Circle and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and an ally against two Normal computers.',
-    setup: game({ mode: '2v2', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 7707 }),
+    id: 'modern-war', name: 'Discover Magic', maxEra: 1, raids: ['rifleman', 'rifleman', 'gunner'], // Alex: was too easy
+    brief: 'Magic is found: build an Arcane Circle and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and a Normal ally against two Hard computers, who raid you early.',
+    setup: game({ mode: '2v2', seats: ['normal', 'hard', 'normal', 'hard'], resources: 'standard', army: 'workers', seed: 7707 }),
   },
   {
     // Alex: "Mission 8 - introduction to Modern. Expand to more things. 1v1 Normal difficulty"
@@ -219,7 +222,7 @@ export function missionLayout(m: Mission): MapLayout {
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, camps: m.camps,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });
