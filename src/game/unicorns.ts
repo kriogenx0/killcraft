@@ -5,7 +5,7 @@
 import { G } from './state.ts';
 import { MH, MW } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { layoutFor } from '../data/map.ts';
+import { mapLayout } from './map.ts';
 import { lairsFor } from './creatures.ts';
 import { meadow } from './cows.ts';
 
@@ -22,7 +22,7 @@ export const unicorns: { list: Unicorn[]; seed: number; teams: number } = { list
 
 /** Place the unicorns for the current map. Same seed and map, same unicorns, on every screen. */
 export function initUnicorns(): void {
-  const rnd = mulberry32(G.seed ^ 0x0ac0d), layout = layoutFor(G.teams, G.small);
+  const rnd = mulberry32(G.seed ^ 0x0ac0d), layout = mapLayout();
   const avoid: [number, number, number][] = [
     ...layout.yards.map(([x, y]): [number, number, number] => [x + 1, y + 1, CLEAR_OF_BASES]),
     ...lairsFor(G.seed).map(([[x, y]]): [number, number, number] => [x, y, CLEAR_OF_LAIRS]),

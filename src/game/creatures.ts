@@ -3,13 +3,13 @@
 import { G, defaultStance, hooks, isOrganic, say, tileOf, unitDef, valid, type Ent, type Tile } from './state.ts';
 import { GRASS, MH, MW, TS, walkable } from './const.ts';
 import { mulberry32 } from '../util/math.ts';
-import { layoutFor, WATER_LEVEL } from '../data/map.ts';
+import { WATER_LEVEL } from '../data/map.ts';
 import { UNIT, type UnitType } from '../data/unit.ts';
 import {
   BEASTS, CAPTURE_REACH, CAPTURE_TIME, GUARD_RADIUS, LAIR_FFA_SITES, LAIR_PAIRS, LAIR_PAIRS_PER_MAP, LEASH, PETRIFY_IMMUNE, REBIRTH_HP, RISE_HP,
   RESPAWN_TIME, SONG_RANGE, SUBDUE_AT, SUBDUE_RECOVER, WILD_REGEN, BEE_LIFE, SWARM_EVERY, SWARM_MAX, SWARM_REACH,
 } from '../data/creatures.ts';
-import { eachInDisk, nearPortal } from './map.ts';
+import { eachInDisk, mapLayout, nearPortal } from './map.ts';
 import { addUnit } from './entity.ts';
 import { acquire, canAttack, combatStep, isFoe } from './combat.ts';
 import { orderMove, setOrder } from './order.ts';
@@ -21,7 +21,7 @@ const teams = (): number[] => Array.from({ length: G.teams }, (_, t) => t);
 
 /** Ground tiles reachable on foot from the first base. */
 function reachable(): Uint8Array {
-  const seen = new Uint8Array(MW * MH), [ax, ay] = layoutFor(G.teams, G.small).yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
+  const seen = new Uint8Array(MW * MH), [ax, ay] = mapLayout().yards[0], start = (ay + 1) * MW + ax + 1, q = [start];
   seen[start] = 1;
   while (q.length) {
     const i = q.pop() as number, x = i % MW, y = (i / MW) | 0;

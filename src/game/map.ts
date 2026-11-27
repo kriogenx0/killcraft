@@ -6,7 +6,7 @@ import { MW, MH, GRASS, WATER, TREE, SHALLOW, ROCK, walkable } from './const.ts'
 import { mulberry32 } from '../util/math.ts';
 import {
   SPARSE, smallBounds, smallSize,
-  layoutFor, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR, WATER_LEVEL, HILL_HEIGHT, PLATEAU_HEIGHT, RIVER_CHANCE, COAST_CHANCE,
+  layoutFor, type MapLayout, PORTAL_CHANCE, PORTAL_DOUBLE_CHANCE, PORTAL_CLEAR, WATER_LEVEL, HILL_HEIGHT, PLATEAU_HEIGHT, RIVER_CHANCE, COAST_CHANCE,
 } from '../data/map.ts';
 import { OIL_TILE_MAX, OIL_WELL_RADIUS, TREE_WOOD } from '../data/economy.ts';
 import { ORE_FIELD_RADIUS, ORE_TILE_MAX } from '../data/ore.ts';
@@ -88,7 +88,9 @@ function riverCourse(rnd: () => number): { pts: [number, number][]; fords: numbe
 /** Fill the terrain for one seed. Returns false if any base can't reach the others. */
 function genMap(seed: number): boolean {
   const { terr, ore, oilField, treeWood, elev } = G;
-  const { yards, ore: sources, oil, forests } = layoutFor(G.teams, G.small);
+  const { yards, ore: allSources, oil, forests } = mapLayout();
+  // islands: no ore field in the middle, where the sea between them runs
+  const sources = G.islands ? allSources.filter(([x, y]) => Math.abs(x - y) > 10) : allSources;
   const lean = smallSize(G.small) > 0 && smallSize(G.small) < SPARSE;
   const rnd = mulberry32(seed);
   const w1 = valueGrid(rnd, 5), w2 = valueGrid(rnd, 11), t1 = valueGrid(rnd, 7), t2 = valueGrid(rnd, 15);
@@ -120,6 +122,11 @@ function genMap(seed: number): boolean {
         const [lo, hi] = smallBounds(smallSize(G.small));
         const out = Math.max(lo - x, x - hi, lo - y, y - hi) + (t2(u, v) - 0.5) * 6;
         w = Math.max(w, out > 0 ? 1.2 : out > -1.5 ? 0.7 : 0);
+      }
+      if (G.islands) {
+        // a sound along the diagonal between the two bases: deep all the way, so only aircraft cross
+        const d = Math.abs(x - y) - 5 + (w2(u, v) - 0.5) * 4;
+        w = Math.max(w, d < 0 ? 1.2 : d < 1.5 ? 0.7 : w);
       }
       wet[i] = w;
       terr[i] = w >= 1 ? WATER : w >= 0.5 ? SHALLOW : GRASS;
@@ -185,7 +192,8 @@ function genMap(seed: number): boolean {
   }
   shapeHeights(flats);
   for (let i = 0; i < MW * MH; i++) treeWood[i] = terr[i] === TREE ? TREE_WOOD : 0;
-  return yards.every((y) => connected(yards[0], y));
+  // islands are meant to be cut off; elsewhere every base must reach the others on foot
+  return G.islands ? !connected(yards[0], yards[1]) : yards.every((y) => connected(yards[0], y));
 }
 
 /**
@@ -238,7 +246,7 @@ function connected(a: Tile, b: Tile): boolean {
 function placePortals(seed: number): void {
   G.portals = [];
   G.warp.fill(-1);
-  const rnd = mulberry32((seed * 7919 + 104729) >>> 0), { yards, portals } = layoutFor(G.teams, G.small);
+  const rnd = mulberry32((seed * 7919 + 104729) >>> 0), { yards, portals } = mapLayout();
   if (rnd() >= PORTAL_CHANCE || !portals.length) return;
   const order = portals.map((p) => ({ p, k: rnd() })).sort((a, b) => a.k - b.k).map((o) => o.p);
   const want = rnd() < PORTAL_DOUBLE_CHANCE ? 2 : 1;
@@ -265,6 +273,9 @@ export function nearPortal(tx: number, ty: number, r = 1): boolean {
 export const isMapPortal = (tx: number, ty: number): boolean => G.portals.some((p) => [p.a, p.b].some(([x, y]) => x === tx && y === ty));
 
 /** Generate a playable map, trying following seeds until the bases connect. Returns the seed used. */
+/** The current map's layout: a campaign mission's own, or the standard one for the player count and map size. */
+export const mapLayout = (): MapLayout => G.layout ?? layoutFor(G.teams, G.small);
+
 export function generateMap(seed: number): number {
   let s = seed;
   for (let tries = 0; tries < 80 && !genMap(s); tries++) s++;

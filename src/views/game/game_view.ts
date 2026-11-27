@@ -3,7 +3,6 @@
 // The main menu (views/menu) loads this module, and three.js with it, only once a game starts.
 import { G, allied, hooks, teamGame } from '../../game/state.ts';
 import { MH, MW, STEP, TS } from '../../game/const.ts';
-import { layoutFor } from '../../data/map.ts';
 import { AI_LEVEL, DEFAULT_SETUP, START_ARMY, START_RESOURCES, isMode, isWeatherMode, matchOf, type Difficulty, type GameSetup } from '../../data/setup.ts';
 import { ageLimit, bannedIn, markWon, missionById, missionWorld, nextMission } from '../../data/campaign.ts';
 import { initSnow3d, updateSnow3d } from './render3d/snow3d.ts';
@@ -13,7 +12,7 @@ import { LAST_ERA } from '../../data/era.ts';
 import { initWorld, outReasons, update } from '../../game/world.ts';
 import { aiLogText, ais, setAiLevel } from '../../game/ai.ts';
 import { noUpgrades } from '../../game/upgrade.ts';
-import { rebuildBlk } from '../../game/map.ts';
+import { mapLayout, rebuildBlk } from '../../game/map.ts';
 import { updFog } from '../../game/fog.ts';
 import { updFx } from '../../game/fx.ts';
 import { updProjs } from '../../game/combat.ts';
@@ -233,7 +232,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
   /** The winning side's names: one team, or every team allied with it ("Blue and Green"). */
   const winners = (team: number): string => Array.from({ length: G.teams }, (_, t) => t)
     .filter((t) => !G.absent?.[t] && allied(t, team)).map((t) => watchingNames?.[t] || onlineNames?.[t] || teamColors(t).name).join(' and ');
-  const home = (team: number) => { const [x, y] = layoutFor(G.teams, G.small).yards[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
+  const home = (team: number) => { const [x, y] = mapLayout().yards[team]; centerCam((x + 1.5) * TS, (y + 1.5) * TS); };
   home(V.team);
 
   // ---- solo and AI vs AI ----
@@ -291,6 +290,10 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     if (mission) {
       G.banned = bannedIn(mission);
       G.wild = !!mission.wild;
+      // and anything the mission doesn't allow yet goes (a game from before the unlock rules)
+      const banned = G.ents.filter((e) => G.banned.includes(e.type));
+      for (const e of banned) G.byId.delete(e.id);
+      G.ents = G.ents.filter((e) => !banned.includes(e));
       if (!mission.wild) {
         const gone = G.ents.filter((e) => e.type === 'aether' || !!e.wild);
         for (const e of gone) G.byId.delete(e.id);
@@ -496,7 +499,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
     speedBtn.hidden = pauseBtn.hidden = true;
     againBtn.textContent = 'Back to lobby';
     // between the two bases, pulled back
-    const [a, b] = layoutFor(G.teams, G.small).yards;
+    const [a, b] = mapLayout().yards;
     centerCam(((a[0] + b[0]) / 2 + 1.5) * TS, ((a[1] + b[1]) / 2 + 1.5) * TS);
     setSelection([]);
     show(`Watching ${sidesTitle(m.players.map((p, t) => (p ? `${p} (${teamColors(t).name})` : '')), m.ally)}`);

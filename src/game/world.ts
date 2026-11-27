@@ -4,9 +4,9 @@ import { isWall } from '../data/building.ts';
 import { G, allied, hooks, say, unitDef, type Tile } from './state.ts';
 import { markStartStock, resetStats, sampleStats } from './stats.ts';
 import { GRASS, MW, MH, TS } from './const.ts';
-import { layoutFor, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
+import { type MapLayout, START_CREDITS, START_WOOD, START_OIL, START_UNITS } from '../data/map.ts';
 import { START_ERA } from '../data/era.ts';
-import { generateMap, rebuildBlk } from './map.ts';
+import { generateMap, mapLayout, rebuildBlk } from './map.ts';
 import { addBuilding, addSource, addUnit, kill } from './entity.ts';
 import { refreshHealRates, updUnit } from './unit.ts';
 import { updBld } from './building.ts';
@@ -61,11 +61,17 @@ export interface StartOptions {
   aether?: boolean;
   /** a small map: the land is a square this many tiles across (campaign missions) */
   small?: number;
+  /** the map's layout (bases, ore, oil, woods), instead of the standard one (campaign missions) */
+  layout?: MapLayout | null;
+  /** each side on its own island (campaign mission 5) */
+  islands?: boolean;
   /**
    * Enemy sides get no town: just these units, in small groups across the map (campaign mission 1,
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
    */
   scatter?: readonly UnitType[];
+  /** no Town Halls at all: the player starts with `units` only (campaign mission 6) */
+  noTown?: boolean;
   /** a campaign mission's saved map (game/map_lock.ts): used instead of what the generator makes */
   locked?: LockedMap | null;
 }
@@ -76,7 +82,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -91,17 +97,17 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const wild = start.wild ?? true, gate = start.gate ?? wild;
   if (gate) placeGate();
   else G.hell = { gate: false, spawnT: 0, raidT: Infinity, archT: Infinity, prey: -1, burst: 0, burstT: 0, stay: 0, stir: false };
-  const { yards, ore } = layoutFor(n, G.small);
+  const { yards, ore } = mapLayout();
   for (const [x, y] of ore) if (!gate || !onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
   const scattered = (team: number) => !!start.scatter?.length && G.ally[team] !== G.ally[0];
   yards.forEach(([x, y], team) => {
     if (G.absent[team]) return;
     if (scattered(team)) { scatterUnits(team, start.scatter ?? [], [[x + 1, y + 1], ...ore.slice(2)]); return; }
-    addBuilding('yard', team, x, y, false);
-    // the starting Workers face the middle of the map
-    const face = Math.atan2(MH / 2 - y, MW / 2 - x);
+    if (!start.noTown) addBuilding('yard', team, x, y, false);
+    // the starting Workers face the middle of the map (an army with no town stands where the Town Hall would, five abreast)
+    const face = Math.atan2(MH / 2 - y, MW / 2 - x), cols = start.noTown ? 5 : 2, x0 = start.noTown ? x - 1 : x + 3.5;
     units.forEach((type, i) => {
-      const u = addUnit(type, team, (x + 3.5 + (i % 2)) * TS, (y + 1 + Math.floor(i / 2)) * TS);
+      const u = addUnit(type, team, (x0 + (i % cols)) * TS, (y + 1 + Math.floor(i / cols)) * TS);
       u.face = u.tface = face;
     });
   });

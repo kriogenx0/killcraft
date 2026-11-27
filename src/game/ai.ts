@@ -169,6 +169,8 @@ function nextStructure(team: number, walling: boolean): BldType | null {
   const aether = G.aether[team] ?? 0;
   if (can.includes('wardstone') && countOf(team, 'wardstone') < 1 && aether >= (BUILDING.wardstone.aether ?? 0) && G.ents.some((e) => !e.dead && hostile(e.team, team) && e.type === 'phantom')) return 'wardstone';
   if (shrineAether(team) && aether >= shrineAether(team) && G.credits[team] > 800) return 'shrine';
+  // islands (campaign): nothing reaches the enemy but aircraft, so an Airfield as soon as there can be one
+  if (G.islands && can.includes('airfield') && countOf(team, 'airfield') < 1) return 'airfield';
   const grow = expansion(team, can);
   if (grow) return grow;
   const need: Partial<Record<BldType, number>> = {};
@@ -731,11 +733,13 @@ function training(team: number): void {
   // every Barracks (War Factory, Airfield) trains one order at a time: keep each of them busy
   const n = (t: BldType) => G.ents.filter((e) => !e.dead && e.team === team && e.type === t && e.done).length;
   const factories = n('factory'), barracks = n('barracks');
+  // islands (campaign): ground troops can't reach the enemy, so only a few for defense; the rest is aircraft
+  const groundFull = full || (G.islands && G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && !isAir(e) && unitDef(e).weapon && !isHarvester(e)).length >= 4);
   if (factories && prod.vehicle.length < 1 + factories) {
     const refineries = countOf(team, 'refinery');
     let t: UnitType | null = null;
     if (available(team, 'vehicle').includes('harvester') && countOf(team, 'harvester') < Math.min(6, refineries * lvl(team).harvesters) && !prod.vehicle.some((x) => x.type === 'harvester')) t = 'harvester';
-    else if (!full) {
+    else if (!groundFull) {
       // in the Modern age every other vehicle is a big one (Heavy Tank or Cyborg), saved up for
       const A = ais[team];
       if (!A.big && !A.bigDone && !prod.vehicle.length) A.big = pick(team, 'vehicle', [['heavy', 3], ['juggernaut', 2.5], ['titan', 1.5]]);
@@ -751,7 +755,7 @@ function training(team: number): void {
     if (t) enqueue(team, t);
   }
   // a few aircraft once there's money to spare
-  if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') && credits > 900) {
+  if (!saving && !full && hasBuilding(team, 'airfield') && prod.air.length < n('airfield') && credits > (G.islands ? 400 : 900)) {
     // fighters answer enemy aircraft; strike jets go after bases once there's money for them
     const foeAir = G.ents.filter((e) => !e.dead && e.kind === 'unit' && hostile(e.team, team) && isAir(e)).length;
     const t = pick(team, 'air', [['balloon', 1], ['biplane', 2], ['helicopter', 3], ['drone', 2], ['fighter', foeAir >= 3 ? 4 : foeAir ? 1.5 : 0.3], ['striker', credits > 1300 ? 2 : 0], ['harpy', 1.5], ['pegasus', 2], ['griffin', 2], ['phoenix', 2], ['dragon', credits > 1400 ? 1.5 : 0], ['beequeen', 1.5]]);
@@ -766,7 +770,7 @@ function training(team: number): void {
   // an idle War Factory in the Industrial age or later: save up for a vehicle instead of spending every
   // last coin on cheap infantry
   const big = ais[team].big, forVehicle = !alarm && hasBuilding(team, 'factory') && !prod.vehicle.length && G.era[team] >= 1 && credits < (big ? costOf(big) : 900);
-  if (!saving && !full && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
+  if (!saving && !groundFull && !forVehicle && hasBuilding(team, 'barracks') && prod.infantry.length < infantryQueue && credits > 150) {
     // about one medic for every six fighters on foot
     const medics = countOf(team, 'medic'), foot = G.ents.filter((e) => !e.dead && e.team === team && isOrganic(e) && e.type !== 'medic').length;
     const t = pick(team, 'infantry', [['medic', medics * 6 < foot ? 2.5 : 0], ['knight', credits > 700 ? 1.5 : 0], ['swordsman', 2.5], ['guardian', credits > 800 ? 1.5 : 0], ['crossbowman', 2], ['rocket', 2], ['rifleman', 3], ['gunner', 1.5], ['wraith', credits > 700 ? 1.5 : 0], ['hexblade', 1.5], ['mage', 1.5], ['stormcaller', 1.5], ['archmage', credits > 900 ? 1.2 : 0], ['tidecaller', 1.2], ['plaguewitch', 1.2], ['sludgewarlock', credits > 900 ? 1 : 0],
