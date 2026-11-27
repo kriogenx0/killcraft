@@ -8,7 +8,10 @@ import { ais, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
-import { MISSIONS, unlocked } from '../data/campaign.ts';
+import { MISSIONS, SCHEDULED, UNLOCKS, bannedIn, unlocked } from '../data/campaign.ts';
+import { BUILDING } from '../data/building.ts';
+import { UNIT } from '../data/unit.ts';
+import { TECH } from '../data/era.ts';
 import { layoutFor } from '../data/map.ts';
 import { mulberry32 } from '../util/math.ts';
 
@@ -59,12 +62,29 @@ describe('campaign age limit', () => {
 });
 
 describe('campaign bans', () => {
+  for (const i of [0, 2, 3])
+    it(`mission ${i + 1}: an Easy computer gets a Barracks up with only what's unlocked`, () => {
+      const m = MISSIONS[i];
+      vi.spyOn(Math, 'random').mockImplementation(mulberry32(5 + i));
+      hooks.error = (e) => { throw e; };
+      G.headless = true;
+      initWorld(m.setup.seed ?? 1, 2, { maxEra: m.maxEra, ban: bannedIn(m), share: 2 });
+      Object.assign(G, { demo: false, viewer: 0, human: [true, false], reveal: false });
+      ais[0].on = false;
+      ais[1].on = true;
+      setAiLevel('easy', 1);
+      for (let k = 0; k < 480 / STEP && !G.over; k++) update(STEP);
+      const own = G.ents.filter((e) => !e.dead && e.team === 1);
+      expect(own.some((e) => e.type === 'barracks' && e.done)).toBe(true);
+      expect(own.filter((e) => bannedIn(m).includes(e.type)).map((e) => e.type)).toEqual([]);
+    }, 30_000);
+
   it('the first missions offer no Mage Tower, spellcasters or Oil Derrick, and the computer builds without them', () => {
     const m = MISSIONS[1];
     vi.spyOn(Math, 'random').mockImplementation(mulberry32(9));
     hooks.error = (e) => { throw e; };
     G.headless = true;
-    initWorld(2202, 2, { maxEra: m.maxEra, ban: m.ban, share: 2 });
+    initWorld(2202, 2, { maxEra: m.maxEra, ban: bannedIn(m), share: 2 });
     Object.assign(G, { demo: false, viewer: 0, human: [true, false], reveal: false });
     ais[0].on = false;
     ais[1].on = true;
@@ -76,7 +96,7 @@ describe('campaign bans', () => {
     expect(available(1, 'structure')).not.toContain('derrick');
     expect(available(1, 'structure')).not.toContain('magetower');
     expect(available(1, 'infantry').some((t) => t === 'mage' || t === 'tidecaller')).toBe(false);
-    expect(MISSIONS.slice(0, 3).every((x) => x.ban?.includes('derrick') && x.ban.includes('mage'))).toBe(true);
+    expect(MISSIONS.slice(0, 3).every((x) => bannedIn(x).includes('derrick') && bannedIn(x).includes('mage') && bannedIn(x).includes('magetower'))).toBe(true);
   }, 30_000);
 });
 
@@ -89,6 +109,20 @@ describe('campaign progress', () => {
   });
 
   it('opens the Industrial age on mission 4 and the Modern age on mission 7 (Alex)', () => {
-    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 2]);
+    expect(MISSIONS.map((m) => m.maxEra)).toEqual([0, 0, 0, 1, 1, 1, 2, 2, 2]);
+  });
+
+  it('unlocks every building, unit and research exactly once, never before its age (Alex: each level unlocks more)', () => {
+    const all = UNLOCKS.flat();
+    expect([...all].sort()).toEqual([...SCHEDULED].sort());
+    UNLOCKS.forEach((list, i) => {
+      expect(list.length).toBeGreaterThan(0);
+      for (const t of list) {
+        const era = t in BUILDING ? BUILDING[t as keyof typeof BUILDING].era : t in UNIT ? UNIT[t as keyof typeof UNIT].era : TECH[t as keyof typeof TECH].era;
+        expect(era, t).toBeLessThanOrEqual(MISSIONS[i].maxEra);
+      }
+    });
+    expect(bannedIn(MISSIONS[MISSIONS.length - 1])).toEqual([]);
+    expect(bannedIn(MISSIONS[0])).toContain('knight');
   });
 });

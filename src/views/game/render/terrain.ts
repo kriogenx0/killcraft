@@ -78,6 +78,16 @@ function paintGround(g: CanvasRenderingContext2D): void {
       // oil-soaked earth around the wells
       const oil = clamp((oilAt(px, py) - 0.15) * 1.6 + (vnoise(px * 0.12 + 70, py * 0.12) - 0.5) * 0.7, 0, 0.9);
       if (oil > 0 && w <= 0.5) { r = lerp(r, 44, oil); gg = lerp(gg, 38, oil); b = lerp(b, 32, oil); }
+      if (G.snow && w <= 0.5) {
+        // winter: snow over the land, thinner on steep ground and cliffs, with blue shadows in the hollows
+        const drift = fbm(px * 0.01 + 17, py * 0.01 + 5), fine = vnoise(px * 0.08, py * 0.08);
+        const cover = clamp(0.95 - slope * 0.5 - rock * 0.45 - Math.max(0, w - 0.3) * 1.5 - oil * 0.6 + (drift - 0.5) * 0.3, 0, 1);
+        const sr = 222 + drift * 26 + fine * 6, sg = 228 + drift * 22 + fine * 6, sb = 238 + drift * 14 + fine * 4;
+        r = lerp(r, sr, cover); gg = lerp(gg, sg, cover); b = lerp(b, sb, cover);
+      } else if (G.snow) {
+        // lakes and rivers under thin ice
+        r = lerp(r, 170, 0.35); gg = lerp(gg, 196, 0.35); b = lerp(b, 214, 0.35);
+      }
       const o = (py * W + px) * 4;
       d[o] = r + grain; d[o + 1] = gg + grain; d[o + 2] = b + grain; d[o + 3] = 255;
     }
@@ -99,7 +109,11 @@ function paintDetails(g: CanvasRenderingContext2D): void {
       const n = 2 + Math.floor(rnd() * 4);
       for (let k = 0; k < n; k++) {
         const x = tx * TS + rnd() * TS, y = ty * TS + rnd() * TS, r = rnd();
-        if (r < 0.55 && !nearWater) {
+        if (G.snow) {
+          // winter: a few dry stalks and stones poking through the snow
+          if (r < 0.12) { g.strokeStyle = 'rgba(120,110,90,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 2, y - 3 - rnd() * 2); g.stroke(); }
+          else if (r < 0.16) { g.fillStyle = 'rgba(80,80,90,.35)'; g.beginPath(); g.ellipse(x, y, 2.5, 1.6, 0, 0, TAU); g.fill(); }
+        } else if (r < 0.55 && !nearWater) {
           g.strokeStyle = rnd() < 0.5 ? 'rgba(30,70,20,.55)' : 'rgba(150,200,90,.4)';
           g.lineWidth = 1;
           for (let s = -1; s <= 1; s++) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + s * 2.5, y - 4 - rnd() * 2); g.stroke(); }
@@ -153,4 +167,11 @@ export function initTerrain(seed: number): void {
   m.scale(MINI / (MW * TS), MINI / (MH * TS));
   for (let ty = 0; ty < MH; ty++) for (let tx = 0; tx < MW; tx++) if (G.terr[ty * MW + tx] === TREE) drawTree(m, tx, ty);
   m.restore();
+  if (G.snow) {
+    // snow-laden woods on the radar
+    m.globalCompositeOperation = 'lighter';
+    m.fillStyle = 'rgba(40,44,52,.35)';
+    m.fillRect(0, 0, MINI, MINI);
+    m.globalCompositeOperation = 'source-over';
+  }
 }

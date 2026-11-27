@@ -47,6 +47,8 @@ export interface StartOptions {
   maxEra?: number;
   /** units, buildings and research nobody may use (campaign missions) */
   ban?: readonly string[];
+  /** a winter map (looks only) */
+  snow?: boolean;
 }
 
 /** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (one base per corner: a free-for-all, or two sides of two with `ally`). */
@@ -55,7 +57,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
