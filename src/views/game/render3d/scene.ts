@@ -9,6 +9,7 @@ import { TS } from '../../../game/const.ts';
 import { eye } from '../camera_rig.ts';
 import { V } from '../view_state.ts';
 import { MOODS, skyEnvironment, sunDirection, type Mood } from './mood.ts';
+import { lightAt } from './daynight.ts';
 import { groundY, surfaceY, WATER_LEVEL } from './heights.ts';
 
 export const S = {
@@ -47,9 +48,17 @@ export function initScene(canvas: HTMLCanvasElement): void {
 
 let sunDir = new THREE.Vector3(-0.45, 0.8, 0.33).normalize();
 
-/** Light the scene for a map's time of day. */
-export function setMood(m: Mood): void {
-  S.mood = m;
+/** Reflected skies already made, by the light they were made for (day and night reuse a handful). */
+const skies = new Map<string, THREE.Texture>();
+function dropSkies(): void {
+  const cached = [...skies.values()];
+  if (S.scene.environment && !cached.includes(S.scene.environment)) S.scene.environment.dispose();
+  for (const t of cached) t.dispose();
+  skies.clear();
+  S.scene.environment = null;
+}
+
+function applyLight(m: Mood): void {
   sunDir = sunDirection(m);
   S.sun.color.set(m.sun);
   S.sun.intensity = m.sunI;
@@ -58,9 +67,35 @@ export function setMood(m: Mood): void {
   S.hemi.intensity = m.hemiI;
   (S.scene.fog as THREE.Fog).color.set(m.haze);
   S.renderer.toneMappingExposure = m.exposure;
-  S.scene.environment?.dispose();
-  S.scene.environment = skyEnvironment(S.renderer, m);
   S.scene.environmentIntensity = m.envI;
+}
+
+/** Day and night: on (following the game clock), and on a snow map (whiter days). */
+let cycle: { snow: boolean } | null = null;
+
+/** Light the scene for a map's time of day (a fixed light: the day and night cycle is off). */
+export function setMood(m: Mood): void {
+  cycle = null;
+  S.mood = m;
+  dropSkies();
+  applyLight(m);
+  S.scene.environment = skyEnvironment(S.renderer, m);
+}
+
+/** Turn the day and night cycle on for this map (call after setMood); `updateDayNight` then moves the light. */
+export function startDayNight(snow: boolean): void {
+  cycle = { snow };
+}
+
+/** Move the light to this hour of the day (daynight.ts). Cheap: a few colours, and a new reflected sky only when the light passes a key. */
+export function updateDayNight(hour: number): void {
+  if (!cycle) return;
+  const { mood, env } = lightAt(hour, cycle.snow);
+  S.mood = mood;
+  applyLight(mood);
+  let sky = skies.get(env.name + (cycle.snow ? '-snow' : ''));
+  if (!sky) { sky = skyEnvironment(S.renderer, env); skies.set(env.name + (cycle.snow ? '-snow' : ''), sky); }
+  if (S.scene.environment !== sky) S.scene.environment = sky;
 }
 
 /** Size the drawing area to the part of the window the sidebar doesn't cover. */
