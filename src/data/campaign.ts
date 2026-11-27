@@ -31,7 +31,7 @@ export const UNLOCKS: Thing[][] = [
   ['airfield', 'balloon', 'biplane', 'flak'],
   // 6: big guns
   ['artillery', 'bertha'],
-  // 7: magic (Alex: "Discover magic": the Mage Tower and the spellcasters of the first two ages)
+  // 7: magic (Alex: "Discover magic": the Arcane Circle and the spellcasters of the first two ages)
   ['magetower', 'mage', 'tidecaller', 'stormcaller', 'plaguewitch'],
   // 8: the Modern age (Alex: "introduction to Modern. Expand to more things"): Modern troops, aircraft,
   // jets and cyborgs, the Modern casters
@@ -123,7 +123,7 @@ export const MISSIONS: Mission[] = [
   {
     // Alex: "Mission 7. Discover magic. Can now build magic units and build the magic tower"
     id: 'modern-war', name: 'Discover Magic', maxEra: 1,
-    brief: 'Magic is found: build a Mage Tower and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and an ally against two Normal computers.',
+    brief: 'Magic is found: build an Arcane Circle and train Battle Mages, Tide Callers, Storm Callers and Plague Witches at the Barracks. You and an ally against two Normal computers.',
     setup: game({ mode: '2v2', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 7707 }),
   },
   {
