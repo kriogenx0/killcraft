@@ -206,21 +206,18 @@ export function unitNeeds(team: number, t: UnitType): BldType | null {
   return (UNIT[t].requires ?? []).find((r) => !hasBuilding(team, r)) ?? null;
 }
 
-/** The first resource the team lacks for the whole price, or null if it can pay. */
 /**
- * A side with a Town Hall but no Worker left (none alive, none paid for in training) that can't
- * afford one gets the next one free, so losing every Worker never leaves it unable to gather again.
+ * A side with no Worker left (none alive, none paid for in training) gets its next one free (Alex,
+ * 2026-11-27), from any building that trains Workers. It still has to be trained, so losing every
+ * Worker, or the ore to buy one, never leaves a side unable to gather again. One at a time.
  */
 export function freeWorker(team: number, t: Buildable): boolean {
   if (t !== 'worker') return false;
-  // a Town Hall's own gift: a side that has lost its Town Hall too is on its own
-  if (!G.ents.some((e) => !e.dead && e.team === team && e.type === 'yard' && e.done)) return false;
   if (G.ents.some((e) => !e.dead && e.team === team && e.type === 'worker')) return false;
-  if (Object.values(G.prod[team] ?? {}).some((line) => line.some((it) => it.paid && it.type === 'worker'))) return false;
-  const p = priceOf(t);
-  return G.credits[team] < p.ore || G.wood[team] < p.wood || G.oil[team] < p.oil;
+  return !Object.values(G.prod[team] ?? {}).some((line) => line.some((it) => it.paid && it.type === 'worker'));
 }
 
+/** The first resource the team lacks for the whole price, or null if it can pay. */
 export function shortOf(team: number, t: Buildable): keyof typeof SHORT_MSG | null {
   if (freeWorker(team, t)) return null;
   const p = priceOf(t);
@@ -239,7 +236,7 @@ export const waitingFor = (team: number, t: Buildable): string | null => { const
 
 /** Pay for an order; returns true if it came free (see freeWorker). */
 function pay(team: number, type: Buildable): boolean {
-  if (freeWorker(team, type)) { say(team, 'Out of Workers: the Town Hall trains one for free'); return true; }
+  if (freeWorker(team, type)) { say(team, 'Out of Workers: the next one trains for free'); return true; }
   const p = priceOf(type);
   G.credits[team] -= p.ore;
   G.wood[team] -= p.wood;

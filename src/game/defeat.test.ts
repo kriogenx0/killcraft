@@ -42,18 +42,25 @@ describe('a side that can never recover', () => {
     expect(yard(1).dead).toBe(false);
   });
 
-  it('is out with no Town Hall, no units and no ore for a Worker: its buildings blow up', () => {
-    addBuilding('refinery', 1, yard(1).tx - 5, yard(1).ty, false);
+  it('keeps playing with no Town Hall, no units and no ore: a Barracks trains a free Worker', () => {
     addBuilding('barracks', 1, yard(1).tx + 5, yard(1).ty, false);
     kill(yard(1));
-    G.credits[1] = UNIT.worker.cost - 1;
-    expect(stranded(1)).toBe(true);
-    run(8);
-    expect(own(1, 'bld')).toHaveLength(0);
-    expect(G.over).toBe(true);
-    expect(G.winner).toBe(0);
-    // the end screen and the server log say who went out, when and why
-    expect(outReasons()).toEqual([expect.stringMatching(/^Red was knocked out at 0:0\d: its base blew up: no Town Hall, no units and no ore for a Worker\.$/)]);
+    G.credits[1] = 0;
+    expect(stranded(1)).toBe(false);
+    expect(enqueue(1, 'worker')).toBe(true);
+    expect(G.credits[1]).toBe(0);
+    run(UNIT.worker.t * 2 + 3);
+    expect(G.over).toBe(false);
+    expect(own(1, 'unit').some((u) => u.type === 'worker')).toBe(true);
+  });
+
+  it('gives only the first Worker free, and still trains it', () => {
+    G.credits[1] = 10_000;
+    expect(enqueue(1, 'worker')).toBe(true);
+    expect(G.credits[1]).toBe(10_000);
+    expect(enqueue(1, 'worker')).toBe(true);
+    expect(G.credits[1]).toBe(10_000 - UNIT.worker.cost);
+    expect(own(1, 'unit').some((u) => u.type === 'worker')).toBe(false);
   });
 
   it('is out with ore but nothing left that trains Workers', () => {
@@ -64,6 +71,8 @@ describe('a side that can never recover', () => {
     run(8);
     expect(refinery.dead).toBe(true);
     expect(G.winner).toBe(0);
+    // the end screen and the server log say who went out, when and why
+    expect(outReasons()).toEqual([expect.stringMatching(/^Red was knocked out at 0:0\d: its base blew up: no Town Hall, no units and nothing that trains Workers\.$/)]);
   });
 
   it('can still get a Worker from a Barracks after losing the Town Hall', () => {
@@ -74,9 +83,8 @@ describe('a side that can never recover', () => {
   });
 
   it('counts a Worker it has paid for and is training as a unit', () => {
-    G.credits[1] = UNIT.worker.cost;
+    G.credits[1] = 0;
     expect(enqueue(1, 'worker')).toBe(true);
-    expect(G.credits[1]).toBe(0);
     expect(stranded(1)).toBe(false);
     run(3);
     expect(G.over).toBe(false);

@@ -785,7 +785,7 @@ function training(team: number): void {
   // Workers: a few per refinery (by difficulty) for ore before the Modern age, plus the mills' choppers and derricks' haulers
   // (the Town Hall trains them too, before there's a Barracks)
   if (available(team, 'infantry').includes('worker') && countOf(team, 'worker') < workersWanted(team) &&
-    !prod.infantry.some((x) => x.type === 'worker') && prod.infantry.length < 5) enqueue(team, 'worker');
+    !prod.infantry.some((x) => x.type === 'worker') && (prod.infantry.length < 5 || !countOf(team, 'worker'))) enqueue(team, 'worker');
   // spend a growing bank on more troops
   const infantryQueue = (credits > 2500 ? L.queue + 2 : L.queue) + Math.max(0, barracks - 1) + (alarm ? 1 : 0);
   // an idle War Factory in the Industrial age or later: save up for a vehicle instead of spending every
