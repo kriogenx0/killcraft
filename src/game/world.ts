@@ -49,6 +49,8 @@ export interface StartOptions {
   ban?: readonly string[];
   /** a winter map (looks only) */
   snow?: boolean;
+  /** false: no creature lairs and no Gate of Hell (campaign missions; cows and unicorns stay) */
+  wild?: boolean;
 }
 
 /** Start a match on a seeded map. `teams` is 2 (one against one) or 4 (one base per corner: a free-for-all, or two sides of two with `ally`). */
@@ -57,7 +59,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -68,9 +70,11 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   for (const s of G.sight) s.fill(0);
   resetAi(n);
   generateMap(seed);
-  placeGate();
+  const wild = start.wild ?? true;
+  if (wild) placeGate();
+  else G.hell = { gate: false, spawnT: 0, raidT: Infinity, archT: Infinity, prey: -1, burst: 0, burstT: 0, stay: 0, stir: false };
   const { yards, ore } = layoutFor(n);
-  for (const [x, y] of ore) if (!onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
+  for (const [x, y] of ore) if (!wild || !onGate(x, y)) addSource(x, y); // the Gate of Hell stands in for the middle field's rock
   yards.forEach(([x, y], team) => {
     if (G.absent[team]) return;
     addBuilding('yard', team, x, y, false);
@@ -84,7 +88,8 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   placeAether(G.seed);
   rebuildBlk();
-  placeCreatures(G.seed);
+  if (wild) placeCreatures(G.seed);
+  else { G.tamed = Array.from({ length: n }, () => []); G.respawns = []; }
   rebuildBlk();
   initCows();
   updFog();

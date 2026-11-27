@@ -13,6 +13,7 @@ import { BUILDING } from '../data/building.ts';
 import { UNIT } from '../data/unit.ts';
 import { TECH } from '../data/era.ts';
 import { layoutFor } from '../data/map.ts';
+import { hatchable } from './mystery.ts';
 import { mulberry32 } from '../util/math.ts';
 
 afterEach(() => {
@@ -98,6 +99,18 @@ describe('campaign bans', () => {
     expect(available(1, 'infantry').some((t) => t === 'mage' || t === 'tidecaller')).toBe(false);
     expect(MISSIONS.slice(0, 3).every((x) => bannedIn(x).includes('derrick') && bannedIn(x).includes('mage') && bannedIn(x).includes('magetower'))).toBe(true);
   }, 30_000);
+});
+
+describe('campaign maps', () => {
+  it('have no creature lairs and no Gate of Hell (Alex), and the middle ore field is back', () => {
+    initWorld(1101, 2, { wild: false });
+    expect(G.hell.gate).toBe(false);
+    expect(G.ents.filter((e) => !!e.wild || !!e.demon)).toEqual([]);
+    expect(hatchable(0, 2).some((t) => UNIT[t].beast)).toBe(false);
+    initWorld(1101, 2);
+    expect(G.hell.gate).toBe(true);
+    expect(G.ents.some((e) => !!e.wild)).toBe(true);
+  });
 });
 
 describe('campaign progress', () => {
