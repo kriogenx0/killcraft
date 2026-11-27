@@ -698,26 +698,63 @@ function artillery(team: number): Model {
   return { root, parts, height: 0.55 };
 }
 
-/** Medieval and Industrial: a Worker in a tunic and hood with a pick, and a basket that fills with ore. */
+/**
+ * A Worker in a work shirt with rolled sleeves, team-coloured overalls and a hard hat with a lamp,
+ * a tool belt with a hammer, a short beard, a pick, and a basket on the back that fills with ore.
+ */
 function worker(team: number): Model {
-  const m = soldier({ torso: mat('#8a7a5a'), legs: mat('#5a4a36'), arms: mat('#8a7a5a'), boots: M.leather() });
-  m.root.add(mesh(shell(0.24, 0.3, 0.008), teamMat(team))); // sash
-  m.root.add(mesh(turned([[0, 0], [0.074, 0], [0.074, 0.028], [0.06, 0.055], [0.032, 0.07], [0, 0.073]], 9), mat('#6a5a40'), -0.01, 0.475, 0)); // hood
-  // wicker basket on the back, heaped with ore as it fills
-  m.root.add(mesh(turned([[0, 0], [0.055, 0], [0.07, 0.14], [0.064, 0.14], [0, 0.1]], 8), M.wattle(), -0.1, 0.29, 0));
-  const heap = mesh(gem(0.05, 1, 1, 1, 1), M.ore(), -0.1, 0.43, 0);
+  const shirt = mat('#cdb890', { rough: 0.95 }), glove = mat('#8e6438', { rough: 0.9 }), boot = mat('#4a3020', { rough: 0.85 });
+  const tm = teamMat(team), td = teamMat(team, 'd');
+  const m = soldier({ torso: shirt, legs: td, arms: M.skin(), boots: boot, hands: glove });
+  const r = m.root;
+  // overalls: team-coloured trousers up to the waist and a bib on the chest, held by two straps
+  r.add(mesh(shell(0.19, 0.27, 0.007), td));
+  r.add(rot(mesh(slab([[-0.052, 0], [0.052, 0], [0.048, 0.1], [-0.048, 0.1]], 0.012, 0.003), td, chest(0.31, 0.004), 0.265, 0), 0, -Math.PI / 2, 0)); // bib
+  r.add(mesh(box(0.006, 0.03, 0.04), tm, chest(0.34, 0.012), 0.33, 0.016)); // bib pocket
+  for (const z of [-0.042, 0.042]) {
+    r.add(rod([chest(0.36, 0.006), 0.36, z], [0.0, 0.415, z * 1.45], 0.007, td, 4)); // straps over the shoulders
+    r.add(rod([0.0, 0.415, z * 1.45], [-chest(0.33, 0.006), 0.27, z * 0.5], 0.007, td, 4));
+    r.add(mesh(gem(0.009), M.brass(), chest(0.36, 0.01), 0.36, z)); // strap buttons
+  }
+  // tool belt: a wide leather belt slung low, a buckle, pouches on both hips and a hammer
+  r.add(mesh(shell(0.205, 0.235, 0.016), M.leather()));
+  r.add(mesh(box(0.008, 0.026, 0.032), M.brass(), chest(0.22, 0.02), 0.22, 0));
+  for (const side of [-1, 1]) {
+    r.add(mesh(loft([[0.14, 0.05, 0.03], [0.21, 0.056, 0.036], [0.225, 0.05, 0.034]], 6, 2.4), M.leather(), 0.03, 0, side * 0.094)); // pouch
+    r.add(mesh(box(0.054, 0.014, 0.008), mat('#4a2c14'), 0.03, 0.205, side * 0.112)); // its flap
+  }
+  r.add(mesh(box(0.012, 0.12, 0.012), M.wood(), -0.03, 0.17, 0.118)); // hammer handle
+  r.add(mesh(box(0.06, 0.024, 0.024), M.iron(), -0.03, 0.235, 0.118)); // hammer head
+  // rolled sleeves: the shirt covers the upper arm, then a cuff
+  for (const k of ['armL', 'armR']) {
+    m.parts[k].add(mesh(taper(0.085, 0.066, 0.06, 6), shirt));
+    m.parts[k].add(mesh(loft([[-0.096, 0.064, 0.064], [-0.078, 0.07, 0.07]], 6), shirt));
+    m.parts[k].add(mesh(gem(0.034, 1.1, 0.7, 1.1), glove, 0, -0.165, 0)); // glove cuff
+  }
+  // a short beard and sideburns
+  r.add(mesh(loft([[0.43, 0.06, 0.06], [0.45, 0.098, 0.1], [0.47, 0.096, 0.104]], 8), M.hair(), 0.012, 0, 0));
+  r.add(mesh(box(0.012, 0.01, 0.05), M.hair(), 0.058, 0.468, 0)); // moustache
+  // hard hat in team colour: a dome, a brim all round, a ridge over the crown and a lamp on the front
+  r.add(mesh(turned([[0, 0], [0.098, 0], [0.098, 0.008], [0.076, 0.016], [0.074, 0.045], [0.06, 0.07], [0.034, 0.084], [0, 0.088]], 10), tm, -0.004, 0.488, 0));
+  r.add(mesh(slab([[-0.07, 0.04], [-0.05, 0.07], [0, 0.088], [0.05, 0.07], [0.07, 0.04], [0.07, 0.05], [0.05, 0.078], [0, 0.098], [-0.05, 0.078], [-0.07, 0.05]], 0.022, 0.003), td, -0.004, 0.488, 0)); // ridge
+  r.add(mesh(box(0.024, 0.03, 0.03), M.brass(), 0.078, 0.52, 0)); // lamp
+  r.add(along(mesh(cyl(0.012, 0.012, 0.006, 8), M.lamp(), 0.092, 0.52, 0)));
+  // wicker basket on the back with leather straps, heaped with ore as it fills
+  r.add(mesh(turned([[0, 0], [0.055, 0], [0.07, 0.14], [0.064, 0.14], [0, 0.1]], 8), M.wattle(), -0.11, 0.29, 0));
+  r.add(mesh(turned([[0.07, 0.13], [0.075, 0.13], [0.075, 0.145], [0.068, 0.145]], 8), M.leather(), -0.11, 0.29, 0)); // rim
+  for (const z of [-0.05, 0.05]) r.add(rod([-0.06, 0.41, z], [-0.08, 0.31, z], 0.007, M.leather(), 4));
+  const heap = mesh(gem(0.05, 1, 1, 1, 1), M.ore(), -0.11, 0.43, 0);
   m.parts.heap = heap;
-  m.root.add(heap);
+  r.add(heap);
   // a pick held in the right fist: the haft runs through the hand (gripped near its butt) and
   // the iron head sits across its far end, so it moves with the arm when it swings
   m.parts.armR.rotation.z = 1.0;
-  // the striking side (-y, it leads the downswing) tapers to a long point; the back is a short flat blade
+  // the striking side (-y, it leads the downswing) curves to a long point; the back is a flat chisel
   const pick = group(0, -0.175, 0,
-    mesh(box(0.3, 0.02, 0.02), M.wood(), 0.09, 0, 0),
-    mesh(box(0.034, 0.04, 0.028), M.iron(), 0.235, 0, 0), // eye round the haft
-    rot(mesh(cone(0.016, 0.13, 6), M.iron(), 0.235, -0.085, 0), Math.PI, 0, 0), // the point
-    mesh(box(0.024, 0.05, 0.016), M.iron(), 0.235, 0.045, 0),
-    mesh(box(0.05, 0.018, 0.012), M.steel(), 0.235, 0.075, 0)); // the blade's edge
+    mesh(loftX([[-0.07, 0.026, 0.026], [-0.055, 0.03, 0.03], [-0.04, 0.022, 0.022], [0.25, 0.02, 0.02]], 6), M.wood()), // haft
+    mesh(loftX([[0.214, 0.03, 0.03], [0.258, 0.03, 0.03]], 6), M.iron()), // eye round the haft
+    mesh(slab([[0.2, -0.15], [0.226, -0.07], [0.25, -0.02], [0.25, 0.02], [0.238, 0.06], [0.234, 0.1], [0.208, 0.1], [0.214, 0.06], [0.222, 0.02], [0.222, -0.02], [0.212, -0.07]], 0.022, 0.004), M.iron()),
+    mesh(box(0.028, 0.008, 0.026), M.steel(), 0.221, 0.1, 0)); // the chisel's bright edge
   m.parts.gun = pick;
   m.parts.armR.add(pick);
   return m;
