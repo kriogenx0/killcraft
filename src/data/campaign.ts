@@ -74,6 +74,8 @@ export interface Mission {
   oneOil?: boolean;
   /** no wood but one small grove in the middle of the map (Alex: "scarce wood") */
   oneWood?: boolean;
+  /** wild creatures guarding the middle of the map (Alex: The Last Grove "could have creatures guarding it"); the only creatures before mission 10 */
+  guards?: UnitType[];
   /** what else must be done to win, beside destroying the enemy */
   goals?: Goal[];
   /** each side on its own island: only aircraft cross */
@@ -134,8 +136,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "a new mission between 6 and 7. One with scarce wood. Only a small patch in the center"
-    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true,
-    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. One Normal computer needs it as badly as you do. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
+    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true, guards: ['centaur', 'minotaur', 'cyclops'], raids: ['rifleman', 'rifleman', 'gunner'], // Alex: creatures guard it; the enemy raids
+    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. Wild creatures guard it: beat one down and it kneels, ready to be captured. One Normal computer needs the wood as badly as you do, and raids you early. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6707 }),
   },
   {
@@ -234,7 +236,7 @@ export function missionLayout(m: Mission): MapLayout {
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, camps: m.camps, oneWood: !!m.oneWood,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, camps: m.camps, oneWood: !!m.oneWood, guards: m.guards,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

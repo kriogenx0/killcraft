@@ -18,7 +18,7 @@ import { regrowOre } from './ore.ts';
 import { collect, dropSalvage } from './economy.ts';
 import { bankAether, drawAether, regrowAether, pickUpShards, placeAether, shrineHeal, syncWaygates } from './aether.ts';
 import { initCows } from './cows.ts';
-import { beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
+import { addBeast, beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
 import { available, emptyProduction, priceOf, updProduction, type Price } from './production.ts';
 import { refitPrice } from './refit.ts';
@@ -71,6 +71,8 @@ export interface StartOptions {
   camps?: number;
   /** no wood but the layout's forests (G.oneWood) */
   oneWood?: boolean;
+  /** wild creatures standing guard around the middle of the map (the layout's first forest, else the centre) */
+  guards?: readonly UnitType[];
   /**
    * Enemy sides get no town: just these units, in small groups across the map (campaign mission 1,
    * Alex: "Don't go against a town yet. Just random units"). The side is beaten when they're all gone.
@@ -128,6 +130,20 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   rebuildBlk();
   if (wild) placeCreatures(G.seed);
   else { G.tamed = Array.from({ length: n }, () => []); G.respawns = []; }
+  // creatures guarding the middle (campaign, The Last Grove): in a ring around it, each on open ground
+  if (start.guards?.length) {
+    const [cx, cy] = mapLayout().forests[0] ?? [MW / 2, MH / 2];
+    start.guards.forEach((type, k) => {
+      const a = (k / start.guards!.length) * Math.PI * 2 + 0.4;
+      for (let r = 5; r < 10; r++) {
+        const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+        if (G.terr[y * MW + x] !== GRASS || G.blk[y * MW + x] || G.ore[y * MW + x]) continue;
+        const u = addBeast(type, (x + 0.5) * TS, (y + 0.5) * TS);
+        u.face = u.tface = a + Math.PI;
+        break;
+      }
+    });
+  }
   if (locked) {
     // the saved map as it was locked, whatever the placement code does today
     applyGround(locked);

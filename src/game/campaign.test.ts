@@ -151,7 +151,7 @@ describe('Aether and creatures', () => {
       initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
       expect(G.hell.gate, m.id).toBe(false);
       expect(G.ents.some((e) => e.type === 'aether'), m.id).toBe(i >= 9);
-      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 9);
+      expect(G.ents.some((e) => !!e.wild), m.id).toBe(i >= 9 || !!m.guards);
     });
     initWorld(2202, 2, { wild: false, gate: false, aether: false });
     expect(G.ents.filter((e) => e.type === 'aether' || !!e.wild)).toEqual([]);
@@ -228,7 +228,7 @@ describe('mission layouts', () => {
 
 describe('early raids (Alex: missions 3, 4, 5 and 7)', () => {
   it('missions 3, 4, 5 and 7 give the enemy raiders and raid early; the others do not', () => {
-    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe([2, 3, 4, 7].includes(i)));
+    MISSIONS.forEach((m, i) => expect(!!m.raids, m.id).toBe([2, 3, 4, 6, 7].includes(i)));
     const m = MISSIONS[4];
     G.headless = true;
     initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
@@ -271,6 +271,10 @@ describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () =
     expect(trees.length).toBeGreaterThan(5);
     expect(trees.length).toBeLessThan(40);
     for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
+    // creatures stand guard around it (Alex)
+    const guards = G.ents.filter((e) => !e.dead && !!e.wild);
+    expect(guards.map((e) => e.type).sort()).toEqual([...m.guards!].sort());
+    for (const g of guards) expect(Math.hypot(g.x / TS - cx, g.y / TS - cy)).toBeLessThan(10);
   });
 });
 
