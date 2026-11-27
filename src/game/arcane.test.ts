@@ -29,7 +29,7 @@ describe('spellcasters', () => {
   it('need no Aether, and come one per age', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 12, 46, false);
-    // spellcasters train at the Barracks only while there's an Arcane Academy
+    // spellcasters train at the Barracks only while there's an Arcane Circle
     expect(available(0, 'infantry')).not.toContain('mage');
     expect(unitNeeds(0, 'mage')).toBe('magetower');
     addBuilding('magetower', 0, 16, 46, false);
