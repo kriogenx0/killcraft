@@ -1,8 +1,8 @@
 // Choices for a new game against the computer (the setup screen), and what each computer difficulty
 // means. Difficulty changes how the computer plays (how often it thinks, how many Workers it keeps,
 // how fast it trains and builds, how big its army gets, and how early and how big it attacks). Easy
-// and Normal also work slower than a player can (pace); Brutal works faster and gets a head start: a
-// quarter more starting ore and wood.
+// and Normal also work slower than a player can (pace); Brutal works faster and gets a head start: half
+// again as much starting ore and wood.
 import type { UnitType } from './unit.ts';
 
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'brutal';
@@ -50,8 +50,8 @@ export const AI_LEVEL: Record<Difficulty, AiLevel> = {
     think: 1, firstWave: 6, waveStep: 2, firstAttack: 330, workers: 4, maxWorkers: 16, harvesters: 3, sites: 3, queue: 2, armyCap: 50, defendRange: 16, bonus: 1, pace: 0.75,
   },
   brutal: {
-    name: 'Brutal', desc: 'Plays like Hard but builds faster, starts with 25% more ore and wood, and attacks in bigger waves after 2 minutes.',
-    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 120, workers: 4, maxWorkers: 22, harvesters: 3, sites: 3, queue: 3, armyCap: 80, defendRange: 18, bonus: 1.25, pace: 1.15,
+    name: 'Brutal', desc: 'Plays like Hard but builds much faster, runs a bigger economy, starts with 50% more ore and wood, and attacks in bigger waves after 2 minutes.',
+    think: 0.5, firstWave: 10, waveStep: 4, firstAttack: 120, workers: 5, maxWorkers: 26, harvesters: 4, sites: 4, queue: 3, armyCap: 80, defendRange: 18, bonus: 1.5, pace: 1.3,
   },
 };
 
