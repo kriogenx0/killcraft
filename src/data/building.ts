@@ -113,8 +113,11 @@ export const BUILD_RADIUS = 4;
  */
 export const SCRAP_SHARE = 0.5;
 
-/** Repairs restore this much health per second and cost proportionally to the building's price. */
-export const REPAIR_RATE = 25;
+/**
+ * Repairs restore this much health per second and cost proportionally to the building's price
+ * (Alex, 2026-11-28: "Repair is too fast"; was 25).
+ */
+export const REPAIR_RATE = 12;
 
 /**
  * Repairing a building from nothing to full health costs this share of its ore price (Alex,

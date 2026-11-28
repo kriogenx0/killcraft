@@ -20,8 +20,7 @@ import { bankAether, drawAether, regrowAether, pickUpShards, placeAether, shrine
 import { initCows } from './cows.ts';
 import { addBeast, beastDied, captureBeasts, placeCreatures, respawnBeasts, satyrSong } from './creatures.ts';
 import { noUpgrades } from './upgrade.ts';
-import { available, emptyProduction, priceOf, updProduction, type Price } from './production.ts';
-import { refitPrice } from './refit.ts';
+import { available, emptyProduction, updProduction } from './production.ts';
 import { teamColors } from '../data/team.ts';
 import { ais, aiThink, campAlarm, resetAi } from './ai.ts';
 import { AI_LEVEL } from '../data/setup.ts';

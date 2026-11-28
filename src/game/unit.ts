@@ -29,15 +29,17 @@ const lastOrder = new WeakMap<Ent, string>();
 /** Units that had an order last tick. */
 const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
-import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
+import { MACHINE_REPAIR, MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { callSwarm, stone, updBee, updWild } from './creatures.ts';
 import { updDemon } from './hell.ts';
-import { frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
+import { burning, frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
+/** A unit whose target fell this far (tiles) or more from where it was carries on to that spot. */
+const CARRY_ON = 2;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
 export const TEND_RADIUS = 12;
 /** Idle Workers repair buildings on their own only while the bank holds more ore than this. */
@@ -476,9 +478,10 @@ function woundedNear(u: Ent, r: number, ownOnly = false): Ent | null {
   return own ?? ally;
 }
 
+// a patient at full health still gets its flames beaten out before the Medic moves on
 function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
-  if (!t || !medicCanHeal(u, t) || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  if (!t || !medicCanHeal(u, t) || (t.hp >= t.maxhp && !burning(t)) || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
   // tending a teammate's unit on its own initiative: drop it for one of our own who gets hurt nearby
   if (t.team !== u.team && !o.sent && (u.scan -= dt) <= 0) {
     u.scan = 0.4;
@@ -495,7 +498,7 @@ function tend(u: Ent, t: Ent, dt: number): boolean | null {
   if (!r) return r;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // tends from afar: drawn like an attack
-  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
+  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * mendRate(t) * dt);
   t.burnT = 0; // and beats out the flames
   // a soft green ray to the patient now and then, so you can see who is being healed
   // (an amber welding ray when it's repairing a machine)
@@ -608,7 +611,12 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
     if (t.done) stayOnDerrick(u, t);
   }
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
-  else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
+  else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * mendRate(t) * dt);
+}
+
+/** Machines (vehicles and cyborgs) are repaired more slowly than troops are healed. */
+function mendRate(t: Ent): number {
+  return t.kind === 'unit' && unitDef(t).cls === 'vehicle' ? MACHINE_REPAIR : 1;
 }
 
 /** An enemy wall the unit was ordered right onto, once it's within sight of it. */
@@ -843,6 +851,7 @@ function act(u: Ent, dt: number): void {
         const b = betterTarget(u, t, lookRange(u), !o.auto);
         if (b) { if (!o.auto && o.pick === undefined) o.pick = t.id; t = b; o.tgt = b.id; u.path = null; }
       }
+      if (t && !o.auto && o.pick === undefined) { o.lx = t.x; o.ly = t.y; }
       const strayed = o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE;
       const gaveUp = !t || strayed || !combatStep(u, t, dt);
       if (gaveUp) {
@@ -854,6 +863,12 @@ function act(u: Ent, dt: number): void {
         const back = o.pick !== undefined ? valid(o.pick) : null;
         if (back && back !== t && isFoe(u, back) && canAttack(u, back)) { o.tgt = back.id; o.pick = undefined; u.path = null; u.scan = 0; break; }
         u.order = null; u.path = null; u.scan = 0;
+        // the enemy you sent it after is gone (killed by others, or out of sight) before it got there:
+        // don't stop dead in the field, carry on to where it was, fighting by stance on the way
+        if (!t && !o.auto && o.lx != null && o.ly != null && Math.hypot(u.x - o.lx, u.y - o.ly) > CARRY_ON * TS) {
+          const gx = tileOf(o.lx), gy = tileOf(o.ly), spot = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 3) : [gx, gy] as Tile;
+          if (spot) orderMove(u, spot[0], spot[1]);
+        }
       }
       break;
     }

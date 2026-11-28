@@ -43,7 +43,7 @@ export function arrive(u: Ent): boolean {
 }
 
 export function orderAttack(u: Ent, t: Ent): void {
-  setOrder(u, { t: 'attack', tgt: t.id, auto: false, ox: u.x, oy: u.y });
+  setOrder(u, { t: 'attack', tgt: t.id, auto: false, ox: u.x, oy: u.y, lx: t.x, ly: t.y });
 }
 
 /** Run directly away from a threat. */
