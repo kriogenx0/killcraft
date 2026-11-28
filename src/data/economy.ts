@@ -7,9 +7,10 @@
 export const MILL_RADIUS = 5;
 /**
  * Wood a full-grown tree holds, and how fast a cut tree grows back (per second).
- * Alex, 2026-11-26: wood grows back slower. Halved twice that day (0.1, then 0.05): a chopped-out tree now takes about 100 min to refill.
+ * Alex, 2026-11-26: wood grows back slower. Halved twice that day (0.1, then 0.05): a chopped-out tree took about 100 min to refill.
+ * Alex, 2026-11-28: wood runs out slightly faster: 120 wood a tree (was 150), so woods thin out 20% sooner and a stump refills in ~80 min.
  */
-export const TREE_WOOD = 150;
+export const TREE_WOOD = 120;
 export const TREE_REGROW = 0.025;
 
 /**
