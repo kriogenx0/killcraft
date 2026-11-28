@@ -3,6 +3,7 @@
 // small cross where a move ends; with a few units selected, a faint dashed line runs out to it too.
 // Amber is for a fight, white for everything else: neither is a team color (green, blue, red) nor a
 // spell's (shield blue, frost cyan, bloodlust red, Aether violet).
+// A patrol shows its beat instead: a turning sky-blue ring at each end and a dashed route between.
 import * as THREE from 'three';
 import { valid, type Ent } from '../../../game/state.ts';
 import { TS } from '../../../game/const.ts';
@@ -17,13 +18,18 @@ interface Mark { x: number; z: number; r: number; fight: boolean; key: string }
 /** lines are drawn only for a small selection: an army's worth would be a tangle */
 const MAX_LINES = 6;
 const MAX_MARKS = 24;
-const FIGHT = '#ffb030', OTHER = '#ffffff';
+const FIGHT = '#ffb030', OTHER = '#ffffff', PATROL = '#5af';
+/** one route per group patrolling the same beat; ends this close (tiles) count as the same beat */
+const MAX_ROUTES = 8, SAME_BEAT = 6;
 
 const reticles: THREE.Mesh[] = [];
 const crosses: THREE.Mesh[] = [];
 const lines: THREE.Line[] = [];
-const mats = { fight: flat(FIGHT, 0.95), other: flat(OTHER, 0.8) };
+const rings: THREE.Mesh[] = [];
+const routes: THREE.Line[] = [];
+const mats = { fight: flat(FIGHT, 0.95), other: flat(OTHER, 0.8), patrol: flat(PATROL, 0.9) };
 const lineMats = { fight: dashed(FIGHT), other: dashed(OTHER) };
+const routeMat = new THREE.LineDashedMaterial({ color: PATROL, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.9, depthWrite: false, depthTest: false, fog: false });
 
 function flat(color: string, opacity: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, depthTest: false, fog: false, side: THREE.DoubleSide });
@@ -54,10 +60,52 @@ const crossGeo = (() => {
   return g;
 })();
 
+/** a patrol end: a ring broken into two arcs, which turns so it reads as going round and round */
+const ringGeo = (() => {
+  const a = new THREE.RingGeometry(0.36, 0.46, 20, 1, 0.25, Math.PI - 0.5).rotateX(-Math.PI / 2);
+  const b = new THREE.RingGeometry(0.36, 0.46, 20, 1, Math.PI + 0.25, Math.PI - 0.5).rotateX(-Math.PI / 2);
+  const dot = new THREE.CircleGeometry(0.09, 10).rotateX(-Math.PI / 2);
+  const g = new THREE.BufferGeometry();
+  const pos = [a, b, dot].flatMap((x) => [...x.toNonIndexed().getAttribute('position').array]);
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+})();
+
 export function resetTargets(): void {
   reticles.length = 0;
   crosses.length = 0;
   lines.length = 0;
+  rings.length = 0;
+  routes.length = 0;
+}
+
+/** a beat shared by some selected patrollers: the summed ends, so their middles can be found */
+interface Beat { ax: number; az: number; bx: number; bz: number; n: number }
+
+/**
+ * Gather the selection's patrols into beats. Units sent together each get their own tile at either
+ * end and may be heading either way, so ends near an existing beat (in either order) join it.
+ */
+function beatsOf(us: Ent[]): Beat[] {
+  const beats: Beat[] = [];
+  for (const u of us) {
+    const o = u.order;
+    if (o?.t !== 'move' || !o.pat) continue;
+    const p = [o.gx + 0.5, o.gy + 0.5], q = [o.pat[0] + 0.5, o.pat[1] + 0.5];
+    let hit = false;
+    for (const b of beats) {
+      const ax = b.ax / b.n, az = b.az / b.n, bx = b.bx / b.n, bz = b.bz / b.n;
+      const same = Math.hypot(p[0] - ax, p[1] - az) + Math.hypot(q[0] - bx, q[1] - bz);
+      const swap = Math.hypot(q[0] - ax, q[1] - az) + Math.hypot(p[0] - bx, p[1] - bz);
+      if (Math.min(same, swap) > SAME_BEAT * 2) continue;
+      const [s, t] = same <= swap ? [p, q] : [q, p];
+      b.ax += s[0]; b.az += s[1]; b.bx += t[0]; b.bz += t[1]; b.n++;
+      hit = true;
+      break;
+    }
+    if (!hit && beats.length < MAX_ROUTES) beats.push({ ax: p[0], az: p[1], bx: q[0], bz: q[1], n: 1 });
+  }
+  return beats;
 }
 
 const radiusOf = (e: Ent): number => (e.w ? (e.w / 2) * 0.95 + 0.1 : (UNIT[e.type as UnitType]?.radius ?? 8) / TS + 0.28);
@@ -82,6 +130,7 @@ function targetOf(u: Ent): (Mark & { cross?: boolean }) | null {
     if (src) return { x: src.x / TS, z: src.y / TS, r: radiusOf(src), fight: false, key: `e${src.id}` };
     return { x: o.tx + 0.5, z: o.ty + 0.5, r: 0.55, fight: false, key: `t${o.tx},${o.ty}` };
   }
+  if (o?.t === 'move' && o.pat) return null;
   if (o?.t === 'move') {
     const gx = o.gx, gy = o.gy;
     return { x: gx + 0.5, z: gy + 0.5, r: 0, fight: false, key: `m${gx},${gy}`, cross: true };
@@ -142,4 +191,33 @@ export function updateTargets(parent: THREE.Object3D, seen: (e: Ent) => boolean)
   }
   for (let i = nr; i < reticles.length; i++) reticles[i].visible = false;
   for (let i = nc; i < crosses.length; i++) crosses[i].visible = false;
+
+  // patrols: a ring at each end of the beat and a dashed route between them
+  let ng = 0, nb = 0;
+  for (const b of beatsOf(mine)) {
+    const ends: [number, number][] = [[b.ax / b.n, b.az / b.n], [b.bx / b.n, b.bz / b.n]];
+    for (const [i, [x, z]] of ends.entries()) {
+      const ring = poolMesh(rings, ng++, ringGeo, parent);
+      ring.material = mats.patrol;
+      ring.position.set(x, surfaceY(x, z) + 0.12, z);
+      ring.rotation.y = (i ? -now : now) * 1.6;
+    }
+    const [[ax, az], [bx, bz]] = ends, d = Math.hypot(bx - ax, bz - az);
+    if (d < 1.2) continue;
+    let ln = routes[nb];
+    if (!ln) { ln = new THREE.Line(new THREE.BufferGeometry(), routeMat); ln.renderOrder = 3.5; routes.push(ln); parent.add(ln); }
+    nb++;
+    ln.visible = true;
+    // ring edge to ring edge, hugging the ground over hills
+    const pts: THREE.Vector3[] = [], from = 0.5 / d, to = 1 - 0.5 / d;
+    for (let k = 0, n = Math.max(2, Math.ceil(d * 2)); k <= n; k++) {
+      const f = from + ((to - from) * k) / n, px = ax + (bx - ax) * f, pz = az + (bz - az) * f;
+      pts.push(new THREE.Vector3(px, surfaceY(px, pz) + 0.1, pz));
+    }
+    ln.geometry.dispose();
+    ln.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+    ln.computeLineDistances();
+  }
+  for (let i = ng; i < rings.length; i++) rings[i].visible = false;
+  for (let i = nb; i < routes.length; i++) routes[i].visible = false;
 }
