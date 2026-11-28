@@ -150,9 +150,10 @@ export const MISSIONS: Mission[] = [
     // has random units around. Still more difficult"
     id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1, small: 68,
     army: [...rep('rifleman', 8), ...rep('gunner', 4), ...rep('tank', 4), ...rep('jeep', 2), ...rep('artillery', 2)],
-    // Alex: "Mission 6 and 7 were too easy": more of them, heavier, and camps answer each other's fights
-    scatter: [...rep('rifleman', 10), ...rep('gunner', 8), ...rep('tank', 8), ...rep('jeep', 4), ...rep('artillery', 4)], camps: 14, patches: 8, // Alex: "the enemy units are too close": 8 camps, none near the start
-    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, far more of them than you, and the camps nearby rush to join any fight they hear. Pick your fights carefully and wipe them out.',
+    // Alex: "Mission 6 and 7 were too easy", then "Iron & Steam is too hard"
+    // so back to 24, mostly infantry, and only close camps answer a fight
+    scatter: [...rep('rifleman', 10), ...rep('gunner', 5), ...rep('tank', 4), ...rep('jeep', 3), ...rep('artillery', 2)], camps: 8, patches: 8, // Alex: "the enemy units are too close": 8 camps, none near the start
+    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped in small groups all over the map, a few more of them than you, and a camp close by may join a fight it hears. Take the camps one at a time and wipe them out.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6606 }),
   },
   {
