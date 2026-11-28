@@ -46,6 +46,28 @@ export function orderAttack(u: Ent, t: Ent): void {
   setOrder(u, { t: 'attack', tgt: t.id, auto: false, ox: u.x, oy: u.y, lx: t.x, ly: t.y });
 }
 
+/** Can this unit escort others? Gatherers have their work; a jet circles and can't keep close. */
+export const canEscort = (u: Ent): boolean => u.kind === 'unit' && !u.wild && !u.demon && !u.bee && u.wing == null && !unitDef(u).haul && !unitDef(u).jet && (!!unitDef(u).weapon || u.type === 'medic');
+
+/** Can this unit be escorted? Any living unit, not a Bee or Hornet (they stick to their Queen or Carrier). */
+export const canBeEscorted = (w: Ent): boolean => w.kind === 'unit' && !w.dead && !w.bee && w.wing == null;
+
+/**
+ * Send a group to escort a friendly unit: each takes its own spot on a ring round it, spread evenly
+ * and starting from the side it's coming from, so they surround it rather than bunching up behind.
+ */
+export function orderEscort(us: Ent[], w: Ent): void {
+  const team = us.filter((u) => u !== w && canEscort(u));
+  const n = team.length;
+  if (!n) return;
+  // a ring a tile and a half out, wider as more join, so nobody stands on top of the ward or each other
+  const rad = Math.min(4, 1.5 + n / 8);
+  const base = Math.atan2(team.reduce((s, u) => s + u.y, 0) / n - w.y, team.reduce((s, u) => s + u.x, 0) / n - w.x);
+  // in order round the ring from where each one stands, so they don't cross paths getting there
+  const around = (u: Ent) => (Math.atan2(u.y - w.y, u.x - w.x) - base + 3 * Math.PI) % (2 * Math.PI);
+  [...team].sort((a, b) => around(a) - around(b)).forEach((u, i) => setOrder(u, { t: 'escort', tgt: w.id, sub: null, ang: base - Math.PI + ((i + 0.5) / n) * 2 * Math.PI, rad }));
+}
+
 /** Run directly away from a threat. */
 export function orderFlee(u: Ent, from: { x: number; y: number }): void {
   const dx = u.x - from.x, dy = u.y - from.y, d = Math.hypot(dx, dy) || 1;

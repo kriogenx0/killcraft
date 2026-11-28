@@ -4,7 +4,7 @@ import { aiPace, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { WEAPON } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
-import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type AttackOrder, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
+import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type AttackOrder, type HarvestOrder, type HealOrder, type MoveOrder, type EscortOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
@@ -13,7 +13,7 @@ import { approach, canStep, cruise, followPath, holdingFormation, narrow, turnTo
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { groupMove, orderFlee, orderMove, setOrder, arrive } from './order.ts';
-import { shardFor, wantsHome } from './aether.ts';
+import { cloakedFrom, shardFor, wantsHome } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, AETHER_RETURN_RETRY, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
 import { found } from './fog.ts';
@@ -733,6 +733,63 @@ function aetherHome(u: Ent, dt: number): boolean {
   return true;
 }
 
+/** How near (tiles) to the unit being escorted an enemy has to come for its escorts to take it on. */
+export const ESCORT_GUARD = 6;
+/** How far (tiles) from the unit being escorted an escort chases an enemy before it lets it go and comes back. */
+export const ESCORT_LEASH = 9;
+/** How long (s) after the ward was hit its attacker still counts as coming at it. */
+const ESCORT_ALERT = 3;
+/** When each escort next looks for trouble, and may next work out a new way to its spot. */
+const escortT = new WeakMap<Ent, { scan: number; path: number }>();
+
+/**
+ * Escort: keep to its spot round the ward, take on enemies that come at it or near it (fighting stances
+ * only; on Stay still it just fires at what's in range), never chasing far from it, then go back to
+ * its spot. A Medic heals whoever it can reach. When the ward is gone the escort stops where it is.
+ */
+function updEscort(u: Ent, o: EscortOrder, dt: number): void {
+  const w = valid(o.tgt);
+  if (!w || w.kind !== 'unit' || !allied(w.team, u.team)) { setOrder(u, null); u.scan = 0; return; }
+  const d = unitDef(u);
+  let tm = escortT.get(u);
+  if (!tm) { tm = { scan: 0, path: 0 }; escortT.set(u, tm); }
+  const fromWard = (e: Ent) => Math.hypot(e.x - w.x, e.y - w.y);
+  const fights = !!d.weapon && u.stance !== 'passive' && u.stance !== 'tend';
+  const hold = reactOf(u) === 'hold';
+  let t = valid(o.sub);
+  if (t && (!fights || fromWard(t) > ESCORT_LEASH * TS || fromWard(u) > ESCORT_LEASH * TS || !isFoe(u, t))) t = null;
+  if (!t && o.sub != null) { o.sub = null; u.path = null; u.goal = null; }
+  if (fights && !hold && (tm.scan -= dt) <= 0) {
+    tm.scan = 0.3;
+    // whoever is hitting the ward first, then whoever is hitting this escort, then any enemy close to the ward
+    const wf = valid(w.foe);
+    const atWard = wf && G.gameT - w.foeT <= ESCORT_ALERT && isFoe(u, wf) && canAttack(u, wf) && !cloakedFrom(wf, u.team) && fromWard(wf) <= ESCORT_LEASH * TS ? wf : null;
+    const mine = attacker(u), near = acquire(u, lookRange(u));
+    const pick = atWard ?? (mine && fromWard(mine) <= ESCORT_LEASH * TS ? mine : null) ?? (near && fromWard(near) <= ESCORT_GUARD * TS ? near : null);
+    if (pick && pick !== t && (!t || pick === atWard || pick === mine)) { t = pick; o.sub = pick.id; u.path = null; u.goal = null; }
+  }
+  if (t) {
+    if (!combatStep(u, t, dt)) { o.sub = null; u.path = null; u.goal = null; }
+    return;
+  }
+  // back to its spot on the ring round the ward
+  const sx = w.x + Math.cos(o.ang) * o.rad * TS, sy = w.y + Math.sin(o.ang) * o.rad * TS;
+  const gx = Math.max(0, Math.min(MW - 1, tileOf(sx))), gy = Math.max(0, Math.min(MH - 1, tileOf(sy)));
+  const g = u.goal, there = Math.hypot(u.x - sx, u.y - sy) < 0.8 * TS || (!!g && !u.path?.length && tileOf(u.x) === g[0] && tileOf(u.y) === g[1] && Math.hypot(g[0] - gx, g[1] - gy) < 2);
+  if (!there) {
+    const stale = !g || Math.hypot(g[0] - gx, g[1] - gy) >= 2;
+    if ((!u.path?.length || stale) && G.gameT >= tm.path) {
+      tm.path = G.gameT + 0.4;
+      const spot: Tile | null = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 3) : [gx, gy];
+      if (spot) { u.goal = spot; u.path = pathFor(u, spot[0], spot[1]); }
+    }
+    if (u.path?.length && followPath(u, dt)) u.path = null;
+  }
+  // shoot what's in range on the way (Move & attack, or Stay still), heal who's hurt (Medics)
+  if (d.weapon && (u.stance === 'skirmish' || (fights && hold))) fireOnTheMove(u, dt);
+  if (u.type === 'medic') healOnTheMove(u, dt);
+}
+
 function act(u: Ent, dt: number): void {
   const d = unitDef(u);
   regen(u, dt);
@@ -761,7 +818,7 @@ function act(u: Ent, dt: number): void {
   // told to stay still when attacked, an idle fighter stands its ground and shoots only what's in range
   // (a jet can't stand anywhere: it always flies its attack runs, so it never holds like this)
   const jet = isJet(u), still = !o && !jet && reactOf(u) === 'hold' && !!d.weapon && !isHarvester(u) && (u.stance === 'skirmish' || u.stance === 'engage');
-  if (u.stance !== 'skirmish' && !still) u.shot = null;
+  if (u.stance !== 'skirmish' && !still && o?.t !== 'escort') u.shot = null;
   if (!o) {
     if (still) { fireOnTheMove(u, dt); return; }
     // a skirmisher shoots what's in range from where it stands; with nothing in range it goes after
@@ -925,6 +982,9 @@ function act(u: Ent, dt: number): void {
       }
       break;
     }
+    case 'escort':
+      updEscort(u, o, dt);
+      break;
     case 'harvest':
       if (isHarvester(u)) updHarvester(u, o, dt);
       else u.order = null;

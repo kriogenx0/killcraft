@@ -13,6 +13,8 @@ export const COMMAND_GLYPH: Record<string, string> = {
   // Attack: a sword, point up
   attack: svg('<path d="M19 3l-9.5 9.5M15 3h4v4"/><path d="M6 12l6 6M8.5 15.5L4 20M3 19l2 2"/>'),
   patrol: svg('<path d="M4 8h15M15 4l4 4-4 4M20 16H5M9 12l-4 4 4 4"/>'),
+  // Escort: a shield round a friend
+  escort: svg('<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/><circle cx="12" cy="10" r="2"/><path d="M8.5 16.5c1-2 2-2.5 3.5-2.5s2.5.5 3.5 2.5"/>'),
   stop: svg('<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M8 12h8"/>'),
   engage: svg(crosshair(12, 12, 6, 4)),
   skirmish: svg(`<path d="M3 19h10M10 16l3 3-3 3"/>${crosshair(15, 8.5, 4, 3)}`),
