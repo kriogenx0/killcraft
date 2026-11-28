@@ -14,7 +14,7 @@ import { dealDamage } from './combat.ts';
 import { UNIT } from '../data/unit.ts';
 import { WEAPON } from '../data/weapon.ts';
 import {
-  BURN_DPS, BURN_REACH, BURN_SPREAD, BURN_TIME, DOT_TICK, WRECK_BURN_AT, FREEZE_HP, FREEZE_WORTH, LUST_ATTACK, LUST_SPEED, MANA_REGEN, MANA_START, POISON_DPS, POISON_TIME,
+  BURN_DPS, BURN_REACH, BURN_REST, BURN_SPREAD, BURN_TIME, DOT_TICK, WRECK_BURN_AT, FREEZE_HP, FREEZE_WORTH, LUST_ATTACK, LUST_SPEED, MANA_REGEN, MANA_START, POISON_DPS, POISON_TIME,
   SHIELD_HP, SLOW_ATTACK, SLUDGE_FIRE, SLUDGE_RELOAD, WATER_VS_FIRE, SLUDGE_SPEED, SLUDGE_TIME, SPELL, WET_SHOCK, WET_TIME, type Element, type SpellType,
 } from '../data/spells.ts';
 
@@ -82,8 +82,8 @@ export function applyElement(t: Ent, el: Element | undefined, src: Ent | null): 
     case 'fire':
       // fire steams off a wet target rather than catching
       if (wet(t)) { t.wetT = 0; steam(t); return; }
-      t.burnT = Math.max(t.burnT ?? 0, now + BURN_TIME * (sludged(t) ? 1.5 : 1));
-      t.burnBy = src?.id;
+      if (!ignitable(t)) return; // already alight (a burn isn't stoked longer) or freshly scorched
+      ignite(t, BURN_TIME * (sludged(t) ? 1.5 : 1), src?.id);
       break;
     case 'poison':
       if (!living(t)) return;
@@ -92,7 +92,7 @@ export function applyElement(t: Ent, el: Element | undefined, src: Ent | null): 
       break;
     case 'sludge':
       t.sludgeT = Math.max(t.sludgeT ?? 0, now + SLUDGE_TIME);
-      if (burning(t)) t.burnT = Math.max(t.burnT ?? 0, now + BURN_TIME * 1.5); // the coat catches
+      if (burning(t)) t.burnT = Math.max(t.burnT ?? 0, (t.burnAt ?? now) + BURN_TIME * 1.5); // the coat catches: this burn runs half again as long
       break;
     case 'water':
       if (burning(t)) steam(t);
@@ -102,6 +102,16 @@ export function applyElement(t: Ent, el: Element | undefined, src: Ent | null): 
     case 'electric':
       break; // its bite is in elementMult
   }
+}
+
+/** Can fire take hold of this unit now? Not while it's burning, nor for BURN_REST after a burn dies. */
+const ignitable = (t: Ent): boolean => !burning(t) && !(t.burnT && G.gameT < t.burnT + BURN_REST);
+
+/** Set a unit alight for `secs`, counted against whoever lit it. */
+function ignite(t: Ent, secs: number, by: number | undefined): void {
+  t.burnAt = G.gameT;
+  t.burnT = G.gameT + secs;
+  t.burnBy = by;
 }
 
 /** A ground vehicle so badly hurt it's on fire. */
@@ -117,7 +127,7 @@ const byFoe = (u: Ent, id: number | undefined): Ent | null => {
 };
 
 /** Can flames jump to this unit? Soldiers and creatures on foot, not already burning, wet or frozen. */
-const catches = (e: Ent): boolean => living(e) && !isAir(e) && !e.dead && !burning(e) && !wet(e) && !frozen(e) && !e.wild?.down;
+const catches = (e: Ent): boolean => living(e) && !isAir(e) && !e.dead && ignitable(e) && !wet(e) && !frozen(e) && !e.wild?.down;
 
 /**
  * A soldier or creature freshly alight can set someone it's packed against burning too (friend or
@@ -130,8 +140,7 @@ function spread(u: Ent): void {
     if (e === u || e.kind !== 'unit' || !catches(e)) continue;
     if (Math.hypot(e.x - u.x, e.y - u.y) > reach + unitDef(e).radius * 0.5) continue;
     if (Math.random() >= BURN_SPREAD) continue;
-    e.burnT = G.gameT + BURN_TIME / 2;
-    e.burnBy = u.burnBy;
+    ignite(e, BURN_TIME / 2, u.burnBy);
   }
 }
 
@@ -145,7 +154,10 @@ function steam(t: Ent): void {
  */
 export function tickStatus(u: Ent, dt: number): void {
   // a wrecked machine catches fire and slowly burns down, until it's repaired or it's soaked
-  if (wrecked(u) && !wet(u) && !frozen(u)) u.burnT = Math.max(u.burnT ?? 0, G.gameT + DOT_TICK * 2);
+  if (wrecked(u) && !wet(u) && !frozen(u)) {
+    if (!burning(u)) u.burnAt = G.gameT;
+    u.burnT = Math.max(u.burnT ?? 0, G.gameT + DOT_TICK * 2);
+  }
   const b = burning(u), p = poisoned(u);
   if (!b && !p) { u.dotT = 0; return; }
   u.dotT = (u.dotT ?? 0) + dt;
