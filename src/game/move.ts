@@ -191,34 +191,44 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
  * out of line it is (GAIN of the pace per tile, never below FLOOR of it). The marker never runs more
  * than SLACK tiles ahead of the group's middle unit, so a group held up by a crowd or a detour isn't
  * sent racing after it. A unit more than LOOSE tiles ahead (its spot is nearer, round a wall, say)
- * just walks at the pace.
+ * just walks at the pace. A unit more than NEAR tiles from its spot in the moving block, behind or
+ * off to one side, hurries to it at full speed; within NEAR it keeps in step.
  */
 const GAIN = 2, FLOOR = 0.5, SLACK = 1, LOOSE = 6;
+/** Within this many tiles of its spot in the moving block a unit keeps in step; further off it hurries there. */
+const NEAR = 1.5;
 /** each formation's marker: distance (tiles) still to go, as of game time `t` */
-const marks = new Map<number, { left: number; t: number }>();
+const marks = new Map<number, { left: number; t: number; dx: number; dy: number }>();
 let marksAt = -1;
 
 /** Tiles a unit still has to walk to its spot. */
 const toGo = (u: Ent, o: { gx: number; gy: number }): number => Math.hypot((o.gx + 0.5) * TS - u.x, (o.gy + 0.5) * TS - u.y) / TS;
 
-function markLeft(fid: number): number | undefined {
+function markOf(fid: number): { left: number; dx: number; dy: number } | undefined {
   if (marksAt !== G.gameT) {
     marksAt = G.gameT;
-    const left = new Map<number, { l: number[]; pace: number }>();
+    const left = new Map<number, { l: number[]; pace: number; dx: number; dy: number }>();
     for (const e of G.ents) {
       const o = e.order;
-      if (e.dead || o?.t !== 'move' || o.fid == null || !o.pace) continue;
-      const g = left.get(o.fid) ?? { l: [], pace: o.pace };
+      // (a unit still on its way to its place in the block isn't marching yet)
+      if (e.dead || o?.t !== 'move' || o.fid == null || !o.pace || o.fu) continue;
+      const g = left.get(o.fid) ?? { l: [], pace: o.pace, dx: 0, dy: 0 };
       g.l.push(toGo(e, o));
+      g.dx += (o.gx + 0.5) * TS - e.x; g.dy += (o.gy + 0.5) * TS - e.y;
       left.set(o.fid, g);
     }
     for (const f of marks.keys()) if (!left.has(f)) marks.delete(f);
     for (const [f, g] of left) {
-      const mid = g.l.sort((a, b) => a - b)[Math.floor(g.l.length / 2)], m = marks.get(f);
-      marks.set(f, { left: m && m.t <= G.gameT ? Math.max(m.left - g.pace * (G.gameT - m.t), mid - SLACK) : mid, t: G.gameT });
+      const mid = g.l.sort((a, b) => a - b)[Math.floor(g.l.length / 2)], m = marks.get(f), fresh = !m || m.t > G.gameT;
+      // the way the group is heading, fixed when the order is given
+      const gl = Math.hypot(g.dx, g.dy) || 1;
+      marks.set(f, {
+        left: fresh ? mid : Math.max(m.left - g.pace * (G.gameT - m.t), mid - SLACK), t: G.gameT,
+        dx: fresh ? g.dx / gl : m.dx, dy: fresh ? g.dy / gl : m.dy,
+      });
     }
   }
-  return marks.get(fid)?.left;
+  return marks.get(fid);
 }
 
 /** How far (tiles) along the way it's going one spot or unit must be beyond another to count as in front of it. */
@@ -246,7 +256,7 @@ function waitsForFront(u: Ent): boolean {
     const groups = new Map<number, Ent[]>();
     for (const e of G.ents) {
       const o = e.order;
-      if (e.dead || o?.t !== 'move' || o.fid == null || o.sub) continue;
+      if (e.dead || o?.t !== 'move' || o.fid == null || o.sub || o.fu) continue;
       const g = groups.get(o.fid) ?? [];
       g.push(e);
       groups.set(o.fid, g);
@@ -279,11 +289,23 @@ function waitsForFront(u: Ent): boolean {
 function formationPace(u: Ent): number {
   const o = u.order;
   if (o?.t !== 'move' || o.sub || !o.pace) return Infinity;
+  // on its way to its place in the block: hurry there, then march with the rest
+  if (o.fu) {
+    // (until it's there, or its path no longer goes there: pushed past it in a crowd, or sent round)
+    const [fx, fy] = o.fu;
+    if (Math.hypot((fx + 0.5) * TS - u.x, (fy + 0.5) * TS - u.y) > 1.5 * TS && u.path?.some((t) => t[0] === fx && t[1] === fy)) return Infinity;
+    o.fu = undefined;
+  }
   if (waitsForFront(u)) return 0;
-  const mark = o.fid != null ? markLeft(o.fid) : undefined;
-  if (mark == null) return o.pace;
-  const behind = toGo(u, o) - mark;
+  const m = o.fid != null ? markOf(o.fid) : undefined;
+  if (!m) return o.pace;
+  // how far it is from its spot in the moving block: behind (or ahead) along the way, and to one side
+  const vx = (o.gx + 0.5) * TS - u.x, vy = (o.gy + 0.5) * TS - u.y;
+  const behind = toGo(u, o) - m.left, side = Math.abs(vx * m.dy - vy * m.dx) / TS;
   if (behind < -LOOSE) return o.pace;
+  // well out of place behind or to the side: hurry there at full speed (Alex, 2026-11-28)
+  if (behind > 0 && Math.hypot(behind, side) > NEAR) return Infinity;
+  // close to its spot: keep in step with the group
   return o.pace * Math.max(FLOOR, 1 + GAIN * behind);
 }
 

@@ -139,7 +139,7 @@ describe('formation', () => {
     expect(sum / 12).toBeLessThan(2.5); // about 4.3 tiles before formation was made stricter
   });
 
-  it('units whose spots are at the back wait for the front to move off, then fall in behind', () => {
+  it('units whose spots are at the back let the front go first, then fall in behind', () => {
     openField();
     // Medics stand at the front of the way the group is going, swordsmen behind them
     const medics = [0, 1, 2].map((i) => addUnit('medic', 0, 20.5 * TS, (29.5 + i) * TS));
@@ -147,7 +147,7 @@ describe('formation', () => {
     const x0 = medics.map((u) => u.x);
     groupMove([...medics, ...swords], 45, 30, false, true);
     run(1);
-    medics.forEach((u, i) => expect(Math.abs(u.x - x0[i])).toBeLessThan(0.5 * TS)); // still waiting
+    medics.forEach((u, i) => expect(u.x - x0[i]).toBeLessThan(TS)); // not off ahead: going back to their place, or waiting
     run(7);
     // under way, the swordsmen lead and the Medics follow
     expect(Math.min(...swords.map((u) => u.x))).toBeGreaterThan(Math.max(...medics.map((u) => u.x)));
@@ -165,6 +165,19 @@ describe('formation', () => {
     const x0 = medics.map((u) => u.x);
     for (let i = 0; i < 6 / STEP; i++) { update(STEP); swords.forEach((u, k) => { u.x = hold[k][0]; u.y = hold[k][1]; }); }
     medics.forEach((u, i) => expect(u.x - x0[i]).toBeGreaterThan(2 * TS)); // set off anyway
+  });
+
+  it('a unit well out of its place hurries there at full speed, then keeps in step', () => {
+    openField();
+    const rifles = [0, 1, 2, 3].map((i) => addUnit('rifleman', 0, 16.5 * TS, (28.5 + i) * TS));
+    const far = addUnit('rifleman', 0, 16.5 * TS, 40.5 * TS); // 10 tiles off to the side
+    groupMove([...rifles, far], 45, 30, false, true);
+    expect(far.order?.t === 'move' && far.order.fu).toBeTruthy();
+    const y0 = far.y;
+    run(3);
+    expect(y0 - far.y).toBeGreaterThan(UNIT.rifleman.spd * 3 * TS * 0.8); // full speed, not the group's pace held back
+    run(30);
+    expect(far.order).toBeNull();
   });
 
   it('without it, the fast units go on ahead', () => {
