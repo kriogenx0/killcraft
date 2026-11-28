@@ -7,7 +7,7 @@ import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, los, nearestFree, pathFor, pathTo } from './path.ts';
-import { approach, canStep, cruise, followPath, narrow, turnToward } from './move.ts';
+import { approach, canStep, cruise, followPath, holdingFormation, narrow, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
@@ -31,7 +31,7 @@ const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MACHINE_REPAIR, MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
-import { bldDef, reactOf } from './state.ts';
+import { bldDef, isJet, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { callSwarm, stone, updBee, updWild } from './creatures.ts';
 import { updDemon } from './hell.ts';
@@ -409,6 +409,8 @@ function unstick(u: Ent, dt: number): void {
     if (f) { u.x = (f[0] + 0.5) * TS; u.y = (f[1] + 0.5) * TS; u.path = null; }
   }
   if (!u.path || !u.path.length) return;
+  // waiting in formation for the front to move off isn't being stuck
+  if (holdingFormation(u)) { u.stkT = 0.6; u.px = u.x; u.py = u.y; return; }
   u.stkT -= dt;
   if (u.stkT > 0) return;
   u.stkT = 0.6;
@@ -504,6 +506,30 @@ function tend(u: Ent, t: Ent, dt: number): boolean | null {
   // (an amber welding ray when it's repairing a machine)
   if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: unitDef(t).cls === 'vehicle' ? '#ffc861' : '#7dff9a', size: 2 });
   return true;
+}
+
+/** Patients Medics on the march are seeing to, and when each next looks round for one. */
+const marchPatient = new WeakMap<Ent, { id: number | null; scan: number }>();
+
+/**
+ * A Medic walking somewhere (with the army, in formation or not) heals the wounded it passes
+ * within reach without stopping, at its usual rate, and beats out their flames.
+ */
+function healOnTheMove(u: Ent, dt: number): void {
+  let m = marchPatient.get(u);
+  if (!m) { m = { id: null, scan: 0 }; marchPatient.set(u, m); }
+  let t = m.id != null ? valid(m.id) : null;
+  if (t && (!medicCanHeal(u, t) || (t.hp >= t.maxhp - 0.5 && !burning(t)) || Math.hypot(t.x - u.x, t.y - u.y) > MEDIC_REACH)) t = null;
+  if ((m.scan -= dt) <= 0) {
+    m.scan = 0.25;
+    // one of our own who's hurt comes before the teammate it's patching up
+    if (!t || t.team !== u.team) t = woundedNear(u, MEDIC_REACH, !!t) ?? t;
+  }
+  m.id = t ? t.id : null;
+  if (!t) return;
+  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * mendRate(t) * dt);
+  t.burnT = 0;
+  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: unitDef(t).cls === 'vehicle' ? '#ffc861' : '#7dff9a', size: 2 });
 }
 
 /**
@@ -709,13 +735,15 @@ function act(u: Ent, dt: number): void {
   if (aetherHome(u, dt)) return; // Return Aether: banking comes before orders
   const o = u.order;
   // told to stay still when attacked, an idle fighter stands its ground and shoots only what's in range
-  const still = !o && reactOf(u) === 'hold' && !!d.weapon && !isHarvester(u) && (u.stance === 'skirmish' || u.stance === 'engage');
+  // (a jet can't stand anywhere: it always flies its attack runs, so it never holds like this)
+  const jet = isJet(u), still = !o && !jet && reactOf(u) === 'hold' && !!d.weapon && !isHarvester(u) && (u.stance === 'skirmish' || u.stance === 'engage');
   if (u.stance !== 'skirmish' && !still) u.shot = null;
   if (!o) {
     if (still) { fireOnTheMove(u, dt); return; }
     // a skirmisher shoots what's in range from where it stands; with nothing in range it goes after
     // enemies it can see and fights back like any other, so idle troops aren't picked off from afar
-    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); if (u.shot) return; }
+    // (not a jet: circling, it seldom faces what it's locked on to, and has to make attack runs)
+    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u) && !jet) { fireOnTheMove(u, dt); if (u.shot) return; }
     if (busy.delete(u)) u.scan = 0; // just finished something: look for the next thing straight away
     u.scan -= dt;
     if (u.scan > 0) return;
@@ -812,8 +840,9 @@ function act(u: Ent, dt: number): void {
       }
       if (u.stance === 'passive' || u.stance === 'tend' || !d.weapon || o.flee) {
         if (u.type === 'medic' && o.pat && medicOnPatrol(u, o, dt)) break;
-        // keep going
+        // keep going (a Medic heals whoever it passes on the way)
         if (followPath(u, dt)) arrive(u);
+        if (u.type === 'medic' && u.order === o) healOnTheMove(u, dt);
         break;
       }
       // engage: stop to fight anything met on the way, then carry on

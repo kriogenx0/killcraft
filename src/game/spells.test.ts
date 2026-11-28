@@ -1,5 +1,5 @@
 // Mana, auto-cast spells, and elemental effects (game/spells.ts).
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G } from './state.ts';
 import { TS } from './const.ts';
 import { ais } from './ai.ts';
@@ -10,6 +10,7 @@ import { applyElement, burning, cast, frozen, lusting, poisoned, shielded, sludg
 import { setOrder } from './order.ts';
 import { BURN_TIME, SHIELD_HP, SPELL, WET_SHOCK, WRECK_BURN_AT } from '../data/spells.ts';
 import { UNIT } from '../data/unit.ts';
+import { mulberry32 } from '../util/math.ts';
 
 beforeEach(() => {
   G.reveal = true;
@@ -21,6 +22,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   ais[1].on = true;
   G.demo = false;
   G.reveal = false;
@@ -188,6 +190,9 @@ describe('elements', () => {
   });
 
   it('a burning soldier sets the troops packed around it alight, but the fire stops there', () => {
+    // flames jump on a roll of the dice (BURN_SPREAD a tick), and the pack drifts apart as it stands
+    // there, so about one unseeded run in twelve nobody caught: play it with fixed dice
+    vi.spyOn(Math, 'random').mockImplementation(mulberry32(7));
     const lit = addUnit('swordsman', 1, 24 * TS, y);
     const near = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => addUnit('swordsman', 1, 24 * TS + Math.cos(i * 0.785) * 6, y + Math.sin(i * 0.785) * 6));
     const far = addUnit('swordsman', 1, 30 * TS, y);

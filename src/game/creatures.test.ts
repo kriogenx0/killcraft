@@ -269,7 +269,10 @@ describe('creatures of myth', () => {
 
   it('lets a Bee Queen call up a swarm of Bees that sting what she fights, then fly home', () => {
     const q = addUnit('beequeen', 0, MID.x, MID.y), foe = addUnit('swordsman', 1, MID.x + 3 * TS, MID.y);
+    // a punching bag: it neither fights back nor runs (on Don't attack alone it would evade, and the
+    // Queen chasing it could end up at the enemy's base, fighting on with a fresh swarm)
     foe.stance = 'passive';
+    foe.react = 'hold';
     foe.hp = foe.maxhp = 100000;
     q.order = { t: 'attack', tgt: foe.id, auto: false, ox: q.x, oy: q.y };
     run(1);
