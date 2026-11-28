@@ -61,8 +61,10 @@ export const defaultStance = (type: string, team: number): Stance => (type === '
 /**
  * `pace`: marching in formation, the group's slowest speed (tiles/s), which no one with the pack goes
  * faster than; `fid` names the formation, so a straggler behind the pack can run to catch up.
+ * `fu`: in formation, the tile where the unit takes its place in the block before the march, which
+ * it hurries to at full speed.
  */
-export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number; /** running away (Evade): it stops for nothing */ flee?: boolean }
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number; fu?: Tile; /** running away (Evade): it stops for nothing */ flee?: boolean }
 /** pick: the target the player chose, while the unit fights off something that hit it on the way; it goes back to it after. */
 /** `lx`, `ly`: where the target was last seen, so a unit sent after it carries on there if it falls to someone else. */
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number; pick?: number; lx?: number; ly?: number }
