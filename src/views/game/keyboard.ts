@@ -60,6 +60,9 @@ export const FOLLOW_KEY = 'Shift+F';
 /** Rally point: pick a spot new troops from every producer head to. */
 export const RALLY_KEY = 'Shift+R';
 
+/** Select every fighting unit (the Army button). A pans the camera, so only with Shift. */
+export const ARMY_KEY = 'Shift+A';
+
 /** Keep formation: a group moves together at its slowest unit's pace and keeps its shape. */
 export const FORMATION_KEY = 'Shift+M';
 

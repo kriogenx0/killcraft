@@ -4,6 +4,7 @@ import { G } from '../../game/state.ts';
 import { V, spectating } from './view_state.ts';
 import { refreshCommands, setSelection } from './hud.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
+import { ARMY_KEY, keyLabel } from './keyboard.ts';
 import { selectArmy, selectSameTypes, startRally } from './input.ts';
 
 let bar: HTMLElement | null = null;
@@ -18,6 +19,7 @@ export function initTouchBar(root: HTMLElement): void {
   if (matchMedia('(any-pointer: coarse)').matches) document.documentElement.classList.add('touch-ui');
   boxBtn.addEventListener('click', () => { V.touchBox = !V.touchBox; refreshTouchBar(); });
   armyBtn.addEventListener('click', selectArmy);
+  if (!document.documentElement.classList.contains('touch-ui')) armyBtn.title = `Select all your fighting units (${keyLabel(ARMY_KEY)})`;
   rallyBtn.addEventListener('click', () => { startRally(); refreshTouchBar(); });
   sameBtn.addEventListener('click', selectSameTypes);
   followBtn.addEventListener('click', () => { toggleFollow(); refreshCommands(true); refreshTouchBar(); });

@@ -466,6 +466,8 @@ function onKey(ev: KeyboardEvent): void {
     return;
   }
   if (k === 'meta' || k === 'control') { keys.clear(); return; }
+  // Shift+A selects the army instead of panning left
+  if (k === 'a' && ev.shiftKey && tracksKey(ev)) { ev.preventDefault(); if (!ev.repeat && !spectating()) selectArmy(); return; }
   if (tracksKey(ev)) keys.add(k);
   if ((SCROLL_KEYS[k] || ROTATE_KEYS[k]) && tracksKey(ev)) { ev.preventDefault(); return; } // camera keys only move the camera
   if (target.closest?.('button') && (k === 'enter' || k === ' ')) return; // let buttons activate
