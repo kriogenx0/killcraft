@@ -387,8 +387,23 @@ function effectsOf(e: Ent): string {
   return on.filter(([b]) => b).map(([, n]) => n).join(' · ');
 }
 
-/** What it does in game, in a sentence or two, under the selected thing's name. */
-const descHtml = (desc: string): string => (desc ? `<p class="hud-desc">${desc}</p>` : '');
+const DESC_KEY = 'killcraft.descOpen';
+/** The selected thing's description shows in full, or folded to its first line (Alex, 2026-11-28); remembered on this device. */
+let descOpen = ((): boolean => { try { return localStorage.getItem(DESC_KEY) === '1'; } catch { return false; } })();
+
+function toggleDesc(): void {
+  descOpen = !descOpen;
+  try { localStorage.setItem(DESC_KEY, descOpen ? '1' : '0'); } catch { /* private mode: it just isn't remembered */ }
+}
+
+/**
+ * What it does in game, in a sentence or two, under the selected thing's name. Click to fold or
+ * unfold it; `note` (how-to tips) only shows unfolded.
+ */
+const descHtml = (desc: string, note = ''): string => (desc
+  ? `<button type="button" class="hud-desc${descOpen ? ' hud-desc--open' : ''}" data-desc aria-expanded="${descOpen}" title="${descOpen ? 'Fold the description' : 'Show the whole description'}">` +
+    `<span class="hud-desc-text">${desc}${descOpen && note ? `<span class="hud-desc-note">${note}</span>` : ''}</span><span class="hud-desc-fold" aria-hidden="true"></span></button>`
+  : '');
 
 const perMin = (perSec: number): number => Math.round(perSec * 60);
 
@@ -421,9 +436,9 @@ function buildingDetails(e: Ent): string {
     rows.push(['Troops', `Weapons ${lv('infWeapon')} · Armor ${lv('infArmor')}`, true], ['Machines', `Weapons ${lv('vehWeapon')} · Armor ${lv('vehArmor')}`, true]);
   }
   if (own && e.type === 'hospital') rows.push(['Healing', `Lvl ${healOf(e.team)}`]);
-  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
-    (own ? productionDetails(e) : '') +
-    (e.team === V.team && !spectating() && isUnitProducer(d.produces) ? '<p class="hud-stats hud-hint">Right-click or tap the ground to set this building\'s rally point. Rally point sets one for every building.</p>' : '');
+  const rallyNote = e.team === V.team && !spectating() && isUnitProducer(d.produces) ? 'Right-click or tap the ground to set this building\'s rally point. Rally point sets one for every building.' : '';
+  return `<h3>${d.name}${enemy}</h3>${descHtml(d.desc, rallyNote)}${barHtml(e.hp / e.maxhp, 'health', 'Health')}${tableHtml(rows)}` +
+    (own ? productionDetails(e) : '');
 }
 
 /** What a producing building is making (each Barracks trains its own order; the queue is shared by every building of the type). */
@@ -543,16 +558,20 @@ export function refreshHud(): void {
     els.pause.innerHTML = pause;
     els.pause.setAttribute('aria-label', V.paused ? 'Resume' : 'Pause');
   }
-  const markup = detailsMarkup(V.sel.filter((e) => !e.dead));
-  if (markup !== detailMarkup) {
-    detailMarkup = markup;
-    els.details.innerHTML = markup;
-  }
+  refreshDetails();
   refreshArmyBar();
   refreshCommands();
   // nothing selected and no commands: the selection pane takes no room at all
   const pane = els.details.parentElement, empty = !detailMarkup && !commandMarkup;
   if (pane && pane.hidden !== empty) pane.hidden = empty;
+}
+
+function refreshDetails(): void {
+  const markup = detailsMarkup(V.sel.filter((e) => !e.dead));
+  if (markup !== detailMarkup) {
+    detailMarkup = markup;
+    els.details.innerHTML = markup;
+  }
 }
 
 /** How far (px) a finger may wander during a tap on a command button and still count as a tap. */
@@ -597,9 +616,17 @@ export function initHud(e: HudEls): void {
   els.commands.addEventListener('mouseleave', () => hideTooltip(els.tooltip));
   // pointerdown, not click: this panel re-renders as health changes
   els.details.addEventListener('pointerdown', (ev) => {
+    if (ev.button === 0 && (ev.target as HTMLElement).closest('[data-desc]')) { toggleDesc(); refreshDetails(); return; }
     const p = (ev.target as HTMLElement).closest<HTMLElement>('[data-pick]');
     const u = p && V.sel.filter((x) => !x.dead)[Number(p.dataset.pick)];
     if (u) setSelection([u]);
+  });
+  // the keyboard (Enter or Space on the focused description); pointer presses were handled above
+  els.details.addEventListener('click', (ev) => {
+    if (ev.detail !== 0 || !(ev.target as HTMLElement).closest('[data-desc]')) return;
+    toggleDesc();
+    refreshDetails();
+    els.details.querySelector<HTMLElement>('[data-desc]')?.focus();
   });
 }
 
