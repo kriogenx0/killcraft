@@ -506,6 +506,30 @@ function tend(u: Ent, t: Ent, dt: number): boolean | null {
   return true;
 }
 
+/** Patients Medics on the march are seeing to, and when each next looks round for one. */
+const marchPatient = new WeakMap<Ent, { id: number | null; scan: number }>();
+
+/**
+ * A Medic walking somewhere (with the army, in formation or not) heals the wounded it passes
+ * within reach without stopping, at its usual rate, and beats out their flames.
+ */
+function healOnTheMove(u: Ent, dt: number): void {
+  let m = marchPatient.get(u);
+  if (!m) { m = { id: null, scan: 0 }; marchPatient.set(u, m); }
+  let t = m.id != null ? valid(m.id) : null;
+  if (t && (!medicCanHeal(u, t) || (t.hp >= t.maxhp - 0.5 && !burning(t)) || Math.hypot(t.x - u.x, t.y - u.y) > MEDIC_REACH)) t = null;
+  if ((m.scan -= dt) <= 0) {
+    m.scan = 0.25;
+    // one of our own who's hurt comes before the teammate it's patching up
+    if (!t || t.team !== u.team) t = woundedNear(u, MEDIC_REACH, !!t) ?? t;
+  }
+  m.id = t ? t.id : null;
+  if (!t) return;
+  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * mendRate(t) * dt);
+  t.burnT = 0;
+  if (Math.random() < dt / 0.4) part('tracer', u.x, u.y - 8, { ex: t.x, ey: t.y - 6, ez: altOf(t), max: 0.3, col: unitDef(t).cls === 'vehicle' ? '#ffc861' : '#7dff9a', size: 2 });
+}
+
 /**
  * A Medic on patrol: heals the wounded it comes across (anyone within sight), then walks on along
  * its beat. Returns true while it's busy with a patient.
@@ -812,8 +836,9 @@ function act(u: Ent, dt: number): void {
       }
       if (u.stance === 'passive' || u.stance === 'tend' || !d.weapon || o.flee) {
         if (u.type === 'medic' && o.pat && medicOnPatrol(u, o, dt)) break;
-        // keep going
+        // keep going (a Medic heals whoever it passes on the way)
         if (followPath(u, dt)) arrive(u);
+        if (u.type === 'medic' && u.order === o) healOnTheMove(u, dt);
         break;
       }
       // engage: stop to fight anything met on the way, then carry on

@@ -89,6 +89,22 @@ describe('medics', () => {
   });
 });
 
+describe('medics on the march', () => {
+  it('heal the wounded they walk with without stopping', () => {
+    const p = setup();
+    const m = addUnit('medic', 0, p.x, p.y);
+    const s = addUnit('swordsman', 0, p.x + TS, p.y), r = addUnit('rifleman', 0, p.x, p.y + TS);
+    s.hp = 20;
+    r.hp = 20;
+    const tx = Math.floor(p.x / TS), ty = Math.floor(p.y / TS) + 10;
+    applyCommand(0, { c: 'move', ids: [m.id, s.id, r.id], tx, ty, form: true });
+    run(3);
+    expect(m.order?.t).toBe('move'); // still marching
+    expect(m.y).toBeGreaterThan(p.y + TS);
+    expect(s.hp + r.hp).toBeGreaterThan(40 + 10);
+  });
+});
+
 describe('medic sight', () => {
   it('spots a wounded unit 7 tiles away', () => {
     const p = setup();
