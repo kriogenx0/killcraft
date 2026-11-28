@@ -31,7 +31,7 @@ const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
 import { MACHINE_REPAIR, MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
-import { bldDef, reactOf } from './state.ts';
+import { bldDef, isJet, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { callSwarm, stone, updBee, updWild } from './creatures.ts';
 import { updDemon } from './hell.ts';
@@ -735,13 +735,15 @@ function act(u: Ent, dt: number): void {
   if (aetherHome(u, dt)) return; // Return Aether: banking comes before orders
   const o = u.order;
   // told to stay still when attacked, an idle fighter stands its ground and shoots only what's in range
-  const still = !o && reactOf(u) === 'hold' && !!d.weapon && !isHarvester(u) && (u.stance === 'skirmish' || u.stance === 'engage');
+  // (a jet can't stand anywhere: it always flies its attack runs, so it never holds like this)
+  const jet = isJet(u), still = !o && !jet && reactOf(u) === 'hold' && !!d.weapon && !isHarvester(u) && (u.stance === 'skirmish' || u.stance === 'engage');
   if (u.stance !== 'skirmish' && !still) u.shot = null;
   if (!o) {
     if (still) { fireOnTheMove(u, dt); return; }
     // a skirmisher shoots what's in range from where it stands; with nothing in range it goes after
     // enemies it can see and fights back like any other, so idle troops aren't picked off from afar
-    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u)) { fireOnTheMove(u, dt); if (u.shot) return; }
+    // (not a jet: circling, it seldom faces what it's locked on to, and has to make attack runs)
+    if (u.stance === 'skirmish' && d.weapon && !isHarvester(u) && !jet) { fireOnTheMove(u, dt); if (u.shot) return; }
     if (busy.delete(u)) u.scan = 0; // just finished something: look for the next thing straight away
     u.scan -= dt;
     if (u.scan > 0) return;
