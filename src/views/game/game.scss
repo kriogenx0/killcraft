@@ -651,10 +651,9 @@ $sidebar-width: 248px;
     }
   }
 
-  // Details shows the description, stats and plain orders (Move, Stop...); Behavior keeps only the
-  // name and shows the settings (attack mode, when attacked, gather). Hotkeys work on either.
-  .sidebar-selection--tabs:not(.sidebar-selection--behavior) .selection-commands .command-group,
-  .sidebar-selection--behavior .selection-commands > :not(.command-group),
+  // Details is only the description and stats; Behavior keeps the name and shows every order and
+  // setting (Move, Stop, attack mode, when attacked, gather...). Hotkeys work on either.
+  .sidebar-selection--tabs:not(.sidebar-selection--behavior) .selection-commands,
   .sidebar-selection--behavior .selection-details > :not(h3) {
     display: none;
   }

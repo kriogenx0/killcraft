@@ -30,7 +30,7 @@ import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/ref
 import { commandsHtml, type Command } from './components/command_button.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, ESCORT_KEY, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, REACT_KEYS, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
-import { V, canToggleFormation, ownSelected, spectating, toggleFormation } from './view_state.ts';
+import { V, canToggleFormation, ownSelected, spectating, toggleFormation, selectedUnits } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, shielded, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
@@ -61,9 +61,9 @@ let commandMarkup = '';
 let detailMarkup = '';
 let armyMarkup = '';
 /**
- * A selected unit's card has two tabs (Alex, 2026-11-28): Details (description, stats and plain
- * orders like Move and Stop) and Behavior (its settings: attack mode, when attacked, gather). The
- * tabs only appear when there are settings to show.
+ * A selected unit's card has two tabs (Alex, 2026-11-28): Details (description and stats only) and
+ * Behavior (every order and setting: Move, Stop, attack mode, when attacked, gather...). Buildings
+ * keep one card.
  */
 type SelTab = 'details' | 'behavior';
 let selTab: SelTab = 'details';
@@ -77,7 +77,8 @@ function setSelTab(t: SelTab): void {
 function syncSelTabs(): void {
   const pane = els.details.parentElement;
   if (!selTabs || !pane) return;
-  const has = commands.some((c) => c.group);
+  // your own units with orders to give: Details is what they are, Behavior is every order and setting
+  const has = commands.length > 0 && !!detailMarkup && selectedUnits().length > 0;
   if (selTabs.hidden === has) selTabs.hidden = !has;
   pane.classList.toggle('sidebar-selection--tabs', has);
   pane.classList.toggle('sidebar-selection--behavior', has && selTab === 'behavior');
