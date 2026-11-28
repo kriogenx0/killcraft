@@ -59,4 +59,4 @@ jobs:
           COOLIFY_APP: ${{ secrets.COOLIFY_APP }}
         run: |
           if [ -z "$COOLIFY_TOKEN" ]; then echo "No COOLIFY_TOKEN secret yet: image published, not deployed."; exit 0; fi
-          curl -fsS --max-time 60 -H "Authorization: Bearer $COOLIFY_TOKEN" "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP&force=false"
+          curl -fsS --max-time 60 -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP&force=false"
