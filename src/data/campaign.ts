@@ -122,7 +122,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     id: 'two-workers', name: 'Two Workers', maxEra: 0, small: 68, // half the full map's area (Alex: "Level 2 map half size")
-    brief: 'The usual start: a Town Hall and two Workers against one Easy computer.',
+    guard: ['swordsman', 'swordsman', 'crossbowman'], calm: 900, // Alex: "Level 2 is too difficult"
+    brief: 'The usual start: a Town Hall and two Workers, plus two Footmen and a Crossbowman, against one Easy computer. It won\'t attack in earnest for the first 15 minutes, so build up.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 2202 }),
   },
   {

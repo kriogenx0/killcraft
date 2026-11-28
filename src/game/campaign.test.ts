@@ -264,6 +264,16 @@ describe('Winter Friends (Alex: too difficult)', () => {
   });
 });
 
+describe('mission 2 (Alex: too difficult)', () => {
+  it('gives the player a starting guard and holds the computer\'s attacks for 15 minutes', () => {
+    const m = MISSIONS[1];
+    initWorld(m.setup.seed ?? 1, 2, { units: ['worker', 'worker'], ...missionWorld(m) });
+    expect(G.calm).toBe(900);
+    expect(G.ents.filter((e) => e.team === 0 && e.kind === 'unit' && e.type !== 'worker').length).toBe(3);
+    expect(G.ents.filter((e) => e.team === 1 && e.kind === 'unit' && e.type !== 'worker')).toEqual([]);
+  });
+});
+
 describe('mission 6 camps (Alex: too easy)', () => {
   it('camps near a fight march on the player; far ones stay put', () => {
     const m = MISSIONS.find((x) => x.camps)!;
