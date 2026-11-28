@@ -9,7 +9,7 @@ import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
 import { V, ownSelected, spectating } from './view_state.ts';
-import { hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemsForKey, producerOfType } from './hotkeys.ts';
+import { hotkeyProducers, groupForKey, groupsOf, groupOfType, hotkeyOf, itemsForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
 import { techLevel } from '../../data/era.ts';
@@ -83,31 +83,34 @@ function rebuild(structures: Buildable[], units: Buildable[]): void {
   }
 }
 
-/** The building whose production hotkeys are live, if any (see hotkeyProducer). */
-export function selectedProducer(): BldType | null {
-  const hall = G.ents.some((e) => !e.dead && e.team === V.team && e.type === 'yard' && e.done);
-  return hotkeyProducer(ownSelected(), hall);
+/** The buildings whose production hotkeys are live, first claim first (see hotkeyProducers). */
+export function liveProducers(): BldType[] {
+  const owned = new Set<string>(G.ents.filter((e) => !e.dead && e.team === V.team && e.kind === 'bld' && e.done).map((e) => e.type));
+  return hotkeyProducers(ownSelected(), owned, tab === 'unit' && !onSel);
 }
 
 /**
- * Production hotkey: with a producing building selected, its items' keys start them (or pick up a
- * structure to place), just like clicking them in the sidebar.
+ * Production hotkey: the letters on the sidebar buttons start them (or pick up a structure to place),
+ * just like clicking them. With a producing building selected, its own items; with none, the Town
+ * Hall's and every troop building's (a letter several share goes to the first that can use it now).
  */
 export function productionHotkey(key: string): boolean {
-  const b = selectedProducer();
-  if (!b) return false;
+  const producers = liveProducers();
   const group = V.keyGroup;
-  if (!group) {
-    const g = groupForKey(b, key);
-    if (g) { V.keyGroup = g; return true; }
-  }
-  const type = itemsForKey(b, key, group).find((t) => available(V.team, lineOf(t)).includes(t));
-  if (type) {
-    activate(type);
-    V.keyGroup = null;
+  if (group) {
+    // inside a group, only its items count, and other letters do nothing (Esc closes it)
+    const b = producers.find((p) => groupsOf(p).some(([g]) => g === group));
+    const type = b && itemsForKey(b, key, group).find((t) => available(V.team, lineOf(t)).includes(t));
+    if (type) { activate(type); V.keyGroup = null; }
     return true;
   }
-  return !!group; // inside a group, other letters do nothing (Esc closes it)
+  for (const b of producers) {
+    const g = groupForKey(b, key);
+    if (g) { V.keyGroup = g; return true; }
+    const type = itemsForKey(b, key).find((t) => available(V.team, lineOf(t)).includes(t));
+    if (type) { activate(type); return true; }
+  }
+  return false;
 }
 
 /**
@@ -145,7 +148,7 @@ export function refreshSidebar(): void {
   const trainable = new Set<Buildable>([...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')]);
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
   if (key !== listKey) { listKey = key; rebuild(structures, units); }
-  const producer = selectedProducer();
+  const live = new Set(liveProducers());
   // a new selection (V.sel is replaced whenever the player selects) opens Selected; none goes back
   if (V.sel !== lastSel) {
     lastSel = V.sel;
@@ -188,7 +191,7 @@ export function refreshSidebar(): void {
     c.root.classList.toggle('build-cell--tech', research);
     // orders are paid in full up front: dim what the bank can't cover yet
     c.root.classList.toggle('build-cell--short', !canAfford(V.team, type) || (!items.length && atLimit(V.team, type)));
-    c.root.classList.toggle('build-cell--keyed', !!producer && producerOfType(type) === producer && (!V.keyGroup || groupOfType(type) === V.keyGroup));
+    c.root.classList.toggle('build-cell--keyed', live.has(producerOfType(type) as BldType) && (!V.keyGroup || groupOfType(type) === V.keyGroup));
   }
   if (tabs) for (const k of ['structure', 'unit'] as const) {
     const hide = k === tab || !busy[k];
@@ -202,7 +205,7 @@ function tooltipHtml(t: Buildable): string {
   const keys = key ? ` ${key.split(' ').map((k) => `<kbd class="ui-key">${keyLabel(k)}</kbd>`).join('')}` : '';
   const wt = isUnitType(t) ? UNIT[t].weapon : t in BUILDING ? BUILDING[t as BldType].weapon : null;
   const dps = wt ? ` · DPS ${dpsText(wt, isUnitType(t) ? teamWeaponBonus(V.team, t) : 1)}` : '';
-  const via = key && p ? `<br><small>Hotkey with the ${BUILDING[p].name} selected</small>` : '';
+  const via = key && p ? `<br><small>Hotkey (if another building is selected, select the ${BUILDING[p].name} first)</small>` : '';
   return `<b>${nameOf(t)}</b>${keys}<br>${descOf(t)}<br><small>${priceText(priceOf(t))} · ${timeText(t)}${dps}</small>${via}`;
 }
 
