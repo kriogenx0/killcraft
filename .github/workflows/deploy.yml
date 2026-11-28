@@ -2,10 +2,9 @@
 # registry (ghcr.io/kriogenx0/killcraft), then tells Coolify to deploy it. The game server's own
 # machine only pulls and runs the image, so builds no longer slow down live matches.
 #
-# Coolify needs: the killcraft app set to the Docker image ghcr.io/kriogenx0/killcraft:latest, and
-# these repository secrets here: COOLIFY_URL (https://coolify.homecloud.one), COOLIFY_TOKEN (an API
-# token with deploy rights) and COOLIFY_APP (the app's uuid). Until COOLIFY_TOKEN is set, this only
-# publishes the image.
+# Coolify app "killcraft-image" (uuid below) runs the image ghcr.io/kriogenx0/killcraft:latest.
+# The one repository secret needed is COOLIFY_TOKEN: a Coolify API token with only "deploy" rights.
+# Until it is set, this only publishes the image.
 name: Build and deploy
 
 on:
@@ -54,9 +53,9 @@ jobs:
 
       - name: Tell Coolify to deploy it
         env:
-          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_URL: https://coolify.homecloud.one
+          COOLIFY_APP: f76ifkxa3zgxydrxhcrjekdc
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          COOLIFY_APP: ${{ secrets.COOLIFY_APP }}
         run: |
           if [ -z "$COOLIFY_TOKEN" ]; then echo "No COOLIFY_TOKEN secret yet: image published, not deployed."; exit 0; fi
           curl -fsS --max-time 60 -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP&force=false"
