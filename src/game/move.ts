@@ -111,6 +111,9 @@ const idle = (e: Ent): boolean => !e.order && !e.moving;
 const hauling = (e: Ent): boolean => e.type === 'worker' && e.order?.t === 'harvest';
 const passThrough = (a: Ent, b: Ent): boolean => a.team === b.team && hauling(a) && hauling(b);
 
+/** Both marching in the same formation. */
+const sameFormation = (a: Ent, b: Ent): boolean => a.order?.t === 'move' && b.order?.t === 'move' && a.order.fid != null && a.order.fid === b.order.fid;
+
 /**
  * Local avoidance: bend a walking unit's heading (ux, uy) around others before it walks into them,
  * looking `look` px ahead. Units coming the other way both keep to their right; anyone else in the
@@ -133,7 +136,8 @@ function avoid(u: Ent, ux: number, uy: number, look: number, dt: number): [numbe
     }
     if (Math.abs(lat) >= clear) continue;
     const together = e.moving && Math.cos(e.face - heading) > 0.5;
-    if (together && e.team === u.team) {
+    // (in the same formation each has its own spot to keep level with, so it steps round instead)
+    if (together && e.team === u.team && !sameFormation(u, e)) {
       // a friend going our way: fall in behind it instead of pushing past
       pace = Math.min(pace, Math.max(0.3, (along - ru - re) / 12));
       continue;
@@ -167,35 +171,52 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
 }
 
 /** How far a unit may move this step, in px. */
-/** How far behind the pack (tiles still to go, beyond the pack's) a unit in formation runs at full speed to catch up. */
-const STRAGGLER = 1.5;
-/** each formation's pack: the middle unit's distance (tiles) still to go, worked out once a tick */
-const packs = new Map<number, number>();
-let packsAt = -1;
+/**
+ * Holding formation. Each formation has a marker that walks to the goal at the group's pace,
+ * measured as distance still to go; every unit keeps level with it by how far it still has to go to
+ * its own spot. One behind speeds up (up to its full speed), one ahead eases off, harder the further
+ * out of line it is (GAIN of the pace per tile, never below FLOOR of it). The marker never runs more
+ * than SLACK tiles ahead of the group's middle unit, so a group held up by a crowd or a detour isn't
+ * sent racing after it. A unit more than LOOSE tiles ahead (its spot is nearer, round a wall, say)
+ * just walks at the pace.
+ */
+const GAIN = 2, FLOOR = 0.5, SLACK = 1, LOOSE = 6;
+/** each formation's marker: distance (tiles) still to go, as of game time `t` */
+const marks = new Map<number, { left: number; t: number }>();
+let marksAt = -1;
 
-function packLeft(fid: number): number | undefined {
-  if (packsAt !== G.gameT) {
-    packsAt = G.gameT;
-    packs.clear();
-    const left = new Map<number, number[]>();
+/** Tiles a unit still has to walk to its spot. */
+const toGo = (u: Ent, o: { gx: number; gy: number }): number => Math.hypot((o.gx + 0.5) * TS - u.x, (o.gy + 0.5) * TS - u.y) / TS;
+
+function markLeft(fid: number): number | undefined {
+  if (marksAt !== G.gameT) {
+    marksAt = G.gameT;
+    const left = new Map<number, { l: number[]; pace: number }>();
     for (const e of G.ents) {
       const o = e.order;
-      if (e.dead || o?.t !== 'move' || o.fid == null) continue;
-      const l = left.get(o.fid) ?? [];
-      l.push(Math.hypot((o.gx + 0.5) * TS - e.x, (o.gy + 0.5) * TS - e.y) / TS);
-      left.set(o.fid, l);
+      if (e.dead || o?.t !== 'move' || o.fid == null || !o.pace) continue;
+      const g = left.get(o.fid) ?? { l: [], pace: o.pace };
+      g.l.push(toGo(e, o));
+      left.set(o.fid, g);
     }
-    for (const [f, l] of left) packs.set(f, l.sort((a, b) => a - b)[Math.floor(l.length / 2)]);
+    for (const f of marks.keys()) if (!left.has(f)) marks.delete(f);
+    for (const [f, g] of left) {
+      const mid = g.l.sort((a, b) => a - b)[Math.floor(g.l.length / 2)], m = marks.get(f);
+      marks.set(f, { left: m && m.t <= G.gameT ? Math.max(m.left - g.pace * (G.gameT - m.t), mid - SLACK) : mid, t: G.gameT });
+    }
   }
-  return packs.get(fid);
+  return marks.get(fid)?.left;
 }
 
-/** In formation: the group's pace, unless the unit has fallen behind the pack and runs to catch up. */
+/** In formation: the group's pace, faster for a unit fallen behind, slower for one out in front. */
 function formationPace(u: Ent): number {
   const o = u.order;
   if (o?.t !== 'move' || o.sub || !o.pace) return Infinity;
-  const pack = o.fid != null ? packLeft(o.fid) : undefined, mine = Math.hypot((o.gx + 0.5) * TS - u.x, (o.gy + 0.5) * TS - u.y) / TS;
-  return pack != null && mine > pack + STRAGGLER ? Infinity : o.pace;
+  const mark = o.fid != null ? markLeft(o.fid) : undefined;
+  if (mark == null) return o.pace;
+  const behind = toGo(u, o) - mark;
+  if (behind < -LOOSE) return o.pace;
+  return o.pace * Math.max(FLOOR, 1 + GAIN * behind);
 }
 
 export const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, formationPace(u)) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
