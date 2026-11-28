@@ -275,6 +275,15 @@ describe('mission 2 (Alex: too difficult)', () => {
 });
 
 describe('mission 6 camps (Alex: too easy)', () => {
+  it('keeps every enemy camp well away from the player start (Alex: too close)', () => {
+    for (const m of MISSIONS.filter((x) => x.army && x.scatter && x.patches)) {
+      initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m), locked: JSON.parse(readFileSync(`public/campaign/${m.id}.json`, 'utf8')) as LockedMap });
+      const mine = G.ents.filter((e) => e.team === 0 && e.kind === 'unit'), foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
+      expect(foes.length, m.id).toBe(m.scatter!.length);
+      for (const f of foes) expect(Math.min(...mine.map((u) => Math.hypot(u.x - f.x, u.y - f.y) / TS)), m.id).toBeGreaterThan(m.camps ?? 12);
+    }
+  });
+
   it('camps near a fight march on the player; far ones stay put', () => {
     const m = MISSIONS.find((x) => x.camps)!;
     G.headless = true;
