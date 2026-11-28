@@ -316,10 +316,8 @@ describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () =
     expect(trees.length).toBeGreaterThan(5);
     expect(trees.length).toBeLessThan(40);
     for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
-    // creatures stand guard around it (Alex)
-    const guards = G.ents.filter((e) => !e.dead && !!e.wild);
-    expect(guards.map((e) => e.type).sort()).toEqual([...m.guards!].sort());
-    for (const g of guards) expect(Math.hypot(g.x / TS - cx, g.y / TS - cy)).toBeLessThan(10);
+    // and no creatures (Alex: "Last grove has creatures and it shouldnt")
+    expect(G.ents.filter((e) => !e.dead && !!e.wild)).toEqual([]);
   });
 });
 
