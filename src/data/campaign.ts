@@ -75,6 +75,8 @@ export interface Mission {
   scatter?: UnitType[];
   /** a single oil well on the whole map, as far from every base as the land allows (instead of one by each base) */
   oneOil?: boolean;
+  /** with oneOil, how many such hidden oil patches (default 1) */
+  oilPatches?: number;
   /** no wood but one small grove in the middle of the map (Alex: "scarce wood") */
   oneWood?: boolean;
   /** wild creatures guarding the middle of the map (Alex: The Last Grove "could have creatures guarding it"); the only creatures before mission 10 */
@@ -133,8 +135,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "Level 4 all about finding oil. One oil patch. Small map."
-    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true, raids: ['swordsman', 'swordsman'], goals: ['derrick', 'industrial'], // Alex: not won until an Oil Derrick is built, the Town Hall reaches the Industrial age and the enemy is destroyed
-    brief: 'There is just one oil patch on this small map, somewhere out in the fog. Find it and hold it: oil builds the Engine Works that opens the Industrial age. One Easy computer is looking too, and will send small raids your way early on.',
+    id: 'engines', name: 'Black Gold', maxEra: 1, small: 60, oneOil: true, oilPatches: 2, raids: ['swordsman', 'swordsman'], goals: ['derrick', 'industrial'], // Alex: not won until an Oil Derrick is built, the Town Hall reaches the Industrial age and the enemy is destroyed
+    brief: 'There are just two oil patches on this small map, somewhere out in the fog. Find one and hold it: oil builds the Engine Works that opens the Industrial age. One Easy computer is looking too, and will send small raids your way early on.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 4404 }),
   },
   {
@@ -248,15 +250,18 @@ export function missionLayout(m: Mission): MapLayout {
   }
   // a lean map keeps one small wood, by the player
   if (m.oneOil) {
-    // the one oil patch: the open spot farthest from every base, out where it has to be found
-    let best: Tile = [Math.round(mid), Math.round(mid)], bestD = -1;
-    for (let y = lo + 5; y <= hi - 5; y++)
-      for (let x = lo + 5; x <= hi - 5; x++) {
-        const d = Math.min(...yards.map(([a, b]) => Math.hypot(a + 1 - x, b + 1 - y)), ...ore.map(([a, b]) => Math.hypot(a - x, b - y) * 2));
-        if (d > bestD) { bestD = d; best = [x, y]; }
-      }
+    // the hidden oil patches (Alex: one, then "another oil derrick"): each the open spot farthest from
+    // every base and every patch already placed, out where it has to be found
     oil.length = 0;
-    oil.push(best);
+    for (let k = 0; k < (m.oilPatches ?? 1); k++) {
+      let best: Tile = [Math.round(mid), Math.round(mid)], bestD = -1;
+      for (let y = lo + 5; y <= hi - 5; y++)
+        for (let x = lo + 5; x <= hi - 5; x++) {
+          const d = Math.min(...yards.map(([a, b]) => Math.hypot(a + 1 - x, b + 1 - y)), ...ore.map(([a, b]) => Math.hypot(a - x, b - y) * 2), ...oil.map(([a, b]) => Math.hypot(a - x, b - y)));
+          if (d > bestD) { bestD = d; best = [x, y]; }
+        }
+      oil.push(best);
+    }
   }
   if (m.oneWood) return { yards, ore, oil, forests: [[Math.round(mid), Math.round(mid), 3]], portals: [] };
   return { yards, ore, oil, forests: lean ? forests.slice(0, 1) : forests, portals: [] };

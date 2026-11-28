@@ -237,7 +237,7 @@ describe('mission layouts', () => {
     expect(isl.yards[0][1] - isl.yards[0][0]).toBeGreaterThan(14);
     expect(isl.yards[1][0] - isl.yards[1][1]).toBeGreaterThan(14);
     // one oil patch on Black Gold
-    expect(missionLayout(MISSIONS.find((m) => m.oneOil)!).oil.length).toBe(1);
+    expect(missionLayout(MISSIONS.find((m) => m.oneOil)!).oil.length).toBe(2);
   });
 });
 
