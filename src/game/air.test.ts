@@ -1,3 +1,4 @@
+import { reachAge } from './age.testkit.ts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
 import { MH, MW, STEP, TS } from './const.ts';
@@ -129,7 +130,7 @@ describe('the air war', () => {
     if (!yard) throw new Error('no yard');
     addBuilding('airfield', 0, yard.tx + 4, yard.ty, false);
     for (const [era, want] of [[1, ['balloon', 'biplane']], [2, ['balloon', 'biplane', 'helicopter', 'drone', 'fighter', 'striker', 'carrier']]] as const) {
-      G.era[0] = era;
+      reachAge(0, era);
       expect(available(0, 'air')).toEqual(want);
     }
   });

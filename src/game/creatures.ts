@@ -152,7 +152,7 @@ export function captorOf(u: Ent): number {
 /** Health fell to the threshold: the creature stops fighting and kneels. Returns true if it did. */
 export function subdue(u: Ent): boolean {
   const w = u.wild;
-  if (!w || w.down || u.hp > u.maxhp * SUBDUE_AT) return false;
+  if (!w || w.guard || w.down || u.hp > u.maxhp * SUBDUE_AT) return false;
   u.hp = Math.max(1, Math.ceil(u.maxhp * SUBDUE_AT));
   Object.assign(w, { down: true, downT: G.gameT, by: -1, held: 0 });
   setOrder(u, null);
@@ -211,7 +211,7 @@ export const tamed = (team: number, t: UnitType): boolean => !!G.tamed[team]?.in
  */
 export function beastDied(u: Ent): void {
   const home = u.wild ? { x: u.wild.lx, y: u.wild.ly } : u.lair;
-  if (!home || !UNIT[u.type as UnitType]?.beast) return;
+  if (!home || !UNIT[u.type as UnitType]?.beast || u.wild?.guard) return;
   G.respawns.push({ type: u.type as string, x: home.x, y: home.y, t: G.gameT + RESPAWN_TIME });
 }
 

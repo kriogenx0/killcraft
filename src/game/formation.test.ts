@@ -65,42 +65,49 @@ describe('formation', () => {
     openField();
     const us = squad();
     groupMove(us, 45, 31, false, true);
-    // each unit's spot keeps where it stood in the group
     for (const u of us) expect(u.order?.t === 'move' && u.order.pace).toBe(Math.min(UNIT.rifleman.spd, UNIT.jeep.spd));
-    const spot = (u: Ent) => (u.order?.t === 'move' ? [u.order.gx, u.order.gy] : [0, 0]);
-    for (let i = 0; i < 4; i++) {
-      const [rx, ry] = spot(us[i * 2]), [jx, jy] = spot(us[i * 2 + 1]);
-      expect(jx - rx).toBe(2);
-      expect(jy - ry).toBe(0);
-    }
     run(8);
     // halfway there, the jeeps haven't run ahead of the riflemen
     const lead = Math.max(...us.map((u) => u.x)), tail = Math.min(...us.map((u) => u.x));
-    expect(lead - tail).toBeLessThan(3.5 * TS);
+    expect(lead - tail).toBeLessThan(4.5 * TS); // two rows, a tile apart and a tile clear for the jeeps
     run(30);
     for (const u of us) expect(u.order).toBeNull();
-    for (let i = 0; i < 4; i++) expect(tileOf(us[i * 2 + 1].x) - tileOf(us[i * 2].x)).toBe(2);
+    // drawn up in a tidy block around the goal
+    for (const u of us) expect(Math.hypot(tileOf(u.x) - 45, tileOf(u.y) - 31)).toBeLessThan(3);
   });
 
-  it('puts brawlers in front, then shooters, long-range units, and medics at the back', () => {
+  it('puts tanks and melee in front, ranged behind, siege at the back, whichever way the group is heading', () => {
+    openField();
+    const col = (type: Parameters<typeof addUnit>[0], x: number) => [0, 1, 2].map((i) => addUnit(type, 0, x * TS, (28.5 + i * 2) * TS));
+    // tanks in the middle of the block, footmen on the west side, riflemen on the east
+    const swords = col('swordsman', 12.5), tanks = col('tank', 15.5), rifles = col('rifleman', 18.5);
+    expect([tanks[0], col('heavy', 30.5)[0], col('guardian', 33.5)[0], col('stormcaller', 36.5)[0], col('jeep', 39.5)[0], col('catapult', 42.5)[0], col('artillery', 45.5)[0]].map(formRank)).toEqual([0, 0, 0, 1, 1, 2, 2]);
+    const all = [...swords, ...tanks, ...rifles];
+    G.ents.filter((e) => e.kind === 'unit' && !all.includes(e) && e.type !== 'harvester').forEach((e) => { e.dead = true; });
+    const gx = (u: Ent) => (u.order?.t === 'move' ? u.order.gx : NaN);
+    groupMove(all, 45, 31, false, true); // east: tanks and footmen lead, riflemen behind
+    expect(Math.min(...tanks.map(gx), ...swords.map(gx))).toBeGreaterThan(Math.max(...rifles.map(gx)));
+    groupMove(all, 2, 31, false, true); // west: the same, facing the other way
+    expect(Math.max(...tanks.map(gx), ...swords.map(gx))).toBeLessThan(Math.min(...rifles.map(gx)));
+  });
+
+  it('puts the front line in front, then ranged troops, and medics at the back', () => {
     openField();
     // a jumbled block heading east: medics and rocket troops up front, swordsmen at the back
     const col = (type: Parameters<typeof addUnit>[0], x: number) => [0, 1, 2].map((i) => addUnit(type, 0, x * TS, (28.5 + i * 2) * TS));
     const swords = col('swordsman', 12.5), rifles = col('rifleman', 15.5), rockets = col('rocket', 18.5), medics = col('medic', 21.5);
-    expect([swords[0], rifles[0], rockets[0], medics[0]].map(formRank)).toEqual([0, 1, 2, 3]);
+    expect([swords[0], rifles[0], rockets[0], medics[0]].map(formRank)).toEqual([0, 1, 1, 3]);
     const all = [...medics, ...rockets, ...rifles, ...swords];
     const gx = (u: Ent) => (u.order?.t === 'move' ? u.order.gx : NaN);
     const front = (us: Ent[]) => Math.max(...us.map(gx)), back = (us: Ent[]) => Math.min(...us.map(gx));
     groupMove(all, 45, 31, false, true);
     expect(back(swords)).toBeGreaterThan(front(rifles));
-    expect(back(rifles)).toBeGreaterThan(front(rockets));
-    expect(back(rockets)).toBeGreaterThan(front(medics));
+    expect(back([...rifles, ...rockets])).toBeGreaterThan(front(medics));
     // heading west they're already in order: the medics stay at the back (east side)
     for (const [i, u] of all.entries()) { u.x = (21.5 - Math.floor(i / 3) * 3) * TS; }
     groupMove(all, 2, 31, false, true);
-    expect(back(medics)).toBeGreaterThan(front(rockets));
-    expect(back(rockets)).toBeGreaterThan(front(rifles));
-    expect(back(rifles)).toBeGreaterThan(front(swords));
+    expect(back(medics)).toBeGreaterThan(front([...rifles, ...rockets]));
+    expect(back([...rifles, ...rockets])).toBeGreaterThan(front(swords));
   });
 
   it('a unit left behind speeds up to join the pack, then keeps its pace', () => {
@@ -132,7 +139,7 @@ describe('formation', () => {
     expect(sum / 12).toBeLessThan(2.5); // about 4.3 tiles before formation was made stricter
   });
 
-  it('units whose spots are at the back wait for the front to move off, then fall in behind', () => {
+  it('units whose spots are at the back let the front go first, then fall in behind', () => {
     openField();
     // Medics stand at the front of the way the group is going, swordsmen behind them
     const medics = [0, 1, 2].map((i) => addUnit('medic', 0, 20.5 * TS, (29.5 + i) * TS));
@@ -140,12 +147,37 @@ describe('formation', () => {
     const x0 = medics.map((u) => u.x);
     groupMove([...medics, ...swords], 45, 30, false, true);
     run(1);
-    medics.forEach((u, i) => expect(Math.abs(u.x - x0[i])).toBeLessThan(0.5 * TS)); // still waiting
+    medics.forEach((u, i) => expect(u.x - x0[i]).toBeLessThan(TS)); // not off ahead: going back to their place, or waiting
     run(7);
     // under way, the swordsmen lead and the Medics follow
     expect(Math.min(...swords.map((u) => u.x))).toBeGreaterThan(Math.max(...medics.map((u) => u.x)));
     run(20);
     expect([...medics, ...swords].every((u) => !u.order)).toBe(true);
+  });
+
+  it('a unit waiting for the front never waits more than a few seconds', () => {
+    openField();
+    const medics = [0, 1, 2].map((i) => addUnit('medic', 0, 20.5 * TS, (29.5 + i) * TS));
+    const swords = [0, 1, 2].map((i) => addUnit('swordsman', 0, 18.5 * TS, (29.5 + i) * TS));
+    groupMove([...medics, ...swords], 45, 30, false, true);
+    // the front line is held where it stands (as if hemmed in): it never gets past the Medics
+    const hold = swords.map((u) => [u.x, u.y]);
+    const x0 = medics.map((u) => u.x);
+    for (let i = 0; i < 6 / STEP; i++) { update(STEP); swords.forEach((u, k) => { u.x = hold[k][0]; u.y = hold[k][1]; }); }
+    medics.forEach((u, i) => expect(u.x - x0[i]).toBeGreaterThan(2 * TS)); // set off anyway
+  });
+
+  it('a unit well out of its place hurries there at full speed, then keeps in step', () => {
+    openField();
+    const rifles = [0, 1, 2, 3].map((i) => addUnit('rifleman', 0, 16.5 * TS, (28.5 + i) * TS));
+    const far = addUnit('rifleman', 0, 16.5 * TS, 40.5 * TS); // 10 tiles off to the side
+    groupMove([...rifles, far], 45, 30, false, true);
+    expect(far.order?.t === 'move' && far.order.fu).toBeTruthy();
+    const y0 = far.y;
+    run(3);
+    expect(y0 - far.y).toBeGreaterThan(UNIT.rifleman.spd * 3 * TS * 0.8); // full speed, not the group's pace held back
+    run(30);
+    expect(far.order).toBeNull();
   });
 
   it('without it, the fast units go on ahead', () => {

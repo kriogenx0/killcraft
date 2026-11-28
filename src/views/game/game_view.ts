@@ -328,6 +328,7 @@ export function mountGameView(root: HTMLElement, deps: GameDeps, boot: GameBoot 
       const banned = G.ents.filter((e) => G.banned.includes(e.type));
       for (const e of banned) G.byId.delete(e.id);
       G.ents = G.ents.filter((e) => !banned.includes(e));
+      for (const e of G.ents) if (e.wild && mission.guards?.includes(e.type as UnitType)) e.wild.guard = true;
       if (!mission.wild) {
         const gone = G.ents.filter((e) => e.type === 'aether' || (!!e.wild && !mission.guards?.includes(e.type as UnitType)));
         for (const e of gone) G.byId.delete(e.id);

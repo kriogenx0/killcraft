@@ -13,6 +13,7 @@ import { UNIT, type UnitType } from '../data/unit.ts';
 import { countOf, hasBuilding, power } from './entity.ts';
 import { canPlace, clearOfFoes, exitTile, wallLine } from './building.ts';
 import { ORE_BANKS, banksOf } from './haul.ts';
+import { WOOD_BANKS } from './chop.ts';
 import { ORE_WORTH } from '../data/ore.ts';
 import { walkDist } from './ore.ts';
 import { findPath } from './path.ts';
@@ -131,6 +132,8 @@ export function resetAi(teams = 2): void {
   wallPause.length = 0;
   noteKey.length = 0;
   scouted.length = 0;
+  dropT.length = 0;
+  dropLook.length = 0;
   ais.forEach((a, team) => { a.level = 'normal'; a.thinkT = 0; a.attackAt = AI_LEVEL.normal.firstWave; a.attacking = false; a.guards.clear(); a.reserve = 0; a.hunters.clear(); a.prey = null; a.home = undefined; a.raidT = undefined; a.regroupT = undefined; a.raids = 0; a.raidAt = undefined; a.big = null; a.bigDone = false; a.foe = teams === 2 ? 1 - team : -1; });
 }
 
@@ -393,7 +396,9 @@ export function findSite(team: number, type: BldType): Tile | null {
   if (!yard) return null;
   if (type === 'derrick') return wellSite(team, s, yard);
   if (isExpansion(type)) {
-    const at = scouted[team]?.site ?? expandSite(team, BUILDING.yard.size, yard);
+    const look = scouted[team];
+    const at = (look?.drop && type !== 'camp' ? null : look?.site) ?? expandSite(team, BUILDING.yard.size, yard);
+    if (look?.drop && type === 'camp') dropT[team] = G.gameT;
     scouted[team] = undefined; // look afresh next time
     return at && canPlace(at[0], at[1], s, team, true, false, 'far') ? at : null;
   }
@@ -464,8 +469,11 @@ const HOME_REACH = 22;
  * Town Hall once well off in a later age. One at a time.
  */
 function expansion(team: number, can: readonly string[]): BldType | null {
-  if (!can.includes('camp') || countOf(team, 'barracks') < 1 || countOf(team, 'refinery') < 1) return null;
+  if (!can.includes('camp') || countOf(team, 'barracks') < 1) return null;
   if (sitesOf(team).some((e) => isExpansion(e.type))) return null;
+  // Workers already walking a long way to their ore, trees or oil: a Resource Drop out there by them
+  if (farDrop(team)) return 'camp';
+  if (countOf(team, 'refinery') < 1) return null;
   if (countOf(team, 'camp') + countOf(team, 'yard') - 1 >= MAX_EXPANSIONS) return null;
   const banks = banksOf(team, ORE_BANKS);
   const left = banks.reduce((s, b) => s + oreWithin(team, b.tx + (b.w >> 1), b.ty + (b.h >> 1), DIG_REACH), 0);
@@ -482,6 +490,101 @@ function expansion(team: number, can: readonly string[]): BldType | null {
   return hall ? 'yard' : G.credits[team] > costOf('camp') + 400 ? 'camp' : null;
 }
 
+/** Tiles of walking from a Worker's job (ore, tree or Oil Derrick) back to the nearest drop-off that count as far. */
+const FAR_WALK = 12;
+/** Workers working far, close together, before the computer puts a Resource Drop by them. */
+const FAR_CREW = 2;
+/** Far jobs this close (tiles) to each other share one Resource Drop. */
+const FAR_SPREAD = 6;
+/** Most Resource Drops the computer keeps for its far Workers. */
+const MAX_DROPS = 4;
+/** Seconds between Resource Drops placed for far Workers. */
+const DROP_GAP = 60;
+/** How far (tiles) from its Town Hall the computer puts a Resource Drop for far Workers. */
+const DROP_REACH = 30;
+/** A Resource Drop for far Workers stays this much nearer the side's Town Hall than any enemy's. */
+const DROP_SIDE = 0.8;
+/** When each computer side last placed a Resource Drop for far Workers, and when it last looked. */
+const dropT: number[] = [], dropLook: number[] = [];
+
+/** Where each of the side's gatherers works and how far (walking) it is from there to the nearest drop-off for what it carries. */
+export function farJobs(team: number): { x: number; y: number; d: number }[] {
+  const crew = G.ents.filter((e) => !e.dead && e.team === team && e.kind === 'unit' && isHarvester(e) && e.order?.t === 'harvest');
+  if (!crew.length) return [];
+  const walks: Partial<Record<'ore' | 'wood', Float32Array>> = {};
+  const walk = (k: 'ore' | 'wood') => (walks[k] ??= walkDist(banksOf(team, k === 'wood' ? WOOD_BANKS : ORE_BANKS)));
+  const out: { x: number; y: number; d: number }[] = [];
+  for (const u of crew) {
+    const o = u.order;
+    if (o?.t !== 'harvest' || o.wreck) continue;
+    let x = o.tx, y = o.ty;
+    if (o.res === 'oil') {
+      const w = o.src != null ? G.byId.get(o.src) : null;
+      if (!w || w.dead) continue;
+      x = w.tx + (w.w >> 1); y = w.ty + (w.h >> 1);
+    }
+    const kind = o.res === 'wood' ? 'wood' : 'ore', d = walk(kind);
+    // the job tile itself is ore, a tree or a derrick: the walk ends on a tile beside it
+    let best = Infinity;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < MW && ny < MH) best = Math.min(best, d[ny * MW + nx]);
+    }
+    if (best >= FAR_WALK && best < Infinity) out.push({ x, y, d: best });
+  }
+  return out;
+}
+
+/**
+ * Workers walking far to their jobs (Alex: the computer never built Resource Drops): when a few work
+ * close together a long walk from every drop-off, find a spot for a Resource Drop beside them.
+ * Looked at now and then, and the spot kept in `scouted` for findSite.
+ */
+function farDrop(team: number): boolean {
+  if (countOf(team, 'camp') >= MAX_DROPS || G.gameT - (dropT[team] ?? -Infinity) < DROP_GAP) return false;
+  if (G.credits[team] < costOf('camp')) return false;
+  const look = scouted[team];
+  if (look?.site && look.drop && G.gameT - look.t <= EXPAND_LOOK) return true;
+  if (G.gameT - (dropLook[team] ?? -Infinity) < EXPAND_LOOK) return false;
+  dropLook[team] = G.gameT;
+  const jobs = farJobs(team);
+  if (jobs.length < FAR_CREW) return false;
+  // the biggest bunch of far jobs
+  let crew: typeof jobs = [];
+  for (const j of jobs) {
+    const near = jobs.filter((k) => Math.hypot(k.x - j.x, k.y - j.y) <= FAR_SPREAD);
+    if (near.length > crew.length) crew = near;
+  }
+  if (crew.length < FAR_CREW) return false;
+  const yard = homeOf(team);
+  if (!yard) return false;
+  const s = BUILDING.camp.size, mx = crew.reduce((a, j) => a + j.x, 0) / crew.length, my = crew.reduce((a, j) => a + j.y, 0) / crew.length;
+  const cx = Math.floor(yard.x / TS), cy = Math.floor(yard.y / TS);
+  const halls = G.ents.filter((e) => !e.dead && e.type === 'yard' && e.team >= 0 && hostile(e.team, team)).map((e) => [Math.floor(e.x / TS), Math.floor(e.y / TS)]);
+  let best: Tile | null = null, bs = Infinity;
+  for (let ty = Math.round(my) - FAR_SPREAD; ty <= Math.round(my) + FAR_SPREAD; ty++)
+    for (let tx = Math.round(mx) - FAR_SPREAD; tx <= Math.round(mx) + FAR_SPREAD; tx++) {
+      const ox = tx + s / 2, oy = ty + s / 2;
+      // the summed walk (as the crow flies) from the spot to each job: as short as can be
+      const score = crew.reduce((a, j) => a + Math.hypot(j.x + 0.5 - ox, j.y + 0.5 - oy), 0);
+      if (score >= bs) continue;
+      // on our side of the map, where the army can cover it, and not right up against the enemy
+      const mine = Math.hypot(tx - cx, ty - cy);
+      if (mine > DROP_REACH || halls.some((h) => Math.hypot(tx - h[0], ty - h[1]) * DROP_SIDE < mine)) continue;
+      let onOre = false;
+      for (let y = ty; y < ty + s && !onOre; y++) for (let x = tx; x < tx + s; x++) if (x >= 0 && y >= 0 && x < MW && y < MH && G.ore[y * MW + x] > 0) { onOre = true; break; }
+      if (onOre || !clearOfFoes(tx, ty, s, team, EXPAND_GAP + 2) || !canPlace(tx, ty, s, team, true, false, 'far')) continue;
+      bs = score; best = [tx, ty];
+    }
+  if (!best || sealsIn(team, yard, footprint(best[0], best[1], s))) return false;
+  // Workers must be able to walk there from home
+  const [sx, sy] = exitTile(yard), path = findPath(sx, sy, best[0], best[1], team), end = path[path.length - 1];
+  if (!end || Math.max(Math.abs(end[0] - best[0]), Math.abs(end[1] - best[1])) > 1) return false;
+  scouted[team] = { t: G.gameT, site: best, drop: true };
+  aiNote(team, `${crew.length} Workers walk ${Math.round(Math.min(...crew.map((j) => j.d)))}+ tiles to drop off: Resource Drop by them`, `far ${team}`);
+  return true;
+}
+
 /** Tiles of walking from a drop-off to the nearest ore worth a trip that make a new drop-off worth building. */
 const LONG_TRIP = 14;
 /** Walking distance from the side's drop-offs to the nearest ore worth a trip (Infinity if none). */
@@ -495,7 +598,7 @@ function nearestTrip(team: number, banks: Ent[]): number {
 /** Seconds between the computer's looks for a far ore field. */
 const EXPAND_LOOK = 15;
 /** Where each computer side last found a spot for a new drop-off (sized for a Town Hall, so a camp fits too). */
-const scouted: ({ t: number; site: Tile | null } | undefined)[] = [];
+const scouted: ({ t: number; site: Tile | null; /** a Resource Drop's spot by far Workers (farDrop) */ drop?: boolean } | undefined)[] = [];
 
 /** The richest ore field away from the side's drop-offs and the enemy that its Workers can walk to, nearer home breaking ties. */
 function expandSite(team: number, s: number, yard: Ent): Tile | null {
@@ -601,8 +704,9 @@ function research(team: number): void {
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
 }
 
-/** Which buildings the computer upgrades to its age first: the base's heart, then its defenses. */
-const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'magetower', 'derrick', 'mill'];
+/** Which buildings the computer upgrades to its age first: the base's heart, the buildings that open new troops and research, then its defenses. */
+// the Barracks, War Factory, Airfield, Armory and Arcane Circle come early: their upgrades open the age's troops and research
+const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'barracks', 'factory', 'power', 'armory', 'airfield', 'magetower', 'tower', 'turret', 'flak', 'hospital', 'works', 'derrick', 'mill'];
 const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
 
 /** Ore the computer keeps back for troops and repairs when paying for an upgrade. */
@@ -931,7 +1035,7 @@ function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
   if (!prey || prey.dead || !prey.wild || !A.hunters.size) { prey = undefined; A.prey = null; A.hunters.clear(); }
   if (!prey && home && army.length >= HUNT_ARMY) {
     const near = (e: Ent) => Math.hypot(e.x - home.x, e.y - home.y);
-    for (const b of wildBeasts().sort((a, c) => near(a) - near(c))) {
+    for (const b of wildBeasts().filter((x) => !x.wild?.guard).sort((a, c) => near(a) - near(c))) {
       const party = army.filter((u) => !u.order && canAttack(u, b)).sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y)).slice(0, HUNTERS);
       if (party.length < MIN_HUNTERS) continue;
       prey = b;

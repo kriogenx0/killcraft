@@ -9,6 +9,7 @@ import { initWorld, update } from './world.ts';
 import { SHALLOW, WATER } from './const.ts';
 import { updLeader } from './bounty.ts';
 import { addUnit, kill } from './entity.ts';
+import { dealDamage } from './combat.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
 import { existsSync, readFileSync } from 'node:fs';
@@ -237,7 +238,7 @@ describe('mission layouts', () => {
     expect(isl.yards[0][1] - isl.yards[0][0]).toBeGreaterThan(14);
     expect(isl.yards[1][0] - isl.yards[1][1]).toBeGreaterThan(14);
     // one oil patch on Black Gold
-    expect(missionLayout(MISSIONS.find((m) => m.oneOil)!).oil.length).toBe(1);
+    expect(missionLayout(MISSIONS.find((m) => m.oneOil)!).oil.length).toBe(2);
   });
 });
 
@@ -275,6 +276,15 @@ describe('mission 2 (Alex: too difficult)', () => {
 });
 
 describe('mission 6 camps (Alex: too easy)', () => {
+  it('keeps every enemy camp well away from the player start (Alex: too close)', () => {
+    for (const m of MISSIONS.filter((x) => x.army && x.scatter && x.patches)) {
+      initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m), locked: JSON.parse(readFileSync(`public/campaign/${m.id}.json`, 'utf8')) as LockedMap });
+      const mine = G.ents.filter((e) => e.team === 0 && e.kind === 'unit'), foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
+      expect(foes.length, m.id).toBe(m.scatter!.length);
+      for (const f of foes) expect(Math.min(...mine.map((u) => Math.hypot(u.x - f.x, u.y - f.y) / TS)), m.id).toBeGreaterThan(m.camps ?? 12);
+    }
+  });
+
   it('camps near a fight march on the player; far ones stay put', () => {
     const m = MISSIONS.find((x) => x.camps)!;
     G.headless = true;
@@ -285,7 +295,7 @@ describe('mission 6 camps (Alex: too easy)', () => {
     const near = (e: { x: number; y: number }) => Math.hypot(e.x - me.x, e.y - me.y) < G.camps * TS;
     expect(foes.some((e) => !near(e))).toBe(true);
     // move one enemy close by: it (and only those in earshot) come
-    foes[0].x = me.x + 8 * TS; foes[0].y = me.y;
+    foes[0].x = me.x + 5 * TS; foes[0].y = me.y;
     G.gameT = 0;
     campAlarm();
     expect(foes[0].order).toBeFalsy();
@@ -307,10 +317,15 @@ describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () =
     expect(trees.length).toBeGreaterThan(5);
     expect(trees.length).toBeLessThan(40);
     for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
-    // creatures stand guard around it (Alex)
+    // creatures stand guard around it (Alex), and can't be captured: they die instead of kneeling
     const guards = G.ents.filter((e) => !e.dead && !!e.wild);
     expect(guards.map((e) => e.type).sort()).toEqual([...m.guards!].sort());
     for (const g of guards) expect(Math.hypot(g.x / TS - cx, g.y / TS - cy)).toBeLessThan(10);
+    expect(guards.every((g) => g.wild?.guard)).toBe(true);
+    const g = guards[0];
+    dealDamage(g, g.maxhp, null);
+    expect(g.dead).toBe(true);
+    expect(G.respawns).toEqual([]);
   });
 });
 

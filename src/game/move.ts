@@ -99,6 +99,19 @@ function nearby(x: number, y: number): Ent[] {
 }
 
 /** How far ahead (px) a walking unit looks for others in its way. */
+/**
+ * How much room a unit's body takes towards a point in direction (dx, dy) (px), when units bump into
+ * each other. A ground vehicle's hull is longer than it is wide: its round `radius` (which sets reach
+ * and what splash hits) fits its sides, and nose and tail reach VEHICLE_BODY times further, so tanks
+ * driving up behind or into each other stop short instead of overlapping.
+ */
+export function bodyRadius(u: Ent, dx = 0, dy = 0): number {
+  const d = unitDef(u), l = Math.hypot(dx, dy);
+  if (d.cls !== 'vehicle' || !l) return d.radius;
+  return d.radius * (1 + (VEHICLE_BODY - 1) * Math.abs((Math.cos(u.face) * dx + Math.sin(u.face) * dy) / l));
+}
+const VEHICLE_BODY = 1.35;
+
 const lookahead = (u: Ent): number => Math.max(40, unitDef(u).radius * 4);
 
 /** A unit that is just standing about, with nothing to do, and so can make way. */
@@ -122,12 +135,12 @@ const sameFormation = (a: Ent, b: Ent): boolean => a.order?.t === 'move' && b.or
  * side standing in the way steps aside. Returns the heading to walk along and a speed factor.
  */
 function avoid(u: Ent, ux: number, uy: number, look: number, dt: number): [number, number, number] {
-  const ru = unitDef(u).radius, px = -uy, py = ux, heading = Math.atan2(uy, ux); // (px, py): the unit's right
+  const ru = bodyRadius(u, ux, uy), px = -uy, py = ux, heading = Math.atan2(uy, ux); // (px, py): the unit's right
   let side = 0, pace = 1;
   for (const e of nearby(u.x, u.y)) {
     if (e === u || passThrough(u, e)) continue;
     const rx = e.x - u.x, ry = e.y - u.y, along = rx * ux + ry * uy, lat = rx * px + ry * py;
-    const re = unitDef(e).radius, clear = ru + re + 4;
+    const re = bodyRadius(e, ux, uy), clear = ru + re + 4;
     if (Math.abs(lat) >= clear + 4 || along <= -clear || along > look) continue;
     if (along <= 0) {
       // alongside: ease away so we don't rub shoulders
@@ -178,55 +191,72 @@ export function canStep(x0: number, y0: number, x1: number, y1: number): boolean
  * out of line it is (GAIN of the pace per tile, never below FLOOR of it). The marker never runs more
  * than SLACK tiles ahead of the group's middle unit, so a group held up by a crowd or a detour isn't
  * sent racing after it. A unit more than LOOSE tiles ahead (its spot is nearer, round a wall, say)
- * just walks at the pace.
+ * just walks at the pace. A unit more than NEAR tiles from its spot in the moving block, behind or
+ * off to one side, hurries to it at full speed; within NEAR it keeps in step.
  */
 const GAIN = 2, FLOOR = 0.5, SLACK = 1, LOOSE = 6;
+/** Within this many tiles of its spot in the moving block a unit keeps in step; further off it hurries there. */
+const NEAR = 1.5;
 /** each formation's marker: distance (tiles) still to go, as of game time `t` */
-const marks = new Map<number, { left: number; t: number }>();
+const marks = new Map<number, { left: number; t: number; dx: number; dy: number }>();
 let marksAt = -1;
 
 /** Tiles a unit still has to walk to its spot. */
 const toGo = (u: Ent, o: { gx: number; gy: number }): number => Math.hypot((o.gx + 0.5) * TS - u.x, (o.gy + 0.5) * TS - u.y) / TS;
 
-function markLeft(fid: number): number | undefined {
+function markOf(fid: number): { left: number; dx: number; dy: number } | undefined {
   if (marksAt !== G.gameT) {
     marksAt = G.gameT;
-    const left = new Map<number, { l: number[]; pace: number }>();
+    const left = new Map<number, { l: number[]; pace: number; dx: number; dy: number }>();
     for (const e of G.ents) {
       const o = e.order;
-      if (e.dead || o?.t !== 'move' || o.fid == null || !o.pace) continue;
-      const g = left.get(o.fid) ?? { l: [], pace: o.pace };
+      // (a unit still on its way to its place in the block isn't marching yet)
+      if (e.dead || o?.t !== 'move' || o.fid == null || !o.pace || o.fu) continue;
+      const g = left.get(o.fid) ?? { l: [], pace: o.pace, dx: 0, dy: 0 };
       g.l.push(toGo(e, o));
+      g.dx += (o.gx + 0.5) * TS - e.x; g.dy += (o.gy + 0.5) * TS - e.y;
       left.set(o.fid, g);
     }
     for (const f of marks.keys()) if (!left.has(f)) marks.delete(f);
     for (const [f, g] of left) {
-      const mid = g.l.sort((a, b) => a - b)[Math.floor(g.l.length / 2)], m = marks.get(f);
-      marks.set(f, { left: m && m.t <= G.gameT ? Math.max(m.left - g.pace * (G.gameT - m.t), mid - SLACK) : mid, t: G.gameT });
+      const mid = g.l.sort((a, b) => a - b)[Math.floor(g.l.length / 2)], m = marks.get(f), fresh = !m || m.t > G.gameT;
+      // the way the group is heading, fixed when the order is given
+      const gl = Math.hypot(g.dx, g.dy) || 1;
+      marks.set(f, {
+        left: fresh ? mid : Math.max(m.left - g.pace * (G.gameT - m.t), mid - SLACK), t: G.gameT,
+        dx: fresh ? g.dx / gl : m.dx, dy: fresh ? g.dy / gl : m.dy,
+      });
     }
   }
-  return marks.get(fid)?.left;
+  return marks.get(fid);
 }
 
 /** How far (tiles) along the way it's going one spot or unit must be beyond another to count as in front of it. */
 const RANK_GAP = 0.6;
 /** units in formation waiting for those whose spots are in front of theirs to go by, worked out once a tick */
-const waiting = new Set<Ent>();
+let waiting = new Set<Ent>();
 let waitingAt = -1;
+/** The longest (s) a unit in formation waits for the front to go by before it sets off anyway. */
+const WAIT_MAX = 3;
+/** when each unit began waiting, and in which formation (a new order starts the clock again) */
+const waitSince = new WeakMap<Ent, { fid: number; t: number }>();
 
 /**
  * A unit whose spot is at the back of a formation waits while any unit whose spot is in front of it
  * hasn't yet got in front of it (as when a group turns round, or Medics are swapped to the back), so
- * the front moves off first and the back falls in behind.
+ * the front moves off first and the back falls in behind. It never waits on a unit that is itself
+ * waiting, and never more than WAIT_MAX seconds in all, so nobody is left standing.
  */
 function waitsForFront(u: Ent): boolean {
   if (waitingAt !== G.gameT) {
     waitingAt = G.gameT;
-    waiting.clear();
+    // a unit that was itself waiting last tick isn't one to wait for: that could hold a group still forever
+    const was = waiting;
+    waiting = new Set<Ent>();
     const groups = new Map<number, Ent[]>();
     for (const e of G.ents) {
       const o = e.order;
-      if (e.dead || o?.t !== 'move' || o.fid == null || o.sub) continue;
+      if (e.dead || o?.t !== 'move' || o.fid == null || o.sub || o.fu) continue;
       const g = groups.get(o.fid) ?? [];
       g.push(e);
       groups.set(o.fid, g);
@@ -242,8 +272,13 @@ function waitsForFront(u: Ent): boolean {
       const spot = (e: Ent) => { const o = e.order as { gx: number; gy: number }; return (o.gx + 0.5) * dx + (o.gy + 0.5) * dy; };
       const at = (e: Ent) => (e.x * dx + e.y * dy) / TS;
       for (const u of g) {
+        const fid = (u.order as { fid: number }).fid, w = waitSince.get(u);
+        if (w && w.fid === fid && G.gameT - w.t > WAIT_MAX) continue; // waited long enough: go
         const su = spot(u), pu = at(u);
-        if (g.some((f) => f !== u && spot(f) - su > RANK_GAP && at(f) - pu < RANK_GAP && Math.hypot(f.x - u.x, f.y - u.y) < 8 * TS)) waiting.add(u);
+        if (g.some((f) => f !== u && !was.has(f) && spot(f) - su > RANK_GAP && at(f) - pu < RANK_GAP && Math.hypot(f.x - u.x, f.y - u.y) < 8 * TS)) {
+          waiting.add(u);
+          if (!w || w.fid !== fid) waitSince.set(u, { fid, t: G.gameT });
+        }
       }
     }
   }
@@ -254,11 +289,23 @@ function waitsForFront(u: Ent): boolean {
 function formationPace(u: Ent): number {
   const o = u.order;
   if (o?.t !== 'move' || o.sub || !o.pace) return Infinity;
+  // on its way to its place in the block: hurry there, then march with the rest
+  if (o.fu) {
+    // (until it's there, or its path no longer goes there: pushed past it in a crowd, or sent round)
+    const [fx, fy] = o.fu;
+    if (Math.hypot((fx + 0.5) * TS - u.x, (fy + 0.5) * TS - u.y) > 1.5 * TS && u.path?.some((t) => t[0] === fx && t[1] === fy)) return Infinity;
+    o.fu = undefined;
+  }
   if (waitsForFront(u)) return 0;
-  const mark = o.fid != null ? markLeft(o.fid) : undefined;
-  if (mark == null) return o.pace;
-  const behind = toGo(u, o) - mark;
+  const m = o.fid != null ? markOf(o.fid) : undefined;
+  if (!m) return o.pace;
+  // how far it is from its spot in the moving block: behind (or ahead) along the way, and to one side
+  const vx = (o.gx + 0.5) * TS - u.x, vy = (o.gy + 0.5) * TS - u.y;
+  const behind = toGo(u, o) - m.left, side = Math.abs(vx * m.dy - vy * m.dx) / TS;
   if (behind < -LOOSE) return o.pace;
+  // well out of place behind or to the side: hurry there at full speed (Alex, 2026-11-28)
+  if (behind > 0 && Math.hypot(behind, side) > NEAR) return Infinity;
+  // close to its spot: keep in step with the group
   return o.pace * Math.max(FLOOR, 1 + GAIN * behind);
 }
 
@@ -279,10 +326,9 @@ export function narrow(x: number, y: number): boolean {
 function blockedShort(u: Ent, gx: number, gy: number): boolean {
   const dx = gx - u.x, dy = gy - u.y, d = Math.hypot(dx, dy);
   if (u.order?.t !== 'move' || d > SHORT || d < 1 || narrow(u.x, u.y)) return false;
-  const ru = unitDef(u).radius;
   for (const e of nearby(u.x, u.y)) {
     if (e === u || e.team !== u.team || e.moving) continue;
-    const rx = e.x - u.x, ry = e.y - u.y, gap = Math.hypot(rx, ry) - ru - unitDef(e).radius;
+    const rx = e.x - u.x, ry = e.y - u.y, gap = Math.hypot(rx, ry) - bodyRadius(u, rx, ry) - bodyRadius(e, rx, ry);
     if (gap < 6 && (rx * dx + ry * dy) / d > Math.hypot(rx, ry) * 0.5) return true;
   }
   return false;
@@ -442,17 +488,19 @@ export const shoved = { px: 0 };
 /** Soft collision: overlapping units push apart; idle units yield to moving ones. */
 export function separate(): void {
   const us = G.ents.filter((e) => !e.dead && e.kind === 'unit').sort((a, b) => a.x - b.x);
-  const rad = us.map((u) => unitDef(u).radius + 2), air = us.map(isAir), maxRad = Math.max(17, ...rad);
+  const rad = us.map((u) => unitDef(u).radius * (u.kind === 'unit' && unitDef(u).cls === 'vehicle' ? VEHICLE_BODY : 1) + 2), air = us.map(isAir), maxRad = Math.max(17, ...rad);
   for (let i = 0; i < us.length; i++) {
     const a = us[i];
     for (let j = i + 1; j < us.length; j++) {
-      const b = us[j], min = rad[i] + rad[j];
+      const b = us[j];
       if (air[i] !== air[j]) continue;
       let dx = a.x - b.x;
       if (dx < -(rad[i] + maxRad)) break;
       let dy = a.y - b.y;
-      if (Math.abs(dx) >= min || Math.abs(dy) >= min || ((a.moving || b.moving) && passThrough(a, b))) continue;
+      // rad is the most room each could take; the room between them depends on which way each faces
+      if (Math.abs(dx) >= rad[i] + rad[j] || Math.abs(dy) >= rad[i] + rad[j] || ((a.moving || b.moving) && passThrough(a, b))) continue;
       let d = Math.hypot(dx, dy);
+      const min = air[i] ? rad[i] + rad[j] : bodyRadius(a, dx, dy) + bodyRadius(b, dx, dy) + 4;
       if (d >= min) continue;
       if (d < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.hypot(dx, dy); }
       const weight = (u: Ent) => (anchored(u) ? 0.05 : u.moving ? 0.3 : 1);

@@ -8,7 +8,7 @@ import { addUnit } from './entity.ts';
 import { dealDamage, fire, updProjs } from './combat.ts';
 import { applyElement, burning, cast, frozen, lusting, poisoned, shielded, sludged, updCaster, wet } from './spells.ts';
 import { setOrder } from './order.ts';
-import { BURN_TIME, SHIELD_HP, SPELL, WET_SHOCK, WRECK_BURN_AT } from '../data/spells.ts';
+import { BURN_REST, BURN_TIME, SHIELD_HP, SPELL, WET_SHOCK, WRECK_BURN_AT } from '../data/spells.ts';
 import { UNIT } from '../data/unit.ts';
 import { mulberry32 } from '../util/math.ts';
 
@@ -187,6 +187,28 @@ describe('elements', () => {
     run(BURN_TIME / 2 + 0.5);
     expect(burning(a)).toBe(false);
     expect(a.hp).toBeGreaterThan(0);
+  });
+
+  it('every burn ends: more fire does not keep a unit alight, and a burnt unit rests before it catches again', () => {
+    const a = addUnit('swordsman', 1, 24 * TS, y);
+    a.stance = 'passive';
+    a.hp = a.maxhp = 100000; // outlive any amount of fire
+    // flames poured on it every half second, as a Flamethrower or a forest fire would
+    const stoke = (secs: number) => { for (let i = 0; i < secs * 2; i++) { applyElement(a, 'fire', null); run(0.5); } };
+    stoke(1);
+    expect(burning(a)).toBe(true);
+    const out = a.burnT!;
+    stoke(BURN_TIME);
+    expect(a.burnT).toBe(out); // the burn was never stretched
+    expect(burning(a)).toBe(false);
+    stoke(BURN_REST - 1.5);
+    expect(burning(a)).toBe(false); // scorched: still resting
+    stoke(2);
+    expect(burning(a)).toBe(true); // and only then can it catch again
+    // over a long stretch it spends real time not burning
+    let off = 0;
+    for (let i = 0; i < 120; i++) { applyElement(a, 'fire', null); run(0.5); if (!burning(a)) off += 0.5; }
+    expect(off).toBeGreaterThan(60 * BURN_REST / (BURN_TIME + BURN_REST) * 0.8);
   });
 
   it('a burning soldier sets the troops packed around it alight, but the fire stops there', () => {

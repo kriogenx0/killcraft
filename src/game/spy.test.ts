@@ -1,4 +1,5 @@
 // The Spy (Alex, 2026-11-27): a Modern-age stealth unit for watching other sides. It never attacks.
+import { reachAge } from './age.testkit.ts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks, reactOf } from './state.ts';
 import { MW, STEP, TS } from './const.ts';
@@ -31,7 +32,7 @@ describe('Spy', () => {
     expect(UNIT.spy.aether).toBeUndefined();
     addBuilding('barracks', 0, 20, 40, false);
     expect(available(0, 'infantry')).not.toContain('spy');
-    G.era[0] = 2;
+    reachAge(0, 2);
     expect(available(0, 'infantry')).toContain('spy');
   });
 

@@ -3,11 +3,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { G } from './state.ts';
 import { GRASS, MW, STEP, TREE, TS } from './const.ts';
-import { ais } from './ai.ts';
+import { ais, farJobs, setAiLevel } from './ai.ts';
 import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { rebuildBlk } from './map.ts';
-import { orderHarvest } from './order.ts';
+import { orderChop, orderHarvest } from './order.ts';
 import { sendGather } from './autogather.ts';
 import { canPlaceType } from './building.ts';
 import { available } from './production.ts';
@@ -119,6 +119,53 @@ describe('expanding', () => {
     for (let i = 0; i < 1 / STEP; i++) update(STEP);
     expect(G.aether[0]).toBeGreaterThan(start);
     expect(camp.dead).toBe(false);
+  });
+
+  // Alex (2026-11-28): the computer never built Resource Drops. Workers walking far to their ore or
+  // trees now get one put up beside them.
+  it('a computer puts a Resource Drop by its Workers mining far ore', () => {
+    emptyMap();
+    addBuilding('barracks', 0, 9, 4, false);
+    for (let y = 6; y < 9; y++) for (let x = 26; x < 29; x++) G.ore[y * MW + x] = 2000;
+    rebuildBlk();
+    // short of ore, so the computer keeps them on it
+    G.credits[0] = 400; G.wood[0] = 2000;
+    setAiLevel('normal', 0);
+    ais[0].on = true;
+    [0, 1, 2].forEach((k) => orderHarvest(addUnit('worker', 0, (25 - k) * TS, (6 + k) * TS), 26 + k, 6 + k));
+    let drop: ReturnType<typeof addBuilding> | undefined;
+    for (let i = 0; i < 60 / STEP && !drop; i++) {
+      update(STEP);
+      drop = G.ents.find((e) => !e.dead && e.team === 0 && e.type === 'camp');
+    }
+    expect(drop).toBeDefined();
+    // beside the field, not back at the base
+    expect(Math.hypot(drop!.tx - 27, drop!.ty - 7)).toBeLessThan(6);
+    expect(G.aiLog.some((n) => n.team === 0 && /Resource Drop by them/.test(n.why))).toBe(true);
+  });
+
+  it('Workers chopping far trees count as walking far; by a Lumber Mill they do not', () => {
+    emptyMap();
+    for (let y = 6; y < 9; y++) for (let x = 26; x < 29; x++) { G.terr[y * MW + x] = TREE; G.treeWood[y * MW + x] = 120; }
+    rebuildBlk();
+    [0, 1].forEach((k) => orderChop(addUnit('worker', 0, 25 * TS, (6 + k) * TS), 26, 6 + k));
+    expect(farJobs(0).length).toBe(2);
+    addBuilding('mill', 0, 23, 6, false);
+    rebuildBlk();
+    expect(farJobs(0).length).toBe(0);
+  });
+
+  it('a computer whose Workers work by home builds no Resource Drop', () => {
+    emptyMap();
+    addBuilding('barracks', 0, 9, 4, false);
+    for (let y = 9; y < 12; y++) for (let x = 6; x < 9; x++) G.ore[y * MW + x] = 2000;
+    rebuildBlk();
+    G.credits[0] = 5000; G.wood[0] = 2000;
+    setAiLevel('normal', 0);
+    ais[0].on = true;
+    [0, 1, 2].forEach((k) => orderHarvest(addUnit('worker', 0, (6 + k) * TS, 13 * TS), 6 + k, 10));
+    for (let i = 0; i < 60 / STEP; i++) update(STEP);
+    expect(G.ents.some((e) => !e.dead && e.team === 0 && e.type === 'camp')).toBe(false);
   });
 
   it('a side that loses its first Town Hall plays on from its second', () => {

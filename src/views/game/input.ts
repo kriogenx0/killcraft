@@ -1,4 +1,5 @@
 // Mouse, touch and keyboard controls for the 3D battlefield and the minimap.
+import { canBeEscorted, canEscort } from '../../game/order.ts';
 import { G, allied, bldDef, escort, isHarvester, targetable, tileOf, unitDef, type Ent } from '../../game/state.ts';
 import { isUnitProducer } from '../../data/building.ts';
 import { MW, MH, TREE, TS } from '../../game/const.ts';
@@ -46,6 +47,9 @@ const mark = (x: number, y: number, color: string) => V.markers.push({ x, y, t: 
 /** Something your troops may attack: an enemy side's unit or building, a wild creature or a demon. */
 const isEnemy = (e: Ent | null): boolean => !!e && V.team >= 0 && targetable(V.team, e);
 
+/** A unit of yours or a teammate's that troops can be told to escort. */
+const escortable = (e: Ent | null): e is Ent => !!e && V.team >= 0 && allied(e.team, V.team) && canBeEscorted(e);
+
 /** Context command at a world point: attack, harvest, unload, rally or move. On open ground units move, and their stance decides whether they fight. */
 export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
   const own = ownSelected();
@@ -76,6 +80,16 @@ export function worldCommand(wx: number, wy: number, hit: Ent | null): void {
     const others = units.filter((u) => !workers.includes(u));
     if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty, ...inFormation(others) });
     mark(wx, wy, '#5cf');
+    return;
+  }
+  // a friendly unit picked: the fighters and Medics escort it (the rest walk over there)
+  const guards = units.filter(canEscort);
+  if (guards.length && hit && escortable(hit) && !units.includes(hit)) {
+    dispatch({ c: 'escort', ids: ids(guards), target: hit.id });
+    const others = units.filter((u) => !guards.includes(u));
+    if (others.length) dispatch({ c: 'move', ids: ids(others), tx, ty, ...inFormation(others) });
+    V.targets = [{ id: hit.id, t: 0, color: '#5cf' }];
+    mark(hit.x, hit.y, '#5cf');
     return;
   }
   if (harvesters.length && (hit?.type === 'mill' || hit?.type === 'derrick') && hit.team === V.team && hit.done) { dispatch({ c: 'haul', ids: ids(harvesters), target: hit.id }); moveRest(); mark(wx, wy, '#ff5'); return; }
@@ -116,6 +130,17 @@ function useMode(wx: number, wy: number, hit: Ent | null, more = false): void {
       const left = { ore: G.credits[V.team] - p.ore, wood: G.wood[V.team] - p.wood, oil: G.oil[V.team] - p.oil, aether: (G.aether[V.team] ?? 0) - p.aether };
       if (!more || left.ore < p.ore || left.wood < p.wood || left.oil < p.oil || left.aether < p.aether) V.mode = null;
     }
+    refreshCommands(true);
+    return;
+  }
+  if (m.t === 'escort') {
+    // only a friendly unit will do: anything else keeps the pick open (Esc or right-click lets go)
+    const guards = selectedUnits().filter((u) => canEscort(u) && u !== hit);
+    if (!escortable(hit) || !guards.length) { mark(wx, wy, '#f44'); return; }
+    V.mode = null;
+    dispatch({ c: 'escort', ids: ids(guards), target: hit.id });
+    V.targets = [{ id: hit.id, t: 0, color: '#5cf' }];
+    mark(hit.x, hit.y, '#5cf');
     refreshCommands(true);
     return;
   }
@@ -466,6 +491,8 @@ function onKey(ev: KeyboardEvent): void {
     return;
   }
   if (k === 'meta' || k === 'control') { keys.clear(); return; }
+  // Shift+E: Escort, rather than turning the camera
+  if (k === 'e' && ev.shiftKey && tracksKey(ev)) { ev.preventDefault(); if (!ev.repeat && runHotkey('shift+e')) refreshCommands(true); return; }
   // Shift+A selects the army instead of panning left
   if (k === 'a' && ev.shiftKey && tracksKey(ev)) { ev.preventDefault(); if (!ev.repeat && !spectating()) selectArmy(); return; }
   if (tracksKey(ev)) keys.add(k);

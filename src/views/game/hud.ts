@@ -1,4 +1,5 @@
 // The top bar (ore, wood, oil, Aether once found, power, age, time) and the selection panel with its commands.
+import { canEscort } from '../../game/order.ts';
 import { G, STANCES, allied, hostile, bldDef, loadOf, isHarvester, isOrganic, reactOf, unitDef, valid, type Ent, type React, type Stance } from '../../game/state.ts';
 import { UNIT, isUnitType, type UnitType } from '../../data/unit.ts';
 import { WEAPON, type ArmorClass, type WeaponType } from '../../data/weapon.ts';
@@ -10,7 +11,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, pendingNeeds, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, unlocksAt, sitesOf, waitingFor, pendingNeeds, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -27,9 +28,9 @@ import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { ICON } from './render/icon.ts';
 import { behind, lvlOf, refitBonus, refitPrice, refitTime } from '../../game/refit.ts';
 import { commandsHtml, type Command } from './components/command_button.ts';
-import { BUILDING_KEYS, COMMAND_KEYS, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, REACT_KEYS, keyLabel } from './keyboard.ts';
+import { BUILDING_KEYS, COMMAND_KEYS, ESCORT_KEY, FOLLOW_KEY, FORMATION_KEY, RALLY_KEY, REACT_KEYS, keyLabel } from './keyboard.ts';
 import { followable, followingSelection, toggleFollow } from './follow_cam.ts';
-import { V, canToggleFormation, ownSelected, spectating, toggleFormation } from './view_state.ts';
+import { V, canToggleFormation, ownSelected, spectating, toggleFormation, selectedUnits } from './view_state.ts';
 import { burning, cursed, frozen, lusting, poisoned, shielded, sludged, wet } from '../../game/spells.ts';
 import { armyShares } from '../../game/army.ts';
 import { alive } from '../../game/world.ts';
@@ -60,11 +61,12 @@ let commandMarkup = '';
 let detailMarkup = '';
 let armyMarkup = '';
 /**
- * A selected unit's card has two tabs (Alex, 2026-11-28): Details (description, stats and plain
- * orders like Move and Stop) and Behavior (its settings: attack mode, when attacked, gather). The
- * tabs only appear when there are settings to show.
+ * A selected unit's card has three tabs (Alex, 2026-11-28): Details (description and stats only),
+ * Orders (what you tell it to do: Move, Stop, Patrol, Formation...) and Behavior (its own settings:
+ * attack mode, when attacked, gather). Behavior shows only when it has settings. Buildings keep one card.
  */
-type SelTab = 'details' | 'behavior';
+type SelTab = 'details' | 'orders' | 'behavior';
+const SEL_TABS: readonly SelTab[] = ['details', 'orders', 'behavior'];
 let selTab: SelTab = 'details';
 let selTabs: HTMLElement | null = null;
 
@@ -76,11 +78,16 @@ function setSelTab(t: SelTab): void {
 function syncSelTabs(): void {
   const pane = els.details.parentElement;
   if (!selTabs || !pane) return;
-  const has = commands.some((c) => c.group);
+  const has = commands.length > 0 && !!detailMarkup && selectedUnits().length > 0;
+  const settings = commands.some((c) => c.group);
+  // a unit with no settings: its Behavior tab hides, and Orders stands in for it
+  const shown: SelTab = selTab === 'behavior' && !settings ? 'orders' : selTab;
   if (selTabs.hidden === has) selTabs.hidden = !has;
-  pane.classList.toggle('sidebar-selection--tabs', has);
-  pane.classList.toggle('sidebar-selection--behavior', has && selTab === 'behavior');
-  for (const b of selTabs.querySelectorAll<HTMLElement>('[data-seltab]')) b.setAttribute('aria-selected', String(b.dataset.seltab === selTab));
+  for (const t of SEL_TABS) pane.classList.toggle(`sidebar-selection--${t}`, has && shown === t);
+  for (const b of selTabs.querySelectorAll<HTMLElement>('[data-seltab]')) {
+    b.setAttribute('aria-selected', String(b.dataset.seltab === shown));
+    if (b.dataset.seltab === 'behavior' && b.hidden === settings) b.hidden = !settings;
+  }
 }
 
 const PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
@@ -137,10 +144,10 @@ function upgradeCommand(b: Ent): Command | null {
   const next = ERA[lvlOf(b) + 1]?.name;
   if (!next || !(behind(b) || b.upT != null)) return null;
   if (b.upT != null) return { id: 'upgrade', label: 'Cancel upgrade', hotkey: BUILDING_KEYS.upgrade, icon: ICON.cancel, tip: `Stop upgrading to the ${next} age and get the full price back` };
-  const p = refitPrice(b), pct = Math.round(UPGRADE_BONUS * 100), hp = Math.round(UPGRADE_HP * 100);
+  const p = refitPrice(b), pct = Math.round(UPGRADE_BONUS * 100), hp = Math.round(UPGRADE_HP * 100), opens = unlocksAt(b.team, b.type as BldType, lvlOf(b) + 1);
   return {
     id: 'upgrade', label: 'Upgrade', hotkey: BUILDING_KEYS.upgrade, icon: ICON.upgrade, cost: { g: p.ore, w: p.wood },
-    tip: `Rebuild in the ${next} style (${Math.round(refitTime(b))}s): +${hp}% health and +${pct}% to what it does`,
+    tip: `Rebuild in the ${next} style (${Math.round(refitTime(b))}s): +${hp}% health and +${pct}% to what it does${opens.length ? `. Unlocks ${opens.join(', ')}` : ''}`,
     disabled: G.credits[V.team] < p.ore || G.wood[V.team] < p.wood,
   };
 }
@@ -201,7 +208,7 @@ function gatherCommands(s: Ent[]): Command[] {
 const coarsePointer = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 export function commandList(): Command[] {
-  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to send new troops there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : 'Cancel the current command' }];
+  if (V.mode) return [{ id: 'cancel', label: 'Cancel', hotkey: 'Esc', icon: ICON.cancel, tip: V.mode.t === 'rally' ? 'Click or tap the ground to send new troops there' : V.mode.t === 'attack' ? 'Click or tap an enemy unit or building to attack it' : V.mode.t === 'escort' ? 'Click or tap one of your units (or a teammate\'s) to escort it' : 'Cancel the current command' }];
   const s = ownSelected();
   const first = s[0];
   const follow = followCommand(), rally = rallyCommand();
@@ -215,6 +222,7 @@ export function commandList(): Command[] {
       { id: 'move', label: 'Move', hotkey: COMMAND_KEYS.move, icon: ICON.move, tip: 'Move to a location' },
       ...(s.some((u) => u.kind === 'unit' && unitDef(u).weapon && !isHarvester(u)) ? [{ id: 'attack', label: 'Attack', hotkey: COMMAND_KEYS.attack, icon: ICON.attack, tip: 'Pick an enemy unit or building (a wall too) for your fighters to attack and stay on until it falls' }] : []),
       ...(s.some((u) => u.kind === 'unit' && (unitDef(u).weapon || u.type === 'medic')) ? [{ id: 'patrol', label: 'Patrol', hotkey: COMMAND_KEYS.patrol, icon: ICON.patrol, tip: 'Walk back and forth between here and a point, fighting by stance on the way (Medics heal the wounded they pass)' }] : []),
+      ...(s.some((u) => u.kind === 'unit' && canEscort(u)) ? [{ id: 'escort', label: 'Escort', hotkey: ESCORT_KEY, icon: ICON.escort, tip: 'Pick a friendly unit to escort: they keep close around it, fight off enemies that come at it, and go back to it after. Right-click a friendly unit to escort it too' }] : []),
       { id: 'stop', label: 'Stop', hotkey: COMMAND_KEYS.stop, icon: ICON.stop, tip: 'Stop current orders' },
       // units that can't attack (Harvesters, Medics) have no attack modes, only what to do when attacked
       ...(s.every(unarmed)
@@ -275,7 +283,7 @@ export function runCommand(id: string): void {
   else if (id.startsWith('group:')) V.keyGroup = id.slice(6);
   else if (id === 'follow') toggleFollow();
   else if (id === 'formation') toggleFormation();
-  else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'rally') V.mode = { t: id };
+  else if (id === 'move' || id === 'attack' || id === 'patrol' || id === 'escort' || id === 'rally') V.mode = { t: id };
   else if (id.startsWith('gather:')) dispatch({ c: 'gather', ids: ids(s.filter((u) => u.type === 'worker')), res: id.slice(7) as GatherRes });
   else if (id === 'harvest') dispatch({ c: 'gather', ids: ids(s.filter(isHarvester)), res: 'ore' });
   else if (id.startsWith('react:')) dispatch({ c: 'react', ids: ids(s.filter((u) => u.kind === 'unit')), react: id.slice(6) as React });
@@ -337,6 +345,7 @@ export function unitAction(e: Ent): string {
   if (o.t === 'move') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : 'Moving';
   if (o.t === 'attack') return `Attacking ${entName(o.tgt)}`;
   if (o.t === 'heal') return `Healing ${entName(o.tgt)}`;
+  if (o.t === 'escort') return o.sub !== null && valid(o.sub) ? `Fighting ${entName(o.sub)}` : `Escorting ${entName(o.tgt)}`;
   if (o.res === 'wood' && o.st === 'gather') return 'Chopping wood';
   // on the way home it's what it carries that counts, which may not be what it's off to gather next
   const what = o.st === 'ret' || o.st === 'unload' ? e.cargo ?? 'ore' : o.res ?? 'ore';
@@ -650,12 +659,12 @@ export function initHud(e: HudEls): void {
   selTabs.setAttribute('role', 'tablist');
   selTabs.setAttribute('aria-label', 'Selected unit');
   selTabs.hidden = true;
-  selTabs.innerHTML = '<button type="button" class="selection-tab" role="tab" data-seltab="details">Details</button><button type="button" class="selection-tab" role="tab" data-seltab="behavior">Behavior</button>';
+  selTabs.innerHTML = '<button type="button" class="selection-tab" role="tab" data-seltab="details">Details</button><button type="button" class="selection-tab" role="tab" data-seltab="orders">Orders</button><button type="button" class="selection-tab" role="tab" data-seltab="behavior">Behavior</button>';
   els.details.before(selTabs);
   // pointerdown, like the rest of this card (it re-renders); the keyboard clicks
   const pickTab = (ev: Event) => {
     const t = (ev.target as HTMLElement).closest<HTMLElement>('[data-seltab]')?.dataset.seltab;
-    if (t === 'details' || t === 'behavior') setSelTab(t);
+    if (SEL_TABS.includes(t as SelTab)) setSelTab(t as SelTab);
   };
   selTabs.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); pickTab(ev); });
   selTabs.addEventListener('click', (ev) => { if (ev.detail === 0) pickTab(ev); });

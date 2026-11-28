@@ -5,7 +5,7 @@ import { MW, MH, TREE, TS } from './const.ts';
 import { UNIT_TYPES } from '../data/unit.ts';
 import { BLD_TYPES, type BldType } from '../data/building.ts';
 import { TECH_TYPES } from '../data/era.ts';
-import { groupMove, orderAttack, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setReact, setStance } from './order.ts';
+import { canBeEscorted, groupMove, orderAttack, orderEscort, orderChop, orderFix, orderHarvest, orderHaul, orderReturn, orderStop, setReact, setStance } from './order.ts';
 import { cancel, enqueue, startSite, toggleHold, type Buildable } from './production.ts';
 import { scrap, toggleRepair } from './building.ts';
 import { toggleRefit } from './refit.ts';
@@ -29,6 +29,8 @@ export type Command =
   /** set Workers to Auto, or to gather one resource from what's nearest the base */
   | { c: 'gather'; ids: number[]; res: GatherRes }
   | { c: 'fix'; ids: number[]; target: number }
+  /** follow a friendly unit, keep close round it and fight off enemies that come at it */
+  | { c: 'escort'; ids: number[]; target: number }
   /** fight one enemy unit or building until it falls */
   | { c: 'attack'; ids: number[]; target: number }
   | { c: 'rally'; id: number; x: number; y: number }
@@ -77,6 +79,7 @@ export function parseCommand(raw: unknown): Command | null {
     case 'haul':
     case 'fix':
     case 'attack':
+    case 'escort':
       return isIds(o.ids) && isInt(o.target) ? { c: o.c, ids: o.ids, target: o.target } : null;
     case 'harvest':
       return isIds(o.ids) && inMap(o.tx, o.ty) ? { c: 'harvest', ids: o.ids, tx: o.tx as number, ty: o.ty as number } : null;
@@ -176,6 +179,12 @@ export function applyCommand(team: number, cmd: Command): void {
       // armed units go for that enemy and stay on it; Workers and Medics carry on with their jobs
       const t = valid(cmd.target);
       if (t && targetable(team, t)) for (const u of ownUnits(team, cmd.ids)) if (unitDef(u).weapon && !isHarvester(u)) orderAttack(u, t);
+      break;
+    }
+    case 'escort': {
+      // fighters and Medics guard one of the side's own units or a teammate's
+      const w = valid(cmd.target);
+      if (w && allied(w.team, team) && canBeEscorted(w)) orderEscort(ownUnits(team, cmd.ids).filter((u) => u !== w), w);
       break;
     }
     case 'rally': {

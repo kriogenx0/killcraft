@@ -1,3 +1,4 @@
+import { reachAge } from './age.testkit.ts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
 import { MH, MW, STEP, TS } from './const.ts';
@@ -42,7 +43,7 @@ describe('the Sky Battleship', () => {
     const yard = G.ents.find((e) => e.team === 0 && e.type === 'yard');
     if (!yard) throw new Error('no yard');
     addBuilding('airfield', 0, yard.tx + 4, yard.ty, false);
-    G.era[0] = 2;
+    reachAge(0, 2);
     expect(available(0, 'air')).toContain('carrier');
     expect(available(0, 'air')).not.toContain('hornet');
   });

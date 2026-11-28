@@ -1,4 +1,5 @@
 // The Titan: one per side, revealed by Aether, a ground-shaking blow that hits everything around it.
+import { reachAge } from './age.testkit.ts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G } from './state.ts';
 import { TS } from './const.ts';
@@ -37,7 +38,7 @@ describe('the Titan', () => {
   it('needs Aether and the Industrial age, and only one at a time', () => {
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 12, 46, false);
-    G.era[0] = 1;
+    reachAge(0, 1);
     expect(available(0, 'infantry')).not.toContain('giant');
     G.aetherFound[0] = true;
     expect(available(0, 'infantry')).toContain('giant');

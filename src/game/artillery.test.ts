@@ -1,5 +1,6 @@
 // The Artillery Tank: a Industrial self-propelled howitzer that outranges defenses, must dig in to
 // fire, and can't shell anything right beside it.
+import { reachAge } from './age.testkit.ts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G, hooks, type Ent } from './state.ts';
 import { GRASS, MH, MW, STEP, TS } from './const.ts';
@@ -50,9 +51,9 @@ afterEach(() => {
 describe('the Artillery Tank', () => {
   it('comes from the War Factory in the Industrial age', () => {
     addBuilding('factory', 0, 20, 20, false);
-    G.era[0] = 0;
+    reachAge(0, 0);
     expect(available(0, 'vehicle')).not.toContain('artillery');
-    G.era[0] = 1;
+    reachAge(0, 1);
     expect(available(0, 'vehicle')).toContain('artillery');
   });
 

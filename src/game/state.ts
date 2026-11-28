@@ -61,8 +61,10 @@ export const defaultStance = (type: string, team: number): Stance => (type === '
 /**
  * `pace`: marching in formation, the group's slowest speed (tiles/s), which no one with the pack goes
  * faster than; `fid` names the formation, so a straggler behind the pack can run to catch up.
+ * `fu`: in formation, the tile where the unit takes its place in the block before the march, which
+ * it hurries to at full speed.
  */
-export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number; /** running away (Evade): it stops for nothing */ flee?: boolean }
+export interface MoveOrder { t: 'move'; gx: number; gy: number; sub: number | null; pat?: Tile; pace?: number; fid?: number; fu?: Tile; /** running away (Evade): it stops for nothing */ flee?: boolean }
 /** pick: the target the player chose, while the unit fights off something that hit it on the way; it goes back to it after. */
 /** `lx`, `ly`: where the target was last seen, so a unit sent after it carries on there if it falls to someone else. */
 export interface AttackOrder { t: 'attack'; tgt: number; auto: boolean; ox: number; oy: number; pick?: number; lx?: number; ly?: number }
@@ -75,7 +77,12 @@ export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unl
  * site go up). One it found itself gives up if it strays too far from where it started (ox, oy).
  */
 export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number; /** given by a player or the computer: no leash */ sent?: boolean }
-export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
+/**
+ * Escort a friendly unit (Alex, 2026-11-28): keep close around it (`ang`, `rad`: its spot on a ring
+ * round the ward, in radians and tiles), fight enemies that come at it (`sub`), then go back to it.
+ */
+export interface EscortOrder { t: 'escort'; tgt: number; sub: number | null; ang: number; rad: number }
+export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder | EscortOrder;
 
 export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech' | 'hospital' | 'armory';
 export interface ProductionItem {
@@ -181,6 +188,8 @@ export interface Ent extends Target {
   spellCd?: Partial<Record<SpellType, number>>;
   /** lasting effects of spells and elements (game/spells.ts): game time each wears off */
   burnT?: number;
+  /** game time the unit's current (or last) burn began: a burn runs its course from here, then rests (BURN_REST) */
+  burnAt?: number;
   poisonT?: number;
   wetT?: number;
   sludgeT?: number;
@@ -307,6 +316,8 @@ export interface Wild {
   /** the side capturing it (-1 for none) and seconds held so far */
   by: number;
   held: number;
+  /** a mission's guard (The Last Grove): fights to the death instead of kneeling, can't be captured and never comes back */
+  guard?: boolean;
 }
 
 /** Shots in flight, and sword and lance blows on their way down ('melee': lands after MELEE_LAND seconds). */
