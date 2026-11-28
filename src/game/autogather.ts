@@ -114,11 +114,13 @@ export function pickResource(u: Ent, can: Res[] = options(u)): Res | null {
 
 /** Give a Worker a gathering job of its own choosing. */
 function gather(u: Ent, r: Res): void {
-  const was = jobOf(u);
+  // back from a job in between (building, a repair) it has no job: the one it had before counts
+  const was = jobOf(u) ?? lastJob.get(u) ?? null;
   // a load of oil is an errand: the Worker goes back to what it was doing once it's banked
   if (r === 'oil' && was && was !== 'oil') errandFrom.set(u, was);
   else if (was && was !== r && was !== 'oil') movedAt.set(u, G.gameT);
   const [x, y] = r === 'ore' ? oreStart(u) : [tileOf(u.x), tileOf(u.y)];
+  if (r !== 'oil') lastJob.set(u, r);
   if (r === 'oil') {
     const d = derrickFor(u);
     if (!d) return;
@@ -187,6 +189,8 @@ const GAP = 500;
 const errandFrom = new WeakMap<Ent, Res>();
 /** Out on an errand (a load of oil, or salvage), to go back to its own job after. */
 export const onErrand = (u: Ent): boolean => errandFrom.has(u);
+/** The resource (ore or wood) each Auto Worker last took up, kept through jobs in between. */
+const lastJob = new WeakMap<Ent, Res>();
 /** When each Auto Worker last moved to another resource. */
 const movedAt = new WeakMap<Ent, number>();
 

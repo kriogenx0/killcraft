@@ -135,8 +135,11 @@ export function treeFor(u: Ent): boolean {
 
 function pickAnother(u: Ent, o: HarvestOrder): void {
   const t = nearestTree(u, Math.floor(u.x / TS), Math.floor(u.y / TS), 2, null, true) ?? nextTree(u, o);
-  if (t !== null) { o.tx = t % MW; o.ty = (t / MW) | 0; }
   u.path = null;
+  // no other tree it can get to: take any load home, else let it go and find other work, rather
+  // than keep trying the same tree it just found it can't reach
+  if (t === null) { if (u.carry > 0) o.st = 'ret'; else u.order = null; return; }
+  o.tx = t % MW; o.ty = (t / MW) | 0;
   if (u.carry > woodLoad(u) * 0.5 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) > 5 * TS) o.st = 'ret';
 }
 
@@ -159,6 +162,8 @@ export function updChop(u: Ent, o: HarvestOrder, dt: number): void {
     u.path = null;
     // most of a load and the next tree is a walk away: bank it first, then set out afresh
     if (u.carry > woodLoad(u) * 0.5 && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) > 5 * TS) { o.st = 'ret'; return; }
+    // only a tree someone else is already on, a walk away: bank what it has rather than race them for it
+    if (u.carry > 0 && choppersAt(i, u) && Math.hypot(u.x - (o.tx + 0.5) * TS, u.y - (o.ty + 0.5) * TS) > 3 * TS) { o.st = 'ret'; return; }
     o.st = 'go';
   }
   const tree = treeTarget(i);
