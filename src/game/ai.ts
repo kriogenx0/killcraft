@@ -596,8 +596,9 @@ function research(team: number): void {
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
 }
 
-/** Which buildings the computer upgrades to its age first: the base's heart, then its defenses. */
-const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'magetower', 'derrick', 'mill'];
+/** Which buildings the computer upgrades to its age first: the base's heart, the buildings that open new troops and research, then its defenses. */
+// the Barracks, War Factory, Airfield, Armory and Arcane Circle come early: their upgrades open the age's troops and research
+const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'barracks', 'factory', 'power', 'armory', 'airfield', 'magetower', 'tower', 'turret', 'flak', 'hospital', 'works', 'derrick', 'mill'];
 const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
 
 /** Ore the computer keeps back for troops and repairs when paying for an upgrade. */

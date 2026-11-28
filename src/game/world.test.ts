@@ -1,3 +1,4 @@
+import { reachAge } from './age.testkit.ts';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { G, hooks, isAir, isHarvester } from './state.ts';
 import { MW, STEP, TREE, TS } from './const.ts';
@@ -7,6 +8,7 @@ import { addBuilding, addUnit, kill, power } from './entity.ts';
 import { orderHarvest, orderHaul } from './order.ts';
 import { available, cancel, enqueue, sitesOf, startSite } from './production.ts';
 import { advanceSite, canPlace, scrap } from './building.ts';
+import { refitTime, toggleRefit } from './refit.ts';
 import { OIL_TRICKLE } from '../data/economy.ts';
 import { oilLeft, oilRate, salvageOf, treesNear, woodNear } from './economy.ts';
 import { nearestTree } from './chop.ts';
@@ -122,7 +124,7 @@ describe('production', () => {
 
   it('finds oil, builds the Engine Works to research Industrial, and pays oil for Modern', () => {
     addBuilding('power', 0, 10, 82, false);
-    addBuilding('barracks', 0, 13, 82, false);
+    const barracks = addBuilding('barracks', 0, 13, 82, false);
     addBuilding('refinery', 0, 6, 78, false);
     expect(available(0, 'structure')).toContain('derrick');
     expect(available(0, 'structure')).not.toContain('works'); // needs oil first
@@ -145,6 +147,10 @@ describe('production', () => {
     run(TECH.age1.t + 5);
     expect(G.era[0]).toBe(1);
     expect(available(0, 'structure')).not.toContain('works');
+    // the age's troops wait for the Barracks to be upgraded to it
+    expect(available(0, 'infantry')).not.toContain('rifleman');
+    expect(toggleRefit(barracks)).toBe(true);
+    run(refitTime(barracks) + 1);
     expect(available(0, 'infantry')).toContain('rifleman');
     expect(available(0, 'infantry')).not.toContain('rocket');
     expect(available(0, 'structure')).toContain('turret');
@@ -154,6 +160,7 @@ describe('production', () => {
     expect(enqueue(0, 'age2')).toBe(true);
     run(65);
     expect(G.era[0]).toBe(2);
+    reachAge(0, 2);
     expect(available(0, 'infantry')).toContain('rocket');
   });
 
@@ -183,7 +190,7 @@ describe('production', () => {
     run(30);
     expect(G.heal[0]).toBe(1);
     expect(available(0, 'hospital')).toEqual(['mech']);
-    G.era[0] = 1;
+    reachAge(0, 1);
     expect(available(0, 'hospital')).toEqual(['heal2', 'mech']);
     const s = addUnit('swordsman', 0, 20 * TS, 50 * TS), foe = addUnit('swordsman', 1, 20 * TS, 60 * TS);
     s.hp = foe.hp = 10;
@@ -511,7 +518,7 @@ describe('production', () => {
   });
 
   it('gives a free Harvester instead in the Modern age, and still trains Workers to haul', () => {
-    G.era[0] = 2;
+    reachAge(0, 2);
     addBuilding('power', 0, 10, 50, false);
     addBuilding('barracks', 0, 13, 50, false);
     const workers = G.ents.filter((e) => e.team === 0 && e.type === 'worker').length;
@@ -535,7 +542,7 @@ describe('harvesters sharing a field', () => {
     for (const a of ais) a.on = false;
     initWorld(1234);
     addBuilding('power', 0, 10, 50, false);
-    G.era[0] = 2; // Modern: the refinery brings one harvester
+    reachAge(0, 2); // Modern: the refinery brings one harvester
     for (const w of G.ents.filter((e) => e.type === 'worker')) kill(w); // only harvesters dig here
     advanceSite(addBuilding('refinery', 0, 6, 46, true), 1);
     run(2);
