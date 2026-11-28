@@ -4,7 +4,7 @@ import { aiPace, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
 import { WEAPON } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
-import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
+import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type AttackOrder, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
@@ -12,7 +12,7 @@ import { DIRS, adjTile, edgeDist, los, nearestFree, pathFor, pathTo } from './pa
 import { approach, canStep, cruise, followPath, holdingFormation, narrow, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
-import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
+import { groupMove, orderFlee, orderMove, setOrder, arrive } from './order.ts';
 import { shardFor, wantsHome } from './aether.ts';
 import { AETHER_BANK_REACH, AETHER_CARRY, AETHER_DRY, AETHER_REACH, AETHER_RETURN_RETRY, SHARD_PULL } from '../data/aether.ts';
 import { nearestOre, takeOre, walkDist } from './ore.ts';
@@ -40,6 +40,25 @@ import { updDemon } from './hell.ts';
 import { burning, frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
+/**
+ * The enemy a group was sent after is gone. Everyone who was sent at it is sorted out at once: those
+ * who got there and fought stay where they are; the rest, still on their way or held up, come and join
+ * them (Alex, 2026-11-28), or if nobody got there, carry on to where it was, fighting by stance on the way.
+ */
+function regroup(u: Ent, o: AttackOrder): void {
+  if (o.lx == null || o.ly == null) return;
+  const lx = o.lx, ly = o.ly;
+  const mates = [u, ...G.ents.filter((e) => e !== u && !e.dead && e.team === u.team && e.order?.t === 'attack' && !e.order.auto && e.order.tgt === o.tgt)];
+  const fought = (e: Ent) => Math.hypot(e.x - lx, e.y - ly) <= weaponReach(e) + CARRY_ON * TS;
+  const there = mates.filter(fought), rest = mates.filter((e) => !fought(e));
+  for (const e of there) if (e !== u) setOrder(e, null);
+  if (!rest.length) return;
+  for (const e of rest) setOrder(e, null);
+  const [cx, cy] = there.length ? [there.reduce((a, e) => a + e.x, 0) / there.length, there.reduce((a, e) => a + e.y, 0) / there.length] : [lx, ly];
+  const gx = tileOf(cx), gy = tileOf(cy), spot = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 3) : [gx, gy] as Tile;
+  if (spot) groupMove(rest, spot[0], spot[1]);
+}
+
 /** How far (px) a unit can hit from where it stands. */
 const weaponReach = (u: Ent): number => { const w = unitDef(u).weapon; return w ? WEAPON[w].range * TS : 0; };
 
@@ -901,12 +920,8 @@ function act(u: Ent, dt: number): void {
         const back = o.pick !== undefined ? valid(o.pick) : null;
         if (back && back !== t && isFoe(u, back) && canAttack(u, back)) { o.tgt = back.id; o.pick = undefined; u.path = null; u.scan = 0; break; }
         u.order = null; u.path = null; u.scan = 0;
-        // the enemy you sent it after is gone (killed by others, or out of sight) before it got there:
-        // don't stop dead in the field, carry on to where it was, fighting by stance on the way
-        if (!t && !o.auto && o.lx != null && o.ly != null && Math.hypot(u.x - o.lx, u.y - o.ly) > CARRY_ON * TS) {
-          const gx = tileOf(o.lx), gy = tileOf(o.ly), spot = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 3) : [gx, gy] as Tile;
-          if (spot) orderMove(u, spot[0], spot[1]);
-        }
+        // the enemy you sent it after is gone (killed, or out of sight): don't stop dead in the field
+        if (!t && !o.auto) regroup(u, o);
       }
       break;
     }

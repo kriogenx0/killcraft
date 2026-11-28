@@ -135,4 +135,21 @@ describe('when attacked', () => {
     for (let k = 0; k < 40; k++) { run(0.25); off = Math.max(off, Math.abs(u.y - 30.5 * TS) / TS); }
     expect(off).toBeGreaterThan(3);
   });
+
+  it('when the enemy a group was sent at dies, the ones still on their way join the ones that fought it', () => {
+    openField();
+    const foe = addUnit('harvester', 1, 40.5 * TS, 30.5 * TS);
+    const front = [0, 1, 2].map((i) => addUnit('rifleman', 0, 37.5 * TS, (29.5 + i) * TS));
+    const back = [0, 1, 2].map((i) => addUnit('rifleman', 0, 12.5 * TS, (29.5 + i) * TS));
+    applyCommand(0, { c: 'attack', ids: [...front, ...back].map((u) => u.id), target: foe.id });
+    run(2);
+    const spots = front.map((u) => [u.x, u.y]);
+    kill(foe);
+    run(1);
+    for (const u of back) expect(u.order?.t).toBe('move');
+    run(20);
+    const cx = spots.reduce((a, p) => a + p[0], 0) / 3, cy = spots.reduce((a, p) => a + p[1], 0) / 3;
+    front.forEach((u, i) => expect(Math.hypot(u.x - spots[i][0], u.y - spots[i][1])).toBeLessThan(TS)); // they stay
+    for (const u of back) expect(Math.hypot(u.x - cx, u.y - cy)).toBeLessThan(3 * TS); // the others come to them
+  });
 });
