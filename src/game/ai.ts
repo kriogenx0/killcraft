@@ -927,7 +927,7 @@ function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
   if (!prey || prey.dead || !prey.wild || !A.hunters.size) { prey = undefined; A.prey = null; A.hunters.clear(); }
   if (!prey && home && army.length >= HUNT_ARMY) {
     const near = (e: Ent) => Math.hypot(e.x - home.x, e.y - home.y);
-    for (const b of wildBeasts().sort((a, c) => near(a) - near(c))) {
+    for (const b of wildBeasts().filter((x) => !x.wild?.guard).sort((a, c) => near(a) - near(c))) {
       const party = army.filter((u) => !u.order && canAttack(u, b)).sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y)).slice(0, HUNTERS);
       if (party.length < MIN_HUNTERS) continue;
       prey = b;

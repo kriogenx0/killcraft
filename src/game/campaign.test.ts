@@ -9,6 +9,7 @@ import { initWorld, update } from './world.ts';
 import { SHALLOW, WATER } from './const.ts';
 import { updLeader } from './bounty.ts';
 import { addUnit, kill } from './entity.ts';
+import { dealDamage } from './combat.ts';
 import { addBuilding } from './entity.ts';
 import { available } from './production.ts';
 import { existsSync, readFileSync } from 'node:fs';
@@ -316,8 +317,15 @@ describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () =
     expect(trees.length).toBeGreaterThan(5);
     expect(trees.length).toBeLessThan(40);
     for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
-    // and no creatures (Alex: "Last grove has creatures and it shouldnt")
-    expect(G.ents.filter((e) => !e.dead && !!e.wild)).toEqual([]);
+    // creatures stand guard around it (Alex), and can't be captured: they die instead of kneeling
+    const guards = G.ents.filter((e) => !e.dead && !!e.wild);
+    expect(guards.map((e) => e.type).sort()).toEqual([...m.guards!].sort());
+    for (const g of guards) expect(Math.hypot(g.x / TS - cx, g.y / TS - cy)).toBeLessThan(10);
+    expect(guards.every((g) => g.wild?.guard)).toBe(true);
+    const g = guards[0];
+    dealDamage(g, g.maxhp, null);
+    expect(g.dead).toBe(true);
+    expect(G.respawns).toEqual([]);
   });
 });
 

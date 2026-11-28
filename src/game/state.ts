@@ -316,6 +316,8 @@ export interface Wild {
   /** the side capturing it (-1 for none) and seconds held so far */
   by: number;
   held: number;
+  /** a mission's guard (The Last Grove): fights to the death instead of kneeling, can't be captured and never comes back */
+  guard?: boolean;
 }
 
 /** Shots in flight, and sword and lance blows on their way down ('melee': lands after MELEE_LAND seconds). */
