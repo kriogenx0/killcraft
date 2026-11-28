@@ -607,6 +607,62 @@ $sidebar-width: 248px;
     }
   }
 
+  // Details / Behavior, for a unit with settings (hud.ts)
+  .selection-tabs {
+    display: flex;
+    margin-bottom: $space-2;
+    overflow: hidden;
+    border: 2px solid var(--color-rim);
+    border-radius: $radius;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  .selection-tab {
+    flex: 1;
+    height: 26px;
+    padding: 0;
+    font: inherit;
+    font-size: $font-xs;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    touch-action: manipulation;
+    background: var(--color-button-bottom);
+    border: 0;
+    appearance: none;
+
+    & + .selection-tab {
+      border-left: 1px solid var(--color-rim);
+    }
+
+    &[aria-selected='true'] {
+      color: var(--color-button-text);
+      background: linear-gradient(var(--color-rim-hover), var(--color-button-top));
+      box-shadow: inset 0 0 0 1px var(--color-gold);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 2px var(--color-focus);
+    }
+  }
+
+  // Details shows the description, stats and plain orders (Move, Stop...); Behavior keeps only the
+  // name and shows the settings (attack mode, when attacked, gather). Hotkeys work on either.
+  .sidebar-selection--tabs:not(.sidebar-selection--behavior) .selection-commands .command-group,
+  .sidebar-selection--behavior .selection-commands > :not(.command-group),
+  .sidebar-selection--behavior .selection-details > :not(h3) {
+    display: none;
+  }
+
+  .sidebar-selection--behavior .selection-details {
+    min-height: 0;
+  }
+
   .selection-details {
     min-height: 40px;
 

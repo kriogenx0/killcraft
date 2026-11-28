@@ -59,6 +59,29 @@ let commands: Command[] = [];
 let commandMarkup = '';
 let detailMarkup = '';
 let armyMarkup = '';
+/**
+ * A selected unit's card has two tabs (Alex, 2026-11-28): Details (description, stats and plain
+ * orders like Move and Stop) and Behavior (its settings: attack mode, when attacked, gather). The
+ * tabs only appear when there are settings to show.
+ */
+type SelTab = 'details' | 'behavior';
+let selTab: SelTab = 'details';
+let selTabs: HTMLElement | null = null;
+
+function setSelTab(t: SelTab): void {
+  selTab = t;
+  syncSelTabs();
+}
+
+function syncSelTabs(): void {
+  const pane = els.details.parentElement;
+  if (!selTabs || !pane) return;
+  const has = commands.some((c) => c.group);
+  if (selTabs.hidden === has) selTabs.hidden = !has;
+  pane.classList.toggle('sidebar-selection--tabs', has);
+  pane.classList.toggle('sidebar-selection--behavior', has && selTab === 'behavior');
+  for (const b of selTabs.querySelectorAll<HTMLElement>('[data-seltab]')) b.setAttribute('aria-selected', String(b.dataset.seltab === selTab));
+}
 
 const PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
 const PLAY_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
@@ -281,6 +304,7 @@ export function refreshCommands(force = false): void {
     commandMarkup = markup;
     els.commands.innerHTML = markup;
   }
+  syncSelTabs();
 }
 
 /** Whose it is: "enemy" in your own games; the side's name when spectating. */
@@ -621,6 +645,20 @@ export function initHud(e: HudEls): void {
     const u = p && V.sel.filter((x) => !x.dead)[Number(p.dataset.pick)];
     if (u) setSelection([u]);
   });
+  selTabs = document.createElement('div');
+  selTabs.className = 'selection-tabs';
+  selTabs.setAttribute('role', 'tablist');
+  selTabs.setAttribute('aria-label', 'Selected unit');
+  selTabs.hidden = true;
+  selTabs.innerHTML = '<button type="button" class="selection-tab" role="tab" data-seltab="details">Details</button><button type="button" class="selection-tab" role="tab" data-seltab="behavior">Behavior</button>';
+  els.details.before(selTabs);
+  // pointerdown, like the rest of this card (it re-renders); the keyboard clicks
+  const pickTab = (ev: Event) => {
+    const t = (ev.target as HTMLElement).closest<HTMLElement>('[data-seltab]')?.dataset.seltab;
+    if (t === 'details' || t === 'behavior') setSelTab(t);
+  };
+  selTabs.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); pickTab(ev); });
+  selTabs.addEventListener('click', (ev) => { if (ev.detail === 0) pickTab(ev); });
   // the keyboard (Enter or Space on the focused description); pointer presses were handled above
   els.details.addEventListener('click', (ev) => {
     if (ev.detail !== 0 || !(ev.target as HTMLElement).closest('[data-desc]')) return;
