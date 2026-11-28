@@ -7,7 +7,7 @@ import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
 import { HARVEST_RATE, ORE_WORTH, UNLOAD_RATE } from '../data/ore.ts';
 import { DIRS, adjTile, edgeDist, los, nearestFree, pathFor, pathTo } from './path.ts';
-import { approach, canStep, cruise, followPath, narrow, turnToward } from './move.ts';
+import { approach, canStep, cruise, followPath, holdingFormation, narrow, turnToward } from './move.ts';
 import { canBreach, enemyWallAt, wallInWay } from './breach.ts';
 import { acquire, attacker, betterTarget, canAttack, cantReachFoe, combatStep, fireOnTheMove, isFoe, lookRange, nearestThreat } from './combat.ts';
 import { orderFlee, orderMove, setOrder, arrive } from './order.ts';
@@ -409,6 +409,8 @@ function unstick(u: Ent, dt: number): void {
     if (f) { u.x = (f[0] + 0.5) * TS; u.y = (f[1] + 0.5) * TS; u.path = null; }
   }
   if (!u.path || !u.path.length) return;
+  // waiting in formation for the front to move off isn't being stuck
+  if (holdingFormation(u)) { u.stkT = 0.6; u.px = u.x; u.py = u.y; return; }
   u.stkT -= dt;
   if (u.stkT > 0) return;
   u.stkT = 0.6;
