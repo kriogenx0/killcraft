@@ -111,13 +111,19 @@ export function itemsForKey(b: BldType, key: string, group?: string | null): Bui
 /** The item a key builds while a building of type `b` is selected (the first, for the shared age key). */
 export const itemForKey = (b: BldType, key: string, group?: string | null): Buildable | undefined => itemsForKey(b, key, group)[0];
 
+/** Buildings that train troops (Barracks, War Factory, Airfield...), in sidebar order. */
+export const TRAINERS: readonly BldType[] = [...PRODUCTION_KEYS.keys()].filter((b) => !linesOf(b).includes('structure'));
+
 /**
- * Whose production keys are live. A selected producing building's; otherwise, when no building of
- * ours is selected (nothing, or only units), the Town Hall's, so the letters on the structure buttons
- * always work. Unit commands still win for their own letters (M, X, G, F, V).
+ * Whose production keys are live, in the order they get a key press. A selected producing building's
+ * alone. Otherwise, when no building of ours is selected (nothing, or only units), the Town Hall's and
+ * every finished troop building's, so the letters on the sidebar buttons always work without first
+ * clicking the Barracks: the Town Hall first on the Buildings tab, the troop buildings first on the
+ * Units tab. Unit commands still win for their own letters (M, X, G, F, V).
  */
-export function hotkeyProducer(selected: readonly { kind: string; type: string; done?: boolean }[], hall: boolean): BldType | null {
+export function hotkeyProducers(selected: readonly { kind: string; type: string; done?: boolean }[], owned: ReadonlySet<string>, unitTab = false): BldType[] {
   const b = selected.find((e) => e.kind === 'bld');
-  if (b) return b.done && linesOf(b.type as BldType).length ? (b.type as BldType) : null;
-  return hall ? 'yard' : null;
+  if (b) return b.done && linesOf(b.type as BldType).length ? [b.type as BldType] : [];
+  const hall: BldType[] = owned.has('yard') ? ['yard'] : [], troops = TRAINERS.filter((t) => owned.has(t));
+  return unitTab ? [...troops, ...hall] : [...hall, ...troops];
 }

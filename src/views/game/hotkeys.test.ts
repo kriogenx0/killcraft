@@ -3,7 +3,7 @@ import { BUILDING, BLD_TYPES } from '../../data/building.ts';
 import { UNIT, UNIT_TYPES } from '../../data/unit.ts';
 import { TECH, TECH_TYPES, isTechType } from '../../data/era.ts';
 import { BUILDING_KEYS, COMMAND_KEYS, GLOBAL_KEYS, RESERVED_KEYS, ROTATE_KEYS, SCROLL_KEYS, assignKeys, keyLabel, normalizeKey } from './keyboard.ts';
-import { PRODUCTION_KEYS, hotkeyProducer, groupForKey, groupOfType, hotkeyOf, itemForKey, itemsForKey, producerOfType } from './hotkeys.ts';
+import { PRODUCTION_KEYS, TRAINERS, hotkeyProducers, groupForKey, groupOfType, hotkeyOf, itemForKey, itemsForKey, producerOfType } from './hotkeys.ts';
 
 describe('hotkeys', () => {
   it('puts every age research on the same key, one at a time', () => {
@@ -87,14 +87,29 @@ describe('hotkeys', () => {
 
 describe('whose production keys are live', () => {
   const unit = { kind: 'unit', type: 'worker' };
-  it('uses the Town Hall when no building is selected, so sidebar letters always work', () => {
-    expect(hotkeyProducer([], true)).toBe('yard');
-    expect(hotkeyProducer([unit], true)).toBe('yard');
-    expect(hotkeyProducer([], false)).toBeNull();
+  const base = new Set(['yard', 'barracks', 'power']);
+  it('uses the Town Hall and the troop buildings when no building is selected, so sidebar letters always work', () => {
+    expect(hotkeyProducers([], base)).toEqual(['yard', 'barracks']);
+    expect(hotkeyProducers([unit], base)).toEqual(['yard', 'barracks']);
+    expect(hotkeyProducers([], new Set())).toEqual([]);
   });
-  it('uses a selected producer, and nothing for a building that makes nothing or is unfinished', () => {
-    expect(hotkeyProducer([{ kind: 'bld', type: 'barracks', done: true }], true)).toBe('barracks');
-    expect(hotkeyProducer([{ kind: 'bld', type: 'power', done: true }], true)).toBeNull();
-    expect(hotkeyProducer([{ kind: 'bld', type: 'barracks', done: false }], true)).toBeNull();
+  it('lets troop letters go first while the Units tab is showing', () => {
+    expect(hotkeyProducers([], base, true)).toEqual(['barracks', 'yard']);
+  });
+  it('trains troops from the Units tab letters with nothing selected (regression: needed the Barracks clicked first)', () => {
+    const owned = new Set(['yard', ...TRAINERS]);
+    for (const b of TRAINERS) for (const [t, k] of PRODUCTION_KEYS.get(b)!.items) {
+      if (groupOfType(t)) continue;
+      // the first live producer that has this letter is the one a key press reaches
+      const first = hotkeyProducers([], owned, true).find((p) => itemsForKey(p, k.toLowerCase()).length);
+      expect(first, `${t} (${k})`).toBeDefined();
+      expect(TRAINERS).toContain(first);
+    }
+    expect(itemsForKey(hotkeyProducers([], base, true)[0], hotkeyOf('swordsman').toLowerCase())).toContain('swordsman');
+  });
+  it('uses a selected producer alone, and nothing for a building that makes nothing or is unfinished', () => {
+    expect(hotkeyProducers([{ kind: 'bld', type: 'barracks', done: true }], base)).toEqual(['barracks']);
+    expect(hotkeyProducers([{ kind: 'bld', type: 'power', done: true }], base)).toEqual([]);
+    expect(hotkeyProducers([{ kind: 'bld', type: 'barracks', done: false }], base)).toEqual([]);
   });
 });
