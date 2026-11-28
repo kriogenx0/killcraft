@@ -10,7 +10,10 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    for (const key of await caches.keys()) if (key.startsWith('killcraft-') && key !== CACHE) await caches.delete(key);
+    // keep the version before this one too: a tab still open on it (this worker takes it over below)
+    // must still find its game chunk, which the server no longer has after a deploy
+    const old = (await caches.keys()).filter((key) => key.startsWith('killcraft-') && key !== CACHE);
+    for (const key of old.slice(0, -1)) await caches.delete(key);
     await self.clients.claim();
   })());
 });
@@ -28,7 +31,7 @@ self.addEventListener('fetch', (event) => {
   }
   // built files have hashed names, so the cached copy is always right
   event.respondWith((async () => {
-    const hit = await caches.match(req, { cacheName: CACHE, ignoreSearch: true });
+    const hit = await caches.match(req, { cacheName: CACHE, ignoreSearch: true }) ?? await caches.match(req, { ignoreSearch: true });
     return hit ?? fetch(req);
   })());
 });
