@@ -21,6 +21,8 @@ export const TREE_REGROW = 0.025;
 export const CHOP_RATE = 5;
 export const WOOD_LOAD = 50;
 export const CHOP_WORTH = 10;
+/** Alex, 2026-11-28: wood unloaded at a Lumber Mill banks this much extra (+15%); at a Refinery or Town Hall it doesn't. */
+export const MILL_BONUS = 0.15;
 /** Choppers the computer keeps at each Lumber Mill. */
 export const CHOPPERS_PER_MILL = 2;
 

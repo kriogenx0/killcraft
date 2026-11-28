@@ -1,7 +1,7 @@
 // Per-tick unit behaviour: idle scanning, moving, fighting and harvesting.
 import { updCarrier, updHornet } from './carrier.ts';
 import { aiPace, leaderHandicap } from './ai.ts';
-import { LEADER_SPEED } from '../data/economy.ts';
+import { LEADER_SPEED, MILL_BONUS } from '../data/economy.ts';
 import { WEAPON } from '../data/weapon.ts';
 import { isWall } from '../data/building.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type AttackOrder, type HarvestOrder, type HealOrder, type MoveOrder, type EscortOrder, type Tile } from './state.ts';
@@ -261,11 +261,13 @@ function updHarvester(u: Ent, o: HarvestOrder, dt: number): void {
   // unloading
   const a = Math.min(UNLOAD_RATE * dt, u.carry), cargo = u.cargo ?? 'ore';
   u.carry -= a;
-  if (cargo === 'wood') G.wood[u.team] += a;
+  // wood unloaded at a Lumber Mill is worth MILL_BONUS more (sawn there, less waste)
+  const gain = cargo === 'wood' && ref.type === 'mill' ? a * (1 + MILL_BONUS) : a;
+  if (cargo === 'wood') G.wood[u.team] += gain;
   else if (cargo === 'oil') G.oil[u.team] += a;
   else { G.credits[u.team] += a; hooks.income(u.team, a); }
-  hooks.gain(u.team, u.x, u.y, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a, u.id);
-  noteGathered(u.team, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', a);
+  hooks.gain(u.team, u.x, u.y, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', gain, u.id);
+  noteGathered(u.team, cargo === 'wood' || cargo === 'oil' ? cargo : 'ore', gain);
   if (u.carry <= 0.01) {
     u.carry = 0;
     o.st = 'go';
