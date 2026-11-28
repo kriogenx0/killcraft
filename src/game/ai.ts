@@ -242,7 +242,7 @@ function defense(team: number, can: readonly string[]): BldType | null {
   const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
   if (credits > 2400 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
-  if (credits > 1500 && turrets < 9) {
+  if (credits > 1500 && turrets < (G.mission && lvl(team) === AI_LEVEL.easy ? CAMPAIGN_EASY_DEFENSES : 9)) {
     const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
     const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
     const pick = G.islands ? antiAir(can) : infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
@@ -252,6 +252,8 @@ function defense(team: number, can: readonly string[]): BldType | null {
 }
 
 const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+/** An Easy computer in a campaign mission puts up at most this many (Alex: missions should ramp gently; Winter Friends' two Easy computers turtled behind 9 towers each) */
+const CAMPAIGN_EASY_DEFENSES = 4;
 /** The defenses an alarm counts: on islands Flak too */
 const alarmDefenses = (): BldType[] => G.islands ? [...DEFENSES, 'flak'] : DEFENSES;
 /** Islands (campaign): only aircraft come, so defenses that can't hit them are no use; Flak once there is one, else a Watchtower. */
