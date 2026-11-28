@@ -158,8 +158,8 @@ export const MISSIONS: Mission[] = [
   },
   {
     // Alex: "a new mission between 6 and 7. One with scarce wood. Only a small patch in the center"
-    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true, guards: ['centaur', 'minotaur', 'cyclops'], raids: ['rifleman', 'rifleman', 'gunner'], // Alex: creatures guard it; the enemy raids
-    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. Wild creatures guard it: beat one down and it kneels, ready to be captured. One Normal computer needs the wood as badly as you do, and raids you early. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
+    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true, raids: ['rifleman', 'rifleman', 'gunner'], // Alex: the enemy raids (creature guards were tried and taken out: "Last grove has creatures and it shouldnt")
+    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. One Normal computer needs the wood as badly as you do, and raids you early. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6707 }),
   },
   {
