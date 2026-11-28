@@ -56,6 +56,12 @@ export const SHIELD_HP = 90;
 export const BURN_DPS = 2.5;
 export const BURN_TIME = 9;
 /**
+ * Every burn ends: more fire on a unit already alight doesn't make it burn longer, and once its
+ * flames die it's scorched and can't catch fire again for this many seconds (a flamer, a forest fire
+ * or a packed crowd can't keep it alight for good).
+ */
+export const BURN_REST = 4;
+/**
  * Fire spreads: a soldier or creature freshly alight (in the first half of its burn) can set a foot
  * soldier or creature touching it alight, this likely each tick, for half as long. Caught fire
  * doesn't spread again, so a packed crowd doesn't burn forever.

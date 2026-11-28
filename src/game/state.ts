@@ -186,6 +186,8 @@ export interface Ent extends Target {
   spellCd?: Partial<Record<SpellType, number>>;
   /** lasting effects of spells and elements (game/spells.ts): game time each wears off */
   burnT?: number;
+  /** game time the unit's current (or last) burn began: a burn runs its course from here, then rests (BURN_REST) */
+  burnAt?: number;
   poisonT?: number;
   wetT?: number;
   sludgeT?: number;
