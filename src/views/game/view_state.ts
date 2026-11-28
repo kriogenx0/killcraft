@@ -23,10 +23,12 @@ export const TARGET_LIFE = 1;
 export interface TargetMark { id: number; t: number; color: string }
 export const PING_LIFE = 3;
 
-const FORMATION_KEY = 'killcraft.formation';
+// a new key since formation became on by default (Alex, 2026-11-28), so an old "off" doesn't stick
+const FORMATION_KEY = 'killcraft.formation.v2';
 
+/** Formation is on unless this device turned it off. */
 function loadFormation(): boolean {
-  try { return localStorage.getItem(FORMATION_KEY) === '1'; } catch { return false; }
+  try { return localStorage.getItem(FORMATION_KEY) !== '0'; } catch { return true; }
 }
 
 /** Turn moving in formation on or off, and remember it on this device. */
