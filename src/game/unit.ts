@@ -38,6 +38,8 @@ import { updDemon } from './hell.ts';
 import { burning, frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
+/** A unit whose target fell this far (tiles) or more from where it was carries on to that spot. */
+const CARRY_ON = 2;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
 export const TEND_RADIUS = 12;
 /** Idle Workers repair buildings on their own only while the bank holds more ore than this. */
@@ -844,6 +846,7 @@ function act(u: Ent, dt: number): void {
         const b = betterTarget(u, t, lookRange(u), !o.auto);
         if (b) { if (!o.auto && o.pick === undefined) o.pick = t.id; t = b; o.tgt = b.id; u.path = null; }
       }
+      if (t && !o.auto && o.pick === undefined) { o.lx = t.x; o.ly = t.y; }
       const strayed = o.auto && Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE;
       const gaveUp = !t || strayed || !combatStep(u, t, dt);
       if (gaveUp) {
@@ -855,6 +858,12 @@ function act(u: Ent, dt: number): void {
         const back = o.pick !== undefined ? valid(o.pick) : null;
         if (back && back !== t && isFoe(u, back) && canAttack(u, back)) { o.tgt = back.id; o.pick = undefined; u.path = null; u.scan = 0; break; }
         u.order = null; u.path = null; u.scan = 0;
+        // the enemy you sent it after is gone (killed by others, or out of sight) before it got there:
+        // don't stop dead in the field, carry on to where it was, fighting by stance on the way
+        if (!t && !o.auto && o.lx != null && o.ly != null && Math.hypot(u.x - o.lx, u.y - o.ly) > CARRY_ON * TS) {
+          const gx = tileOf(o.lx), gy = tileOf(o.ly), spot = G.blk[gy * MW + gx] ? nearestFree(gx, gy, 3) : [gx, gy] as Tile;
+          if (spot) orderMove(u, spot[0], spot[1]);
+        }
       }
       break;
     }

@@ -7,6 +7,7 @@ import { initWorld, update } from './world.ts';
 import { addBuilding, addUnit } from './entity.ts';
 import { rebuildBlk } from './map.ts';
 import { applyCommand, parseCommand } from './command.ts';
+import { kill } from './entity.ts';
 import { mulberry32 } from '../util/math.ts';
 
 function run(seconds: number): void {
@@ -94,5 +95,18 @@ describe('when attacked', () => {
     run(4);
     expect(Math.hypot(a.x - 30.5 * TS, a.y - 30.5 * TS)).toBeLessThan(0.3 * TS);
     expect(b.hp).toBeLessThan(b.maxhp);
+  });
+
+  it('sent after an enemy that falls to someone else, carries on to where it was', () => {
+    openField();
+    const us = [0, 1].map((i) => addUnit('rifleman', 0, 15.5 * TS, (30.5 + i) * TS));
+    const foe = addUnit('harvester', 1, 40.5 * TS, 30.5 * TS);
+    applyCommand(0, { c: 'attack', ids: us.map((u) => u.id), target: foe.id });
+    run(2);
+    kill(foe);
+    run(1);
+    for (const u of us) expect(u.order?.t).toBe('move'); // not stopped dead
+    run(25);
+    for (const u of us) expect(Math.hypot(u.x - foe.x, u.y - foe.y)).toBeLessThan(3 * TS);
   });
 });
