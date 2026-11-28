@@ -200,8 +200,8 @@ function scatterUnits(team: number, units: readonly UnitType[], spots: Tile[]): 
     const [sx, sy] = spots[k % spots.length];
     let best = -1, bd = Infinity;
     // the nearest open grass to the spot that nobody stands on, a little away from ore rocks
-    for (let y = Math.max(1, sy - 6); y < Math.min(MH - 1, sy + 7); y++)
-      for (let x = Math.max(1, sx - 6); x < Math.min(MW - 1, sx + 7); x++) {
+    for (let y = Math.max(1, sy - 8); y < Math.min(MH - 1, sy + 9); y++)
+      for (let x = Math.max(1, sx - 8); x < Math.min(MW - 1, sx + 9); x++) {
         const i = y * MW + x, d = Math.hypot(x - sx, y - sy);
         if (d < 2 || taken.has(i) || G.terr[i] !== GRASS) continue;
         if (d < bd) { bd = d; best = i; }

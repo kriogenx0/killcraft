@@ -53,6 +53,7 @@ const orderKey = (u: Ent): string => {
     case 'attack': return `attack ${o.tgt}${o.auto ? ' auto' : ''}`;
     case 'harvest': return `harvest ${o.st} ${o.tx},${o.ty}`;
     case 'heal': return `heal ${o.tgt}`;
+    case 'escort': return `escort ${o.tgt} sub=${o.sub ?? '-'}`;
   }
 };
 

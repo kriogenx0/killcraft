@@ -75,7 +75,12 @@ export interface HarvestOrder { t: 'harvest'; st: 'go' | 'gather' | 'ret' | 'unl
  * site go up). One it found itself gives up if it strays too far from where it started (ox, oy).
  */
 export interface HealOrder { t: 'heal'; tgt: number; ox: number; oy: number; /** given by a player or the computer: no leash */ sent?: boolean }
-export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder;
+/**
+ * Escort a friendly unit (Alex, 2026-11-28): keep close around it (`ang`, `rad`: its spot on a ring
+ * round the ward, in radians and tiles), fight enemies that come at it (`sub`), then go back to it.
+ */
+export interface EscortOrder { t: 'escort'; tgt: number; sub: number | null; ang: number; rad: number }
+export type Order = MoveOrder | AttackOrder | HarvestOrder | HealOrder | EscortOrder;
 
 export type ProductionLine = 'structure' | 'infantry' | 'vehicle' | 'air' | 'tech' | 'hospital' | 'armory';
 export interface ProductionItem {

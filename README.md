@@ -78,7 +78,7 @@ The live game runs on Coolify from this repo's `main` branch:
   - **Move & attack** (default for your troops): the unit shoots whatever is in range without stopping or turning aside, and only stops for an enemy wall it has to break through. Idle, it fires at what's in range and goes after enemies it can see.
   - **Stop & attack** (what computer players use): the unit stops to fight enemies it meets, then carries on to where it was going. Idle units engage anything in sight.
   - **Don't attack:** the unit holds fire. Set to Evade when attacked, it also keeps away from armed enemies that come close.
-- **Attack** (`K`, then an enemy): your fighters go after that enemy and stay on it. If it falls to someone else (or slips out of sight) before they get there, they carry on to where it was, fighting by stance on the way, instead of stopping in the field.
+- **Attack** (`K`, then an enemy): your fighters go after that enemy and stay on it. When it falls (or slips out of sight), the ones that got there and fought it stay put, and the rest come and join them; if none got there, they all carry on to where it was, fighting by stance on the way.
 - **When attacked** (a second bar under Attack mode, for every unit): what a unit does when something hits it.
   - **Evade** (`Shift+V`): runs away from the attacker. Orders you gave come first; idle, working or in a fight of its own, it runs.
   - **Pursue** (`Shift+G`, default for fighters, yours and the computer's): goes after the attacker and fights it.

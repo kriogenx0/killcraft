@@ -66,6 +66,9 @@ export const ARMY_KEY = 'Shift+A';
 /** Keep formation: a group moves together at its slowest unit's pace and keeps its shape. */
 export const FORMATION_KEY = 'Shift+M';
 
+/** Escort: pick a friendly unit to follow and guard. E turns the camera, so only with Shift. */
+export const ESCORT_KEY = 'Shift+E';
+
 /** When attacked: Shift with the attack-mode letter it goes with (V don't attack, G stop & attack, X stop). */
 export const REACT_KEYS = { evade: 'Shift+V', pursue: 'Shift+G', hold: 'Shift+X' } as const;
 

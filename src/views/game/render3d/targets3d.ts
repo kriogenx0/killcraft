@@ -113,9 +113,10 @@ const radiusOf = (e: Ent): number => (e.w ? (e.w / 2) * 0.95 + 0.1 : (UNIT[e.typ
 /** The entity a unit is going for right now, if any: the one it's shooting, attacking or mending. */
 function targetEnt(u: Ent): { e: Ent; fight: boolean } | null {
   const o = u.order;
-  const foe = valid(u.breach) ?? valid(u.shot) ?? (o?.t === 'attack' ? valid(o.tgt) : o?.t === 'move' ? valid(o.sub) : null);
+  const foe = valid(u.breach) ?? valid(u.shot) ?? (o?.t === 'attack' ? valid(o.tgt) : o?.t === 'move' || o?.t === 'escort' ? valid(o.sub) : null);
   if (foe) return { e: foe, fight: true };
-  const mend = o?.t === 'heal' ? valid(o.tgt) : null;
+  // the unit it's escorting shows like one it's mending
+  const mend = o?.t === 'heal' || o?.t === 'escort' ? valid(o.tgt) : null;
   return mend ? { e: mend, fight: false } : null;
 }
 

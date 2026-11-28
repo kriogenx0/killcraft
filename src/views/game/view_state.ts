@@ -6,6 +6,8 @@ import { clampRig, defaultRig } from './camera_rig.ts';
 export type Mode =
   | { t: 'move' }
   | { t: 'patrol' }
+  /** pick a friendly unit for the selected units to escort */
+  | { t: 'escort' }
   /** pick something to attack: an enemy unit or building (walls too) */
   | { t: 'attack' }
   /** the army rally point (game/rally.ts) */

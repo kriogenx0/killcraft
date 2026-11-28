@@ -150,15 +150,16 @@ export const MISSIONS: Mission[] = [
     // has random units around. Still more difficult"
     id: 'iron-and-steam', name: 'Iron and Steam', maxEra: 1, small: 68,
     army: [...rep('rifleman', 8), ...rep('gunner', 4), ...rep('tank', 4), ...rep('jeep', 2), ...rep('artillery', 2)],
-    // Alex: "Mission 6 and 7 were too easy": more of them, heavier, and camps answer each other's fights
-    scatter: [...rep('rifleman', 10), ...rep('gunner', 8), ...rep('tank', 8), ...rep('jeep', 4), ...rep('artillery', 4)], camps: 14,
-    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped all over the map, far more of them than you, and the camps nearby rush to join any fight they hear. Pick your fights carefully and wipe them out.',
+    // Alex: "Mission 6 and 7 were too easy", then "Iron & Steam is too hard"
+    // so back to 24, mostly infantry, and only close camps answer a fight
+    scatter: [...rep('rifleman', 10), ...rep('gunner', 5), ...rep('tank', 4), ...rep('jeep', 3), ...rep('artillery', 2)], camps: 8, patches: 8, // Alex: "the enemy units are too close": 8 camps, none near the start
+    brief: 'No town and no Workers: just your army of 20. Enemy troops are camped in small groups all over the map, a few more of them than you, and a camp close by may join a fight it hears. Take the camps one at a time and wipe them out.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6606 }),
   },
   {
     // Alex: "a new mission between 6 and 7. One with scarce wood. Only a small patch in the center"
-    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true, guards: ['centaur', 'minotaur', 'cyclops'], raids: ['rifleman', 'rifleman', 'gunner'], // Alex: creatures guard it; the enemy raids
-    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. Wild creatures guard it: beat one down and it kneels, ready to be captured. One Normal computer needs the wood as badly as you do, and raids you early. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
+    id: 'last-grove', name: 'The Last Grove', maxEra: 1, small: 72, oneWood: true, raids: ['rifleman', 'rifleman', 'gunner'], // Alex: the enemy raids (creature guards were tried and taken out: "Last grove has creatures and it shouldnt")
+    brief: 'Hardly a tree stands on this land: the only wood is one small grove in the middle of the map. One Normal computer needs the wood as badly as you do, and raids you early. Take the grove and hold it. New: Big Bertha, to shell the grove from afar.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 6707 }),
   },
   {
@@ -177,7 +178,7 @@ export const MISSIONS: Mission[] = [
     // Alex: "Between mission 9 and 10 add a mission where player only has creatures and goes against random creatures"
     id: 'beast-war', name: 'Beast War', maxEra: 2, small: 68,
     army: [...rep('centaur', 3), ...rep('minotaur', 2), ...rep('cyclops', 2), ...rep('harpy', 2), ...rep('griffin', 2), 'medusa', 'nemean', 'dragon'],
-    scatter: randomBeasts(9505, 18), camps: 12,
+    scatter: randomBeasts(9505, 18), camps: 12, patches: 6,
     brief: 'No town, no soldiers: you lead a band of 14 creatures of myth. Creatures of every kind roam the land against you, more of them than you, and packs nearby come running when they hear a fight. Hunt them all down.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 9505 }),
   },

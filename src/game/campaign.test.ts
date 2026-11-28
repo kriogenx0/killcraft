@@ -275,6 +275,15 @@ describe('mission 2 (Alex: too difficult)', () => {
 });
 
 describe('mission 6 camps (Alex: too easy)', () => {
+  it('keeps every enemy camp well away from the player start (Alex: too close)', () => {
+    for (const m of MISSIONS.filter((x) => x.army && x.scatter && x.patches)) {
+      initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m), locked: JSON.parse(readFileSync(`public/campaign/${m.id}.json`, 'utf8')) as LockedMap });
+      const mine = G.ents.filter((e) => e.team === 0 && e.kind === 'unit'), foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
+      expect(foes.length, m.id).toBe(m.scatter!.length);
+      for (const f of foes) expect(Math.min(...mine.map((u) => Math.hypot(u.x - f.x, u.y - f.y) / TS)), m.id).toBeGreaterThan(m.camps ?? 12);
+    }
+  });
+
   it('camps near a fight march on the player; far ones stay put', () => {
     const m = MISSIONS.find((x) => x.camps)!;
     G.headless = true;
@@ -285,7 +294,7 @@ describe('mission 6 camps (Alex: too easy)', () => {
     const near = (e: { x: number; y: number }) => Math.hypot(e.x - me.x, e.y - me.y) < G.camps * TS;
     expect(foes.some((e) => !near(e))).toBe(true);
     // move one enemy close by: it (and only those in earshot) come
-    foes[0].x = me.x + 8 * TS; foes[0].y = me.y;
+    foes[0].x = me.x + 5 * TS; foes[0].y = me.y;
     G.gameT = 0;
     campAlarm();
     expect(foes[0].order).toBeFalsy();
@@ -307,10 +316,8 @@ describe('The Last Grove (Alex: scarce wood, a small patch in the centre)', () =
     expect(trees.length).toBeGreaterThan(5);
     expect(trees.length).toBeLessThan(40);
     for (const i of trees) expect(Math.hypot((i % MW) - cx, Math.floor(i / MW) - cy)).toBeLessThanOrEqual(3.5);
-    // creatures stand guard around it (Alex)
-    const guards = G.ents.filter((e) => !e.dead && !!e.wild);
-    expect(guards.map((e) => e.type).sort()).toEqual([...m.guards!].sort());
-    for (const g of guards) expect(Math.hypot(g.x / TS - cx, g.y / TS - cy)).toBeLessThan(10);
+    // and no creatures (Alex: "Last grove has creatures and it shouldnt")
+    expect(G.ents.filter((e) => !e.dead && !!e.wild)).toEqual([]);
   });
 });
 
