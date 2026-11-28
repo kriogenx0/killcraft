@@ -40,6 +40,23 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = '
   return e;
 }
 
+/** when this tab last reloaded to pick up a new version after the game's code failed to load */
+const RELOAD_KEY = 'killcraft-stale-reload';
+
+/**
+ * The game's code failed to load: most likely a deploy replaced those files under this page. Open `to`
+ * (the same screen) on the new version, once: if that just happened, it's a real connection problem.
+ */
+function reloadOnNewVersion(to: string): boolean {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_KEY) ?? 0);
+    if (Date.now() - last < 60_000) return false;
+    sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+  } catch { return false; }
+  location.href = to;
+  return true;
+}
+
 /** Mount the main menu. Resolves once the first screen is ready: the menu, or the game a refresh resumes. */
 export function mountMenu(root: HTMLElement): Promise<void> {
   const startModal = must<HTMLElement>(root, '.game-start');
@@ -95,16 +112,16 @@ export function mountMenu(root: HTMLElement): Promise<void> {
       location.href = `/game/${m.game}`;
       return true;
     }),
-    onSpectate: (m) => toGame((g) => g.startSpectate(m)),
+    onSpectate: (m) => toGame((g) => g.startSpectate(m), () => reloadOnNewVersion('/?online')),
     onBack: openMenu,
   });
   const setup = mountSetup(must(root, '.view-setup'), {
-    onStart: (s, watch) => toGame((g) => g.newSolo(s, watch)),
+    onStart: (s, watch) => toGame((g) => g.newSolo(s, watch), () => reloadOnNewVersion(watch ? '/?setup=watch' : '/?setup')),
     // Back from the pause menu's New Game returns to the paused game, otherwise to the main menu
     onBack: () => { if (!game?.playingSolo()) openMenu(); },
   });
   const campaign = mountCampaign(must(root, '.view-campaign'), {
-    onPlay: (m) => toGame((g) => g.newSolo({ ...m.setup, mission: m.id }, false)),
+    onPlay: (m) => toGame((g) => g.newSolo({ ...m.setup, mission: m.id }, false), () => reloadOnNewVersion('/?campaign')),
     onBack: openMenu,
   });
   const openCampaign = () => { closeModal(startModal); campaign.open(); void loadGameModule().catch(() => {}); };

@@ -1,4 +1,5 @@
 // Touch selection bar: the buttons phones and tablets use for what a mouse does with drag and Shift.
+// With a mouse only its Army button shows, beside the control-group buttons.
 import { G } from '../../game/state.ts';
 import { V, spectating } from './view_state.ts';
 import { refreshCommands, setSelection } from './hud.ts';
@@ -32,6 +33,8 @@ export function refreshTouchBar(): void {
   if (state === shown) return;
   shown = state;
   bar.classList.toggle('touch-bar--on', on);
+  // desktop shows only the Army button, so the bar goes when that does
+  bar.classList.toggle('touch-bar--army', !spectating());
   boxBtn.setAttribute('aria-pressed', String(V.touchBox));
   sameBtn.hidden = !units;
   followBtn.hidden = !canFollow;

@@ -1261,6 +1261,32 @@ $sidebar-width: 248px;
   display: inline-flex;
 }
 
+// mouse and keyboard: just the Army button (select every fighter), the size of a group button and
+// just left of them (Alex, 2026-11-28)
+:root:not(.touch-ui) .view-game {
+  .touch-bar--on.touch-bar--army {
+    display: inline-flex;
+  }
+
+  .touch-bar-seg:not(.touch-bar-army) {
+    display: none;
+  }
+
+  .touch-bar-seg {
+    width: 30px;
+    height: 26px;
+  }
+
+  .touch-bar .touch-bar-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .touch-bar--on.touch-bar--army ~ .group-bar {
+    margin-left: 34px + $space-1;
+  }
+}
+
 // touch screens: bigger group buttons, stacked just above the touch bar (48px buttons + 2px rims each side)
 :root.touch-ui .view-game {
   .group-bar {
