@@ -18,7 +18,7 @@ import { UNIT, UNIT_TYPES, isUnitType, type UnitType } from '../data/unit.ts';
 import { BUILDING, BLD_TYPES, isWall, type BldType } from '../data/building.ts';
 import { ERA, LAST_ERA, MAX_HEAL, TECH, TECH_TYPES, UPGRADE_TRACKS, isTechType, type TechType, type UpgradeTrack } from '../data/era.ts';
 import { noUpgrades, upgradeOf } from './upgrade.ts';
-import { addUnit, countOf, hasBuilding, lowPower } from './entity.ts';
+import { addUnit, bldLevel, countOf, hasBuilding, lowPower } from './entity.ts';
 import { MAX_WAYGATES } from '../data/aether.ts';
 import { cancelSite, canPlaceType, exitTile, placeBuilding, wallLine } from './building.ts';
 import { orderFix, orderHarvest, orderMove } from './order.ts';
@@ -93,9 +93,26 @@ export function nextTech(team: number): TechType | null {
   return t && TECH[t].age! <= G.maxEra && !queuedTech(team).includes(t) ? t : null;
 }
 
-/** The next healing research, after any queued, once the team's age allows it. */
+/**
+ * Each building's own upgrade (game/refit.ts) opens the next round of what it offers (Alex,
+ * 2026-11-28): the second level of the Armory's and Hospital's research needs that building
+ * upgraded once, the third level twice. The building that gates a research, if any.
+ */
+export const techGate = (t: TechType): BldType | null => (TECH[t].era > 0 ? TECH[t].at ?? null : null);
+
+/** Is a research held back only because its building hasn't been upgraded far enough? */
+const techOpen = (team: number, t: TechType): boolean => { const b = techGate(t); return !b || bldLevel(team, b) >= TECH[t].era; };
+
+/** Is a research the next level (after any queued) of its line, as far as the team's age allows? */
+const techNext = (team: number, t: TechType): boolean => {
+  const { upg, heal, era } = TECH[t];
+  if (era > eraOf(team)) return false;
+  return upg ? upg.level === plannedUpgrade(team, upg.track) + 1 : heal != null && heal === plannedHeal(team) + 1;
+};
+
+/** The next healing research, after any queued, once the team's age and its Hospital's upgrades allow it. */
 export function nextHeal(team: number): TechType | null {
-  return TECH_TYPES.find((t) => TECH[t].heal === plannedHeal(team) + 1 && TECH[t].era <= eraOf(team)) ?? null;
+  return TECH_TYPES.find((t) => TECH[t].heal != null && techNext(team, t) && techOpen(team, t)) ?? null;
 }
 
 /** The Aether Ward, once the side has found Aether and until it's researched (or queued). */
@@ -108,12 +125,17 @@ export function nextMech(team: number): TechType | null {
   return G.mech[team] ? null : TECH_TYPES.find((t) => TECH[t].mech && TECH[t].era <= eraOf(team) && !queuedTech(team).includes(t)) ?? null;
 }
 
-/** The next level on each Armory track, after any queued, that the team's age allows. */
+/** The next level on each Armory track, after any queued, that the team's age and its Armory's upgrades allow. */
 export function nextUpgrades(team: number): TechType[] {
-  return UPGRADE_TRACKS.flatMap((track) => TECH_TYPES.filter((t) => {
-    const u = TECH[t].upg;
-    return u && u.track === track && u.level === plannedUpgrade(team, track) + 1 && TECH[t].era <= eraOf(team);
-  }));
+  return UPGRADE_TRACKS.flatMap((track) => TECH_TYPES.filter((t) => TECH[t].upg?.track === track && techNext(team, t) && techOpen(team, t)));
+}
+
+/**
+ * Research the side's age allows next but its building isn't upgraded far enough for (shown greyed
+ * in the sidebar with what it's waiting for). Only where that building stands.
+ */
+export function lockedResearch(team: number): TechType[] {
+  return TECH_TYPES.filter((t) => { const b = techGate(t); return !!b && hasBuilding(team, b) && techNext(team, t) && !techOpen(team, t) && revealed(team, t); });
 }
 
 /** The level a research builds on (Surgeons on Field Dressing, Rifled Barrels on Tempered Steel), if any. */
@@ -178,7 +200,7 @@ export function available(team: number, line: ProductionLine): Buildable[] {
     return TECH_TYPES.filter((t) => queued.includes(t) || researchable(team, line).includes(t));
   }
   const yardOnly = line === 'infantry' && producerOf(team, line)?.type === 'yard';
-  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && !UNIT[t].hatched && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)));
+  return UNIT_TYPES.filter((t) => UNIT[t].producer === line && !UNIT[t].hatched && (!yardOnly || YARD_INFANTRY.includes(t)) && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t) && (UNIT[t].requires ?? []).every((r) => hasBuilding(team, r)) && unitGates(t).every((b) => bldLevel(team, b) >= UNIT[t].era));
 }
 
 /**
@@ -196,6 +218,20 @@ export function unitSlots(team: number): UnitType[] {
   const key = (t: UnitType) => t === 'harvester' ? [0, 0.5, 0, 0, 0] : [LINES.indexOf(UNIT[t].producer), t === 'worker' ? 0 : 1, secret(t), UNIT[t].era, UNIT_TYPES.indexOf(t)];
   return UNIT_TYPES.filter((t) => LINES.includes(UNIT[t].producer) && !UNIT[t].hatched && UNIT[t].era <= era && era < (UNIT[t].until ?? Infinity) && revealed(team, t))
     .sort((a, b) => { const ka = key(a), kb = key(b); for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i]; return 0; });
+}
+
+/**
+ * Buildings whose upgrades open a unit (Alex, 2026-11-28: upgrading a Barracks, War Factory,
+ * Airfield or Arcane Circle unlocks its next round): a unit of a later age needs the building that
+ * trains it, and any it requires, upgraded to that age. The Harvester, the Modern ore gatherer,
+ * is exempt so the economy never waits on a War Factory.
+ */
+const unitGates = (t: UnitType): BldType[] =>
+  UNIT[t].era > 0 && t !== 'harvester' ? [PRODUCER[UNIT[t].producer], ...(UNIT[t].requires ?? [])] : [];
+
+/** The building a unit is waiting on an upgrade of (it stands, but hasn't been upgraded to the unit's age), if any. */
+export function unitUpgradeNeeds(team: number, t: UnitType): BldType | null {
+  return unitGates(t).find((b) => hasBuilding(team, b) && bldLevel(team, b) < UNIT[t].era) ?? null;
 }
 
 /** What a unit the side can't train yet is waiting for: the building that trains it, or one it requires. */
@@ -550,4 +586,14 @@ export function updProduction(team: number, dt: number): void {
       else deliver(team, it.type as UnitType, b);
     }
   }
+}
+
+/**
+ * What upgrading a building to an age opens (shown on its Upgrade button): the units of that age it
+ * trains or that require it, and its research of that age. Hidden ones (Aether, captured creatures) are left out.
+ */
+export function unlocksAt(team: number, type: BldType, lvl: number): string[] {
+  const units = UNIT_TYPES.filter((t) => UNIT[t].era === lvl && !UNIT[t].hatched && unitGates(t).includes(type) && revealed(team, t) && lvl < (UNIT[t].until ?? Infinity));
+  const techs = TECH_TYPES.filter((t) => TECH[t].era === lvl && techGate(t) === type && revealed(team, t));
+  return [...units, ...techs].map(nameOf);
 }

@@ -162,6 +162,8 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
     applyGround(locked);
     applyThings(locked, Array.from({ length: n }, (_, t) => t).filter((t) => !G.absent[t] && scattered(t)));
   }
+  // a mission's guards can't be captured (Alex): they fight to the death
+  if (start.guards?.length) for (const e of G.ents) if (e.wild && start.guards.includes(e.type as UnitType)) e.wild.guard = true;
   rebuildBlk();
   initCows();
   initWeather(start.weather ?? 'storms');

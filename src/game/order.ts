@@ -1,9 +1,9 @@
 // Giving orders to units. Every order goes through setOrder so stale paths are dropped.
-import { G, tileOf, unitDef, type Ent, type Order, type React, type Stance, type Tile } from './state.ts';
+import { G, isAir, tileOf, unitDef, type Ent, type Order, type React, type Stance, type Tile } from './state.ts';
 import { MW, MH, TS, walkable } from './const.ts';
 import { clamp } from '../util/math.ts';
 import { WEAPON } from '../data/weapon.ts';
-import { nearestFree, pathFor } from './path.ts';
+import { findPath, nearestFree, pathFor, smoothPath } from './path.ts';
 
 /** How far (tiles) a passive unit runs from a threat. */
 const FLEE_DIST = 6;
@@ -152,12 +152,42 @@ export function groupMove(us: Ent[], gx: number, gy: number, patrol = false, for
     }
   }
   const cx = us.reduce((s, u) => s + u.x, 0) / n, cy = us.reduce((s, u) => s + u.y, 0) / n;
-  if (form) { formationSlots(us, gx, gy, cx, cy, tiles).forEach((t, i) => send(us[i], t)); return; }
+  if (form) {
+    const slots = formationSlots(us, gx, gy, cx, cy, tiles);
+    slots.forEach((t, i) => send(us[i], t));
+    formUp(us, slots, cx, cy);
+    return;
+  }
   // keep the group's shape: sort units and slots along the axis across the direction of travel
   const ax = gx * TS - cx, ay = gy * TS - cy, al = Math.hypot(ax, ay) || 1, px = -ay / al, py = ax / al;
   const su = [...us].sort((a, b) => a.x * px + a.y * py - (b.x * px + b.y * py));
   const st = [...tiles].sort((a, b) => a[0] * px + a[1] * py - (b[0] * px + b[1] * py));
   su.forEach((u, i) => send(u, st[i] ?? st[st.length - 1] ?? [gx, gy]));
+}
+
+/** How far (tiles) a unit may stand from its place in the block before it goes there first. */
+const FORM_UP = 1.5;
+
+/**
+ * Units well out of their place in the formation (a Medic up front when it belongs at the back, a
+ * straggler off to one side) first hurry to their place in the block where the group stands now, then
+ * march with it (Alex, 2026-11-28: "units should hurry to their designated spot").
+ */
+function formUp(us: Ent[], slots: Tile[], cx: number, cy: number): void {
+  const n = us.length, sx = slots.reduce((s, t) => s + t[0], 0) / n, sy = slots.reduce((s, t) => s + t[1], 0) / n;
+  const taken = new Set<number>();
+  us.forEach((u, i) => {
+    const o = u.order;
+    if (o?.t !== 'move' || !o.pace || isAir(u)) return;
+    const fx = Math.round(cx / TS - 0.5 + slots[i][0] - sx), fy = Math.round(cy / TS - 0.5 + slots[i][1] - sy), k = fy * MW + fx;
+    if (Math.hypot((fx + 0.5) * TS - u.x, (fy + 0.5) * TS - u.y) <= FORM_UP * TS) return;
+    if (fx < 0 || fy < 0 || fx >= MW || fy >= MH || G.blk[k] || !walkable(G.terr[k]) || taken.has(k)) return;
+    taken.add(k);
+    const first = findPath(tileOf(u.x), tileOf(u.y), fx, fy, u.team), then = findPath(fx, fy, o.gx, o.gy, u.team);
+    if (!first.length || !then.length) return;
+    o.fu = [fx, fy];
+    u.path = [...smoothPath(u.x, u.y, first), ...smoothPath((fx + 0.5) * TS, (fy + 0.5) * TS, then)];
+  });
 }
 
 /** Reach (tiles) below which a unit fights up close, and from which a lightly built vehicle is siege. */

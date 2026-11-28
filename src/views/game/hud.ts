@@ -11,7 +11,7 @@ import { GATHER, crewAt, gatherSetting, type GatherRes } from '../../game/autoga
 import { ERA, isTechType } from '../../data/era.ts';
 import { healRate } from '../../game/unit.ts';
 import { armorFactor, upgradeOf, weaponFactor } from '../../game/upgrade.ts';
-import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, sitesOf, waitingFor, pendingNeeds, type Buildable } from '../../game/production.ts';
+import { armySize, armySlow, available, healOf, isFighter, lineOf, nameOf, priceOf, timeText, unlocksAt, sitesOf, waitingFor, pendingNeeds, type Buildable } from '../../game/production.ts';
 import { teamColors } from '../../data/team.ts';
 import { groupsOf, groupOfType, linesOf, producerOfType } from './hotkeys.ts';
 import { dpsOf } from '../../game/dps.ts';
@@ -144,10 +144,10 @@ function upgradeCommand(b: Ent): Command | null {
   const next = ERA[lvlOf(b) + 1]?.name;
   if (!next || !(behind(b) || b.upT != null)) return null;
   if (b.upT != null) return { id: 'upgrade', label: 'Cancel upgrade', hotkey: BUILDING_KEYS.upgrade, icon: ICON.cancel, tip: `Stop upgrading to the ${next} age and get the full price back` };
-  const p = refitPrice(b), pct = Math.round(UPGRADE_BONUS * 100), hp = Math.round(UPGRADE_HP * 100);
+  const p = refitPrice(b), pct = Math.round(UPGRADE_BONUS * 100), hp = Math.round(UPGRADE_HP * 100), opens = unlocksAt(b.team, b.type as BldType, lvlOf(b) + 1);
   return {
     id: 'upgrade', label: 'Upgrade', hotkey: BUILDING_KEYS.upgrade, icon: ICON.upgrade, cost: { g: p.ore, w: p.wood },
-    tip: `Rebuild in the ${next} style (${Math.round(refitTime(b))}s): +${hp}% health and +${pct}% to what it does`,
+    tip: `Rebuild in the ${next} style (${Math.round(refitTime(b))}s): +${hp}% health and +${pct}% to what it does${opens.length ? `. Unlocks ${opens.join(', ')}` : ''}`,
     disabled: G.credits[V.team] < p.ore || G.wood[V.team] < p.wood,
   };
 }

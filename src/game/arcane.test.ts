@@ -1,4 +1,5 @@
 // Spellcasters (regular Barracks troops, one per age) and the Modern-age cyborgs.
+import { reachAge } from './age.testkit.ts';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { G } from './state.ts';
 import { TS } from './const.ts';
@@ -36,10 +37,10 @@ describe('spellcasters', () => {
     for (const t of ['mage', 'stormcaller', 'archmage', 'tidecaller', 'plaguewitch', 'sludgewarlock'] as const) expect(UNIT[t].aether ?? 0).toBe(0);
     expect(available(0, 'infantry')).toContain('mage');
     expect(available(0, 'infantry')).not.toContain('stormcaller');
-    G.era[0] = 1;
+    reachAge(0, 1);
     expect(available(0, 'infantry')).toContain('stormcaller');
     expect(available(0, 'infantry')).not.toContain('archmage');
-    G.era[0] = 2;
+    reachAge(0, 2);
     expect(available(0, 'infantry')).toEqual(expect.arrayContaining(['mage', 'stormcaller', 'archmage']));
   });
 
@@ -83,7 +84,7 @@ describe('cyborgs', () => {
     addBuilding('refinery', 0, 14, 50, false);
     addBuilding('factory', 0, 14, 44, false);
     expect(available(0, 'vehicle')).not.toContain('juggernaut');
-    G.era[0] = 2;
+    reachAge(0, 2);
     expect(available(0, 'vehicle')).toEqual(expect.arrayContaining(['juggernaut', 'titan']));
   });
 

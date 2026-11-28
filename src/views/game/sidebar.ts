@@ -4,7 +4,7 @@ import { G } from '../../game/state.ts';
 import { UNIT, isUnitType } from '../../data/unit.ts';
 import { dpsText, teamWeaponBonus } from '../../game/dps.ts';
 import { BUILDING, type BldType } from '../../data/building.ts';
-import { atLimit, available, unitNeeds, unitSlots, canAfford, freeWorker, priceOf, descOf, timeText, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
+import { atLimit, available, lockedResearch, techGate, unitNeeds, unitUpgradeNeeds, unitSlots, canAfford, freeWorker, priceOf, descOf, timeText, itemsOf, lineOf, nameOf, sitesOf, waitingFor, type Buildable } from '../../game/production.ts';
 import { dispatch } from './dispatch.ts';
 import { buildCellHtml } from './components/build_cell.ts';
 import { ICON } from './render/icon.ts';
@@ -12,7 +12,7 @@ import { V, ownSelected, spectating } from './view_state.ts';
 import { hotkeyProducers, groupForKey, groupsOf, groupOfType, hotkeyOf, itemsForKey, producerOfType } from './hotkeys.ts';
 import { buildingIcon } from './render3d/icon3d.ts';
 import { eraOf } from '../../game/production.ts';
-import { techLevel } from '../../data/era.ts';
+import { isTechType, techLevel } from '../../data/era.ts';
 import { hideTooltip, showTooltip } from '../../components/tooltip/tooltip.ts';
 import { priceText } from './components/build_cell.ts';
 import { keyLabel } from './keyboard.ts';
@@ -143,7 +143,7 @@ function holdOrCancel(type: Buildable): void {
 }
 
 export function refreshSidebar(): void {
-  const structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory')], units: Buildable[] = unitSlots(V.team);
+  const gated = lockedResearch(V.team), structures = [...available(V.team, 'structure'), ...available(V.team, 'tech'), ...available(V.team, 'hospital'), ...available(V.team, 'armory'), ...gated], units: Buildable[] = unitSlots(V.team);
   // every unit of the age keeps its place (Worker first); ones it can't train yet are greyed out
   const trainable = new Set<Buildable>([...available(V.team, 'infantry'), ...available(V.team, 'vehicle'), ...available(V.team, 'air')]);
   const key = `${V.team}|${eraOf(V.team)}|${Object.values(G.upg[V.team] ?? {}).join()}|${structures.join()}|${units.join()}`;
@@ -172,18 +172,21 @@ export function refreshSidebar(): void {
     // an order (or a placed site) waiting until the side can pay for it
     const unpaid = structure ? sites.some((e) => e.unpaid) && !sites.some((e) => !e.unpaid) : !!first && head === first && !first.paid;
     const need = unpaid ? waitingFor(V.team, type) : null;
-    const needs = isUnitType(type) && !trainable.has(type) ? unitNeeds(V.team, type) ?? 'yard' : null;
+    // waiting on a building's upgrade (it opens the next round of what that building offers), or on a building
+    const gatedTech = isTechType(type) && gated.includes(type) ? techGate(type) : null;
+    const upNeeds = gatedTech ?? (isUnitType(type) && !trainable.has(type) ? unitUpgradeNeeds(V.team, type) : null);
+    const needs = upNeeds ? null : isUnitType(type) && !trainable.has(type) ? unitNeeds(V.team, type) ?? 'yard' : null;
     locked.add(type);
-    if (!needs) locked.delete(type);
+    if (!needs && !upNeeds) locked.delete(type);
     // research queues one after another: one waiting its turn shows its place in line
     const research = line === 'tech' || line === 'hospital' || line === 'armory';
     const place = research && first && first.at == null ? G.prod[V.team][line].indexOf(first) + 1 : 0;
-    const status = needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : place ? 'QUEUED' : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : !items.length && freeWorker(V.team, type) ? 'FREE' : '';
+    const status = upNeeds ? `UPGRADE\n${BUILDING[upNeeds].name.toUpperCase()}` : needs ? `NEEDS\n${BUILDING[needs].name.toUpperCase()}` : placing ? 'PLACE' : first?.hold ? 'ON HOLD' : need ? `NEED ${need.toUpperCase()}` : place ? 'QUEUED' : !items.length && atLimit(V.team, type) ? 'IN THE FIELD' : !items.length && freeWorker(V.team, type) ? 'FREE' : '';
     if (c.status.textContent !== status) c.status.textContent = status;
     // a unit's count queued; a research's place in its line
     const count = place ? `#${place}` : (isUnitType(type) || structure) && items.length > (structure ? 1 : 0) ? String(items.length) : '';
     if (c.count.textContent !== count) c.count.textContent = count;
-    c.root.classList.toggle('build-cell--locked', !!needs);
+    c.root.classList.toggle('build-cell--locked', !!needs || !!upNeeds);
     c.root.classList.toggle('build-cell--active', items.length > 0);
     if (items.length) busy[tabOf(type)] = true;
     c.root.classList.toggle('build-cell--ready', placing);

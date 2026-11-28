@@ -103,6 +103,14 @@ export function hasBuilding(team: number, type: BldType): boolean {
   return G.ents.some((e) => !e.dead && e.team === team && e.type === type && e.done);
 }
 
+/**
+ * The highest upgrade level (the age it's been built or upgraded to, game/refit.ts) among a side's
+ * finished buildings of a type, or -1 with none.
+ */
+export function bldLevel(team: number, type: BldType): number {
+  return G.ents.reduce((m, e) => (!e.dead && e.team === team && e.type === type && e.done ? Math.max(m, e.lvl ?? 0) : m), -1);
+}
+
 export function countOf(team: number, type: EntType): number {
   return G.ents.filter((e) => !e.dead && e.team === team && e.type === type).length;
 }

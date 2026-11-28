@@ -699,8 +699,9 @@ function research(team: number): void {
   if (ward && G.era[team] >= 1 && credits > costOf(ward) + 1500 && G.aether[team] >= priceOf(ward).aether) enqueue(team, ward);
 }
 
-/** Which buildings the computer upgrades to its age first: the base's heart, then its defenses. */
-const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'power', 'barracks', 'factory', 'tower', 'turret', 'flak', 'airfield', 'works', 'hospital', 'armory', 'magetower', 'derrick', 'mill'];
+/** Which buildings the computer upgrades to its age first: the base's heart, the buildings that open new troops and research, then its defenses. */
+// the Barracks, War Factory, Airfield, Armory and Arcane Circle come early: their upgrades open the age's troops and research
+const REFIT_FIRST: BldType[] = ['yard', 'refinery', 'barracks', 'factory', 'power', 'armory', 'airfield', 'magetower', 'tower', 'turret', 'flak', 'hospital', 'works', 'derrick', 'mill'];
 const refitRank = (b: Ent): number => { const i = REFIT_FIRST.indexOf(b.type as BldType); return i < 0 ? REFIT_FIRST.length : i; };
 
 /** Ore the computer keeps back for troops and repairs when paying for an upgrade. */
@@ -1029,7 +1030,7 @@ function huntBeasts(team: number, army: Ent[], home: Ent | undefined): void {
   if (!prey || prey.dead || !prey.wild || !A.hunters.size) { prey = undefined; A.prey = null; A.hunters.clear(); }
   if (!prey && home && army.length >= HUNT_ARMY) {
     const near = (e: Ent) => Math.hypot(e.x - home.x, e.y - home.y);
-    for (const b of wildBeasts().sort((a, c) => near(a) - near(c))) {
+    for (const b of wildBeasts().filter((x) => !x.wild?.guard).sort((a, c) => near(a) - near(c))) {
       const party = army.filter((u) => !u.order && canAttack(u, b)).sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y)).slice(0, HUNTERS);
       if (party.length < MIN_HUNTERS) continue;
       prey = b;
