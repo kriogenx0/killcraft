@@ -61,11 +61,12 @@ let commandMarkup = '';
 let detailMarkup = '';
 let armyMarkup = '';
 /**
- * A selected unit's card has two tabs (Alex, 2026-11-28): Details (description and stats only) and
- * Behavior (every order and setting: Move, Stop, attack mode, when attacked, gather...). Buildings
- * keep one card.
+ * A selected unit's card has three tabs (Alex, 2026-11-28): Details (description and stats only),
+ * Orders (what you tell it to do: Move, Stop, Patrol, Formation...) and Behavior (its own settings:
+ * attack mode, when attacked, gather). Behavior shows only when it has settings. Buildings keep one card.
  */
-type SelTab = 'details' | 'behavior';
+type SelTab = 'details' | 'orders' | 'behavior';
+const SEL_TABS: readonly SelTab[] = ['details', 'orders', 'behavior'];
 let selTab: SelTab = 'details';
 let selTabs: HTMLElement | null = null;
 
@@ -77,12 +78,16 @@ function setSelTab(t: SelTab): void {
 function syncSelTabs(): void {
   const pane = els.details.parentElement;
   if (!selTabs || !pane) return;
-  // your own units with orders to give: Details is what they are, Behavior is every order and setting
   const has = commands.length > 0 && !!detailMarkup && selectedUnits().length > 0;
+  const settings = commands.some((c) => c.group);
+  // a unit with no settings: its Behavior tab hides, and Orders stands in for it
+  const shown: SelTab = selTab === 'behavior' && !settings ? 'orders' : selTab;
   if (selTabs.hidden === has) selTabs.hidden = !has;
-  pane.classList.toggle('sidebar-selection--tabs', has);
-  pane.classList.toggle('sidebar-selection--behavior', has && selTab === 'behavior');
-  for (const b of selTabs.querySelectorAll<HTMLElement>('[data-seltab]')) b.setAttribute('aria-selected', String(b.dataset.seltab === selTab));
+  for (const t of SEL_TABS) pane.classList.toggle(`sidebar-selection--${t}`, has && shown === t);
+  for (const b of selTabs.querySelectorAll<HTMLElement>('[data-seltab]')) {
+    b.setAttribute('aria-selected', String(b.dataset.seltab === shown));
+    if (b.dataset.seltab === 'behavior' && b.hidden === settings) b.hidden = !settings;
+  }
 }
 
 const PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
@@ -654,12 +659,12 @@ export function initHud(e: HudEls): void {
   selTabs.setAttribute('role', 'tablist');
   selTabs.setAttribute('aria-label', 'Selected unit');
   selTabs.hidden = true;
-  selTabs.innerHTML = '<button type="button" class="selection-tab" role="tab" data-seltab="details">Details</button><button type="button" class="selection-tab" role="tab" data-seltab="behavior">Behavior</button>';
+  selTabs.innerHTML = '<button type="button" class="selection-tab" role="tab" data-seltab="details">Details</button><button type="button" class="selection-tab" role="tab" data-seltab="orders">Orders</button><button type="button" class="selection-tab" role="tab" data-seltab="behavior">Behavior</button>';
   els.details.before(selTabs);
   // pointerdown, like the rest of this card (it re-renders); the keyboard clicks
   const pickTab = (ev: Event) => {
     const t = (ev.target as HTMLElement).closest<HTMLElement>('[data-seltab]')?.dataset.seltab;
-    if (t === 'details' || t === 'behavior') setSelTab(t);
+    if (SEL_TABS.includes(t as SelTab)) setSelTab(t as SelTab);
   };
   selTabs.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); pickTab(ev); });
   selTabs.addEventListener('click', (ev) => { if (ev.detail === 0) pickTab(ev); });

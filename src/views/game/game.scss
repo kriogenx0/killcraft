@@ -628,7 +628,7 @@ $sidebar-width: 248px;
     font-size: $font-xs;
     color: var(--color-text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.02em;
     cursor: pointer;
     touch-action: manipulation;
     background: var(--color-button-bottom);
@@ -651,15 +651,21 @@ $sidebar-width: 248px;
     }
   }
 
-  // Details is only the description and stats; Behavior keeps the name and shows every order and
-  // setting (Move, Stop, attack mode, when attacked, gather...). Hotkeys work on either.
-  .sidebar-selection--tabs:not(.sidebar-selection--behavior) .selection-commands,
-  .sidebar-selection--behavior .selection-details > :not(h3) {
+  // Details is only the description and stats; Orders and Behavior keep the name and show the orders
+  // (Move, Stop, Formation...) or the unit's settings (attack mode, when attacked, gather). Hotkeys work on any tab.
+  .sidebar-selection--details .selection-commands,
+  .sidebar-selection--orders .selection-commands .command-group,
+  .sidebar-selection--behavior .selection-commands > :not(.command-group),
+  :is(.sidebar-selection--orders, .sidebar-selection--behavior) .selection-details > :not(h3) {
     display: none;
   }
 
-  .sidebar-selection--behavior .selection-details {
+  :is(.sidebar-selection--orders, .sidebar-selection--behavior) .selection-details {
     min-height: 0;
+  }
+
+  .selection-tab[hidden] {
+    display: none;
   }
 
   .selection-details {
