@@ -116,6 +116,22 @@ describe('formation', () => {
     expect(gap()).toBeGreaterThan(0); // and then stays with them rather than running ahead
   });
 
+  it('marches in line: nobody runs ahead of or trails its place while on the way', () => {
+    openField();
+    const mix = ['rifleman', 'swordsman', 'tank', 'crossbowman', 'knight', 'heavy', 'gunner', 'medic'] as const;
+    const us = mix.map((t, i) => addUnit(t, 0, (12 + (i % 3) + 0.5) * TS, (29 + Math.floor(i / 3) + 0.5) * TS));
+    groupMove(us, 52, 31, false, true);
+    const left = (u: Ent) => (u.order?.t === 'move' ? Math.hypot((u.order.gx + 0.5) * TS - u.x, (u.order.gy + 0.5) * TS - u.y) / TS : 0);
+    run(6);
+    let sum = 0;
+    for (let i = 0; i < 12; i++) {
+      run(1);
+      const l = us.map(left);
+      sum += Math.max(...l) - Math.min(...l);
+    }
+    expect(sum / 12).toBeLessThan(2.5); // about 4.3 tiles before formation was made stricter
+  });
+
   it('without it, the fast units go on ahead', () => {
     openField();
     const us = squad();
