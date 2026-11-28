@@ -35,7 +35,7 @@ import { bldDef, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
 import { callSwarm, stone, updBee, updWild } from './creatures.ts';
 import { updDemon } from './hell.ts';
-import { frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
+import { burning, frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
@@ -476,9 +476,10 @@ function woundedNear(u: Ent, r: number, ownOnly = false): Ent | null {
   return own ?? ally;
 }
 
+// a patient at full health still gets its flames beaten out before the Medic moves on
 function updMedic(u: Ent, o: HealOrder, dt: number): void {
   const t = valid(o.tgt);
-  if (!t || !medicCanHeal(u, t) || t.hp >= t.maxhp || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
+  if (!t || !medicCanHeal(u, t) || (t.hp >= t.maxhp && !burning(t)) || Math.hypot(u.x - o.ox, u.y - o.oy) > AUTO_CHASE) { setOrder(u, null); return; }
   // tending a teammate's unit on its own initiative: drop it for one of our own who gets hurt nearby
   if (t.team !== u.team && !o.sent && (u.scan -= dt) <= 0) {
     u.scan = 0.4;
