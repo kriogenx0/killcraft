@@ -241,6 +241,17 @@ describe('early raids (Alex: missions 3, 4, 5 and 7)', () => {
   });
 });
 
+describe('Winter Friends (Alex: too difficult)', () => {
+  it('gives the player a starting guard and holds the computers\' main attacks for 15 minutes', () => {
+    const m = MISSIONS[2];
+    G.headless = true;
+    initWorld(m.setup.seed ?? 1, 4, { units: ['worker', 'worker'], ally: [0, 1, 0, 1], ...missionWorld(m) });
+    expect(G.calm).toBe(900);
+    expect(G.ents.filter((e) => e.team === 0 && e.kind === 'unit' && e.type !== 'worker').map((e) => e.type).sort()).toEqual([...m.guard!].sort());
+    expect(G.ents.some((e) => e.team === 1 && e.type === 'crossbowman')).toBe(false);
+  });
+});
+
 describe('mission 6 camps (Alex: too easy)', () => {
   it('camps near a fight march on the player; far ones stay put', () => {
     const m = MISSIONS.find((x) => x.camps)!;

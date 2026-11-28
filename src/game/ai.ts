@@ -1160,7 +1160,7 @@ function military(team: number): void {
   }
   const enemyArmy = G.ents.filter((e) => !e.dead && e.team === foe && e.kind === 'unit' && unitDef(e).weapon && !isHarvester(e)).length;
   // attack in waves, or press on whenever the enemy army is clearly smaller
-  const L = lvl(team), ready = G.gameT >= L.firstAttack && G.gameT >= (A.regroupT ?? 0) && !bigRaid;
+  const L = lvl(team), ready = G.gameT >= Math.max(L.firstAttack, G.calm) && G.gameT >= (A.regroupT ?? 0) && !bigRaid;
   // a guard stays home while the wave is out (Normal and up)
   const guard = A.home ??= new Set();
   for (const id of guard) { const g = G.byId.get(id); if (!g || g.dead) guard.delete(id); }

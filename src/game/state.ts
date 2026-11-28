@@ -459,6 +459,8 @@ export const G = {
   raids: false,
   /** how those raids go, if not the usual three every 150s of up to 3 troops (Alex: mission 3 rushes) */
   rush: null as Rush | null,
+  /** no computer sends a main attack wave before this game time (campaign, Winter Friends) */
+  calm: 0,
   /** a mission's scattered enemy camps come to each other's help: tiles a camp unit hears a fight from (0: they hold their ground; ai.ts campAlarm) */
   camps: 0,
   /** the map's only wood is the layout's grove: no trees scattered over the land (campaign, The Last Grove) */
