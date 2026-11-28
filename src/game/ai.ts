@@ -139,7 +139,9 @@ export function resetAi(teams = 2): void {
 
 const homeOf = (team: number): Ent | undefined =>
   G.ents.find((e) => !e.dead && e.team === team && e.type === 'yard') ?? G.ents.find((e) => !e.dead && e.team === team && e.kind === 'bld');
-const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon && !isHarvester(e))));
+// the same test as alive() in world.ts: a side down to its Workers is still in the game, so it is still
+// someone to beat (Workers left out here let a beaten side hide behind its walls until the time limit)
+const standing = (team: number) => G.ents.some((e) => !e.dead && e.team === team && ((e.kind === 'bld' && !isWall(e.type)) || (e.kind === 'unit' && !!unitDef(e).weapon)));
 
 /** Keep fighting the same side until it falls, then turn on the nearest one left. */
 function foeOf(team: number): number {
