@@ -294,7 +294,7 @@ describe('mission 6 camps (Alex: too easy)', () => {
     const near = (e: { x: number; y: number }) => Math.hypot(e.x - me.x, e.y - me.y) < G.camps * TS;
     expect(foes.some((e) => !near(e))).toBe(true);
     // move one enemy close by: it (and only those in earshot) come
-    foes[0].x = me.x + 8 * TS; foes[0].y = me.y;
+    foes[0].x = me.x + 5 * TS; foes[0].y = me.y;
     G.gameT = 0;
     campAlarm();
     expect(foes[0].order).toBeFalsy();
