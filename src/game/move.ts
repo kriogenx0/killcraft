@@ -99,6 +99,19 @@ function nearby(x: number, y: number): Ent[] {
 }
 
 /** How far ahead (px) a walking unit looks for others in its way. */
+/**
+ * How much room a unit's body takes towards a point in direction (dx, dy) (px), when units bump into
+ * each other. A ground vehicle's hull is longer than it is wide: its round `radius` (which sets reach
+ * and what splash hits) fits its sides, and nose and tail reach VEHICLE_BODY times further, so tanks
+ * driving up behind or into each other stop short instead of overlapping.
+ */
+export function bodyRadius(u: Ent, dx = 0, dy = 0): number {
+  const d = unitDef(u), l = Math.hypot(dx, dy);
+  if (d.cls !== 'vehicle' || !l) return d.radius;
+  return d.radius * (1 + (VEHICLE_BODY - 1) * Math.abs((Math.cos(u.face) * dx + Math.sin(u.face) * dy) / l));
+}
+const VEHICLE_BODY = 1.35;
+
 const lookahead = (u: Ent): number => Math.max(40, unitDef(u).radius * 4);
 
 /** A unit that is just standing about, with nothing to do, and so can make way. */
@@ -122,12 +135,12 @@ const sameFormation = (a: Ent, b: Ent): boolean => a.order?.t === 'move' && b.or
  * side standing in the way steps aside. Returns the heading to walk along and a speed factor.
  */
 function avoid(u: Ent, ux: number, uy: number, look: number, dt: number): [number, number, number] {
-  const ru = unitDef(u).radius, px = -uy, py = ux, heading = Math.atan2(uy, ux); // (px, py): the unit's right
+  const ru = bodyRadius(u, ux, uy), px = -uy, py = ux, heading = Math.atan2(uy, ux); // (px, py): the unit's right
   let side = 0, pace = 1;
   for (const e of nearby(u.x, u.y)) {
     if (e === u || passThrough(u, e)) continue;
     const rx = e.x - u.x, ry = e.y - u.y, along = rx * ux + ry * uy, lat = rx * px + ry * py;
-    const re = unitDef(e).radius, clear = ru + re + 4;
+    const re = bodyRadius(e, ux, uy), clear = ru + re + 4;
     if (Math.abs(lat) >= clear + 4 || along <= -clear || along > look) continue;
     if (along <= 0) {
       // alongside: ease away so we don't rub shoulders
@@ -211,18 +224,25 @@ function markLeft(fid: number): number | undefined {
 /** How far (tiles) along the way it's going one spot or unit must be beyond another to count as in front of it. */
 const RANK_GAP = 0.6;
 /** units in formation waiting for those whose spots are in front of theirs to go by, worked out once a tick */
-const waiting = new Set<Ent>();
+let waiting = new Set<Ent>();
 let waitingAt = -1;
+/** The longest (s) a unit in formation waits for the front to go by before it sets off anyway. */
+const WAIT_MAX = 3;
+/** when each unit began waiting, and in which formation (a new order starts the clock again) */
+const waitSince = new WeakMap<Ent, { fid: number; t: number }>();
 
 /**
  * A unit whose spot is at the back of a formation waits while any unit whose spot is in front of it
  * hasn't yet got in front of it (as when a group turns round, or Medics are swapped to the back), so
- * the front moves off first and the back falls in behind.
+ * the front moves off first and the back falls in behind. It never waits on a unit that is itself
+ * waiting, and never more than WAIT_MAX seconds in all, so nobody is left standing.
  */
 function waitsForFront(u: Ent): boolean {
   if (waitingAt !== G.gameT) {
     waitingAt = G.gameT;
-    waiting.clear();
+    // a unit that was itself waiting last tick isn't one to wait for: that could hold a group still forever
+    const was = waiting;
+    waiting = new Set<Ent>();
     const groups = new Map<number, Ent[]>();
     for (const e of G.ents) {
       const o = e.order;
@@ -242,8 +262,13 @@ function waitsForFront(u: Ent): boolean {
       const spot = (e: Ent) => { const o = e.order as { gx: number; gy: number }; return (o.gx + 0.5) * dx + (o.gy + 0.5) * dy; };
       const at = (e: Ent) => (e.x * dx + e.y * dy) / TS;
       for (const u of g) {
+        const fid = (u.order as { fid: number }).fid, w = waitSince.get(u);
+        if (w && w.fid === fid && G.gameT - w.t > WAIT_MAX) continue; // waited long enough: go
         const su = spot(u), pu = at(u);
-        if (g.some((f) => f !== u && spot(f) - su > RANK_GAP && at(f) - pu < RANK_GAP && Math.hypot(f.x - u.x, f.y - u.y) < 8 * TS)) waiting.add(u);
+        if (g.some((f) => f !== u && !was.has(f) && spot(f) - su > RANK_GAP && at(f) - pu < RANK_GAP && Math.hypot(f.x - u.x, f.y - u.y) < 8 * TS)) {
+          waiting.add(u);
+          if (!w || w.fid !== fid) waitSince.set(u, { fid, t: G.gameT });
+        }
       }
     }
   }
@@ -279,10 +304,9 @@ export function narrow(x: number, y: number): boolean {
 function blockedShort(u: Ent, gx: number, gy: number): boolean {
   const dx = gx - u.x, dy = gy - u.y, d = Math.hypot(dx, dy);
   if (u.order?.t !== 'move' || d > SHORT || d < 1 || narrow(u.x, u.y)) return false;
-  const ru = unitDef(u).radius;
   for (const e of nearby(u.x, u.y)) {
     if (e === u || e.team !== u.team || e.moving) continue;
-    const rx = e.x - u.x, ry = e.y - u.y, gap = Math.hypot(rx, ry) - ru - unitDef(e).radius;
+    const rx = e.x - u.x, ry = e.y - u.y, gap = Math.hypot(rx, ry) - bodyRadius(u, rx, ry) - bodyRadius(e, rx, ry);
     if (gap < 6 && (rx * dx + ry * dy) / d > Math.hypot(rx, ry) * 0.5) return true;
   }
   return false;
@@ -442,17 +466,19 @@ export const shoved = { px: 0 };
 /** Soft collision: overlapping units push apart; idle units yield to moving ones. */
 export function separate(): void {
   const us = G.ents.filter((e) => !e.dead && e.kind === 'unit').sort((a, b) => a.x - b.x);
-  const rad = us.map((u) => unitDef(u).radius + 2), air = us.map(isAir), maxRad = Math.max(17, ...rad);
+  const rad = us.map((u) => unitDef(u).radius * (u.kind === 'unit' && unitDef(u).cls === 'vehicle' ? VEHICLE_BODY : 1) + 2), air = us.map(isAir), maxRad = Math.max(17, ...rad);
   for (let i = 0; i < us.length; i++) {
     const a = us[i];
     for (let j = i + 1; j < us.length; j++) {
-      const b = us[j], min = rad[i] + rad[j];
+      const b = us[j];
       if (air[i] !== air[j]) continue;
       let dx = a.x - b.x;
       if (dx < -(rad[i] + maxRad)) break;
       let dy = a.y - b.y;
-      if (Math.abs(dx) >= min || Math.abs(dy) >= min || ((a.moving || b.moving) && passThrough(a, b))) continue;
+      // rad is the most room each could take; the room between them depends on which way each faces
+      if (Math.abs(dx) >= rad[i] + rad[j] || Math.abs(dy) >= rad[i] + rad[j] || ((a.moving || b.moving) && passThrough(a, b))) continue;
       let d = Math.hypot(dx, dy);
+      const min = air[i] ? rad[i] + rad[j] : bodyRadius(a, dx, dy) + bodyRadius(b, dx, dy) + 4;
       if (d >= min) continue;
       if (d < 0.01) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.hypot(dx, dy); }
       const weight = (u: Ent) => (anchored(u) ? 0.05 : u.moving ? 0.3 : 1);

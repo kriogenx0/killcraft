@@ -102,9 +102,9 @@ export function orderReturn(u: Ent): void {
 }
 
 /**
- * Move a group, giving each unit its own free tile around the goal. In formation (`form`) each unit
- * keeps its place in the group (squeezed in if the group is spread wide) and nobody walks faster
- * than the slowest of them, so they arrive together and in shape.
+ * Move a group, giving each unit its own free tile around the goal. In formation (`form`) the group
+ * is drawn up in ranks facing the way it's going (see formationSlots) and nobody walks faster than
+ * the slowest of them, so they arrive together and in shape.
  */
 export function groupMove(us: Ent[], gx: number, gy: number, patrol = false, form = false): void {
   const n = us.length;
@@ -138,59 +138,59 @@ export function groupMove(us: Ent[], gx: number, gy: number, patrol = false, for
   su.forEach((u, i) => send(u, st[i] ?? st[st.length - 1] ?? [gx, gy]));
 }
 
-/** Reach (tiles) from which a unit counts as long-range in a formation, and below which it's a brawler. */
-const LONG_RANGE = 5, MELEE = 2;
+/** Reach (tiles) below which a unit fights up close, and from which a lightly built vehicle is siege. */
+const MELEE = 2.5, SIEGE = 7;
 
 /**
- * Where a unit belongs in a formation, front to back: 0 brawlers (swords, claws), 1 shooters,
- * 2 long-range (rockets, siege, artillery), 3 Medics and anyone unarmed.
+ * Where a unit belongs in a formation, front to back (Alex, 2026-11-28): 0 the front line, anything
+ * heavily armoured or fighting up close (tanks, Cyborg Juggernauts, Footmen, Guardians, Knights,
+ * Flamethrowers, claws and axes); 1 the ranged troops (riflemen, crossbows, rockets, mages, jeeps);
+ * 2 siege (Catapults, Artillery Tanks); 3 Medics and anyone unarmed.
  */
 export function formRank(u: Ent): number {
-  const w = unitDef(u).weapon;
+  const d = unitDef(u), w = d.weapon;
   if (u.type === 'medic' || !w) return 3;
   const r = WEAPON[w].range;
-  return r < MELEE ? 0 : r < LONG_RANGE ? 1 : 2;
+  if (d.armor === 'heavy' || r < MELEE) return 0;
+  return d.cls === 'vehicle' && r >= SIEGE ? 2 : 1;
 }
 
 /**
- * Brawlers take the front of a formation, shooters behind them, long-range units behind those and
- * Medics at the very back. For each line between ranks in turn, while a unit that belongs behind it
- * stands further forward (along the way the group is heading, `dx`,`dy`) than one that belongs in
- * front, the frontmost such unit swaps places with the rearmost. The group keeps its shape; only who
- * stands where changes.
- */
-function rearrange(us: Ent[], off: number[][], dx: number, dy: number): void {
-  const l = Math.hypot(dx, dy);
-  if (!l) return;
-  const fwd = (i: number) => (off[i][0] * dx + off[i][1] * dy) / l;
-  const rank = us.map(formRank);
-  for (let line = 1; line <= 3; line++) {
-    for (let guard = 0; guard < us.length; guard++) {
-      let b = -1, f = -1;
-      for (let i = 0; i < us.length; i++) {
-        if (rank[i] >= line && (b < 0 || fwd(i) > fwd(b))) b = i;
-        if (rank[i] < line && (f < 0 || fwd(i) < fwd(f))) f = i;
-      }
-      if (b < 0 || f < 0 || fwd(b) <= fwd(f) + 0.25) break;
-      [off[b], off[f]] = [off[f], off[b]];
-    }
-  }
-}
-
-/**
- * Each unit's tile in formation: where it stands relative to the group's middle, moved to the goal.
- * A group spread wider than a tidy block is drawn in toward its middle; a spot that's blocked, water
- * or already taken goes to the nearest free tile around the goal (`free`) instead.
+ * Each unit's tile in formation. The group is drawn up afresh in rows across the way it's heading
+ * (snapped to the eight compass directions so rows sit on the tile grid): the front line in the
+ * front rows, the ranged troops behind, siege behind them and Medics at the back, each rank starting
+ * a row of its own. Within a row units keep their order from side to side, so nobody crosses over.
+ * The middle of the block sits on the goal; a spot that's blocked, water or already taken goes to
+ * the nearest free tile around the goal (`free`) instead.
  */
 function formationSlots(us: Ent[], gx: number, gy: number, cx: number, cy: number, free: Tile[]): Tile[] {
-  const off = us.map((u) => [(u.x - cx) / TS, (u.y - cy) / TS]);
-  rearrange(us, off, gx * TS - cx, gy * TS - cy);
-  const reach = Math.max(...off.map(([x, y]) => Math.hypot(x, y))), tidy = Math.max(1.5, Math.sqrt(us.length) * 0.9);
-  const k = reach > tidy ? tidy / reach : 1;
-  const taken = new Set<number>(), slots: Tile[] = [];
+  const n = us.length, a = Math.atan2(gy + 0.5 - cy / TS, gx + 0.5 - cx / TS);
+  const oct = Math.round(a / (Math.PI / 4)) * (Math.PI / 4);
+  const fx = Math.round(Math.cos(oct)), fy = Math.round(Math.sin(oct)), px = -fy, py = fx; // forward, and to the right
+  const width = Math.max(3, Math.ceil(Math.sqrt(n * 1.6)));
+  // rows front to back: each rank in rows of `width`, each row ordered from side to side
+  const rows: number[][] = [];
+  for (let rank = 0; rank <= 3; rank++) {
+    const ids = us.map((_, i) => i).filter((i) => formRank(us[i]) === rank);
+    // fill rows front to back, picking for each row the members furthest forward now
+    ids.sort((i, j) => (us[j].x * fx + us[j].y * fy) - (us[i].x * fx + us[i].y * fy));
+    for (let k = 0; k < ids.length; k += width) rows.push(ids.slice(k, k + width).sort((i, j) => (us[i].x * px + us[i].y * py) - (us[j].x * px + us[j].y * py)));
+  }
+  // a tank is longer than a tile: going straight along a row of tiles, a row with vehicles in it
+  // keeps a tile clear before and after it, so they don't sit nose to tail (diagonal rows have room)
+  const hull = (row: number[]) => fx !== 0 && fy !== 0 ? false : row.some((i) => unitDef(us[i]).cls === 'vehicle');
+  const depth: number[] = [];
+  rows.forEach((row, r) => depth.push(r ? depth[r - 1] + (hull(row) || hull(rows[r - 1]) ? 2 : 1) : 0));
+  const want: Tile[] = new Array(n), mid = depth[depth.length - 1] / 2;
+  rows.forEach((row, r) => row.forEach((i, c) => {
+    const back = Math.round(depth[r] - mid), side = Math.round(c - (row.length - 1) / 2);
+    want[i] = [gx - fx * back + px * side, gy - fy * back + py * side];
+  }));
+  const taken = new Set<number>(), slots: Tile[] = new Array(n);
   const open = (x: number, y: number) => x >= 0 && y >= 0 && x < MW && y < MH && !G.blk[y * MW + x] && walkable(G.terr[y * MW + x]) && !taken.has(y * MW + x);
-  for (const [ox, oy] of off) {
-    let t: Tile = [Math.round(gx + ox * k), Math.round(gy + oy * k)];
+  // front rows claim their spots first
+  for (const i of rows.flat()) {
+    let t = want[i];
     if (!open(t[0], t[1])) {
       let best: Tile | null = null, bd = Infinity;
       for (const f of free) {
@@ -200,7 +200,7 @@ function formationSlots(us: Ent[], gx: number, gy: number, cx: number, cy: numbe
       t = best ?? [gx, gy];
     }
     taken.add(t[1] * MW + t[0]);
-    slots.push(t);
+    slots[i] = t;
   }
   return slots;
 }
