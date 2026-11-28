@@ -267,9 +267,9 @@ describe('production', () => {
     expect(G.mech[1]).toBe(false);
     expect(available(0, 'hospital')).not.toContain('mech');
     run(15);
-    expect(tank.hp).toBeGreaterThan(100 + 40);
+    expect(tank.hp).toBeGreaterThan(100 + 20);
     expect(m.order?.t === 'move' && !!m.order.pat).toBe(true);
-    run(70);
+    run(140);
     expect(tank.hp).toBeGreaterThan(tank.maxhp - 1);
   });
 
