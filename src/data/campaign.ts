@@ -85,6 +85,8 @@ export interface Mission {
   islands?: boolean;
   /** a few small early raids by the enemy (Alex), who starts with these raiders too */
   raids?: UnitType[];
+  /** the scattered enemies stand in this many patches spread over the land, well away from the player */
+  patches?: number;
   /** the player's own troops at the start, beside the Workers */
   guard?: UnitType[];
   /** seconds before the computers send their main attack waves (early raids aside) */
@@ -113,7 +115,7 @@ export const MISSIONS: Mission[] = [
   {
     id: 'first-camp', name: 'First Camp', maxEra: 0, small: 52,
     // Alex: "First camp should not have buildings. Just some beginning units"
-    army: [...rep('swordsman', 5), ...rep('crossbowman', 3)],
+    army: [...rep('swordsman', 5), ...rep('crossbowman', 3)], patches: 7, // Alex: "too many enemies nearby. There should be just 7 patches"
     scatter: ['swordsman', 'swordsman', 'crossbowman', 'swordsman', 'crossbowman', 'swordsman', 'swordsman', 'crossbowman'],
     brief: 'No town to look after yet: just a band of Footmen and Crossbowmen on a small island. Enemy soldiers are camped across it. Hunt them all down.',
     setup: game({ mode: '1v1', seats: vs('easy'), resources: 'low', army: 'squad', seed: 1101 }),
@@ -260,7 +262,7 @@ export function missionLayout(m: Mission): MapLayout {
 }
 
 export const missionWorld = (m: Mission) => ({
-  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, rush: m.rush, guard: m.guard, calm: m.calm, camps: m.camps, oneWood: !!m.oneWood, guards: m.guards,
+  maxEra: m.maxEra, ban: bannedIn(m), snow: !!m.snow, small: m.small ?? 0, scatter: m.scatter, layout: missionLayout(m), islands: !!m.islands, goals: m.goals ?? [], raiders: m.raids, rush: m.rush, guard: m.guard, calm: m.calm, patches: m.patches, camps: m.camps, oneWood: !!m.oneWood, guards: m.guards,
   ...(m.army ? { units: m.army, noTown: true } : {}),
   wild: !!m.wild, aether: !!m.wild, gate: false,
 });

@@ -74,6 +74,8 @@ export interface StartOptions {
   guard?: readonly UnitType[];
   /** computers hold their main attacks until this game time (G.calm) */
   calm?: number;
+  /** scattered enemies stand in this many patches spread over the land, well away from the player (Alex: mission 1) */
+  patches?: number;
   /** scattered enemy troops come to help from this many tiles away (G.camps) */
   camps?: number;
   /** no wood but the layout's forests (G.oneWood) */
@@ -119,7 +121,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const scattered = (team: number) => !!start.scatter?.length && G.ally[team] !== G.ally[0];
   yards.forEach(([x, y], team) => {
     if (G.absent[team]) return;
-    if (scattered(team)) { scatterUnits(team, start.scatter ?? [], [[x + 1, y + 1], ...ore.slice(2)]); return; }
+    if (scattered(team)) { scatterUnits(team, start.scatter ?? [], start.patches ? patchSpots(start.patches, yards[0]) : [[x + 1, y + 1], ...ore.slice(2)]); return; }
     if (!start.noTown) addBuilding('yard', team, x, y, false);
     // the starting Workers face the middle of the map (an army with no town stands where the Town Hall would, five abreast)
     const face = Math.atan2(MH / 2 - y, MW / 2 - x), cols = start.noTown ? 5 : 2, x0 = start.noTown ? x - 1 : x + 3.5;
@@ -168,6 +170,30 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
 }
 
 /** Put a side's units in small groups at these spots (round-robin), each on open ground by its spot. */
+/** Tiles from the player's start that no patch of scattered enemies stands within. */
+const PATCH_CLEAR = 16;
+
+/**
+ * `n` spots spread as far apart as the land allows, none within PATCH_CLEAR of the player's start:
+ * each the open grass farthest from the start and every spot already picked.
+ */
+function patchSpots(n: number, [px, py]: Tile): Tile[] {
+  const spots: Tile[] = [[px + 1, py + 1]], out: Tile[] = [];
+  for (let k = 0; k < n; k++) {
+    let best: Tile | null = null, bd = -1;
+    for (let y = 2; y < MH - 2; y += 2)
+      for (let x = 2; x < MW - 2; x += 2) {
+        if (G.terr[y * MW + x] !== GRASS || Math.hypot(x - px - 1, y - py - 1) < PATCH_CLEAR) continue;
+        const d = Math.min(...spots.map(([a, b]) => Math.hypot(a - x, b - y)));
+        if (d > bd) { bd = d; best = [x, y]; }
+      }
+    if (!best) break;
+    spots.push(best);
+    out.push(best);
+  }
+  return out.length ? out : [[px + 1, py + 1]];
+}
+
 function scatterUnits(team: number, units: readonly UnitType[], spots: Tile[]): void {
   const taken = new Set<number>();
   units.forEach((type, k) => {

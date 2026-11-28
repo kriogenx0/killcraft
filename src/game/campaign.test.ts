@@ -121,6 +121,18 @@ describe('campaign maps', () => {
 });
 
 describe('mission 1', () => {
+  it('puts the enemies in 7 patches, none near the start (Alex)', () => {
+    const m = MISSIONS[0];
+    initWorld(m.setup.seed ?? 1, 2, { ...missionWorld(m), locked: JSON.parse(readFileSync(`public/campaign/${m.id}.json`, 'utf8')) as LockedMap });
+    const mine = G.ents.filter((e) => e.team === 0 && e.kind === 'unit'), foes = G.ents.filter((e) => e.team === 1 && e.kind === 'unit');
+    for (const f of foes) expect(Math.min(...mine.map((u) => Math.hypot(u.x - f.x, u.y - f.y) / TS))).toBeGreaterThan(12);
+    // patches: enemies within 4 tiles of each other belong together
+    const group = foes.map((_, i) => i);
+    const root = (i: number): number => (group[i] === i ? i : (group[i] = root(group[i])));
+    foes.forEach((a, i) => foes.forEach((b, j) => { if (Math.hypot(a.x - b.x, a.y - b.y) < 4 * TS) group[root(i)] = root(j); }));
+    expect(new Set(foes.map((_, i) => root(i))).size).toBe(7);
+  });
+
   it('is a small island with few resources and no enemy town, only scattered soldiers (Alex)', () => {
     const m = MISSIONS[0];
     initWorld(m.setup.seed ?? 1, 2, missionWorld(m));
