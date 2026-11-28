@@ -622,7 +622,7 @@ function bee(): Model {
   return { root, parts, height: 0.4 };
 }
 
-/** The colours of the rainbow (also the unicorns' rainbows, unicorns3d.ts), red on the outside, glowing a little so they read at any hour. */
+/** The colours of the rainbow (same hues as the unicorns' rainbows, unicorns3d.ts), red on the outside, glowing a little so they read at any hour. */
 export const RAINBOW = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '#9a60ff'].map((c) => mat(c, { rough: 0.5, emissive: c, emissiveIntensity: 0.45 }));
 
 /** A unicorn: harmless scenery that wanders the meadows under its own rainbow (unicorns3d.ts). */

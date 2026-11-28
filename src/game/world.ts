@@ -26,6 +26,7 @@ import { ais, aiThink, campAlarm, resetAi } from './ai.ts';
 import { AI_LEVEL } from '../data/setup.ts';
 import { isUnitType, type UnitType } from '../data/unit.ts';
 import { bankLoot, updLeader } from './bounty.ts';
+import { powerAlarm } from './power_alarm.ts';
 import { onGate, placeGate, updHell } from './hell.ts';
 import { applyGround, applyThings, type LockedMap } from './map_lock.ts';
 import { initWeather, updWeather } from './weather.ts';
@@ -100,7 +101,7 @@ export function initWorld(seed: number, teams = 2, start: StartOptions = {}): vo
   const n = teams > 2 ? 4 : 2, each = <T>(f: () => T): T[] => Array.from({ length: n }, f);
   Object.assign(G, {
     ents: [], projs: [], fx: [], decals: [], nextId: 1, gameT: 0, over: false, winner: -1, outLog: [], aiLog: [],
-    alertT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, rush: start.rush ?? null, calm: start.calm ?? 0, camps: start.camps ?? 0, oneWood: !!start.oneWood, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
+    alertT: each(() => -99), powerT: each(() => -99), lastAlert: null, fog: start.fog ?? 'reveal', maxEra: start.maxEra ?? 2, banned: [...(start.ban ?? [])], snow: !!start.snow, small: start.small ?? 0, layout: start.layout ?? null, islands: !!start.islands, raids: !!start.raiders, rush: start.rush ?? null, calm: start.calm ?? 0, camps: start.camps ?? 0, oneWood: !!start.oneWood, goals: [...(start.goals ?? [])], goalsDone: [], wild: start.wild ?? true, mission: null, leader: -1, fogT: 0, aiT: 0, endT: 0, oreT: 0, teams: n,
     ally: Array.from({ length: n }, (_, t) => start.ally?.[t] ?? t), absent: Array.from({ length: n }, (_, t) => !!start.absent?.[t]),
     credits: each(() => Math.round(START_CREDITS * share)), wood: each(() => Math.round(START_WOOD * share)), oil: each(() => START_OIL), era: each(() => START_ERA), heal: each(() => 0), rally: each(() => null), upg: each(noUpgrades), prod: each(emptyProduction),
   });
@@ -310,7 +311,7 @@ export function update(dt: number): void {
     });
   }
   G.oreT -= dt;
-  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); regrowAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); updHell(); campAlarm(); }
+  if (G.oreT <= 0) { G.oreT = ORE_INTERVAL; regrowOre(); updLeader(); sampleStats(); collect(ORE_INTERVAL); drawAether(ORE_INTERVAL); regrowAether(ORE_INTERVAL); bankAether(); bankLoot(); shrineHeal(ORE_INTERVAL); syncWaygates(); captureBeasts(ORE_INTERVAL); respawnBeasts(); satyrSong(ORE_INTERVAL); updHell(); campAlarm(); powerAlarm(); }
   G.fogT -= dt;
   if (G.fogT <= 0) { G.fogT = FOG_INTERVAL; updFog(); }
   // each computer player thinks as often as its difficulty allows

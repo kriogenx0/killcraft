@@ -29,7 +29,7 @@ const lastOrder = new WeakMap<Ent, string>();
 /** Units that had an order last tick. */
 const busy = new WeakSet<Ent>();
 import { HEAL_RATE, HOSPITAL_HEAL } from '../data/era.ts';
-import { MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
+import { MACHINE_REPAIR, MEDIC_HEAL, MEDIC_RANGE, MEDIC_REACH, WORKER_BUILD, WORKER_HEAL, WORKER_REPAIR } from '../data/unit.ts';
 import { advanceSite, mend } from './building.ts';
 import { bldDef, reactOf } from './state.ts';
 import { hasBuilding, lowPower } from './entity.ts';
@@ -500,7 +500,7 @@ function tend(u: Ent, t: Ent, dt: number): boolean | null {
   if (!r) return r;
   u.face = turnToward(u.face, Math.atan2(t.y - u.y, t.x - u.x), unitDef(u).turn * dt);
   u.atkT = 0.25; // tends from afar: drawn like an attack
-  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * dt);
+  t.hp = Math.min(t.maxhp, t.hp + MEDIC_HEAL * mendRate(t) * dt);
   t.burnT = 0; // and beats out the flames
   // a soft green ray to the patient now and then, so you can see who is being healed
   // (an amber welding ray when it's repairing a machine)
@@ -613,7 +613,12 @@ function updMend(u: Ent, o: HealOrder, dt: number): void {
     if (t.done) stayOnDerrick(u, t);
   }
   else if (t.kind === 'bld') { if (!mend(t, WORKER_REPAIR * dt)) setOrder(u, null); }
-  else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * dt);
+  else t.hp = Math.min(t.maxhp, t.hp + WORKER_HEAL * mendRate(t) * dt);
+}
+
+/** Machines (vehicles and cyborgs) are repaired more slowly than troops are healed. */
+function mendRate(t: Ent): number {
+  return t.kind === 'unit' && unitDef(t).cls === 'vehicle' ? MACHINE_REPAIR : 1;
 }
 
 /** An enemy wall the unit was ordered right onto, once it's within sight of it. */

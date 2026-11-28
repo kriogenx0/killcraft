@@ -106,7 +106,7 @@ describe('Workers', () => {
     run(4);
     expect(w.order?.t).toBe('heal');
     // stop once it's mended: idle again, the Worker goes off to dig ore
-    for (let i = 0; i < 30 / STEP && b.hp < b.maxhp; i++) update(STEP);
+    for (let i = 0; i < 60 / STEP && b.hp < b.maxhp; i++) update(STEP);
     expect(b.hp).toBe(b.maxhp);
     expect(b.repairing).toBeFalsy(); // the Workers did it, not the Repair button
     expect(G.credits[0]).toBeLessThan(ore);
@@ -184,7 +184,7 @@ describe('Workers', () => {
     if (!cmd) return;
     applyCommand(0, cmd);
     expect(w.order).toMatchObject({ t: 'heal', tgt: b.id, sent: true });
-    run(40);
+    run(80);
     expect(b.hp).toBe(b.maxhp);
     // another side can't order them
     applyCommand(1, { c: 'fix', ids: [w.id], target: b.id });

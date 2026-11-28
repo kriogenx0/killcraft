@@ -4,28 +4,60 @@ import * as THREE from 'three';
 import { G } from '../../../game/state.ts';
 import { MW } from '../../../game/const.ts';
 import { currentUnicorns, unicornAt, UNICORN_ROAM } from '../../../game/unicorns.ts';
-import { RAINBOW, unicornModel } from './creatures3d.ts';
-import { mesh } from './model_kit.ts';
-import { torus } from './materials.ts';
+import { unicornModel } from './creatures3d.ts';
 import { heightAt } from './heights.ts';
 import type { Model } from './models.ts';
 
 /** About the size of a cow. */
 const S = 0.55;
-/** The rainbow's span (tiles, outer radius) and its bands' thickness. */
-const ARC_R = 9, BAND = 0.48;
+/** The rainbow: a flat arc (tiles, inner and outer radius) standing over the meadow. */
+const ARC_IN = 3, ARC_OUT = 9.5;
 
-/** The arc is soft and see-through (the mane and tail keep the solid colours). */
-const SOFT = RAINBOW.map((m) => Object.assign(m.clone(), { transparent: true, opacity: 0.1, depthWrite: false }));
+/** The six colours, red on the outside. */
+const COLOURS = ['#ff4a4a', '#ff9a30', '#ffe040', '#50d860', '#40a0ff', '#9a60ff'].map((c) => new THREE.Color(c));
+
+/**
+ * One flat, soft sheet: each colour is a blurry band with a faint gap before the next, fading out at the
+ * edges, toward the ground and when seen edge-on. Unlit and without fog, so it looks the same at every distance and hour.
+ */
+const arcMat = new THREE.ShaderMaterial({
+  uniforms: { colours: { value: COLOURS }, peak: { value: 0.2 } },
+  vertexShader: `
+    varying vec2 vP;
+    varying float vFace;
+    void main() {
+      vP = position.xy;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vFace = abs(dot(normalize(normalMatrix * normal), normalize(-mv.xyz)));
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    uniform vec3 colours[6];
+    uniform float peak;
+    varying vec2 vP;
+    varying float vFace;
+    void main() {
+      float u = clamp((${ARC_OUT.toFixed(1)} - length(vP)) / ${(ARC_OUT - ARC_IN).toFixed(1)}, 0.0, 1.0) * 6.0;
+      int i = int(min(floor(u), 5.0));
+      vec3 c = colours[0];
+      for (int k = 1; k < 6; k++) if (k == i) c = colours[k];
+      float band = pow(sin(3.14159 * fract(u)), 1.5);
+      float edge = smoothstep(0.0, 0.6, u) * smoothstep(6.0, 5.4, u);
+      float feet = smoothstep(0.0, 1.5, vP.y);
+      gl_FragColor = vec4(c, peak * band * edge * feet * smoothstep(0.05, 0.5, vFace));
+      #include <colorspace_fragment>
+    }`,
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+});
+const arcGeo = new THREE.RingGeometry(ARC_IN, ARC_OUT, 128, 1, 0, Math.PI);
 
 const group = new THREE.Group();
-const shown: { model: Model; arc: THREE.Group }[] = [];
+const shown: { model: Model; arc: THREE.Object3D }[] = [];
 
-function rainbow(): THREE.Group {
-  const g = new THREE.Group();
-  SOFT.forEach((m, i) => g.add(mesh(torus(ARC_R - i * BAND * 2.8, BAND, Math.PI, 12, 128), m)));
-  g.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = false; });
-  return g;
+function rainbow(): THREE.Object3D {
+  const m = new THREE.Mesh(arcGeo, arcMat);
+  m.renderOrder = 2;
+  return m;
 }
 
 /** Add the unicorns' layer to the 3D scene for a new map. */

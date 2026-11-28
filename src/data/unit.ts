@@ -243,8 +243,10 @@ export const MEDIC_REACH = 4 * 32;
 export const MEDIC_RANGE = 20;
 /** A Worker patches up a hurt unit this many hit points a second (half a Medic). */
 export const WORKER_HEAL = 2;
-/** A Worker repairs a damaged building this many hit points a second (paying ore like the Repair button). */
-export const WORKER_REPAIR = 10;
+/** A Worker repairs a damaged building this many hit points a second (paying ore like the Repair button; Alex, 2026-11-28: "Repair is too fast", was 10). */
+export const WORKER_REPAIR = 5;
+/** Medics and Workers fix vehicles and cyborgs at this share of their healing speed (Alex, 2026-11-28: "Repair is too fast"). */
+export const MACHINE_REPAIR = 0.5;
 /**
  * Sites only go up while Workers build them: each Worker on a site builds this much of it per second
  * of its build time (1 = one Worker builds it in its build time, two in half that).
