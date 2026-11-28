@@ -181,7 +181,7 @@ const FOE_MEMORY = 4;
 export function attacker(u: Ent): Ent | null {
   const f = valid(u.foe);
   // a dug-in gun can't answer an attacker inside its minimum range (it backs off from one it's already fighting)
-  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team) || edgeDist(u, f) < tooClose(u) * TS) return null;
+  if (!f || G.gameT - u.foeT > FOE_MEMORY || !isFoe(u, f) || !canAttack(u, f) || cloakedFrom(f, u.team) || insideMin(edgeDist(u, f), tooClose(u))) return null;
   if (outOfReachNow(u, f)) return null; // can't get at it: no use answering it
   return f;
 }
@@ -238,7 +238,7 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
     if (e.id === skip) continue;
     if (e.dead || allied(e.team, s.team) || !fair(e) || kneeling(e) || e.kind === 'source' || (unitsOnly && e.kind !== 'unit') || (armedOnly && !weaponOf(e)) || cloakedFrom(e, s.team)) continue;
     const dist = edgeDist(s, e);
-    if (dist > r || dist < rmin || !canAttack(s, e)) continue;
+    if (dist > r || (rmin > 0 && dist < rmin) || !canAttack(s, e)) continue;
     if (e.kind === 'bld' && isWall(e.type)) continue; // walls are only broken when they're in the way (breach.ts)
     if (e.wild && dist > WILD_REACH * TS) continue; // only a creature that's close, not one minding its lair over there
     if (e.demon && !demonAfter(e, s.team)) continue; // demons lurking by their gate, or out after someone else, are left alone unless they start something
@@ -249,6 +249,12 @@ export function acquire(s: Ent, radiusTiles: number, unitsOnly = false, armedOnl
   }
   return best;
 }
+
+/**
+ * Is a target this close (px, edge to edge) inside a gun's minimum range (tiles)? Only guns that have
+ * one: something right overhead (a War Balloon bombing a tower) is closer than 0, and must still count.
+ */
+const insideMin = (dist: number, minTiles: number): boolean => minTiles > 0 && dist < minTiles * TS;
 
 /** Rotate the weapon toward a target; returns true once it is aimed. */
 export function aim(s: Ent, t: Ent, dt: number, hasTurret: boolean): boolean {
@@ -340,7 +346,7 @@ export function fireOnTheMove(u: Ent, dt: number): void {
   if (!d.weapon) return;
   const w = WEAPON[d.weapon];
   let t = valid(u.shot);
-  if (t && (!isFoe(u, t) || edgeDist(u, t) > w.range * TS || edgeDist(u, t) < tooClose(u) * TS || cloakedFrom(t, u.team))) t = null;
+  if (t && (!isFoe(u, t) || edgeDist(u, t) > w.range * TS || insideMin(edgeDist(u, t), tooClose(u)) || cloakedFrom(t, u.team))) t = null;
   u.scan -= dt;
   if (!t) u.shot = null;
   if (u.scan <= 0) {
@@ -372,7 +378,7 @@ export function updTurret(b: Ent, dt: number): void {
   b.cd -= dt;
   b.scan -= dt;
   let t = valid(b.order?.t === 'attack' ? b.order.tgt : null);
-  if (t && (!isFoe(b, t) || edgeDist(b, t) > w.range * TS || edgeDist(b, t) < (w.minRange ?? 0) * TS || cloakedFrom(t, b.team))) t = null;
+  if (t && (!isFoe(b, t) || edgeDist(b, t) > w.range * TS || insideMin(edgeDist(b, t), w.minRange ?? 0) || cloakedFrom(t, b.team))) t = null;
   if (!t && b.scan <= 0) {
     b.scan = 0.3;
     t = acquire(b, w.range, !w.ground, false, w.minRange);
