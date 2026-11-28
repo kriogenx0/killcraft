@@ -208,16 +208,62 @@ function markLeft(fid: number): number | undefined {
   return marks.get(fid)?.left;
 }
 
+/** How far (tiles) along the way it's going one spot or unit must be beyond another to count as in front of it. */
+const RANK_GAP = 0.6;
+/** units in formation waiting for those whose spots are in front of theirs to go by, worked out once a tick */
+const waiting = new Set<Ent>();
+let waitingAt = -1;
+
+/**
+ * A unit whose spot is at the back of a formation waits while any unit whose spot is in front of it
+ * hasn't yet got in front of it (as when a group turns round, or Medics are swapped to the back), so
+ * the front moves off first and the back falls in behind.
+ */
+function waitsForFront(u: Ent): boolean {
+  if (waitingAt !== G.gameT) {
+    waitingAt = G.gameT;
+    waiting.clear();
+    const groups = new Map<number, Ent[]>();
+    for (const e of G.ents) {
+      const o = e.order;
+      if (e.dead || o?.t !== 'move' || o.fid == null || o.sub) continue;
+      const g = groups.get(o.fid) ?? [];
+      g.push(e);
+      groups.set(o.fid, g);
+    }
+    for (const g of groups.values()) {
+      if (g.length < 2) continue;
+      // the way the group is going: from its middle to the middle of its spots
+      let dx = 0, dy = 0;
+      for (const e of g) { const o = e.order as { gx: number; gy: number }; dx += (o.gx + 0.5) * TS - e.x; dy += (o.gy + 0.5) * TS - e.y; }
+      const l = Math.hypot(dx, dy);
+      if (l < TS * g.length) continue; // nearly there
+      dx /= l; dy /= l;
+      const spot = (e: Ent) => { const o = e.order as { gx: number; gy: number }; return (o.gx + 0.5) * dx + (o.gy + 0.5) * dy; };
+      const at = (e: Ent) => (e.x * dx + e.y * dy) / TS;
+      for (const u of g) {
+        const su = spot(u), pu = at(u);
+        if (g.some((f) => f !== u && spot(f) - su > RANK_GAP && at(f) - pu < RANK_GAP && Math.hypot(f.x - u.x, f.y - u.y) < 8 * TS)) waiting.add(u);
+      }
+    }
+  }
+  return waiting.has(u);
+}
+
 /** In formation: the group's pace, faster for a unit fallen behind, slower for one out in front. */
 function formationPace(u: Ent): number {
   const o = u.order;
   if (o?.t !== 'move' || o.sub || !o.pace) return Infinity;
+  if (waitsForFront(u)) return 0;
   const mark = o.fid != null ? markLeft(o.fid) : undefined;
   if (mark == null) return o.pace;
   const behind = toGo(u, o) - mark;
   if (behind < -LOOSE) return o.pace;
   return o.pace * Math.max(FLOOR, 1 + GAIN * behind);
 }
+
+/** Standing still on purpose: in formation, waiting for the units in front to move off (not stuck). */
+export const holdingFormation = (u: Ent): boolean => formationPace(u) === 0;
 
 export const stepOf = (u: Ent, dt: number): number => Math.min(unitDef(u).spd, formationPace(u)) * slowFactor(u) * spellSpeed(u) * terrainSpeed(u) * TS * dt;
 

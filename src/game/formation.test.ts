@@ -132,6 +132,22 @@ describe('formation', () => {
     expect(sum / 12).toBeLessThan(2.5); // about 4.3 tiles before formation was made stricter
   });
 
+  it('units whose spots are at the back wait for the front to move off, then fall in behind', () => {
+    openField();
+    // Medics stand at the front of the way the group is going, swordsmen behind them
+    const medics = [0, 1, 2].map((i) => addUnit('medic', 0, 20.5 * TS, (29.5 + i) * TS));
+    const swords = [0, 1, 2].map((i) => addUnit('swordsman', 0, 18.5 * TS, (29.5 + i) * TS));
+    const x0 = medics.map((u) => u.x);
+    groupMove([...medics, ...swords], 45, 30, false, true);
+    run(1);
+    medics.forEach((u, i) => expect(Math.abs(u.x - x0[i])).toBeLessThan(0.5 * TS)); // still waiting
+    run(7);
+    // under way, the swordsmen lead and the Medics follow
+    expect(Math.min(...swords.map((u) => u.x))).toBeGreaterThan(Math.max(...medics.map((u) => u.x)));
+    run(20);
+    expect([...medics, ...swords].every((u) => !u.order)).toBe(true);
+  });
+
   it('without it, the fast units go on ahead', () => {
     openField();
     const us = squad();
