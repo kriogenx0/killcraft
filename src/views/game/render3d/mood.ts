@@ -59,6 +59,8 @@ export function sunDirection(m: Mood): THREE.Vector3 {
   return new THREE.Vector3(Math.sin(m.bearing) * Math.cos(m.height), Math.sin(m.height), Math.cos(m.bearing) * Math.cos(m.height));
 }
 
+let pmrem: THREE.PMREMGenerator | null = null, pmremFor: THREE.WebGLRenderer | null = null;
+
 /** A small sky dome to light glossy surfaces with: blue above, pale at the horizon, a glow round the sun. */
 export function skyEnvironment(renderer: THREE.WebGLRenderer, m: Mood): THREE.Texture {
   const scene = new THREE.Scene();
@@ -79,9 +81,12 @@ export function skyEnvironment(renderer: THREE.WebGLRenderer, m: Mood): THREE.Te
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
-  scene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), mat));
-  const pm = new THREE.PMREMGenerator(renderer);
-  const tex = pm.fromScene(scene, 0.02).texture;
-  pm.dispose();
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), mat);
+  scene.add(ball);
+  // one generator kept for good: day and night redraws this sky every few seconds
+  if (!pmrem || pmremFor !== renderer) { pmrem?.dispose(); pmrem = new THREE.PMREMGenerator(renderer); pmremFor = renderer; }
+  const tex = pmrem.fromScene(scene, 0.02).texture;
+  ball.geometry.dispose();
+  mat.dispose();
   return tex;
 }

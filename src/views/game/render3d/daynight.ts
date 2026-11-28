@@ -12,7 +12,7 @@ export const DAY_LENGTH = 20 * 60;
 /** Where in the day a game starts (0 = first light, see KEYS): early morning. */
 export const START_HOUR = 0.07;
 /** The sun is up from SUNRISE through SUNSET (share of the day, wrapping past 1); the moon the rest. */
-const SUNRISE = 0.975, SUNSET = 0.615;
+const SUNRISE = 0.94, SUNSET = 0.635;
 
 export type Phase = 'dawn' | 'day' | 'dusk' | 'night';
 
@@ -42,14 +42,15 @@ function keys(snow: boolean): [number, Mood][] {
   const day = (m: Mood) => (snow ? { ...WINTER, name: m.name } : m);
   return [
     [0, DAWN],
-    [0.07, day(MORNING)],
+    [0.08, day(MORNING)],
     [0.25, day(MIDDAY)],
-    [0.42, day(AFTERNOON)],
-    [0.52, day(EVENING)],
-    [0.585, DUSK],
+    [0.4, day(AFTERNOON)],
+    [0.49, day(EVENING)],
+    // the red of dusk and the pink of dawn come on slowly (Alex, 2026-11-28): long blends either side
+    [0.58, DUSK],
     [SUNSET, TWILIGHT],
-    [0.68, NIGHT],
-    [0.92, NIGHT],
+    [0.7, NIGHT],
+    [0.88, NIGHT],
     [SUNRISE, TWILIGHT],
     [1, DAWN],
   ];
@@ -66,21 +67,22 @@ export function hourAt(gameT: number): number {
 
 export function phaseOf(h: number): Phase {
   if (h < 0.06 || h >= SUNRISE) return 'dawn';
-  if (h < 0.55) return 'day';
-  if (h < 0.66) return 'dusk';
+  if (h < 0.53) return 'day';
+  if (h < 0.68) return 'dusk';
   return 'night';
 }
 
 /**
  * The light at an hour: colours and strengths blended between the nearest keys, the sun (or moon)
- * placed along its arc. Returns one shared object, rewritten on every call. `env` is the key whose
- * sky to reflect (reflections are rebuilt only when that changes).
+ * placed along its arc. Returns one shared object, rewritten on every call.
  */
-export function lightAt(h: number, snow: boolean): { mood: Mood; env: Mood } {
+export function lightAt(h: number, snow: boolean): Mood {
   const ks = keys(snow);
   let i = 0;
   while (i < ks.length - 2 && h >= ks[i + 1][0]) i++;
-  const [ta, a] = ks[i], [tb, b] = ks[i + 1], t = tb > ta ? (h - ta) / (tb - ta) : 0;
+  const [ta, a] = ks[i], [tb, b] = ks[i + 1], lin = tb > ta ? (h - ta) / (tb - ta) : 0;
+  // eased, so the light never turns a corner at a key: each change starts and settles gently
+  const t = lin * lin * (3 - 2 * lin);
   live.name = t < 0.5 ? a.name : b.name;
   live.sun = `#${mix(a.sun, b.sun, t)}`; live.sunI = lerp(a.sunI, b.sunI, t);
   live.sky = `#${mix(a.sky, b.sky, t)}`; live.ground = `#${mix(a.ground, b.ground, t)}`; live.hemiI = lerp(a.hemiI, b.hemiI, t);
@@ -95,14 +97,16 @@ export function lightAt(h: number, snow: boolean): { mood: Mood; env: Mood } {
   live.bearing = sunUp ? Math.PI / 2 - u * Math.PI : 1.1 - u * 2.2;
   // never quite on the horizon: a light that low stretches shadows across the whole screen
   live.height = sunUp ? 0.28 + 0.8 * Math.sin(u * Math.PI) : 0.55 + 0.4 * Math.sin(u * Math.PI);
-  return { mood: live, env: t < 0.5 ? a : b };
+  return live;
 }
 
 const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** How dark it is at an hour: 0 through the day, rising through dusk to 1 at night, gone again soon after first light. */
 export function darkness(h: number): number {
-  return h < 0.3 ? 1 - smooth(0.0, 0.05, h) : smooth(0.55, 0.64, h);
+  // full dark through the night, easing off from first light and gone by early morning
+  if (h < 0.3) return 0.6 * (1 - smooth(0, 0.06, h));
+  return h < 0.95 ? smooth(0.55, 0.67, h) : 1 - 0.4 * smooth(0.95, 1, h);
 }
 
 /** The hour on a clock (minutes past midnight): noon falls when the sun is highest, first light about 5 AM. */
@@ -120,7 +124,7 @@ export function clockText(h: number): string {
 /** `?tod=dawn|morning|noon|afternoon|dusk|night` or a share of the day (0..1): pin the hour for screenshots. */
 export function pinnedHour(v: string | null): number | null {
   if (v === null) return null;
-  const named: Record<string, number> = { dawn: 0.015, morning: 0.1, noon: 0.295, afternoon: 0.42, evening: 0.53, dusk: 0.575, night: 0.8 };
+  const named: Record<string, number> = { dawn: 0.015, morning: 0.1, noon: 0.2875, afternoon: 0.4, evening: 0.5, dusk: 0.59, night: 0.8 };
   if (v in named) return named[v];
   const n = Number(v);
   return Number.isFinite(n) && v !== '' ? ((n % 1) + 1) % 1 : null;

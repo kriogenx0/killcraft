@@ -50,14 +50,10 @@ export function initScene(canvas: HTMLCanvasElement): void {
 
 let sunDir = new THREE.Vector3(-0.45, 0.8, 0.33).normalize();
 
-/** Reflected skies already made, by the light they were made for (day and night reuse a handful). */
-const skies = new Map<string, THREE.Texture>();
-function dropSkies(): void {
-  const cached = [...skies.values()];
-  if (S.scene.environment && !cached.includes(S.scene.environment)) S.scene.environment.dispose();
-  for (const t of cached) t.dispose();
-  skies.clear();
+function dropSky(): void {
+  S.scene.environment?.dispose();
   S.scene.environment = null;
+  skyAt = -1;
 }
 
 function applyLight(m: Mood): void {
@@ -80,7 +76,7 @@ export function setMood(m: Mood): void {
   cycle = null;
   S.dark = 0;
   S.mood = m;
-  dropSkies();
+  dropSky();
   applyLight(m);
   S.scene.environment = skyEnvironment(S.renderer, m);
 }
@@ -93,16 +89,25 @@ export function startDayNight(snow: boolean): void {
   cycle = { snow };
 }
 
-/** Move the light to this hour of the day (daynight.ts). Cheap: a few colours, and a new reflected sky only when the light passes a key. */
+/** How often (share of a day) the reflected sky is redrawn to follow the light: every few seconds of play. */
+const SKY_STEP = 1 / 300;
+let skyAt = -1;
+
+/** Move the light to this hour of the day (daynight.ts). Cheap: a few colours a frame, and a new (tiny) reflected sky every few seconds. */
 export function updateDayNight(hour: number): void {
   if (!cycle) return;
-  const { mood, env } = lightAt(hour, cycle.snow);
+  const mood = lightAt(hour, cycle.snow);
   S.mood = mood;
   S.dark = darkness(hour);
   applyLight(mood);
-  let sky = skies.get(env.name + (cycle.snow ? '-snow' : ''));
-  if (!sky) { sky = skyEnvironment(S.renderer, env); skies.set(env.name + (cycle.snow ? '-snow' : ''), sky); }
-  if (S.scene.environment !== sky) S.scene.environment = sky;
+  // the reflections follow in small steps rather than jumping from one key's sky to the next
+  const step = Math.floor(hour / SKY_STEP);
+  if (step !== skyAt || !S.scene.environment) {
+    skyAt = step;
+    const old = S.scene.environment;
+    S.scene.environment = skyEnvironment(S.renderer, mood);
+    old?.dispose();
+  }
 }
 
 /** Size the drawing area to the part of the window the sidebar doesn't cover. */
