@@ -474,6 +474,8 @@ export const G = {
   /** units, buildings and research nobody may use in this game (a campaign mission's rules) */
   banned: [] as string[],
   alertT: [-99, -99],
+  /** game time each team was last told it is short of power (game/power_alarm.ts) */
+  powerT: [-99, -99] as number[],
   /** last place the viewer's team was attacked */
   lastAlert: null as Point | null,
   fogT: 0,
