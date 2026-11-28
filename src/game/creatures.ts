@@ -59,10 +59,17 @@ export function addBeast(type: UnitType, x: number, y: number): Ent {
  * Put the lairs on a freshly generated map: clear a little meadow around each site, and if the spot
  * is cut off by water or woods, move it to the nearest ground both bases can walk to.
  */
+/** No creature's lair this close (tiles) to a side's starting Town Hall. */
+export const LAIR_CLEAR = 14;
+
 export function placeCreatures(seed: number): void {
   G.tamed = teams().map(() => []);
   G.respawns = [];
+  const yards = mapLayout().yards.filter((_, t) => !G.absent?.[t]);
   for (const [[sx, sy], type] of lairsFor(seed)) {
+    // the lair sites suit the usual corner bases; a mission's own Town Hall spots can land right by one,
+    // and its creature then fights off the Workers from the first minute (campaign, Wonders), so skip it
+    if (yards.some(([x, y]) => Math.hypot(x + 1.5 - sx, y + 1.5 - sy) < LAIR_CLEAR)) continue;
     eachInDisk(sx, sy, 2, (i) => { if (!G.blk[i]) { G.terr[i] = GRASS; G.ore[i] = 0; G.oilField[i] = 0; G.treeWood[i] = 0; G.elev[i] = Math.max(G.elev[i], WATER_LEVEL + 0.08); } });
     const ok = reachable();
     let best: Tile | null = null, bd = 1e9;

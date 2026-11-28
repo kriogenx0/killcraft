@@ -199,13 +199,15 @@ function scatterUnits(team: number, units: readonly UnitType[], spots: Tile[]): 
   units.forEach((type, k) => {
     const [sx, sy] = spots[k % spots.length];
     let best = -1, bd = Infinity;
-    // the nearest open grass to the spot that nobody stands on, a little away from ore rocks
-    for (let y = Math.max(1, sy - 6); y < Math.min(MH - 1, sy + 7); y++)
-      for (let x = Math.max(1, sx - 6); x < Math.min(MW - 1, sx + 7); x++) {
-        const i = y * MW + x, d = Math.hypot(x - sx, y - sy);
-        if (d < 2 || taken.has(i) || G.terr[i] !== GRASS) continue;
-        if (d < bd) { bd = d; best = i; }
-      }
+    // the nearest open grass to the spot that nobody stands on, a little away from ore rocks (further
+    // out if the spot's patch of grass is full, so nobody is left out)
+    for (let r = 6; best < 0 && r <= 18; r += 6)
+      for (let y = Math.max(1, sy - r); y < Math.min(MH - 1, sy + r + 1); y++)
+        for (let x = Math.max(1, sx - r); x < Math.min(MW - 1, sx + r + 1); x++) {
+          const i = y * MW + x, d = Math.hypot(x - sx, y - sy);
+          if (d < 2 || taken.has(i) || G.terr[i] !== GRASS) continue;
+          if (d < bd) { bd = d; best = i; }
+        }
     if (best < 0) return;
     taken.add(best);
     const u = addUnit(type, team, (best % MW + 0.5) * TS, (Math.floor(best / MW) + 0.5) * TS);

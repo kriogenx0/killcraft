@@ -425,11 +425,16 @@ function footprint(tx: number, ty: number, s: number): number[] {
 function wellSite(team: number, s: number, yard: Ent): Tile | null {
   let best: Tile | null = null, most = 0, near = Infinity;
   const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
-  for (let ty = cy - 16; ty <= cy + 16; ty++)
-    for (let tx = cx - 16; tx <= cx + 16; tx++) {
-      const oil = oilNear(tx, ty, s), d = Math.hypot(tx - cx, ty - cy);
-      if ((oil > most || (oil === most && oil > 0 && d < near)) && canPlace(tx, ty, s, team, true, false, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; near = d; best = [tx, ty]; }
-    }
+  const look = (r: number) => {
+    for (let ty = Math.max(0, cy - r); ty <= Math.min(MH - 1, cy + r); ty++)
+      for (let tx = Math.max(0, cx - r); tx <= Math.min(MW - 1, cx + r); tx++) {
+        const oil = oilNear(tx, ty, s), d = Math.hypot(tx - cx, ty - cy);
+        if ((oil > most || (oil === most && oil > 0 && d < near)) && canPlace(tx, ty, s, team, true, false, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; near = d; best = [tx, ty]; }
+      }
+  };
+  look(16);
+  // no oil by the base (campaign, Black Gold: one patch on the whole map): go out for the nearest well anywhere
+  if (!best && G.ents.some((e) => !e.dead && e.team === team && e.kind === 'unit')) look(Math.max(MW, MH));
   return best;
 }
 
