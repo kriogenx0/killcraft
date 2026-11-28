@@ -244,7 +244,7 @@ function defense(team: number, can: readonly string[]): BldType | null {
   const infantry = foe.filter(isOrganic).length, vehicles = foe.length - infantry;
   const turrets = DEFENSES.reduce((n, t) => n + countOf(team, t), 0);
   if (credits > 2400 && countOf(team, 'bertha') < 1 && can.includes('bertha') && G.wood[team] >= 100) return 'bertha';
-  if (credits > 1500 && turrets < 9) {
+  if (credits > 1500 && turrets < (G.mission && lvl(team) === AI_LEVEL.easy ? CAMPAIGN_EASY_DEFENSES : 9)) {
     const vsInfantry: BldType = can.includes('pillbox') ? 'pillbox' : 'tower';
     const vsArmor: BldType = can.includes('atturret') && G.oil[team] >= 150 ? 'atturret' : can.includes('turret') ? 'turret' : 'tower';
     const pick = G.islands ? antiAir(can) : infantry > vehicles ? vsInfantry : vehicles > infantry ? vsArmor : Math.random() < 0.5 ? vsInfantry : vsArmor;
@@ -254,6 +254,8 @@ function defense(team: number, can: readonly string[]): BldType | null {
 }
 
 const DEFENSES: BldType[] = ['tower', 'turret', 'pillbox', 'atturret'];
+/** An Easy computer in a campaign mission puts up at most this many (Alex: missions should ramp gently; Winter Friends' two Easy computers turtled behind 9 towers each) */
+const CAMPAIGN_EASY_DEFENSES = 4;
 /** The defenses an alarm counts: on islands Flak too */
 const alarmDefenses = (): BldType[] => G.islands ? [...DEFENSES, 'flak'] : DEFENSES;
 /** Islands (campaign): only aircraft come, so defenses that can't hit them are no use; Flak once there is one, else a Watchtower. */
@@ -432,11 +434,16 @@ function footprint(tx: number, ty: number, s: number): number[] {
 function wellSite(team: number, s: number, yard: Ent): Tile | null {
   let best: Tile | null = null, most = 0, near = Infinity;
   const cx = Math.round(yard.x / TS), cy = Math.round(yard.y / TS);
-  for (let ty = cy - 16; ty <= cy + 16; ty++)
-    for (let tx = cx - 16; tx <= cx + 16; tx++) {
-      const oil = oilNear(tx, ty, s), d = Math.hypot(tx - cx, ty - cy);
-      if ((oil > most || (oil === most && oil > 0 && d < near)) && canPlace(tx, ty, s, team, true, false, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; near = d; best = [tx, ty]; }
-    }
+  const look = (r: number) => {
+    for (let ty = Math.max(0, cy - r); ty <= Math.min(MH - 1, cy + r); ty++)
+      for (let tx = Math.max(0, cx - r); tx <= Math.min(MW - 1, cx + r); tx++) {
+        const oil = oilNear(tx, ty, s), d = Math.hypot(tx - cx, ty - cy);
+        if ((oil > most || (oil === most && oil > 0 && d < near)) && canPlace(tx, ty, s, team, true, false, true) && !sealsIn(team, yard, footprint(tx, ty, s))) { most = oil; near = d; best = [tx, ty]; }
+      }
+  };
+  look(16);
+  // no oil by the base (campaign, Black Gold: one patch on the whole map): go out for the nearest well anywhere
+  if (!best && G.ents.some((e) => !e.dead && e.team === team && e.kind === 'unit')) look(Math.max(MW, MH));
   return best;
 }
 

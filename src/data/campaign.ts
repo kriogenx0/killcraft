@@ -178,15 +178,15 @@ export const MISSIONS: Mission[] = [
     // Alex: "Between mission 9 and 10 add a mission where player only has creatures and goes against random creatures"
     id: 'beast-war', name: 'Beast War', maxEra: 2, small: 68,
     army: [...rep('centaur', 3), ...rep('minotaur', 2), ...rep('cyclops', 2), ...rep('harpy', 2), ...rep('griffin', 2), 'medusa', 'nemean', 'dragon'],
-    scatter: randomBeasts(9505, 18), camps: 12, patches: 6,
+    scatter: randomBeasts(9505, 18), camps: 8, patches: 6, // Alex: easier missions: only packs close by come running (was 12)
     brief: 'No town, no soldiers: you lead a band of 14 creatures of myth. Creatures of every kind roam the land against you, more of them than you, and packs nearby come running when they hear a fight. Hunt them all down.',
     setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 9505 }),
   },
   {
     // Alex: "Mission 9 - introduction to aether, creatures, weather, all the other things"
     id: 'last-stand', name: 'Wonders', maxEra: 2, wild: true,
-    brief: 'Aether, wild creatures to capture and storms appear for the first time, and everything is unlocked. One Normal computer.',
-    setup: game({ mode: '1v1', seats: vs('normal'), resources: 'standard', army: 'workers', seed: 9909 }),
+    brief: 'Aether, wild creatures to capture and storms appear for the first time, and everything is unlocked. One Easy computer.',
+    setup: game({ mode: '1v1', seats: vs('easy'), resources: 'standard', army: 'workers', seed: 9909 }), // Easy (Alex: easier missions): a Normal computer caught the Dragon and Nemean Lions by its base and raided with them by 5 minutes,
   },
   {
     // Alex: "Mission 10 - 2v2 hard"
