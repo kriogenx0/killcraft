@@ -109,4 +109,30 @@ describe('when attacked', () => {
     run(25);
     for (const u of us) expect(Math.hypot(u.x - foe.x, u.y - foe.y)).toBeLessThan(3 * TS);
   });
+
+  it('Stay still: on its way somewhere, it never turns aside to chase an enemy it sees', () => {
+    for (const stance of ['engage', 'skirmish'] as const) {
+      openField();
+      const u = addUnit('swordsman', 0, 20.5 * TS, 30.5 * TS), foe = addUnit('rifleman', 1, 30.5 * TS, 35.5 * TS);
+      foe.react = 'hold';
+      applyCommand(0, { c: 'stance', ids: [u.id], stance });
+      applyCommand(0, { c: 'react', ids: [u.id], react: 'hold' });
+      applyCommand(0, { c: 'move', ids: [u.id], tx: 40, ty: 30 });
+      let off = 0;
+      for (let k = 0; k < 60 && u.order; k++) { run(0.25); off = Math.max(off, Math.abs(u.y - 30.5 * TS) / TS); }
+      expect(off).toBeLessThan(1);
+      expect(u.x).toBeGreaterThan(39 * TS);
+    }
+  });
+
+  it('Pursue: on its way on Stop & attack, it does go after an enemy it sees', () => {
+    openField();
+    const u = addUnit('swordsman', 0, 20.5 * TS, 30.5 * TS), foe = addUnit('rifleman', 1, 30.5 * TS, 35.5 * TS);
+    foe.react = 'hold';
+    applyCommand(0, { c: 'stance', ids: [u.id], stance: 'engage' });
+    applyCommand(0, { c: 'move', ids: [u.id], tx: 40, ty: 30 });
+    let off = 0;
+    for (let k = 0; k < 40; k++) { run(0.25); off = Math.max(off, Math.abs(u.y - 30.5 * TS) / TS); }
+    expect(off).toBeGreaterThan(3);
+  });
 });

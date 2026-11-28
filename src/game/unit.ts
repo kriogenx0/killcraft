@@ -2,6 +2,8 @@
 import { updCarrier, updHornet } from './carrier.ts';
 import { aiPace, leaderHandicap } from './ai.ts';
 import { LEADER_SPEED } from '../data/economy.ts';
+import { WEAPON } from '../data/weapon.ts';
+import { isWall } from '../data/building.ts';
 import { G, allied, altOf, haulOf, hooks, loadOf, oreLoadOf, isAir, isHarvester, isOrganic, tileOf, unitDef, valid, type Ent, type HarvestOrder, type HealOrder, type MoveOrder, type Tile } from './state.ts';
 import { noteGathered } from './stats.ts';
 import { MH, MW, NEAR, TS } from './const.ts';
@@ -38,6 +40,9 @@ import { updDemon } from './hell.ts';
 import { burning, frozen, reloadRate, tickStatus, updCaster } from './spells.ts';
 
 const AUTO_CHASE = 9 * TS;
+/** How far (px) a unit can hit from where it stands. */
+const weaponReach = (u: Ent): number => { const w = unitDef(u).weapon; return w ? WEAPON[w].range * TS : 0; };
+
 /** A unit whose target fell this far (tiles) or more from where it was carries on to that spot. */
 const CARRY_ON = 2;
 /** How far (tiles) a Worker told to fix things, then harvest, looks for something to mend. */
@@ -845,16 +850,20 @@ function act(u: Ent, dt: number): void {
         if (u.type === 'medic' && u.order === o) healOnTheMove(u, dt);
         break;
       }
-      // engage: stop to fight anything met on the way, then carry on
+      // engage: stop to fight anything met on the way, then carry on. Set to Stay still when attacked,
+      // it only stops for what it can hit from where it is, and never steps off its way to chase
+      const hold = reactOf(u) === 'hold', reach = (e: Ent | null) => !hold || !e || isWall(e.type) || edgeDist(u, e) <= weaponReach(u);
       let t = valid(o.sub);
+      if (t && !reach(t)) { t = null; o.sub = null; u.path = null; }
       if (!t && o.sub) { o.sub = null; u.path = null; u.scan = 0; } // it fell: look for the next one now
       u.scan -= dt;
       if (u.scan <= 0) {
         u.scan = 0.3;
         // fight back against whoever is attacking first, and armed enemies before buildings; a wall
         // only if it was sent to one, once it's close
-        const b = t ? betterTarget(u, t, lookRange(u)) : attacker(u) ?? acquire(u, lookRange(u)) ?? sentToWall(u, o.gx, o.gy, d.sight);
-        if (b) { t = b; o.sub = b.id; u.path = null; }
+        const look = hold ? weaponReach(u) / TS : lookRange(u), atk = attacker(u);
+        const b = t ? betterTarget(u, t, look) : (reach(atk) ? atk : null) ?? acquire(u, look) ?? sentToWall(u, o.gx, o.gy, d.sight);
+        if (b && reach(b)) { t = b; o.sub = b.id; u.path = null; }
       }
       if (t) {
         if (!combatStep(u, t, dt)) { o.sub = null; u.path = null; }
